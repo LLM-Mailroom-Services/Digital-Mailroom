@@ -52,15 +52,28 @@ def _resolve_fixture_path(row: dict[str, Any], default: Path) -> Path:
 
     alt = repo_root() / path
     return alt if alt.is_file() else default
-    if row.get("text"):
-        return str(row["text"])
+
+
+def _doc_text(row: dict[str, Any]) -> str:
+    """Resolve the document text for a live agent call (live-or-loud).
+
+    Prepared corpus rows carry ``doc_text`` (the blind ``default`` config
+    column); fixture rows may carry ``text`` inline or fall back to the
+    fixture file on disk. A row with no resolvable document RAISES — a live
+    eval must never call a model on an empty document and score the result.
+    """
+    for key in ("doc_text", "text"):
+        value = row.get(key)
+        if value:
+            return str(value)
     try:
         path = fixture_file(row)
-        if path.is_file():
-            return path.read_text(encoding="utf-8")
     except Exception:
-        pass
-    return ""
+        path = None
+    if path is not None and path.is_file():
+        return path.read_text(encoding="utf-8")
+    ident = row.get("id") or row.get("filename") or "<unknown>"
+    raise ValueError(f"live eval row {ident!r} has no document text (doc_text/text/file)")
 
 
 def _manifest_for_class(doc_class: str) -> list[dict[str, Any]]:

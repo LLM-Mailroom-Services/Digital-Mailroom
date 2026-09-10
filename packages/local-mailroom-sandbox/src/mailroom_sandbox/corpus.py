@@ -150,20 +150,30 @@ def normalize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             content_sha = sha256_text(text)
         expected_fields = row.get("expected_fields")
         if isinstance(expected_fields, str):
-            expected_fields = {}
-        out.append(
-            {
-                "id": str(row.get("id") or row.get("document_id") or row.get("filename")),
-                "filename": str(row.get("filename") or row.get("id")),
-                "doc_text": text,
-                "expected_doc_class": doc_class,
-                "expected_subclass": row.get("expected_subclass"),
-                "expected_fields": dict(expected_fields or {}),
-                "content_sha256": content_sha,
-                "split": row.get("split", ""),
-                "source_revision": row.get("source_revision", ""),
-            }
-        )
+            # Same parser discipline as datasets.parse_expected_fields — a JSON
+            # string is decoded, never silently flattened to {} (DMR-049).
+            try:
+                expected_fields = json.loads(expected_fields) if expected_fields.strip() else {}
+            except json.JSONDecodeError:
+                expected_fields = {}
+        normalized = {
+            "id": str(row.get("id") or row.get("document_id") or row.get("filename")),
+            "filename": str(row.get("filename") or row.get("id")),
+            "doc_text": text,
+            "expected_doc_class": doc_class,
+            "expected_subclass": row.get("expected_subclass"),
+            "expected_stage": row.get("expected_stage"),
+            "expected_fields": dict(expected_fields or {}),
+            "content_sha256": content_sha,
+            "split": row.get("split", ""),
+            "source_revision": row.get("source_revision", ""),
+        }
+        # LegalBench-style rows keep their question/answer for the live path.
+        if row.get("question") is not None:
+            normalized["question"] = row.get("question")
+        if row.get("answer") is not None:
+            normalized["answer"] = row.get("answer")
+        out.append(normalized)
     return out
 
 

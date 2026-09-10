@@ -101,10 +101,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(handler=_cmd_hf_pilot)
 
     p = sub.add_parser("legalbench", help="LegalBench Yes/No fixture harness", parents=[shared])
-    p.add_argument("--task", default="contract_qa")
+    p.add_argument("--task", default="contract_qa", choices=("contract_qa", "family_classification"))
     p.add_argument("--mock", action="store_true")
     p.add_argument("--local", action="store_true")
-    p.add_argument("--n", type=int, default=None)
+    p.add_argument("--n", type=int, default=None, help="seeded sample size (never first-N)")
+    p.add_argument("--seed", type=int, default=42, help="sample seed (recorded in the experiment log)")
+    p.add_argument("--suite", action="store_true", help="use the vendored llm-mailroom suite (needs data/cuad)")
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(handler=_cmd_legalbench)
 
@@ -464,11 +466,17 @@ def _cmd_legalbench(args: argparse.Namespace) -> int:
     from mailroom_sandbox.eval.runners import run_legalbench_eval
 
     mock = args.mock or not args.local
+    name = f"sandbox_legalbench_{args.task}"
+    if args.suite:
+        name += f"_n{args.n or 0}_s{args.seed}"
     result = run_legalbench_eval(
         mock=mock,
         sample=args.n,
+        seed=args.seed,
+        task=args.task,
+        suite=args.suite,
         dry_run=args.dry_run,
-        experiment_name=f"sandbox_legalbench_{args.task}",
+        experiment_name=name,
         profile=args.profile,
         model=args.model,
     )

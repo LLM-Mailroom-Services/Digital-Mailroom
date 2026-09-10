@@ -88,7 +88,11 @@ def test_legalbench_eval_mock(tmp_path, monkeypatch):
     monkeypatch.setattr(experiment_log, "jsonl_path", lambda: log)
     monkeypatch.setattr(experiment_log, "md_path", lambda: tmp_path / "experiment_log.md")
     result = runners.run_legalbench_eval(mock=True)
-    assert result["scores"]["exact_match"] == 1.0
+    # The mock is deterministic md5 parity, never a self-fulfilling 1.0 —
+    # a perfect mock would mask scoring defects (DMR-049 F8).
+    assert 0.0 <= result["scores"]["exact_match"] < 1.0
+    assert result["seed"] == 42
+    assert result["legalbench_task"] == "contract_qa"
 
 
 def test_matrix_dry_run():

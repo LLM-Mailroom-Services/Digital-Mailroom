@@ -172,6 +172,7 @@ def clean_legalbench_rows(
             {
                 "id": row_id,
                 "question": question,
+                "text": normalize_text(str(row.get("text") or row.get("document_text") or "")),
                 "answer": answer,
                 "task": row.get("task") or "contract_qa",
                 "char_count": len(question),

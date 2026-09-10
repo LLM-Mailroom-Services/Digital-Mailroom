@@ -23,6 +23,18 @@ PER_ITEM_TASKS = ("sorter", "legalbench")
 RUNNABLE_TASKS = PER_ITEM_TASKS + ("pipeline", "extract", "chained", "local_vs_api", "isolated")
 
 
+def _expected_for(task: str, row: dict[str, Any]) -> str:
+    """Ground-truth label for a row, by task.
+
+    LegalBench rows carry the label in ``answer`` (the corpus QA schema), not
+    ``expected_doc_class`` — reading the wrong field scored every legalbench
+    prediction as wrong (DMR-049 F1).
+    """
+    if task == "legalbench":
+        return str(row.get("answer") or row.get("expected") or "")
+    return str(row.get("expected_doc_class") or "")
+
+
 def _predict_row(task: str, row: dict[str, Any], *, mock: bool, model: str | None) -> tuple[Any, bool]:
     if task == "sorter":
         if mock:
@@ -31,9 +43,7 @@ def _predict_row(task: str, row: dict[str, Any], *, mock: bool, model: str | Non
         return (result.get("doc_type") or "unknown"), True
     if task == "legalbench":
         if mock:
-            blob = row.get("doc_text") or row.get("text") or ""
-            answer = "Yes" if int(hashlib.md5(blob.encode()).hexdigest()[:2], 16) % 2 else "No"
-            return answer, True
+            return eval_runners._mock_legalbench_answer(row), True
         return eval_runners._live_legalbench_answer(row, model=model), True
     raise ValueError(f"task {task!r} is not a per-item task in v1")
 
@@ -237,6 +247,18 @@ def run_job(
         store.append_event("done", "info", cursor=0)
         return {"state": "done", "cursor": 0, "total": 0, "ok": 0, "errors": 0}
 
+    if task == "legalbench":
+        missing = [
+            str(r.get("id") or r.get("filename") or i)
+            for i, r in enumerate(rows)
+            if not r.get("question") or r.get("answer") in (None, "")
+        ]
+        if missing:
+            raise ValueError(
+                f"legalbench rows require question+answer (missing on {len(missing)} row(s), "
+                f"e.g. {missing[:3]}) — this dataset is not a legalbench subset (DMR-049 F6)"
+            )
+
     cursor = store.resume_cursor()
     total = len(rows)
 
@@ -248,7 +270,7 @@ def run_job(
     expected: list[str] = []
     predicted: list[str] = []
     for index, row in enumerate(rows):
-        expected.append(str(row.get("expected_doc_class") or ""))
+        expected.append(_expected_for(task, row))
         done = completed.get(index)
         if done is not None:
             predicted.append(str(done.get("predicted") or ""))
@@ -291,7 +313,7 @@ def run_job(
             {
                 "item_id": item_id,
                 "index": index,
-                "expected": row.get("expected_doc_class"),
+                "expected": _expected_for(task, row),
                 "predicted": predicted[index],
                 "ok": ok,
                 "error": error,

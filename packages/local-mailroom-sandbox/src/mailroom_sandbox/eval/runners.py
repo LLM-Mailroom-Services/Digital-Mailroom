@@ -10,10 +10,12 @@ from typing import Any
 from unittest.mock import patch
 
 from mailroom_sandbox.datasets import (
+    LEGALBENCH_TASKS,
     dataset_fingerprint,
     fixture_file,
     load_hf_fixtures,
     load_legalbench_fixtures,
+    load_legalbench_suite_rows,
     load_manifest,
     parse_expected_fields,
 )
@@ -46,14 +48,17 @@ def _classify_mock(row: dict[str, Any]) -> str:
 
 
 def _predict_spec(spec, row: dict[str, Any], *, mock: bool) -> tuple[dict[str, Any], bool]:
+    """Predict one row; ``fell_back`` is True only when NO live fn exists.
+
+    Live-or-loud (DMR-044): a live-configured eval never degrades to the mock
+    predictor on error — the exception propagates and the caller records it as
+    an item error instead of silently scoring a mock prediction.
+    """
     if mock:
         return spec.mock_predict(row), False
     if spec.live_predict is None:
         return spec.mock_predict(row), True
-    try:
-        return spec.live_predict(row), False
-    except Exception:
-        return spec.mock_predict(row), True
+    return spec.live_predict(row), False
 
 
 def run_isolated_eval(
@@ -99,22 +104,31 @@ def run_isolated_eval(
     matches: list[float] = []
     per_row: list[dict[str, Any]] = []
     offline = 0
+    errors = 0
     for row in rows:
         seed = str(row.get("id") or row.get("filename") or task)
-        with tracing.document_pipeline_trace(
-            seed=seed,
-            session_id=session,
-            input={"filename": row.get("filename") or row.get("id"), "matter_id": f"SANDBOX-{row.get('id')}"},
-            metadata={"pipeline": "mailroom", "source": "sandbox-fixtures", "run_id": experiment_name, "attempt": 1},
-            tags=tracing.default_tags("source-fixtures", f"agent-{task}"),
-        ):
-            with tracing.child_observation(
-                spec.observation,
-                as_type=tracing.observation_type_for(spec.observation),
-                input=tracing.public_ground_truth(row),
+        error: str | None = None
+        pred: dict[str, Any] = {}
+        scored: dict[str, Any] = {}
+        fell_back = False
+        try:
+            with tracing.document_pipeline_trace(
+                seed=seed,
+                session_id=session,
+                input={"filename": row.get("filename") or row.get("id"), "matter_id": f"SANDBOX-{row.get('id')}"},
+                metadata={"pipeline": "mailroom", "source": "sandbox-fixtures", "run_id": experiment_name, "attempt": 1},
+                tags=tracing.default_tags("source-fixtures", f"agent-{task}"),
             ):
-                pred, fell_back = _predict_spec(spec, row, mock=mock)
-            scored = spec.score_one(row, pred)
+                with tracing.child_observation(
+                    spec.observation,
+                    as_type=tracing.observation_type_for(spec.observation),
+                    input=tracing.public_ground_truth(row),
+                ):
+                    pred, fell_back = _predict_spec(spec, row, mock=mock)
+                scored = spec.score_one(row, pred)
+        except Exception as exc:  # noqa: BLE001 — recorded as an item error, never a silent mock
+            error = f"{type(exc).__name__}: {str(exc)[:300]}"
+            errors += 1
         if fell_back:
             offline += 1
         match = scored.get("match")
@@ -122,9 +136,16 @@ def run_isolated_eval(
             match = scored.get("overall_extraction_score") or 0.0
         if isinstance(match, (int, float)):
             matches.append(float(match))
-        per_row.append({"id": row.get("id"), "pred": pred, "score": scored, "offline_fallback": fell_back})
+        per_row.append(
+            {"id": row.get("id"), "pred": pred, "score": scored, "offline_fallback": fell_back, "error": error}
+        )
+    if rows and errors == len(rows):
+        raise RuntimeError(
+            f"live eval {task!r}: all {len(rows)} row(s) failed — the live path was not "
+            f"exercised (last error: {per_row[-1].get('error')})"
+        )
     mean = scoring.mean_or_zero(matches)
-    scores = {"exact_match": mean, "n": len(rows), "offline_fallback": offline}
+    scores = {"exact_match": mean, "n": len(rows), "offline_fallback": offline, "error_count": errors}
     if per_row and "overall_extraction_score" in (per_row[0].get("score") or {}):
         scores["overall_extraction_score"] = mean
     tracing.emit_langfuse_score("class_correct" if spec.observation == "classify-document" else "stage_completed", mean)
@@ -302,28 +323,98 @@ def run_chained_eval(**kwargs: Any) -> dict[str, Any]:
     return {"task": "chained", "scores": scores, "sorter": sorter, "extract": extract}
 
 
+def _seeded_sample(rows: list[dict[str, Any]], sample: int, seed: int) -> list[dict[str, Any]]:
+    """Deterministic seeded sample over a canonical sort (never first-N)."""
+    import random
+
+    ordered = sorted(rows, key=lambda r: str(r.get("id") or r.get("filename") or ""))
+    if sample >= len(ordered):
+        return ordered
+    return random.Random(seed).sample(ordered, k=sample)
+
+
+def _mock_legalbench_answer(row: dict[str, Any]) -> str:
+    """Deterministic mock answer (md5 parity), shared by every mock path.
+
+    A mock must exercise the scoring machinery without being self-fulfilling:
+    predicting the expected answer would pin every mock run to 1.0 and mask
+    scoring defects (DMR-049 F8).
+    """
+    import hashlib
+
+    blob = str(row.get("doc_text") or row.get("text") or row.get("document_text") or "")
+    return "Yes" if int(hashlib.md5(blob.encode()).hexdigest()[:2], 16) % 2 else "No"
+
+
 def run_legalbench_eval(
     *,
     mock: bool = True,
     sample: int | None = None,
+    seed: int = 42,
+    task: str = "contract_qa",
+    suite: bool = False,
     dry_run: bool = False,
     experiment_name: str | None = None,
     profile: str | None = None,
     model: str | None = None,
     agent_models: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    rows = load_legalbench_fixtures()
-    if sample:
-        rows = rows[: sample]
-    plan = {"task": "legalbench", "n": len(rows), "mock": mock}
+    """Run the LegalBench harness (binary QA / family classification).
+
+    ``suite=True`` loads a seeded subset from the vendored llm-mailroom suite
+    (the real CUAD corpora — loud failure when unavailable); the default is
+    the committed offline fixture. ``sample`` is a seeded draw, never
+    first-N, and the seed lands in the plan/record (DMR-049 F5).
+    """
+    if task not in LEGALBENCH_TASKS:
+        raise ValueError(f"unknown legalbench task {task!r}; have {sorted(LEGALBENCH_TASKS)}")
+    if task == "family_classification":
+        raise ValueError(
+            "family_classification is not wired into the sandbox harness (no fixture and no "
+            "family prompt) — run it from llm-mailroom's legalbench CLI: "
+            "`PYTHONPATH=src python -m legalbench.cli --task family_classification`"
+        )
+    if suite:
+        if not sample:
+            raise ValueError("suite runs need an explicit --n/--sample (the full corpus is not a smoke run)")
+        rows = load_legalbench_suite_rows(task, sample=sample, seed=seed)
+    else:
+        rows = load_legalbench_fixtures(task=task)
+        if sample:
+            rows = _seeded_sample(rows, sample, seed)
+    if not rows:
+        raise ValueError(
+            f"legalbench task {task!r} produced no samples"
+            + ("" if suite else " from the committed fixture — try --suite for the real corpus")
+        )
+    plan = {
+        "task": "legalbench",
+        "legalbench_task": task,
+        "n": len(rows),
+        "mock": mock,
+        "seed": seed,
+        "suite": suite,
+    }
     if dry_run:
         return plan
     activation = activate(profile, model=model, agent_models=agent_models)
     expected = [str(r.get("answer") or r.get("expected") or "") for r in rows]
+    errors: list[dict[str, Any]] = []
     if mock:
-        predicted = list(expected)
+        predicted = [_mock_legalbench_answer(r) for r in rows]
     else:
-        predicted = [_live_legalbench_answer(r, model=model) for r in rows]
+        predicted = []
+        for row in rows:
+            try:
+                predicted.append(_live_legalbench_answer(row, model=model))
+            except Exception as exc:  # noqa: BLE001 — recorded per row, not fatal per row
+                predicted.append("")
+                errors.append({"id": row.get("id"), "error": f"{type(exc).__name__}: {str(exc)[:300]}"})
+        if len(errors) == len(rows):
+            raise RuntimeError(
+                f"legalbench task {task!r}: all {len(rows)} row(s) failed — the live path was "
+                f"not exercised (last error: {errors[-1]['error']})"
+            )
     session = tracing.session_id_for("legalbench")
     for row, pred in zip(rows, predicted):
         with tracing.document_pipeline_trace(
@@ -337,13 +428,17 @@ def run_legalbench_eval(
                 pass
     tracing.flush_traces()
     scores = scoring.score_legalbench(expected, predicted)
+    if errors:
+        scores["error_count"] = len(errors)
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_legalbench",
         task="legalbench",
+        legalbench_task=task,
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
-        model=model,
+        model="mock/mock-legalbench" if mock else model,
         mock=mock,
+        seed=seed,
         n=len(rows),
         scores=scores,
         tracing_backend=tracing.tracing_backend(),
@@ -584,6 +679,39 @@ def _langchain_mock_patches(expect: dict[str, Any]) -> list:
     return [patch.object(lc_base.BaseAgent, "llm", new=lambda self: fake)]
 
 
+_TEXT_SUFFIXES = (".txt", ".md", ".json", ".csv", ".eml", ".html", ".htm")
+
+
+def _doc_source_name(row: dict[str, Any]) -> str:
+    """Filename for a row's document in the inbox (fixture or prepared row)."""
+    filename = str(row.get("filename") or "").strip()
+    if filename:
+        return Path(filename).name
+    ident = str(row.get("id") or "doc").strip() or "doc"
+    return f"{ident}.txt"
+
+
+def _materialize_row(row: dict[str, Any], inbox: Path) -> Path:
+    """Place the row's document in the inbox and return the queued path.
+
+    Fixture rows resolve to their file on disk (copied in); prepared corpus
+    rows carry ``doc_text`` inline and are written as a text document. A row
+    with neither raises — a live run never scores a missing document.
+    """
+    import shutil
+
+    queued = inbox / _doc_source_name(row)
+    doc_text = row.get("doc_text") or row.get("text")
+    if doc_text:
+        if queued.suffix.lower() not in _TEXT_SUFFIXES:
+            queued = queued.with_suffix(".txt")
+        queued.write_text(str(doc_text), encoding="utf-8")
+        return queued
+    source = fixture_file(row)  # KeyError when subdir/filename are absent — live-or-loud
+    shutil.copyfile(source, queued)
+    return queued
+
+
 def _run_pipeline_doc(
     row: dict[str, Any],
     *,
@@ -591,9 +719,16 @@ def _run_pipeline_doc(
     session_id: str | None = None,
     experiment_name: str | None = None,
 ) -> dict[str, Any]:
-    """Run one fixture through mailroom ``run_pipeline`` when available."""
+    """Run one row through mailroom ``run_pipeline`` when available.
+
+    Rows may be fixture rows (file on disk) or prepared corpus rows
+    (``doc_text`` inline — the DMR-027 job path); both are materialized into
+    the inbox before the run. When the mailroom import fails a LIVE run
+    raises (live-or-loud, DMR-044) instead of returning a mock-shaped
+    fallback; mock runs keep the deterministic fallback.
+    """
     src = resolve_mailroom_src()
-    path = fixture_file(row)
+    name = _doc_source_name(row)
     expect = _expect_from_row(row)
     public_gt = tracing.public_ground_truth(row)
     fallback = {
@@ -606,11 +741,16 @@ def _run_pipeline_doc(
     try:
         from graph.build_graph import run_pipeline  # type: ignore
         from pipeline.bins import inbox_dir  # type: ignore
-    except Exception:
+    except Exception as exc:
+        if not mock:
+            raise RuntimeError(
+                "mailroom pipeline is not importable (vendored llm-mailroom missing) — "
+                "a live run would silently mock; run `sandbox fetch-deps` or use --mock"
+            ) from exc
         with tracing.document_pipeline_trace(
-            seed=str(row.get("id") or path.name),
+            seed=str(row.get("id") or name),
             session_id=session_id or tracing.session_id_for("pipeline"),
-            input={"filename": path.name, "matter_id": f"SANDBOX-{row.get('id')}", **public_gt},
+            input={"filename": name, "matter_id": f"SANDBOX-{row.get('id')}", **public_gt},
             metadata={"pipeline": "mailroom", "source": "sandbox-fixtures", "run_id": experiment_name, "attempt": 1},
             tags=tracing.default_tags("source-fixtures"),
         ):
@@ -618,15 +758,12 @@ def _run_pipeline_doc(
                 pass
         return fallback
 
-    import shutil
-
     inbox = inbox_dir()
     inbox.mkdir(parents=True, exist_ok=True)
-    queued = inbox / path.name
-    shutil.copyfile(path, queued)
+    queued = _materialize_row(row, inbox)
     matter_id = f"SANDBOX-{row.get('id')}"
     # Mailroom strips expected_fields before the trace; keep it for in-graph scoring.
-    gt = {**public_gt, "expected_doc_class": row["expected_doc_class"]}
+    gt = {**public_gt, "expected_doc_class": str(row.get("expected_doc_class") or "")}
     fields = parse_expected_fields(row)
     if fields:
         gt["expected_fields"] = fields
@@ -663,19 +800,48 @@ def _run_pipeline_doc(
     }
 
 
+def _live_serve_target() -> tuple[str, str]:
+    """(base_url, model) for a direct live call, following the active provider.
+
+    ``DEFAULT_PROVIDER`` picks the family; the fallback model matches the
+    profile default (``Qwen/Qwen3-8B`` for vLLM, ``qwen3:8b`` for Ollama) so a
+    served vLLM never 404s on the Ollama tag.
+    """
+    provider = (os.environ.get("DEFAULT_PROVIDER") or "").strip().lower()
+    if provider == "vllm":
+        return (
+            os.environ.get("VLLM_BASE_URL") or "http://localhost:8000/v1",
+            os.environ.get("VLLM_MODEL") or "Qwen/Qwen3-8B",
+        )
+    if provider == "ollama":
+        return (
+            os.environ.get("OLLAMA_BASE_URL") or "http://localhost:11434/v1",
+            "qwen3:8b",
+        )
+    return (
+        os.environ.get("OLLAMA_BASE_URL")
+        or os.environ.get("VLLM_BASE_URL")
+        or "http://localhost:11434/v1",
+        "qwen3:8b",
+    )
+
+
 def _live_legalbench_answer(row: dict[str, Any], *, model: str | None) -> str:
     try:
         from openai import OpenAI
-    except Exception:
-        return str(row.get("answer") or "")
-    base = os.environ.get("OLLAMA_BASE_URL") or os.environ.get("VLLM_BASE_URL") or "http://localhost:11434/v1"
+    except Exception as exc:
+        raise RuntimeError(
+            "openai is not installed — a live legalbench run would silently "
+            "score the expected answer; install the eval extras or use --mock"
+        ) from exc
+    base, fallback_model = _live_serve_target()
     client = OpenAI(base_url=base, api_key=os.environ.get("VLLM_API_KEY") or "not-needed")
     prompt = (
         f"Answer Yes or No only. json required.\nQuestion: {row.get('question')}\n"
-        f"Passage: {row.get('text') or row.get('passage')}\n"
+        f"Passage: {row.get('doc_text') or row.get('text') or row.get('passage') or row.get('document_text')}\n"
     )
     resp = client.chat.completions.create(
-        model=model or os.environ.get("SANDBOX_MODEL") or "qwen3:8b",
+        model=model or os.environ.get("SANDBOX_MODEL") or fallback_model,
         messages=[
             {"role": "system", "content": "Return json {\"answer\": \"Yes\" or \"No\"}."},
             {"role": "user", "content": prompt},

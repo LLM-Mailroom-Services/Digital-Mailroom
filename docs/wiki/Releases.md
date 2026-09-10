@@ -27,7 +27,7 @@ Semantic Versioning chain:
 
   ```bash
   python scripts/release_chain.py cut X.Y.Z --apply --tag   # stamps section + bumps pyproject + tags
-  git push origin main vX.Y.Z                               # the commit (with its HUB-0NN reference), then the tag
+  git push origin main vX.Y.Z                               # the commit (with its DMR-0NN reference), then the tag
   python scripts/release_notes.py X.Y.Z --title "<epoch>" --out release-notes-vX.Y.Z.md
   gh release create vX.Y.Z --title "Mailroom Hub vX.Y.Z — <epoch>" --notes-file release-notes-vX.Y.Z.md
   ```

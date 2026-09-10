@@ -16,6 +16,7 @@ The board is also served live at **https://digital-mailroom-theta.vercel.app**
 - [[Getting-Started]] — workspace setup, suites, offline sandbox quickstart
 - [[Architecture]] — every repository, with direct links + GitHub Pages sites
 - [[Board-Governance]] — the task board, its laws, and the tooling that keeps it honest
+- [[Subagents]] — the specialist roster (data, HF, prompts, docs, UI, systems, vLLM, Modal) and the rules that make it work
 - [[Served-Board]] — the live Vercel dispatch-board site, its API + deploy
 - [[Sub-Package-Sync]] — the current-only sync doctrine and the sync driver
 - [[HF-Corpus]] — the mailroom-corpus corpus family and its EDA pipeline
@@ -31,6 +32,7 @@ The board is also served live at **https://digital-mailroom-theta.vercel.app**
 | Task board | [`governance/TASKS.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/governance/TASKS.md) — machine-readable via `scripts/board_state.py` |
 | Served board | [digital-mailroom-theta.vercel.app](https://digital-mailroom-theta.vercel.app) — live, issue-backed ([[Served-Board]]) |
 | Conventions | [`AGENTS.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/AGENTS.md) — read first, every session |
+| Subagents | 10-specialty roster ([[Subagents]]) — project agents under `.opencode/agents/` |
 | Packages | 10 (6 built + 4 virtual members) |
 | Python | 3.11+ (workspace `requires-python >= 3.11`) |
 | Family pins | llm-mailroom **v0.6.0** · llm-dojo-scoring **v0.12.2** · llm-entity-extraction **v0.20.0** |

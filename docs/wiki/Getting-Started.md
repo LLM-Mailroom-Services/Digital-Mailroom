@@ -67,3 +67,11 @@ edit cards in a browser (issue-backed, auto-updating). Site edits write
 issues, not TASKS.md: run `python scripts/board_state.py pull-issues
 --apply` afterward to pull lane moves back into the canonical board
 ([[Served-Board]]).
+
+## Specialist subagents
+
+Every specialty has a dedicated subagent (data/HF, prompts, docs/board, UI,
+systems, vLLM, Modal) — invoke it through the Task tool rather than
+improvising outside your expertise. The roster, the project agent files
+under `.opencode/agents/`, and the rules (one specialist per concern, brief
+like a card, the caller owns the work) are in [[Subagents]].

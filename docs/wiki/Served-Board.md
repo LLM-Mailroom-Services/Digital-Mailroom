@@ -19,6 +19,10 @@ are reconciled by the `board_state.py` legs (see below).
   needs-attention → done/archive), plus priority, agents, and date, fetched
   from every issue labeled `kanban` (open + closed).
 - A **LIVE / OFFLINE badge** reflecting whether the board API is reachable.
+- A **cross-board switcher** (`board-tabs`, DMR-005): the `DMR Board` chip is
+  active and `HUB Board ↗` links to the predecessor's served board
+  (https://mailroom-dev.vercel.app) — the HUB board carries the mirrored
+  `DMR Board ↗` link back.
 - **Drag/move + edit + new-card + archive UI**, filters and stats, and a
   delete → close (archive) interaction.
 - Local storage is demoted to **preferences + operator identity** — the
@@ -85,6 +89,14 @@ The UI PATCHes on every move/save. Only the changed keys need to be sent:
 Operator identity rides the `X-Mailroom-Actor` header (bounded to 60 chars)
 and is recorded on lane-move comments.
 
+### Create — `POST /api/board`
+
+Creates a new card as a `kanban` issue (title + body sections + labels), so
+the site can spawn a card without leaving the board. The write path is proven
+end-to-end: DMR-007 was created through `POST /api/board`, landed as a kanban
+issue in this repo, displayed live, and its lane was corrected through the
+PATCH leg.
+
 ## Body sections are the data store
 
 The served board renders **only** from the issue's body sections (never a
@@ -127,6 +139,13 @@ Deploying from inside `board-site/` **with the Root Directory set** fails
 ("The specified Root Directory 'board-site' does not exist") because the
 setting is applied on top of the uploaded tree — deploy from the repo root
 (above) instead.
+
+**Only two Vercel projects back the boards (DMR-007):** `digital-mailroom`
+(this repo's board) and `mailroom-dev` (the predecessor's board). The
+duplicate `board-site` project (`board-site-gamma.vercel.app`, linked to the
+predecessor with Root Directory unset) was deleted — do not recreate it;
+this repo's deploy root is the `board-site/` directory inside
+`digital-mailroom`.
 
 **Pin the production alias after every deploy.** The HUB-059 lesson (a
 parallel `--prod` deploy hijacking the shared alias) still applies; the

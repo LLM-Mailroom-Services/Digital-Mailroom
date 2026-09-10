@@ -77,9 +77,13 @@ Digital-Mailroom/
 ├── board-site/                  # served Kanban dispatch board (Vercel deploy root)
 ├── scripts/                     # sync_packages.py, board_state.py, github_labels.py, release_chain.py
 ├── .github/                     # YAML issue/PR templates, labels.json, CI workflow
+├── .opencode/agents/            # specialist subagent roster (see [[Subagents]])
 ├── docs/wiki/                   # THIS wiki (version-controlled; sync-wiki.sh)
 └── packages/                    # one directory per standalone repo (git subtree)
 ```
+
+The specialist subagent roster (Task tool) and its rules are documented in
+[[Subagents]].
 
 Heavy assets (docs demos/screenshots, example PDFs, report archives) are
 pruned from the monorepo; the exceptions are the corpus-eda EDA

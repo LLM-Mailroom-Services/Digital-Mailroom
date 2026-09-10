@@ -4,6 +4,7 @@
 - [[Getting-Started]]
 - [[Architecture]]
 - [[Board-Governance]]
+- [[Subagents]]
 - [[Served-Board]]
 - [[Sub-Package-Sync]]
 - [[HF-Corpus]]

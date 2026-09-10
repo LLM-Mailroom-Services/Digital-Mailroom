@@ -49,7 +49,7 @@ done
 cd "$WIKI_TMP"
 if [[ -n "$(git status --porcelain)" ]]; then
     git add -A
-    git commit -q -m "DMR-002: sync wiki from Digital-Mailroom docs/wiki/ ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+    git commit -q -m "${WIKI_CARD:-docs}: sync wiki from Digital-Mailroom docs/wiki/ ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
     git push --quiet origin master
     echo "pushed $copied page(s) to the wiki"
 else

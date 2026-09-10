@@ -1,7 +1,7 @@
 # HF corpus — mailroom-corpus
 
 The corpus family is published on the
-[Lucus-Morningstar HF org](https://huggingface.co/Lucius-Morningstar) via
+[Lucius-Morningstar HF org](https://huggingface.co/Lucius-Morningstar) via
 the **centralized** helpers in
 `packages/mailroom-corpus-eda/src/mailroom_eda/` — never ad-hoc upload code.
 

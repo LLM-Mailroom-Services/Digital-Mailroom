@@ -74,7 +74,7 @@ push this file's truth into the issues.
 
 | Card | Status | Task | Owner | Issue | Evidence |
 |---|---|---|---|---|---|
-| — | — | _No open cards — the DMR board's current epoch is delivered. New work spawns its own card._ | — | — | — |
+| DMR-009 | `in_progress` | Repo hygiene + docs: prune all dead branches (merged/superseded, incl. stale HUB-era + gh-pages), land the residual Speed Insights lockfile delta, and publish the wiki with the specialist subagent roster + board configs | opencode (deepseek-v4-flash-vision-exp) 2026-09-09 | [#13](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/13) | — |
 
 ## Rules that keep the board honest
 

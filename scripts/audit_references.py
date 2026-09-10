@@ -11,8 +11,9 @@ intentionally NOT migrated —
   * ``governance/TASKS.md`` / ``AGENTS.md`` — HUB-era lineage and archive;
   * ``CHANGELOG.md`` — historical entries (but its link-definition footer MUST
     use the new repo; that rule overrides the allowlist);
-  * ``board-site/index.html`` — the cross-board switcher links the original
-    HUB board on purpose;
+  * ``board-site/index.html`` / ``docs/wiki/Board-Governance.md`` /
+    ``docs/wiki/Served-Board.md`` — the cross-board switcher (and its
+    documentation) links the original HUB board on purpose;
   * ``scripts/apply_hub064_board.py`` — a historical one-off migration script;
   * ``docs/reports/audits/org_migration_audit.*`` — the audit report itself.
 
@@ -61,6 +62,8 @@ ALLOWLIST = {
         "governance/TASKS.md",
         "CHANGELOG.md",
         "board-site/index.html",
+        "docs/wiki/Board-Governance.md",
+        "docs/wiki/Served-Board.md",
         "scripts/audit_references.py",
         "docs/reports/audits/org_migration_audit.*",
     ],

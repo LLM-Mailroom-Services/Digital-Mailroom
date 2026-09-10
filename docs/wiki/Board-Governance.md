@@ -19,8 +19,8 @@ any task. Package-scoped work keeps its own board (e.g.
 - **Claim before edit** — one owner per card; claim = lane + Owner name + date.
 - **Update, don't duplicate** — work touching an existing card's scope updates that card; discovered-but-undelivered work spawns its own card before the parent closes.
 - **No silent completion** — `done` requires green suites for touched packages, clean `git status` for the card's scope, Evidence naming the commit(s), and (for synced cards) the GitHub issue closed in the same commit. An agent is NOT done until its card says so.
-- **Commit discipline** — reference cards: `HUB-0NN: <summary>` (or `HUB-0NN claimed/reopened` in the body). **Targeted staging (HUB-029):** `git add <explicit paths>` only — never `git add .` / `-A` / a bare directory; this is a shared checkout, so re-check `git status --porcelain` before every commit and unstage anything you don't own (HUB-024/HUB-027 sweep incidents).
-- **Issues vs board** — small/single-session/low-risk cards are board-only; critical or cross-package cards get an issue via the *Board card (HUB-0NN)* template, linked both ways, lane moves mirrored as issue comments, closed in the same commit that archives the card.
+- **Commit discipline** — reference cards: `DMR-0NN: <summary>` (or `DMR-0NN claimed/reopened` in the body). **Targeted staging (HUB-029):** `git add <explicit paths>` only — never `git add .` / `-A` / a bare directory; this is a shared checkout, so re-check `git status --porcelain` before every commit and unstage anything you don't own (HUB-024/HUB-027 sweep incidents).
+- **Issues vs board** — small/single-session/low-risk cards are board-only; critical or cross-package cards get an issue via the *Board card (DMR-0NN)* template, linked both ways, lane moves mirrored as issue comments, closed in the same commit that archives the card.
 
 ## The tracker (machine-readable board state)
 
@@ -29,7 +29,7 @@ board's own laws, and mirrors lane state onto GitHub:
 
 ```bash
 python scripts/board_state.py status                # snapshot (--json for machines)
-python scripts/board_state.py card HUB-014          # one card + commits referencing it
+python scripts/board_state.py card DMR-009          # one card + commits referencing it
 python scripts/board_state.py check                 # invariants; exit 1 on structural errors
 python scripts/board_state.py check --with-issues   # + verify synced issues/labels via gh
 python scripts/board_state.py sync-issues --apply   # push board-derived labels onto issues
@@ -53,7 +53,7 @@ are the store, which makes the site auto-updating + shared:
   `kanban` and normalizes each to a board card (id from title/body, lane
   from `stage/*`, priority from `priority/*`, desc/evidence from the
   `### Task` / `### Evidence plan` body sections, archived = closed).
-- **Write:** the UI PATCHes `/api/board/HUB-0NN` on every move/save. Lane
+- **Write:** the UI PATCHes `/api/board/DMR-0NN` on every move/save. Lane
   moves swap the `stage/*` label and post a dated "Board lane move"
   comment (the mirror law); priority swaps, body-section rewrites, and
   assignee changes PATCH the issue; archive = close, restore = reopen.
@@ -69,6 +69,14 @@ are the store, which makes the site auto-updating + shared:
   so every board card needs a synced issue (one card = one issue, `kanban`
   + `stage/*` + `priority/*` + `domain/*` labels) opened from the
   `hub_card.yml` template, or it won't appear on the served board.
+- **Cross-board tabs (DMR-005):** both served boards carry a `board-tabs`
+  switcher — this board links out to the HUB board
+  (https://mailroom-dev.vercel.app), and the HUB board links back to
+  https://digital-mailroom-theta.vercel.app.
+- **Project hygiene (DMR-007):** only two Vercel projects back the boards —
+  `digital-mailroom` (this repo) and `mailroom-dev` (the predecessor); the
+  duplicate `board-site` project was deleted. New cards can be created
+  through `POST /api/board` (write-path proven by DMR-007).
 
 `check` **errors** are structural contradictions (duplicate IDs, invalid
 lanes, malformed issue links, missing attention tags, phantom commit
@@ -99,7 +107,7 @@ reports drift (CI-gated). Groups:
 | Type | `type/bug` · `type/feature` · `type/task` · `type/docs` · `type/governance` · `type/release` · `type/sync` |
 | Priority | `priority/critical` · `priority/high` · `priority/medium` · `priority/low` |
 | Domain | `domain/hub` · `domain/governance` · `domain/tooling` · `domain/<package>` × 10 |
-| Sync marker | `kanban` (this issue mirrors a HUB-0NN card) |
+| Sync marker | `kanban` (this issue mirrors a DMR-0NN card) |
 
 Issue forms live in `.github/ISSUE_TEMPLATE/` (board card, bug, feature,
 task/TODO); the PR form (`.github/PULL_REQUEST_TEMPLATE/pull_request.yml`)

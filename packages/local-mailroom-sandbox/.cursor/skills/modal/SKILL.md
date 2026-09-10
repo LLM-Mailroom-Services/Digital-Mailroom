@@ -59,6 +59,7 @@ Compose for Modal profile only starts **langfuse** (no local vLLM container).
 | `MODAL_VLLM_QUANTIZATION` | empty |
 | `MODAL_VLLM_IMAGE_TAG` | `v0.28.0` (pin; never `latest`) |
 | `MODAL_VLLM_REVISION` | empty (HF revision) |
+| `MODAL_VLLM_TP_SIZE` | from GPU `:N` suffix (1 single-GPU) — must match `MODAL_VLLM_GPU="A100-80GB:2"` for 70B-class |
 | `MODAL_VLLM_API_TOKEN` | empty (bearer) |
 | `HF_TOKEN` | optional Hub auth |
 | `MODAL_VLLM_SCALEDOWN_SECONDS` | `900` |

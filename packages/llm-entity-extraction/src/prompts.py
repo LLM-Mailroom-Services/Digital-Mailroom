@@ -930,6 +930,20 @@ SORTER_MAILROOM_PROMPT_V0 = SORTER_DOCCLASS_PROMPT_V7.replace(
 )
 
 # =============================================================================
+# SORTER AGENT — mailroom_prompts lineage (DMR-015, mailroom-corpus v8)
+# -----------------------------------------------------------------------------
+# The official classification-chain lineage for the renamed
+# Lucius-Morningstar/mailroom-corpus dataset (v8, six-token insurance subclass
+# set: carrier/pde/outpatient/inpatient + property/auto). Every agent in the
+# chain registers a ``{agent}_mailroom_prompts_v0`` key (see prompts_docclass.py
+# for the role/specialist variants). The sorter champion is content-identical
+# to sorter_mailroom_v0 (already 6-token); the vision surface gets its own
+# rule-40 extension defined after sorter_docclass_vision_v1 (below).
+# Frozen docclass_*/mailroom_* keys stay untouched.
+# =============================================================================
+SORTER_MAILROOM_PROMPTS_V0 = SORTER_MAILROOM_PROMPT_V0
+
+# =============================================================================
 # SORTER AGENT — Correspondence-only eval (KANBAN-103): v7 + sentiment
 # -----------------------------------------------------------------------------
 # All rows are Enron correspondence. The sorter still emits the hierarchical
@@ -1291,6 +1305,31 @@ If you wrote "none" for every check""",
     """Then output the doc_subclass on its own line — EXACTLY ONE of the rule-33 subclass keys when the label is merger_agreement or corporate_record, and the word null when the label is any other class:""",
     """Then output the doc_subclass on its own line — EXACTLY ONE of the applicable subclass keys when the label is merger_agreement, corporate_record, correspondence, or insurance_claim (rules 33/39/40), and the word null when the label is contract or any other class without a subclass dimension:""",
 )
+
+# =============================================================================
+# Vision sorter — v8 LOB subclass coverage (DMR-015, mailroom-corpus v8).
+# Extends rule 40 of the frozen sorter_docclass_vision_v1 with the two
+# LINE-OF-BUSINESS subclasses; everything else is byte-identical v1.
+# =============================================================================
+_SORTER_VISION_V2_RULE40 = (
+    "40. INSURANCE CLAIM SUBCLASS: when doc_type is insurance_claim, "
+    "doc_subclass is carrier, pde, outpatient, or inpatient — the setting "
+    "named in the document's own heading outranks the generic document family."
+)
+assert SORTER_DOCCLASS_VISION_PROMPT_V1.count(_SORTER_VISION_V2_RULE40) == 1, \
+    "anchor drift: vision sorter rule 40"
+SORTER_DOCCLASS_VISION_PROMPT_V2 = SORTER_DOCCLASS_VISION_PROMPT_V1.replace(
+    _SORTER_VISION_V2_RULE40,
+    _SORTER_VISION_V2_RULE40
+    + " The v8 corpus adds two LINE-OF-BUSINESS subclasses beyond the CMS file"
+      " types: property (property-line claim documentation — FNOL bundles naming"
+      " a loss event, adjuster estimates, coverage positions on buildings or"
+      " personal property) and auto (motor-line claim documentation — accident"
+      " FNOL, adjuster reports, coverage decision letters for a vehicle loss). A"
+      " property or vehicle loss document subclasses as property or auto —"
+      " 'carrier' stays reserved for payer/insurer-issued adjudication documents.",
+)
+SORTER_MAILROOM_PROMPTS_VISION_V0 = SORTER_DOCCLASS_VISION_PROMPT_V2
 
 
 # =============================================================================
@@ -3543,12 +3582,17 @@ PROMPT_VERSIONS = {
     "sorter_docclass_v6": SORTER_DOCCLASS_PROMPT_V6,
     "sorter_docclass_v7": SORTER_DOCCLASS_PROMPT_V7,
     "sorter_mailroom_v0": SORTER_MAILROOM_PROMPT_V0,
+    # mailroom_prompts lineage (DMR-015, mailroom-corpus v8): official
+    # six-token insurance subclass set for the renamed corpus.
+    "sorter_mailroom_prompts_v0": SORTER_MAILROOM_PROMPTS_V0,
     "sorter_docclass_correspondence_v0": SORTER_DOCCLASS_CORRESPONDENCE_PROMPT_V0,
     "sorter_docclass_correspondence_v1": SORTER_DOCCLASS_CORRESPONDENCE_PROMPT_V1,
     "sorter_docclass_correspondence_v2": SORTER_DOCCLASS_CORRESPONDENCE_PROMPT_V2,
     "sorter_docclass_correspondence_v3": SORTER_DOCCLASS_CORRESPONDENCE_PROMPT_V3,
     "sorter_docclass_vision_v0": SORTER_DOCCLASS_VISION_PROMPT_V0,
     "sorter_docclass_vision_v1": SORTER_DOCCLASS_VISION_PROMPT_V1,
+    "sorter_docclass_vision_v2": SORTER_DOCCLASS_VISION_PROMPT_V2,
+    "sorter_mailroom_prompts_vision_v0": SORTER_MAILROOM_PROMPTS_VISION_V0,
 
     # Sorter — vision (RVL-CDIP-style image classification)
     "sorter_vision_v0": SORTER_VISION_PROMPT_V0,

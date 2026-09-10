@@ -72,7 +72,12 @@ Rules that make the roster work:
   `customize-opencode` skill when a task matches its description, and the
   package-local `.cursor/skills/` (openrouter, ollama, modal, langfuse,
   apache-phoenix, braintrust, huggingface, langgraph, dojo-scoring,
-  legalbench) for provider/sink depth inside a package.
+  legalbench) for provider/sink depth inside a package. The monorepo-root
+  `.opencode/skills/` aggregates the 20 opencode-native skills mirrored from
+  mailroom-dev's package `.opencode/skills/` trees (langchain/langgraph,
+  langfuse, graphify, eval-engineering, hf-dataset-publish, openrouter-*,
+  braintrust) so agents at the repo root auto-discover them; package-level
+  copies stay the canonical source for in-package edits.
 - `PROMPT_ENGINEER_GEPA_PROVENANCE` is provenance documentation for the
   prompt-engineer agent — not a callable subagent.
 

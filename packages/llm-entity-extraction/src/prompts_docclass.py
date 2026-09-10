@@ -618,6 +618,17 @@ REVIEWER_DOCCLASS_PROMPT_V1 = REVIEWER_DOCCLASS_PROMPT_V0.replace(
     "Docclass variant: reviewer_docclass_v1 (KANBAN-101).",
 )
 
+# v2 reviewer extra — adds v8 LOB subclasses (property/auto) to the insurance
+# claim dimension (DMR-015). v0/v1 reviewer variants stay frozen.
+_REVIEWER_V2_EXTRA = _REVIEWER_V1_EXTRA.replace(
+    "- insurance_claim: the CLAIM-DOCUMENT TYPE — carrier, pde, outpatient, "
+    "or inpatient (CMS setting in the document's own heading outranks generic "
+    "family).\n",
+    "- insurance_claim: the CLAIM-DOCUMENT TYPE — carrier, pde, outpatient, "
+    "inpatient, property, or auto (CMS setting in the document's own heading "
+    "outranks generic family; property/auto cover non-CMS lines of business).\n",
+)
+
 # v2 reviewer — extends v1 with v8 LOB subclasses (property/auto) via
 # _REVIEWER_V2_EXTRA (DMR-015). Frozen v0/v1 stay unchanged.
 REVIEWER_DOCCLASS_PROMPT_V2 = REVIEWER_DOCCLASS_PROMPT_V0.replace(
@@ -628,15 +639,82 @@ REVIEWER_DOCCLASS_PROMPT_V2 = REVIEWER_DOCCLASS_PROMPT_V0.replace(
     "Docclass variant: reviewer_docclass_v2 (DMR-015, 6-token insurance).",
 )
 
-# v2 reviewer extra — adds v8 LOB subclasses (property/auto) to the insurance
-# claim dimension (DMR-015). v0/v1 reviewer variants stay frozen.
-_REVIEWER_V2_EXTRA = _REVIEWER_V1_EXTRA.replace(
-    "- insurance_claim: the CLAIM-DOCUMENT TYPE — carrier, pde, outpatient, "
-    "or inpatient (CMS setting in the document's own heading outranks generic "
-    "family).\n",
-    "- insurance_claim: the CLAIM-DOCUMENT TYPE — carrier, pde, outpatient, "
-    "inpatient, property, or auto (CMS setting in the document's own heading "
-    "outranks generic family; property/auto cover non-CMS lines of business).\n",
+# =============================================================================
+# MAILROOM-PROMPTS LINEAGE (DMR-015, mailroom-corpus v8)
+# -----------------------------------------------------------------------------
+# Official chain-wide lineage for the renamed Lucius-Morningstar/mailroom-corpus
+# dataset (v8 six-token insurance subclass set: carrier/pde/outpatient/inpatient
+# + property/auto). Every agent in the classification chain registers a
+# ``{agent}_mailroom_prompts_v0`` key, derived from its frozen _docclass_v1
+# (or reviewer_v2) base by swapping the 4-token context for the 6-token
+# _DOCCONTEXT_V2 and re-stamping the marker. Frozen docclass_* keys stay
+# untouched. Registry keys carry `mailroom_prompts`, not `docclass`.
+# =============================================================================
+
+def _with_mailroom_prompts_context(text: str) -> str:
+    """Swap any docclass context block for its v8 six-token equivalent."""
+    if _DOCCONTEXT_V2 in text:
+        return text
+    if _DOCCONTEXT_V1 in text:
+        return text.replace(_DOCCONTEXT_V1, _DOCCONTEXT_V2)
+    if _DOCCONTEXT in text:
+        return text.replace(_DOCCONTEXT, _DOCCONTEXT_V2)
+    raise AssertionError("anchor drift: mailroom-prompts context missing")
+
+
+CONTRACTS_SPECIALIST_MAILROOM_PROMPTS_V0 = _with_mailroom_prompts_context(
+    CONTRACTS_SPECIALIST_DOCCLASS_PROMPT_V1
+).replace(
+    _MARK_SPEC_CONTRACTS_V1,
+    "Docclass variant: contracts_specialist_mailroom_prompts_v0 (mailroom-corpus v8).",
+)
+CORPORATE_RECORDS_SPECIALIST_MAILROOM_PROMPTS_V0 = _with_mailroom_prompts_context(
+    CORPORATE_RECORDS_SPECIALIST_DOCCLASS_PROMPT_V1
+).replace(
+    _MARK_SPEC_CORPORATE_V1,
+    "Docclass variant: corporate_records_specialist_mailroom_prompts_v0 (mailroom-corpus v8).",
+)
+DUE_DILIGENCE_SPECIALIST_MAILROOM_PROMPTS_V0 = _with_mailroom_prompts_context(
+    DUE_DILIGENCE_SPECIALIST_DOCCLASS_PROMPT_V1
+).replace(
+    _MARK_SPEC_DD_V1,
+    "Docclass variant: due_diligence_specialist_mailroom_prompts_v0 (mailroom-corpus v8).",
+)
+CORRESPONDENCE_SPECIALIST_MAILROOM_PROMPTS_V0 = _with_mailroom_prompts_context(
+    CORRESPONDENCE_SPECIALIST_DOCCLASS_PROMPT_V1
+).replace(
+    _MARK_SPEC_CORR_V1,
+    "Docclass variant: correspondence_specialist_mailroom_prompts_v0 (mailroom-corpus v8).",
+)
+COMPLIANCE_SPECIALIST_MAILROOM_PROMPTS_V0 = _with_mailroom_prompts_context(
+    COMPLIANCE_SPECIALIST_DOCCLASS_PROMPT_V1
+).replace(
+    _MARK_SPEC_COMPL_V1,
+    "Docclass variant: compliance_specialist_mailroom_prompts_v0 (mailroom-corpus v8).",
+)
+COURT_OPINIONS_SPECIALIST_MAILROOM_PROMPTS_V0 = _with_mailroom_prompts_context(
+    COURT_OPINIONS_SPECIALIST_DOCCLASS_PROMPT_V1
+).replace(
+    _MARK_SPEC_COURT_V1,
+    "Docclass variant: court_opinions_specialist_mailroom_prompts_v0 (mailroom-corpus v8).",
+)
+
+INSURANCE_CLAIMS_SPECIALIST_MAILROOM_PROMPTS_V0 = (
+    INSURANCE_CLAIMS_SPECIALIST_DOCCLASS_PROMPT_V1.replace(
+        "DOCLASS ARM CONTEXT (v1): claim documentation may arrive",
+        "DOCLASS ARM CONTEXT (mailroom-prompts v0, mailroom-corpus v8): claim "
+        "documentation may arrive — doc_subclass may be any of the six "
+        "claim-document types (carrier, pde, outpatient, inpatient, property, "
+        "auto)",
+    ).replace(
+        "Docclass variant: insurance_claims_specialist_docclass_v1 (KANBAN-101).",
+        "Docclass variant: insurance_claims_specialist_mailroom_prompts_v0 (mailroom-corpus v8).",
+    )
+)
+
+REVIEWER_MAILROOM_PROMPTS_V0 = REVIEWER_DOCCLASS_PROMPT_V2.replace(
+    "Docclass variant: reviewer_docclass_v2 (DMR-015, 6-token insurance).",
+    "Docclass variant: reviewer_mailroom_prompts_v0 (mailroom-corpus v8).",
 )
 
 _ARBITER_V1_EXTRA = (
@@ -689,6 +767,49 @@ JUDGE_CLASSIFICATION_DOCCLASS_PROMPT_V1 = JUDGE_CLASSIFICATION_DOCCLASS_PROMPT_V
 JUDGE_CORRECTNESS_DOCCLASS_PROMPT_V1 = JUDGE_CORRECTNESS_DOCCLASS_PROMPT_V0.replace(
     "Docclass variant: judge_correctness_docclass_v0 (KANBAN-090).",
     """LABEL CONSISTENCY (mandatory): extraction_correctness_label is DERIVED from your own field_verdicts — if every populated field's verdict is "correct", the label MUST be "accurate"; if any verdict is not "correct", the label MUST be "partial" or "inaccurate". Never write "fully correct" notes with a non-"accurate" label. Docclass variant: judge_correctness_docclass_v1 (KANBAN-101).""",
+)
+
+# =============================================================================
+# MAILROOM-PROMPTS LINEAGE — role variants (DMR-015, mailroom-corpus v8)
+# -----------------------------------------------------------------------------
+# Arbiter/judge/boss register their {agent}_mailroom_prompts_v0 keys here,
+# after their frozen _docclass_v1 bases. Context swap via
+# _with_mailroom_prompts_context (6-token _DOCCONTEXT_V2).
+# =============================================================================
+_ARBITER_MAILROOM_PROMPTS_EXTRA = (
+    "The insurance_claim class carries six claim-document subclasses — carrier, "
+    "pde, outpatient, inpatient (the CMS file types) plus property and auto "
+    "(the v8 LINE-OF-BUSINESS expansion).\n"
+)
+ARBITER_MAILROOM_PROMPTS_V0 = ARBITER_DOCCLASS_PROMPT_V1.replace(
+    "Docclass variant: arbiter_docclass_v1 (KANBAN-101).",
+    _ARBITER_MAILROOM_PROMPTS_EXTRA
+    + "Docclass variant: arbiter_mailroom_prompts_v0 (mailroom-corpus v8).",
+)
+
+JUDGE_MAILROOM_PROMPTS_V0 = _with_mailroom_prompts_context(
+    JUDGE_DOCCLASS_PROMPT_V1
+).replace(
+    "Docclass variant: judge_docclass_v1 (KANBAN-101).",
+    "Docclass variant: judge_mailroom_prompts_v0 (mailroom-corpus v8).",
+)
+JUDGE_CLASSIFICATION_MAILROOM_PROMPTS_V0 = _with_mailroom_prompts_context(
+    JUDGE_CLASSIFICATION_DOCCLASS_PROMPT_V1
+).replace(
+    "Docclass variant: judge_classification_docclass_v1 (KANBAN-101).",
+    "Docclass variant: judge_classification_mailroom_prompts_v0 (mailroom-corpus v8).",
+)
+JUDGE_CORRECTNESS_MAILROOM_PROMPTS_V0 = _with_mailroom_prompts_context(
+    JUDGE_CORRECTNESS_DOCCLASS_PROMPT_V1
+).replace(
+    "Docclass variant: judge_correctness_docclass_v1 (KANBAN-101).",
+    "Docclass variant: judge_correctness_mailroom_prompts_v0 (mailroom-corpus v8).",
+)
+BOSS_MAILROOM_PROMPTS_V0 = _with_mailroom_prompts_context(
+    BOSS_DOCCLASS_PROMPT_V1
+).replace(
+    "Docclass variant: boss_docclass_v1 (KANBAN-101).",
+    "Docclass variant: boss_mailroom_prompts_v0 (mailroom-corpus v8).",
 )
 
 # =============================================================================
@@ -971,4 +1092,20 @@ DOCCLASS_PROMPT_VERSIONS: dict[str, str] = {
     # Mailroom naming convention (HUB-041): NEW keys carry `mailroom`, not
     # `docclass` (dataset rename docclass-merged -> mailroom-corpus, HUB-023).
     "sorter_mailroom_pilot_v0": SORTER_MAILROOM_PILOT_PROMPT_V0,
+    # mailroom_prompts lineage (DMR-015, mailroom-corpus v8): official
+    # chain-wide six-token insurance subclass set for the renamed corpus.
+    "sorter_mailroom_prompts_pilot_v0": SORTER_MAILROOM_PILOT_PROMPT_V0,
+    "contracts_specialist_mailroom_prompts_v0": CONTRACTS_SPECIALIST_MAILROOM_PROMPTS_V0,
+    "corporate_records_specialist_mailroom_prompts_v0": CORPORATE_RECORDS_SPECIALIST_MAILROOM_PROMPTS_V0,
+    "due_diligence_specialist_mailroom_prompts_v0": DUE_DILIGENCE_SPECIALIST_MAILROOM_PROMPTS_V0,
+    "correspondence_specialist_mailroom_prompts_v0": CORRESPONDENCE_SPECIALIST_MAILROOM_PROMPTS_V0,
+    "compliance_specialist_mailroom_prompts_v0": COMPLIANCE_SPECIALIST_MAILROOM_PROMPTS_V0,
+    "court_opinions_specialist_mailroom_prompts_v0": COURT_OPINIONS_SPECIALIST_MAILROOM_PROMPTS_V0,
+    "insurance_claims_specialist_mailroom_prompts_v0": INSURANCE_CLAIMS_SPECIALIST_MAILROOM_PROMPTS_V0,
+    "reviewer_mailroom_prompts_v0": REVIEWER_MAILROOM_PROMPTS_V0,
+    "arbiter_mailroom_prompts_v0": ARBITER_MAILROOM_PROMPTS_V0,
+    "judge_mailroom_prompts_v0": JUDGE_MAILROOM_PROMPTS_V0,
+    "judge_classification_mailroom_prompts_v0": JUDGE_CLASSIFICATION_MAILROOM_PROMPTS_V0,
+    "judge_correctness_mailroom_prompts_v0": JUDGE_CORRECTNESS_MAILROOM_PROMPTS_V0,
+    "boss_mailroom_prompts_v0": BOSS_MAILROOM_PROMPTS_V0,
 }

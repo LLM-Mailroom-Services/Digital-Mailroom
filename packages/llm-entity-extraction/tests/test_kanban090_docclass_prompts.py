@@ -11,7 +11,7 @@ Guards three things:
    the docclass context block.
 """
 
-EXPECTED_DOCCLASS_KEY_COUNT = 59  # 32 KANBAN-090 + 22 KANBAN-101 + 4 KANBAN-103 + 1 HUB-041 (sorter_mailroom_pilot_v0)
+EXPECTED_DOCCLASS_KEY_COUNT = 74  # 32 KANBAN-090 + 22 KANBAN-101 + 4 KANBAN-103 + 1 HUB-041 (sorter_mailroom_pilot_v0) + 1 DMR-015 (reviewer_docclass_v2) + 14 DMR-015 mailroom_prompts lineage
 
 
 def _doc():
@@ -48,6 +48,24 @@ def test_registry_complete_and_resolvable():
         "boss_docclass_v0",
     ]
     assert all(k in PROMPT_VERSIONS for k in new_keys)
+    # DMR-015 mailroom_prompts lineage (mailroom-corpus v8) keys.
+    mr_lineage = [
+        "sorter_mailroom_prompts_pilot_v0",
+        "contracts_specialist_mailroom_prompts_v0",
+        "corporate_records_specialist_mailroom_prompts_v0",
+        "due_diligence_specialist_mailroom_prompts_v0",
+        "correspondence_specialist_mailroom_prompts_v0",
+        "compliance_specialist_mailroom_prompts_v0",
+        "court_opinions_specialist_mailroom_prompts_v0",
+        "insurance_claims_specialist_mailroom_prompts_v0",
+        "reviewer_mailroom_prompts_v0",
+        "arbiter_mailroom_prompts_v0",
+        "judge_mailroom_prompts_v0",
+        "judge_classification_mailroom_prompts_v0",
+        "judge_correctness_mailroom_prompts_v0",
+        "boss_mailroom_prompts_v0",
+    ]
+    assert all(k in PROMPT_VERSIONS for k in mr_lineage)
 
 
 def test_sorter_family_is_reexported_byte_identical():

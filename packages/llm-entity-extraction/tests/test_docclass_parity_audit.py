@@ -98,6 +98,43 @@ def test_champion_and_pilot_prompts_list_all_schema_subclass_keys():
     for key in pilot_enum:
         assert key in mailroom_pilot, f"sorter_mailroom_pilot_v0 missing {key!r}"
 
+    # DMR-015 mailroom_prompts lineage (mailroom-corpus v8): every sorter
+    # surface teaches the full six-token insurance subclass set.
+    for key, full_enum in (
+        ("sorter_mailroom_prompts_v0", enum),
+        ("sorter_mailroom_prompts_vision_v0", enum),
+        ("sorter_mailroom_prompts_pilot_v0", pilot_enum),
+    ):
+        p = get_prompt(key)
+        for skey in full_enum:
+            assert skey in p, f"{key} missing {skey!r}"
+
+
+def test_mailroom_prompts_lineage_teaches_all_six_tokens():
+    """DMR-015: every {agent}_mailroom_prompts_v0 variant (specialists,
+    reviewer, arbiter, judges, boss) teaches the v8 six-token insurance
+    subclass set — the renamed mailroom-corpus corpus."""
+    six_tokens = {"carrier", "pde", "outpatient", "inpatient", "property", "auto"}
+    keys = [
+        "contracts_specialist_mailroom_prompts_v0",
+        "corporate_records_specialist_mailroom_prompts_v0",
+        "due_diligence_specialist_mailroom_prompts_v0",
+        "correspondence_specialist_mailroom_prompts_v0",
+        "compliance_specialist_mailroom_prompts_v0",
+        "court_opinions_specialist_mailroom_prompts_v0",
+        "insurance_claims_specialist_mailroom_prompts_v0",
+        "reviewer_mailroom_prompts_v0",
+        "arbiter_mailroom_prompts_v0",
+        "judge_mailroom_prompts_v0",
+        "judge_classification_mailroom_prompts_v0",
+        "judge_correctness_mailroom_prompts_v0",
+        "boss_mailroom_prompts_v0",
+    ]
+    for key in keys:
+        p = get_prompt(key)
+        for token in six_tokens:
+            assert token in p, f"{key} missing {token!r}"
+
 
 def test_scoring_md_documents_docclass_metric_names():
     text = Path("docs/SCORING.md").read_text(encoding="utf-8")

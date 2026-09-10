@@ -242,7 +242,7 @@ def run_job(payload: dict) -> dict:
 @app.local_entrypoint()
 def main(debug: bool = False) -> None:
     print(f"Deploy:  modal deploy {Path(__file__).name}")
-    print("Then:    sandbox run start --job-mode modal --spec <run>.yaml")
+    print("Then:    sandbox run start --job-mode modal --config <run>.yaml")
     if debug:
         print("=== sandbox-job app config ===")
         print(f"  volumes: {RUNS_VOLUME_NAME} -> {RUNS_MOUNT}, {HF_VOLUME_NAME} -> {HF_MOUNT}")

@@ -55,8 +55,10 @@ sandbox up --compose-profile langfuse --compose-profile ollama --compose-profile
 OpenRouter model ids are rewritten to local tags via the overlay —
 `DEFAULT_PROVIDER` alone is not enough.
 
-**Switching:** `--profile` AFTER the subcommand (`sandbox eval --profile ollama`)
-or `SANDBOX_PROFILE=modal-vllm sandbox eval sorter`.
+**Switching:** `--profile` AFTER the subcommand (`sandbox eval sorter --profile ollama`)
+or `SANDBOX_PROFILE=modal-vllm sandbox eval sorter`. (`sandbox eval` needs its
+task positional; `sandbox tunnel` is the exception — profile goes BEFORE the
+leaf: `sandbox tunnel --profile vllm-remote plan`.)
 
 ---
 
@@ -167,7 +169,7 @@ sandbox metrics compare --log
 
 ```bash
 sandbox datasets prepare                  # offline JSONL → data/runtime/prepared/
-sandbox tunnel plan|up|status|down --profile vllm-remote
+sandbox tunnel --profile vllm-remote plan|up|status|down
 ```
 
 ### Tests
@@ -197,7 +199,13 @@ sandbox health --profile modal-vllm
 
 Key knobs: `MODAL_VLLM_MODEL`, `MODAL_VLLM_GPU`, `MODAL_VLLM_MAX_MODEL_LEN`,
 `MODAL_VLLM_IMAGE_TAG`, `MODAL_VLLM_REVISION`, `MODAL_VLLM_API_TOKEN`,
-`MODAL_VLLM_SCALEDOWN_SECONDS`, `MODAL_VLLM_MAX_CONTAINERS`.
+`MODAL_VLLM_SCALEDOWN_SECONDS`, `MODAL_VLLM_MAX_CONTAINERS`,
+`MODAL_VLLM_TP_SIZE` (from the GPU `:N` suffix; must be set for 70B-class),
+`MODAL_VLLM_MIN_CONTAINERS`, `MODAL_VLLM_STARTUP_TIMEOUT_SECONDS`.
+
+Debug (DMR-053): `modal run deploy/modal_vllm.py --debug` prints the masked
+resolved config; `modal run deploy/modal_vllm.py --check` probes `/models`
+with bearer hints.
 
 Full deploy guide: [`deploy/README.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/packages/local-mailroom-sandbox/deploy/README.md).
 Cost: L4 ≈ $0.80/hr warm, scale-to-zero after 900s.
@@ -241,6 +249,10 @@ See [`deploy/htcondor/README.md`](https://github.com/LLM-Mailroom-Services/Digit
 - **Owned machines** → server (`vllm_serve.sub`): long-lived vLLM +
   `condor_ssh_to_job` forwarding → `vllm-remote` profile.
 
+Set `SANDBOX_DEBUG=1` in the `.sub` environment for a full `set -x` trace;
+every step also lands in `results/run.log`, and any failure dumps package
+versions + masked env + the vLLM log tail (DMR-053).
+
 ---
 
 ## Troubleshooting
@@ -254,3 +266,4 @@ See [`deploy/htcondor/README.md`](https://github.com/LLM-Mailroom-Services/Digit
 | `Secret.from_local` error | SDK 1.5.5 removed it; this repo uses `from_dict` |
 | `json_object_ok: false` | Engine lacks structured output; use vLLM or recent Ollama |
 | Tunnel port in use | `sandbox tunnel down` first; check `data/runtime/tunnel-*.pid` |
+| `503` from a `*.modal.run` endpoint | scale-to-zero cold start — llm-mailroom retries on a 90s base / 240s cap backoff (DMR-052) |

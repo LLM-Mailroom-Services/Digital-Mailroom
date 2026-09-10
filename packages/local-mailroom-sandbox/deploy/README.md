@@ -244,5 +244,12 @@ sandbox run start --job-mode modal --config <run.yaml> --watch
 Deploy-time env (export before `modal deploy`): `LANGFUSE_*`,
 `OTEL_EXPORTER_OTLP_ENDPOINT`, `VLLM_BASE_URL`, `VLLM_API_KEY`, `HF_TOKEN`.
 See `docs/jobs.md`.
+
+Failures surface in the state dict with `error`/`traceback_tail`/`diagnostics`;
+`SANDBOX_DEBUG=1` enables DEBUG logging; `modal run modal_job.py --debug`
+prints the app config (DMR-053).
+
+| Symptom | Cause / fix |
+| --- | --- |
 | `unrecognized arguments: --disable-log-requests` | pre-0.28 flag — v0.28.0 renamed it to the opt-in `--enable-log-requests`; the app/compose pin it off with `--no-enable-log-requests` |
 | changed a `MODAL_VLLM_*` knob, redeployed, no effect | deploy-time knobs travel through the Secret; export the new value and re-run `modal deploy` |

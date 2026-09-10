@@ -26,6 +26,11 @@ export MODAL_VLLM_API_TOKEN="$(openssl rand -hex 24)"
 
 # 2. Pre-warm weights (CPU-only, no GPU spend)
 modal run deploy/modal_vllm.py::download_model
+#    fails loudly on an empty snapshot (repo id/revision/HF_TOKEN hints, DMR-053)
+
+# 2b. Debug / verify (DMR-053)
+modal run deploy/modal_vllm.py --debug   # masked resolved config
+modal run deploy/modal_vllm.py --check   # probes /models (401-bearer + mismatch hints)
 
 # 3. Deploy (prints the URL)
 modal deploy deploy/modal_vllm.py
@@ -47,6 +52,7 @@ sandbox health --profile modal-vllm
 | `MODAL_VLLM_MAX_MODEL_LEN` | `32768` | Context cap |
 | `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | GPU memory fraction |
 | `MODAL_VLLM_MAX_NUM_SEQS` | `256` | Concurrency cap |
+| `MODAL_VLLM_TP_SIZE` | from GPU `:N` suffix (1 single-GPU) | Tensor-parallel size — must match `MODAL_VLLM_GPU="A100-80GB:2"` for 70B-class |
 | `MODAL_VLLM_QUANTIZATION` | empty | `awq` / `gptq` / ... |
 | `MODAL_VLLM_IMAGE_TAG` | `v0.28.0` | vLLM version pin |
 | `MODAL_VLLM_REVISION` | empty | HF revision pin |
@@ -117,3 +123,5 @@ modal volume ls sandbox-vllm-cache           # JIT/CUDA-graph cache
 | CUDA OOM at boot | Lower `MAX_MODEL_LEN`, quantize, or bigger GPU |
 | `--disable-log-requests` error | v0.28.0 renamed it; use `--no-enable-log-requests` |
 | `Secret.from_local` error | SDK 1.5.5 removed it; this file uses `from_dict` |
+| `download_model` cached 0 files | wrong repo id/revision or gated repo without `HF_TOKEN` (DMR-053) |
+| cold start takes minutes | expected — masked boot config is printed to the container log; pre-warm + `sandbox-vllm-cache` are the mitigations |

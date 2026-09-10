@@ -28,7 +28,7 @@ The board is also served live at **https://digital-mailroom-theta.vercel.app**
 
 | Thing | Value |
 | --- | --- |
-| Hub repo | [LLM-Mailroom-Services/Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) — latest hub release **v0.4.0** |
+| Hub repo | [LLM-Mailroom-Services/Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) — latest hub release **v0.5.0** |
 | Task board | [`governance/TASKS.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/governance/TASKS.md) — machine-readable via `scripts/board_state.py` |
 | Served board | [digital-mailroom-theta.vercel.app](https://digital-mailroom-theta.vercel.app) — live, issue-backed ([[Served-Board]]) |
 | Conventions | [`AGENTS.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/AGENTS.md) — read first, every session |

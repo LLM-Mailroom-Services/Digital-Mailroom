@@ -65,8 +65,16 @@ sandbox eval local_vs_api --from-log   # compare experiment_log local vs API-key
 sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0
 sandbox datasets pull
 sandbox datasets prepare   # offline clean → data/runtime/prepared/
+sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml
+sandbox run start --config <run.yaml> --job-mode modal --watch   # Modal worker
+sandbox prompts list | show <agent> [--variant X]
+sandbox metrics compare --runs local,modal,api | --log
+sandbox tunnel --profile vllm-remote plan|up|status|down
 sandbox traces export
 ```
+
+Live-or-loud: a vLLM/Modal profile without `--local` warns instead of silently
+mocking (DMR-048); `SANDBOX_DEBUG=1` traces CHTC/Modal scripts (DMR-053).
 
 </div>
 
@@ -100,7 +108,7 @@ GPU recommended for Qwen 8B.
 config/profiles/     provider profiles (local-first defaults)
 config/taxonomy.overlay.yaml
 config/models.yaml   OpenRouter champion → local tag map
-deploy/              Dockerfile + compose + Modal vLLM
+deploy/              Dockerfile + compose + Modal vLLM (modal_vllm.py) + Modal job worker (modal_job.py) + htcondor/ + conda/
 notebooks/           offline env setup + data prep + mock smoke
 data/fixtures/       offline samples (see ATTRIBUTION.md)
 src/mailroom_sandbox/

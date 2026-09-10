@@ -407,6 +407,10 @@ export MODAL_VLLM_API_TOKEN="$(openssl rand -hex 24)"
 # Pre-warm weights (CPU-only, no GPU spend)
 modal run deploy/modal_vllm.py::download_model
 
+# Debug / verify (DMR-053)
+modal run deploy/modal_vllm.py --debug   # masked resolved config
+modal run deploy/modal_vllm.py --check   # probes /models with hints
+
 # Deploy
 modal deploy deploy/modal_vllm.py
 ```
@@ -428,6 +432,7 @@ sandbox health --profile modal-vllm
 | `MODAL_VLLM_MAX_MODEL_LEN` | `32768` | Context cap |
 | `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | GPU memory fraction |
 | `MODAL_VLLM_MAX_NUM_SEQS` | `256` | Concurrency cap |
+| `MODAL_VLLM_TP_SIZE` | GPU `:N` suffix (1 single-GPU) | Tensor-parallel size — must match `MODAL_VLLM_GPU="A100-80GB:2"` for 70B-class |
 | `MODAL_VLLM_IMAGE_TAG` | `v0.28.0` | vLLM version pin |
 | `MODAL_VLLM_REVISION` | empty | HF revision pin |
 | `MODAL_VLLM_SCALEDOWN_SECONDS` | `900` | Idle warm window |
@@ -550,6 +555,7 @@ python scripts/reporting/render_experiment_log.py
 | Compose won't start | Port conflict | Check `docker compose ps` for conflicting services |
 | `git ls-files` race in `sync_packages.py` | Fixed in DMR-028 | `patch_push` now extracts committed blobs only |
 | Tunnel port already in use | Existing tunnel | `sandbox tunnel down` first, or check `data/runtime/tunnel-*.pid` |
+| CHTC job died without a clear error | Debug run | `SANDBOX_DEBUG=1` in the `.sub` environment → `set -x` trace + `results/run.log` + a diagnostics dump (versions, masked env, vLLM log tail, DMR-053) |
 
 ---
 

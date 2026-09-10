@@ -93,13 +93,17 @@ Exit codes: `0` done · `1` failed · `2` paused · `3` drift refused.
    calls. Idempotent: same spec → byte-identical `dataset.jsonl`.
 3. **engine** — vLLM field/range guards (DMR-022 flags, v0.28.0 rules) +
    optional live `/v1/models` probe (`data[0].id == spec.model`) with `--live`.
+   `run start --job-mode modal` probes the engine before firing (DMR-048).
 4. **modal** — GPU/image/`max_containers` guards.
 5. **trace sink** — OTLP contract resolved (Langfuse `/api/public/otel`,
    Basic auth + `x-langfuse-ingestion-version: 4`; Phoenix `/v1/traces`;
    generic `OTEL_EXPORTER_OTLP_ENDPOINT`).
 6. **lock** — `spec.lock.json` written LAST (the commit point) with
    `spec_hash` over the behavioral core. Resume refuses on drift unless
-   `--force`.
+   `--force`. The lock also pins `revision_resolved` + `prompt_text_sha`; a
+   prompt-text change refuses (DMR-049), and `dataset.sha256` is re-verified
+   at worker start and at resume — drift refuses (exit 3) unless `--force`
+   re-locks and archives the old generation.
 
 ## Checkpoint / resume
 
@@ -129,6 +133,16 @@ The worker runs the same checkout code on a CPU container against the
 Modal-hosted `sandbox-vllm` endpoint (the GPU is the serve app). It emits
 OTEL job/item spans to the locked sink. In-container vLLM (GPU job) is a
 documented follow-up.
+
+- `run start --job-mode modal` probes `/v1/models` first (skipped for
+  mock/`--offline`) — a stale `VLLM_BASE_URL` fails fast as
+  `engine_unreachable` (DMR-048).
+- Worker failures land in the state dict with `error`, `traceback_tail`, and
+  runtime `diagnostics`; `SANDBOX_DEBUG=1` enables DEBUG logging;
+  `modal run modal_job.py --debug` prints the app config (DMR-053).
+- Whole-run records are stamped `prompt_version` (the lock's LOCAL variant
+  stem), `spec_hash`, `dataset_fingerprint`, `run_id`; delegated runs used to
+  mislabel every record `mailroom-default` (DMR-053).
 
 ## Metrics: local vs Modal vs API
 

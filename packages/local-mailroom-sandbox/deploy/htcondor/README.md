@@ -144,6 +144,13 @@ experiment-log record shows `offline_fallback > 0`. Results land in the job's
 package, so the dir is anchored at submission time); watch progress with
 `condor_tail <cluster>.<process>`.
 
+Both scripts honor `SANDBOX_DEBUG=1` (`set -x` trace). `run_batch_eval.sh`
+additionally logs every step to stderr + `results/run.log`, prints health-wait
+progress every 100s, and on any failure dumps a diagnostics block (python/
+package versions, masked engine env, dataset row counts, `vllm_serve.log`
+tail) before exiting non-zero; `serve_vllm.sh` echoes the effective knobs +
+argv (auth on/off, never the key) before `exec` (DMR-053).
+
 ## 5. Server path (owned GPUs only)
 
 ```bash

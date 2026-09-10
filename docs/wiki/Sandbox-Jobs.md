@@ -85,8 +85,15 @@ data/runtime/runs/<run_id>/
 ├── items.jsonl          # per-item results (progress truth)
 ├── checkpoint.json      # atomic mirror
 ├── events.jsonl         # lifecycle journal
+├── experiment_log.jsonl # records pulled back from a remote worker (DMR-047)
 └── run.lock             # advisory single-writer flock
 ```
+
+`spec.lock.json` also carries `dataset.sha256`, `revision_resolved`,
+`prompt_text_sha`, and `spec_hash`; drift refuses on resume unless `--force`
+(DMR-049). Whole-run records are stamped `prompt_version` (the lock's LOCAL
+variant stem), `spec_hash`, `dataset_fingerprint`, `run_id` — delegated runs
+used to mislabel every record `mailroom-default` (DMR-053).
 
 ---
 
@@ -108,6 +115,14 @@ sandbox run start --job-mode modal --config <yaml> --watch
 
 Worker runs on a CPU container against the Modal-hosted `sandbox-vllm` GPU endpoint.
 Emits OTEL job/item spans to the locked sink.
+
+- `run start --job-mode modal` probes `/v1/models` before firing (skipped for
+  mock/`--offline`) — a stale `VLLM_BASE_URL` fails fast as
+  `engine_unreachable` (DMR-048).
+- Worker failures land in the state dict with `error`, `traceback_tail`, and
+  runtime `diagnostics`; `SANDBOX_DEBUG=1` enables DEBUG logging;
+  `modal run modal_job.py --debug` prints the app config (DMR-053).
+- `--watch` prints the worker traceback + a diagnose hint on failure (DMR-053).
 
 ---
 

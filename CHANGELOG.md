@@ -21,6 +21,113 @@ and is recorded there, not here.
 
 ## [Unreleased]
 
+### Added
+
+- **CHTC batch-eval live-or-loud path (DMR-044, 2026-09-10):**
+  `deploy/htcondor/run_batch_eval.sh` installs the real eval stack
+  (`mailroom@v0.6.0` + `llm-dojo-scoring@v0.12.2` + the sandbox — never
+  `llm-entity-extraction`, whose `agents/` lacks `sorter.py` and shadowed
+  mailroom's), proves the agent stack importable BEFORE starting vLLM,
+  serves with compose/Modal parity flags (`--max-model-len 32768`,
+  `--gpu-memory-utilization 0.90`, `--max-num-seqs 256`, optional `TP_SIZE`,
+  `--no-enable-log-requests`), hard-fails on server death or a 20-minute
+  health timeout, runs the evals with `--model "$MODEL"` and
+  `OPENROUTER_BASE_URL` pointed at the in-container engine, and closes with a
+  live-or-loud guard that fails the job when any experiment-log record shows
+  `offline_fallback > 0`. The results dir is anchored at submission time (was
+  transferred empty). Silent-mock root causes fixed in the sandbox eval
+  surface (`_doc_text` NameError, prepared-row `subdir` KeyError, live-error
+  re-raise, provider-aware LegalBench serve target).
+- **Modal job worker live-eval surface (DMR-047, 2026-09-10):** the
+  `sandbox-job` image bundles `config/` + `data/fixtures/` under
+  `SANDBOX_ROOT=/root` plus `mailroom@v0.6.0` (per-item evals used to mock,
+  whole-run tasks crashed), `DEFAULT_PROVIDER` joins the deploy Secret, the
+  worker verifies `dataset.jsonl` sha256 against the lock, commits the
+  `sandbox-runs` Volume every 25 progress events, copies experiment records
+  into the run dir, and the CLI pulls items/checkpoints/records back and
+  appends them locally; resume re-fires the same `run_id`.
+- **CLI live-or-loud wiring (DMR-048, 2026-09-10):** `sandbox health` follows
+  the profile's `base_url_env` override (`VLLM_BASE_URL`) and loads `.env`
+  first; `pull-models` branches by serving family (vLLM/Modal prints the
+  `download_model` pre-warm guidance, never `ollama pull` of an HF id);
+  `pilot`/`hf-pilot`/`legalbench`/`eval`/`matrix` warn when a vLLM profile
+  would run an implicit mock; `run start --job-mode modal` probes
+  `/v1/models` before firing (skips mock/`--offline`); `matrix --providers`
+  validates real profile names.
+- **Sandbox vLLM model catalog + tensor-parallel knob (DMR-045,
+  2026-09-10):** `config/models.yaml` gains the `modal_models:` deploy matrix
+  (13 models × per-GPU rows, quantization, `max_model_len`, `tp_size`, the
+  14B-bf16 "trap", gated-repo and 70B TP2 notes); `deploy/modal_vllm.py`
+  gains `MODAL_VLLM_TP_SIZE` (default derived from the GPU `:N` suffix,
+  travels via the deploy Secret) → `--tensor-parallel-size`.
+- **Pipeline provider seam & prompt/corpus pins (DMR-052, 2026-09-10):**
+  `taxonomy.yaml: vllm_model_map` rewrites OpenRouter champion ids to served
+  HF ids (a standalone vLLM run 404'd before); `DEFAULT_PROVIDER=vllm`
+  without `VLLM_BASE_URL` logs a live-or-loud warning at resolution; the
+  free-only guardrail now exempts self-hosted providers
+  (`vllm`/`ollama`/`generic`) — it bounds OpenRouter spend; Modal 503s use a
+  long bounded cold-start backoff (90s base / 240s cap); `_bound_prompt_versions`
+  matches the shipped `contracts_specialist_v33`; `hf_corpus_loader.load_corpus`
+  defaults to the pinned `FULL_CORPUS_REVISION` instead of the Hub tip; the
+  sandbox prompt registry locks code-default for a floating Langfuse label
+  without credentials (a pinned version still refuses).
+- **vLLM+Modal script hardening (DMR-053, 2026-09-10):**
+  `run_batch_eval.sh` gains `SANDBOX_DEBUG=1` → `set -x`, a timestamped
+  `log()` to stderr + `results/run.log`, a once-only `fail()` diagnostics
+  dump (python/package versions, masked engine env, dataset counts, vLLM log
+  tail), health-wait progress, and an EXIT trap writing run status + killing
+  the server; `serve_vllm.sh` echoes effective knobs + argv (auth on/off,
+  never the key); both `modal_vllm.py` apps print a masked boot config,
+  verify `download_model` results with gated-repo hints, and `_smoke_check`
+  errors carry response bodies + a 401 bearer hint + a served-model mismatch
+  note, with `main --debug` printing the resolved config; `modal_job.py`
+  wraps failures into a terminal state dict with error/traceback
+  tail/runtime diagnostics, honors `SANDBOX_DEBUG`, and `main --debug` prints
+  the app config; `job/remote.py` volume failures name `modal token new` /
+  `modal volume ls`; the CLI watch prints the worker traceback + a diagnose
+  hint. Whole-run records now carry the lock's LOCAL prompt variant as
+  `prompt_version` (was always `mailroom-default`) and are stamped with
+  `spec_hash`, `dataset_fingerprint`, `run_id`.
+- **Serving & container parity (DMR-051, 2026-09-10):** the llm-mailroom
+  Modal app ports `MODAL_VLLM_TP_SIZE` (derived from the GPU `:N` suffix),
+  `MODAL_VLLM_SCALEDOWN_SECONDS`, `MODAL_VLLM_STARTUP_TIMEOUT_SECONDS`, the
+  `download_model` pre-warm + slim image, and fixes the malformed guidance
+  URL; the producer compose forwards `VLLM_BASE_URL`/`VLLM_API_KEY` (a
+  `DEFAULT_PROVIDER=vllm` producer used to resolve in-container localhost);
+  the sandbox compose gains `VLLM_TP_SIZE` substitution and the jupyter
+  service gets `VLLM_API_KEY`; the Dockerfile gains the `[hf]` extra;
+  `config/models.yaml` corrects the L4-bf16 KV-pool caps, adds verified
+  `-FP8` checkpoint rows, and notes A100 FP8 emulation.
+
+### Changed
+
+- **Eval data & metrics integrity (DMR-049, 2026-09-10):** LegalBench job
+  runs read `expected` from the `answer` field (every prediction scored
+  wrong before), loud missing-fixture failures, seeded task/suite selection,
+  honest `mock/mock-legalbench` labelling, and a suite bridge with
+  `fetch_full_cuad.py` guidance; `dataset.jsonl` sha256 is verified at
+  worker start and resume with drift refusal (`--force` archives the old
+  lock generation); the lock records `revision_resolved` + `prompt_text_sha`
+  and refuses prompt-text drift; one canonical `dataset_fingerprint` is
+  shared by eval and job records; Modal records are stamped
+  `serving_kind=modal` with ok-only latency and a champion cost table
+  (`Qwen/Qwen3-8B` was uncosted), ok-only scoring with `error_count`;
+  GT-shard-absent rows are refused rather than scored unlabeled;
+  `expected_stage`/`question`/`answer` survive `normalize_rows`.
+- **MRV2 wording correction (DMR-051):** the pinned models already run Model
+  Runner V2 under v0.28.0 — the deploy docs no longer claim the version bump
+  is required for MRV2 (v0.29.0 completes the rollout).
+
+### Fixed
+
+- **`sync_packages.py` patch push (DMR-054, 2026-09-10):** the first patch
+  push since DMR-028 crashed twice — `ls-tree -z` output was unpacked into
+  four names (paths may contain tabs; the metadata/rel split now happens
+  first) and `git cat-file blob` returned text-mode str that `write_bytes`
+  rejected (`run()`/`git()` gained a `binary` flag). Verified by propagating
+  the 43-file DMR-044..053 delta to `Exios66/local-mailroom-sandbox` (remote
+  head `8edbe4a9`, cursor re-baselined).
+
 ## [0.5.0] - 2026-09-10
 ### Added
 

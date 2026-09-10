@@ -208,5 +208,19 @@ modal volume ls sandbox-vllm-cache   # vLLM JIT/CUDA-graph cache
 | first request slow | cold start; pre-warm and/or raise `MODAL_VLLM_SCALEDOWN_SECONDS` |
 | CUDA OOM at boot | lower `MODAL_VLLM_MAX_MODEL_LEN`, quantize, or pick a bigger GPU |
 | deploy import error on `from_local` | stale app revision — SDK 1.5.5 removed it; this file uses `from_dict` |
+
+## Remote job worker (`modal_job.py`)
+
+The DMR-027 job CLI's remote mode pushes a locked run dir to the
+`sandbox-runs` Volume and spawns `run_job`:
+
+```bash
+modal deploy modal_job.py        # once (installs sandbox pkg + dojo + otel)
+sandbox run start --job-mode modal --config <run.yaml> --watch
+```
+
+Deploy-time env (export before `modal deploy`): `LANGFUSE_*`,
+`OTEL_EXPORTER_OTLP_ENDPOINT`, `VLLM_BASE_URL`, `VLLM_API_KEY`, `HF_TOKEN`.
+See `docs/jobs.md`.
 | `unrecognized arguments: --disable-log-requests` | pre-0.28 flag — v0.28.0 renamed it to the opt-in `--enable-log-requests`; the app/compose pin it off with `--no-enable-log-requests` |
 | changed a `MODAL_VLLM_*` knob, redeployed, no effect | deploy-time knobs travel through the Secret; export the new value and re-run `modal deploy` |

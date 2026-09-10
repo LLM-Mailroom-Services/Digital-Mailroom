@@ -30,6 +30,29 @@
   `.cursor/skills/modal/SKILL.md`, `docs/remote-serving.md`,
   `config/.env.example`.
 
+- **DMR-027 — sandbox job CLI (`sandbox run`)**: a spec-driven, locked,
+  resumable eval runner over vLLM + Modal + an OTEL trace sink. New
+  `src/mailroom_sandbox/job/` (`spec`, `checkpoint`, `preflight`, `runner`,
+  `otel`, `metrics`, `remote`), `src/mailroom_sandbox/corpus.py`
+  (revision-pinned HF full-corpus/subset loader: default+ground_truth parquet
+  join, `content_sha256` integrity, deterministic strata/limit selection,
+  offline `file://` path), and `src/mailroom_sandbox/prompt_registry.py`
+  (every pipeline agent's prompt: local variants + Langfuse integer-version
+  pins + code default; `sorter`/`contracts_specialist` Family-B
+  `PROMPT_VERSIONS` injection). Preflight resolves/validates all domains,
+  prepares the subset, and writes an immutable `spec.lock.json` (drift
+  refused on resume unless `--force`); the runner checkpoints per item
+  (`items.jsonl` source of truth, atomic `checkpoint.json`, torn-tail
+  self-healing) and resumes after pause/failure. `sandbox run
+  preflight|start|status|resume|cancel|list`, `sandbox prompts list|show`,
+  `sandbox metrics compare` (local/Modal/API buckets, deltas vs API, dojo
+  pairwise comparisons). Modal mode: `deploy/modal_job.py` worker
+  (`sandbox-runs` Volume + `sandbox-job-state` Dict polling, resume via
+  FunctionCall re-attach/re-spawn lease). Deps: `observability` +
+  `opentelemetry-sdk`/`opentelemetry-exporter-otlp-proto-http`; new `hf`
+  extra (`huggingface_hub`, `pyarrow`). Docs: `docs/jobs.md`. ~52 new
+  network-free tests.
+
 ### Changed
 
 - **HUB-015 — reduced agent profile + current-pipeline alignment**: the

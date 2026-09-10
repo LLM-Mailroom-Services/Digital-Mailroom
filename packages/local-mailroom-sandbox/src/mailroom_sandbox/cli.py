@@ -184,7 +184,63 @@ def build_parser() -> argparse.ArgumentParser:
     td.set_defaults(handler=_cmd_tunnel_down)
     tun.set_defaults(handler=_cmd_tunnel_help)
 
+    _run_parser(sub, shared)
+
+    prom = sub.add_parser("prompts", help="Pipeline-agent prompt surface (local + Langfuse)", parents=[shared])
+    prom_sub = prom.add_subparsers(dest="prompts_cmd")
+    plug_list = prom_sub.add_parser("list", parents=[shared])
+    plug_list.set_defaults(handler=_cmd_prompts_list)
+    plug_show = prom_sub.add_parser("show", parents=[shared])
+    plug_show.add_argument("name", help="agent name (or --all)")
+    plug_show.add_argument("--variant", default=None, help="local variant stem")
+    plug_show.add_argument("--json", action="store_true")
+    plug_show.set_defaults(handler=_cmd_prompts_show)
+    prom.set_defaults(handler=_cmd_prompts_help)
+
+    mp = sub.add_parser("metrics", help="serving metrics compare (local vs Modal vs API)", parents=[shared])
+    metrics_sub = mp.add_subparsers(dest="metrics_cmd")
+    mcomp = metrics_sub.add_parser("compare", parents=[shared])
+    mcomp.add_argument("--runs", default="", help="comma-separated run-ids")
+    mcomp.add_argument("--log", action="store_true", help="read experiments from the log instead")
+    mcomp.add_argument("--json", action="store_true")
+    mcomp.set_defaults(handler=_cmd_metrics_compare)
+    mp.set_defaults(handler=_cmd_metrics_help)
+
     return parser
+
+
+def _run_parser(sub, shared):
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--config", default=None)
+    common.add_argument("--run-id", default=None)
+    common.add_argument("--offline", action="store_true")
+    common.add_argument("--force", action="store_true")
+    common.add_argument("--dry-run", action="store_true")
+    common.add_argument("--live", action="store_true")
+    common.add_argument("--json", action="store_true")
+    common.add_argument("--watch", action="store_true")
+    common.add_argument("--job-mode", dest="mode", choices=["endpoint", "modal"], default=None)
+    common.add_argument("--max-items", type=int, default=None)
+    g = common.add_mutually_exclusive_group()
+    g.add_argument("--mock", action="store_true", default=None)
+    g.add_argument("--local", action="store_true", default=None)
+
+    run = sub.add_parser("run", help="Spec-driven job lifecycle (DMR-027)", parents=[shared])
+    run_sub = run.add_subparsers(dest="run_cmd")
+    pre = run_sub.add_parser("preflight", parents=[common])
+    pre.set_defaults(handler=_cmd_run_preflight)
+    start = run_sub.add_parser("start", parents=[common])
+    start.set_defaults(handler=_cmd_run_start)
+    status = run_sub.add_parser("status", parents=[common])
+    status.set_defaults(handler=_cmd_run_status)
+    resume = run_sub.add_parser("resume", parents=[common])
+    resume.set_defaults(handler=_cmd_run_resume)
+    cancel = run_sub.add_parser("cancel", parents=[common])
+    cancel.set_defaults(handler=_cmd_run_cancel)
+    runlist = run_sub.add_parser("list", parents=[common])
+    runlist.set_defaults(handler=_cmd_run_list)
+    run.set_defaults(handler=_cmd_run_help)
+    return common
 
 
 def _agent_models(args: argparse.Namespace) -> dict[str, str]:
@@ -577,5 +633,261 @@ def _cmd_tunnel_down(args: argparse.Namespace) -> int:
     return 0
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+def _cmd_run_help(args):
+    print("Use: sandbox run preflight | start | status | resume | cancel | list  --config <run.yaml>")
+    return 0
+
+
+def _run_load_spec(args) -> tuple[object, Path]:
+    config = getattr(args, "config", None)
+    if not config:
+        raise SystemExit("run commands need --config <run.yaml>")
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    return load_run_spec(config), Path(config)
+
+
+def _run_id_required(args) -> str:
+    run_id = getattr(args, "run_id", None) or ""
+    if not run_id:
+        raise SystemExit("--run-id <id> is required here")
+    return run_id
+
+
+def _cmd_run_preflight(args) -> int:
+    from mailroom_sandbox.job import preflight
+
+    spec, _ = _run_load_spec(args)
+    report = preflight.preflight(
+        spec,
+        run_id=getattr(args, "run_id", None) or "",
+        offline=bool(getattr(args, "offline", False)),
+        force=bool(getattr(args, "force", False)),
+        dry_run=bool(getattr(args, "dry_run", False)),
+        live=bool(getattr(args, "live", False)),
+    )
+    _print(report)
+    if report.get("status") == "prepared":
+        return 0
+    return 3 if report.get("status") == "drift_refused" else 1
+
+
+def _cmd_run_start(args) -> int:
+    from mailroom_sandbox.job import preflight
+    from mailroom_sandbox.job import remote as job_remote
+    from mailroom_sandbox.job import runner
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+
+    spec, _ = _run_load_spec(args)
+    if getattr(args, "mock", None) is not None or getattr(args, "local", None) is not None:
+        spec.job.mock = bool(args.mock)
+    report = preflight.preflight(
+        spec,
+        run_id=getattr(args, "run_id", None) or "",
+        offline=bool(getattr(args, "offline", False)),
+        force=bool(getattr(args, "force", False)),
+        dry_run=bool(getattr(args, "dry_run", False)),
+        live=bool(getattr(args, "live", False)),
+    )
+    if report.get("status") != "prepared":
+        _print(report)
+        return 3 if report.get("status") == "drift_refused" else 1
+    run_id = report["run_id"]
+    if getattr(args, "dry_run", False):
+        _print({"run_id": run_id, "state": "dry_run"})
+        return 0
+    store = RunStore(run_dir(run_id))
+    mode = getattr(args, "mode", None) or spec.job.mode
+    if mode == "modal":
+        remote_action = job_remote.ensure_running(store)
+        _print(remote_action)
+        if not getattr(args, "watch", False):
+            return 0
+        return _watch_remote(store, args)
+    summary = _run_endpoint(store, args)
+    _print(summary)
+    return 0 if summary.get("state") == "done" else 2 if summary.get("state") == "paused" else 1
+
+
+def _run_endpoint(store, args) -> dict:
+    from mailroom_sandbox.job import runner
+
+    with store.acquire():
+        return runner.run_job(
+            store,
+            mock=None,
+            dry_run=False,
+            max_items=getattr(args, "max_items", None),
+            tracer=None,
+        )
+
+
+def _watch_remote(store, args) -> int:
+    from mailroom_sandbox.job import remote as job_remote
+
+    import time
+
+    while True:
+        progress = job_remote.read_progress(store)
+        state = (progress or {}).get("state") or store.state() or "unknown"
+        print(f"{store.run_id} {state} {progress or {}}")
+        if state in {"done", "failed"}:
+            return 0 if state == "done" else 1
+        time.sleep(3.0)
+
+
+def _cmd_run_status(args) -> int:
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+    from mailroom_sandbox.job import remote as job_remote
+
+    run_id = _run_id_required(args)
+    store = RunStore(run_dir(run_id))
+    if not store.read_lock():
+        _print({"run_id": run_id, "error": "no locked run found"})
+        return 1
+    if getattr(args, "watch", False):
+        return _watch_remote(store, args)
+    summary = store.summary()
+    remote_progress = job_remote.read_progress(store) if _job_mode(store) == "modal" else None
+    payload = summary
+    if remote_progress:
+        payload["remote"] = remote_progress
+    _print(payload)
+    return 0
+
+
+def _cmd_run_resume(args) -> int:
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+
+    run_id = _run_id_required(args)
+    store = RunStore(run_dir(run_id))
+    if not store.read_lock():
+        _print({"run_id": run_id, "error": "no locked run to resume"})
+        return 1
+    if getattr(args, "config", None):
+        from mailroom_sandbox.job import preflight
+
+        spec, _ = _run_load_spec(args)
+        report = preflight.preflight(spec, run_id=run_id, offline=False, force=bool(getattr(args, "force", False)))
+        if report.get("status") == "drift_refused":
+            _print(report)
+            return 3
+    if _job_mode(store) == "modal":
+        if getattr(args, "watch", False):
+            return _watch_remote(store, args)
+        _print({"run_id": run_id, "state": "resume_queued"})
+        return 0
+    summary = _run_endpoint(store, args)
+    _print(summary)
+    return 0 if summary.get("state") == "done" else 2 if summary.get("state") == "paused" else 1
+
+
+def _job_mode(store) -> str:
+    lock = store.read_lock() or {}
+    job = lock.get("job") or {}
+    if isinstance(job, dict):
+        return "modal" if job.get("mode") == "modal" else "local"
+    return "local"
+
+
+def _cmd_run_cancel(args) -> int:
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.remote import cancel as remote_cancel
+    from mailroom_sandbox.job.spec import run_dir
+
+    run_id = _run_id_required(args)
+    store = RunStore(run_dir(run_id))
+    cp = store.read_checkpoint() or {}
+    if isinstance(cp.get("remote"), dict) and cp["remote"].get("call_id"):
+        remote_cancel(store)
+        _print({"run_id": run_id, "state": "cancel_requested"})
+        return 0
+    store.write_checkpoint(
+        state="paused", cursor=cp.get("cursor", 0), total=cp.get("total", 0), remote=None
+    )
+    store.append_event("cancel_requested", "info")
+    _print(store.summary())
+    return 0
+
+
+def _cmd_run_list(args) -> int:
+    from mailroom_sandbox.job.checkpoint import list_runs
+    from mailroom_sandbox.job.spec import runs_root
+
+    _print(list_runs(runs_root()))
+    return 0
+
+
+def _cmd_prompts_help(args):
+    print("Use: sandbox prompts list | sandbox prompts show <agent> [--variant X]")
+    return 0
+
+
+def _cmd_prompts_list(args) -> int:
+    from mailroom_sandbox.prompt_registry import agent_prompt_names, local_variants
+
+    _print({"agents": agent_prompt_names(), "local_variants": local_variants()})
+    return 0
+
+
+def _cmd_prompts_show(args) -> int:
+    from mailroom_sandbox.job.spec import PromptRef
+    from mailroom_sandbox.prompt_registry import agent_prompt_names, resolve_prompt
+
+    name = args.name
+    variant = getattr(args, "variant", None)
+    if variant:
+        ref = PromptRef(source="local", file=variant)
+    elif name == "mailroom-default":
+        ref = PromptRef(source="code-default")
+    else:
+        ref = PromptRef(source="code-default")
+    resolved = resolve_prompt(name, ref, offline=bool(getattr(args, "offline", False)))
+    _print(resolved)
+    return 0
+
+
+def _cmd_metrics_help(args):
+    print("Use: sandbox metrics compare --runs a,b[,c] | --log")
+    return 0
+
+
+def _cmd_metrics_compare(args) -> int:
+    from mailroom_sandbox.job import metrics
+
+    records = []
+    if getattr(args, "log", False):
+        from mailroom_sandbox.eval import experiment_log
+
+        records = list(experiment_log.load())
+    else:
+        from mailroom_sandbox.job.checkpoint import RunStore
+        from mailroom_sandbox.job.spec import run_dir
+
+        run_ids = [x.strip() for x in getattr(args, "runs", "").split(",") if x.strip()]
+        if not run_ids:
+            raise SystemExit("metrics compare needs --runs a,b,c")
+        for run_id in run_ids:
+            store = RunStore(run_dir(run_id))
+            lock = store.read_lock() or {}
+            items = store.load_items()
+            rec = metrics.record_from_run(
+                run_id=run_id,
+                spec_hash=store.spec_hash() or "",
+                task=lock.get("task", "?"),
+                profile=lock.get("profile", "?"),
+                model=(lock.get("engine") or {}).get("model") or "?",
+                prompt_version=str((lock.get("prompt") or {}).get("default", {}).get("source") or "code-default"),
+                dataset_fingerprint=(lock.get("dataset") or {}).get("sha256", "") or "",
+                items=items,
+            )
+            records.append(rec)
+    result = metrics.compare(records)
+    if getattr(args, "json", False):
+        _print(result)
+    else:
+        print(result.get("markdown", ""))
+    return 0

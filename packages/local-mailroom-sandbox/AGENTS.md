@@ -50,6 +50,9 @@ sandbox datasets prepare            # offline JSONL under data/runtime/prepared/
 sandbox up --compose-profile jupyter  # Lab on :8888 (deploy/Dockerfile)
 sandbox tunnel plan|up|status|down    # SSH forward for vllm-remote (HUB-026)
 modal run deploy/modal_vllm.py::download_model  # Modal: pre-warm HF cache ([deploy])
+sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml
+sandbox prompts list|show <agent>     # all pipeline agent prompts (local + Langfuse)
+sandbox metrics compare --runs local,modal,api   # serving metrics comparison
 ```
 
 - Config: `config/profiles/*.yaml` + `config/taxonomy.overlay.yaml` + `config/components.yaml` + `config/models.yaml`.

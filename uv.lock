@@ -3580,13 +3580,17 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
+    { name = "huggingface-hub" },
     { name = "ipykernel" },
     { name = "jupyterlab" },
     { name = "langfuse" },
     { name = "llm-entity-extraction" },
     { name = "matplotlib" },
     { name = "modal" },
+    { name = "opentelemetry-exporter-otlp-proto-http" },
+    { name = "opentelemetry-sdk" },
     { name = "pandas" },
+    { name = "pyarrow" },
     { name = "pytest" },
     { name = "pytest-mock" },
 ]
@@ -3603,6 +3607,10 @@ evals = [
 gpu = [
     { name = "modal" },
 ]
+hf = [
+    { name = "huggingface-hub" },
+    { name = "pyarrow" },
+]
 notebooks = [
     { name = "ipykernel" },
     { name = "jupyterlab" },
@@ -3611,6 +3619,8 @@ notebooks = [
 ]
 observability = [
     { name = "langfuse" },
+    { name = "opentelemetry-exporter-otlp-proto-http" },
+    { name = "opentelemetry-sdk" },
 ]
 pipeline = [
     { name = "mailroom" },
@@ -3619,6 +3629,7 @@ pipeline = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
+    { name = "huggingface-hub", marker = "extra == 'hf'", specifier = ">=0.24" },
     { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=6.29" },
     { name = "jupyterlab", marker = "extra == 'notebooks'", specifier = ">=4.2" },
     { name = "langfuse", marker = "extra == 'observability'", specifier = ">=4.0,<5" },
@@ -3626,11 +3637,14 @@ requires-dist = [
     { name = "llm-entity-extraction", marker = "extra == 'evals'", editable = "packages/llm-entity-extraction" },
     { name = "mailroom", marker = "extra == 'pipeline'", editable = "packages/llm-mailroom" },
     { name = "mailroom-sandbox", extras = ["deploy"], marker = "extra == 'gpu'", editable = "packages/local-mailroom-sandbox" },
-    { name = "mailroom-sandbox", extras = ["dev", "deploy", "evals", "observability", "notebooks"], marker = "extra == 'all'", editable = "packages/local-mailroom-sandbox" },
+    { name = "mailroom-sandbox", extras = ["dev", "deploy", "evals", "hf", "observability", "notebooks"], marker = "extra == 'all'", editable = "packages/local-mailroom-sandbox" },
     { name = "matplotlib", marker = "extra == 'notebooks'", specifier = ">=3.8" },
     { name = "modal", marker = "extra == 'deploy'", specifier = "==1.5.5" },
     { name = "openai", specifier = ">=1.30" },
+    { name = "opentelemetry-exporter-otlp-proto-http", marker = "extra == 'observability'", specifier = ">=1.25" },
+    { name = "opentelemetry-sdk", marker = "extra == 'observability'", specifier = ">=1.25" },
     { name = "pandas", marker = "extra == 'notebooks'", specifier = ">=2.2" },
+    { name = "pyarrow", marker = "extra == 'hf'", specifier = ">=15.0" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.12" },
@@ -3638,7 +3652,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "structlog", specifier = ">=24.0" },
 ]
-provides-extras = ["dev", "notebooks", "observability", "deploy", "pipeline", "evals", "gpu", "all"]
+provides-extras = ["dev", "notebooks", "observability", "hf", "deploy", "pipeline", "evals", "gpu", "all"]
 
 [[package]]
 name = "mako"

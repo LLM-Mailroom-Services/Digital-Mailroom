@@ -1,0 +1,66 @@
+# sandbox job run spec — DMR-027 (see docs/jobs.md for the full schema)
+#
+# A locked, resumable job: prompt version(s) + dataset subset + engine spec
+# + trace sink. Preflight resolves/validates everything, prepares the subset,
+# and writes an immutable spec.lock.json; the job then runs per-item with
+# checkpoints and resumes after pause/failure.
+#
+# Paths in this file are resolved relative to the process CWD. The offline
+# dataset example below points at the package's small HF fixture (no network).
+
+schema: sandbox.run/v1
+run_id: fixture-sorter-smoke
+task: sorter
+profile: vllm-local            # ollama | vllm-local | vllm-remote | modal-vllm | openrouter
+
+prompt:
+  # default resolution for every agent not overridden below.
+  default: {source: code-default}
+  agents:
+    sorter_reviewer: {source: local, file: sorter_reviewer_local_v0}
+    judge: {source: local, file: judge_local_v0}
+
+dataset:
+  provider: file
+  local_path: packages/local-mailroom-sandbox/data/fixtures/hf/docclass_mini.jsonl
+  limit: 8
+  sample_seed: 1
+
+engine:
+  kind: vllm-local
+  model: Qwen/Qwen3-8B
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 256
+  modal: null
+
+job:
+  mode: endpoint
+  mock: true
+  max_retries: 2
+  fail_fast: false
+
+trace:
+  sink: none                 # none | langfuse | phoenix | otlp
+  otlp: true
+  environment: pilot
+  tags: [sandbox, job]
+
+# Full mailroom corpus or a subset instead of the fixture:
+#   dataset:
+#     provider: huggingface
+#     repo: Lucius-Morningstar/mailroom-corpus
+#     config: ground_truth          # labels + doc_text joined on filename
+#     split: test
+#     revision: eafe1ab4c0d330d8f9c7a5fb254155e75d290828   # pinned (MAILROOM_HF_REVISION)
+#     strata:
+#       expected: [insurance_claim, contract]
+#     limit: 50
+#     sample_seed: 42
+#
+# Live Langfuse sink (needs LANGFUSE_PUBLIC_KEY/SECRET_KEY/HOST in .env):
+#   trace:
+#     sink: langfuse
+#     otlp: true
+#     environment: pilot

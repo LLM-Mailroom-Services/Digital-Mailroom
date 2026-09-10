@@ -1,0 +1,66 @@
+"""Job runner checkpoint/resume tests (DMR-027) — network-free (mock)."""
+from __future__ import annotations
+import pytest
+
+import json
+
+from mailroom_sandbox.job import preflight
+from mailroom_sandbox.job import runner
+from mailroom_sandbox.job.spec import DatasetSpec, RunSpec
+
+
+def _prepped_store(tmp_path, rows=4, run_id="run-r1"):
+    path = tmp_path / "f.jsonl"
+    with open(path, "w", encoding="utf-8") as fh:
+        for i in range(rows):
+            fh.write(json.dumps({"id": f"d{i}", "filename": f"{i}.txt", "doc_text": f"t{i}", "expected": "contract" if i % 2 else "insurance_claim", "expected_subclass": "service" if i % 2 else "auto"}) + "\n")
+    spec = RunSpec(
+        run_id=run_id,
+        task="sorter",
+        dataset=DatasetSpec(local_path=f"file://{path}", limit=rows),
+        engine={"kind": "vllm-local", "modal": None},
+        trace={"sink": "none"},
+        job={"mock": True},
+    )
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+
+    return RunStore(run_dir(report["run_id"]))
+
+
+def test_run_job_mock_completes(tmp_path):
+    store = _prepped_store(tmp_path, rows=3)
+    summary = runner.run_job(store, mock=None)
+    assert summary["state"] == "done"
+    assert summary["cursor"] == 3 and summary["ok"] == 3
+    items = store.load_items()
+    assert [i["index"] for i in items] == [0, 1, 2]
+    assert summary["scores"]["exact_match"] == 1.0
+
+
+def test_run_job_resumes_from_checkpoint(tmp_path):
+    store = _prepped_store(tmp_path, rows=4)
+    first = runner.run_job(store, mock=None, max_items=2)
+    assert first["state"] == "running"
+    assert first["cursor"] == 2
+
+    second = runner.run_job(store, mock=None)
+    assert second["state"] == "done"
+    assert second["cursor"] == 4
+    items = store.load_items()
+    assert len(items) == 4  # resume never re-runs completed rows
+
+
+def test_run_record_lands_in_experiment_log(tmp_path):
+    store = _prepped_store(tmp_path, rows=2)
+    runner.run_job(store, mock=None)
+    from mailroom_sandbox.eval.experiment_log import jsonl_path
+
+    log = jsonl_path()
+    assert log.is_file()
+    text = log.read_text(encoding="utf-8")
+    assert store.run_id in text or "sandbox_sorter" in text
+
+pytestmark = pytest.mark.usefixtures("job_data_dir")

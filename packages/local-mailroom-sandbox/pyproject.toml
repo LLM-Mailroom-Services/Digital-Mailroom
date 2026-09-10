@@ -34,6 +34,12 @@ notebooks = [
 ]
 observability = [
     "langfuse>=4.0,<5",
+    "opentelemetry-sdk>=1.25",
+    "opentelemetry-exporter-otlp-proto-http>=1.25",
+]
+hf = [
+    "huggingface_hub>=0.24",
+    "pyarrow>=15.0",
 ]
 deploy = [
     # Pinned SDK for deploy/modal_vllm.py (verified 2026-09-09; the app file
@@ -52,7 +58,7 @@ gpu = [
     "mailroom-sandbox[deploy]",
 ]
 all = [
-    "mailroom-sandbox[dev,deploy,evals,observability,notebooks]",
+    "mailroom-sandbox[dev,deploy,evals,hf,observability,notebooks]",
 ]
 
 [project.scripts]

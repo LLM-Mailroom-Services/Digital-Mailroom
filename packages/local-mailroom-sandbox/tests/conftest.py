@@ -16,6 +16,13 @@ def _sandbox_root(monkeypatch):
     monkeypatch.setenv("PHOENIX_TRACING", "disabled")
 
 
+@pytest.fixture
+def job_data_dir(monkeypatch, tmp_path):
+    """Point run-store writes at tmp (DMR-027 tests)."""
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    return tmp_path
+
+
 def pytest_configure(config):
     config.addinivalue_line(
         "markers",

@@ -1,8 +1,10 @@
 # The served dispatch board (`board-site/`, Vercel)
 
-Since HUB-055 the Kanban board also runs as a **live, issue-backed web
-site** — a dispatch board any agent (or the human) can view and edit in a
-browser at **https://mailroom-dev.vercel.app**. The GitHub issues are the
+Since HUB-055 (predecessor monorepo) the Kanban board also runs as a **live,
+issue-backed web site** — a dispatch board any agent (or the human) can view
+and edit in a browser at **https://digital-mailroom-theta.vercel.app**
+(standalone deployment: DMR-002, Vercel project `digital-mailroom`). The
+GitHub issues are the
 store, which is what makes the site auto-updating + shared: every change
 is written straight through to a synced issue, so no deploy of content is
 ever needed — only a deploy of the code that reads/writes it.
@@ -24,10 +26,11 @@ are reconciled by the `board_state.py` legs (see below).
 
 ## Deploy root and layout
 
-The deploy root is **`board-site/`** (Vercel project `mailroom-dev`;
+The deploy root is **`board-site/`** (Vercel project `digital-mailroom`;
 project Root Directory = `board-site` so both CLI and Git-integration
 deploys build the board site, which carries its own
-`board-site/vercel.json`):
+`board-site/vercel.json`; the repo-root `.vercelignore` keeps CLI deploys
+from the repo root limited to `board-site/`):
 
 ```
 board-site/
@@ -50,7 +53,7 @@ build step, no framework.
 Lists every open + closed issue labeled `kanban` and normalizes each to a
 board card:
 
-- `id` — `HUB-0NN` matched from the issue title/body
+- `id` — `DMR-0NN` matched from the issue title/body
 - `lane` — from the `stage/*` label (`stage/in-progress` → `in-progress`);
   closed issues read as `done`
 - `priority` — from the `priority/*` label
@@ -63,7 +66,7 @@ board card:
 - `archived` — true when the issue is closed
 - Plus issue number, timestamps, and the issue's HTML URL.
 
-### Write-back — `PATCH /api/board/HUB-0NN`
+### Write-back — `PATCH /api/board/DMR-0NN`
 
 The UI PATCHes on every move/save. Only the changed keys need to be sent:
 
@@ -102,52 +105,55 @@ section's content) and recovers bodies previously corrupted by an old bug.
 
 | Secret | Purpose |
 | --- | --- |
-| `GITHUB_TOKEN` (or `MAILROOM_GH_TOKEN`) | GitHub token with `Exios66/mailroom-dev` Issues read/write (`stage/*`, `priority/*`, `kanban`, body, comments, assignees). The deployed production secret uses the gh-keyring token scoped to the repo. |
-| `MAILROOM_GITHUB_REPO` | Optional override of the repo the board reads/writes (default `Exios66/mailroom-dev`). |
+| `GITHUB_TOKEN` (or `MAILROOM_GH_TOKEN`) | GitHub token with `LLM-Mailroom-Services/Digital-Mailroom` Issues read/write (`stage/*`, `priority/*`, `kanban`, body, comments, assignees). The deployed production secret uses the gh-keyring token scoped to the repo. |
+| `MAILROOM_GITHUB_REPO` | Optional override of the repo the board reads/writes (default `LLM-Mailroom-Services/Digital-Mailroom`). |
 
 ## Deploy / redeploy
 
-The site is deployed from a Vercel-bound checkout. To push an update:
+**Git integration (preferred once connected):** a push to `main` builds
+`board-site/` automatically when the Vercel GitHub App is installed on the
+`LLM-Mailroom-Services` org and the project is Git-linked. Until then (the
+app install is a browser-side org action; DMR-002 tracks the decision),
+deploy with the CLI from the **repo root** — the project Root Directory
+`board-site` is applied to the uploaded tree, and the repo-root
+`.vercelignore` limits the upload to `board-site/`:
 
 ```bash
-cd board-site                    # the deploy root
-vercel link --project mailroom-dev --token "$VERCEL_TOKEN"
-vercel env add GITHUB_TOKEN production --token "$VERCEL_TOKEN"   # once
-vercel deploy --prod --token "$VERCEL_TOKEN"
+vercel link --project digital-mailroom --cwd board-site   # once: link the checkout
+vercel --prod --cwd .                                     # repo root: ships board-site/ only
 ```
 
-**Pin the production alias after every deploy.** The `mailroom-dev.vercel.app`
-alias is shared with any parallel deploy of the same project, so a
-concurrent/auto deploy can overwrite the alias with a bad build and the live
-site 404s on every route (observed 2026-09-06, HUB-059: a parallel
-`--prod` deploy hijacked the alias mid-work). After your `--prod` deploy,
-re-assert the alias onto the deployment you verified:
+Deploying from inside `board-site/` **with the Root Directory set** fails
+("The specified Root Directory 'board-site' does not exist") because the
+setting is applied on top of the uploaded tree — deploy from the repo root
+(above) instead.
+
+**Pin the production alias after every deploy.** The HUB-059 lesson (a
+parallel `--prod` deploy hijacking the shared alias) still applies; the
+standalone project owns `digital-mailroom-theta.vercel.app`, so a normal
+`--prod` deploy moves that domain to the verified build. After an
+out-of-band deploy, re-assert it:
 
 ```bash
-vercel alias set <your-deployment-url> mailroom-dev.vercel.app --token "$VERCEL_TOKEN"
+vercel alias set <your-deployment-url> digital-mailroom-theta.vercel.app --token "$VERCEL_TOKEN"
 ```
 
 **The project's Root Directory must be `board-site`.** With it unset, every
 push-triggered Git-integration deploy builds the REPO ROOT — the live site
 becomes a bare directory listing and `/api/board` 404s (observed 2026-09-09,
 recovered by re-setting the Root Directory via the API + redeploying). Set /
-repair it via the API, then deploy from `board-site/`:
+repair it via the API, then deploy from the repo root:
 
 ```bash
 curl -X PATCH -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" \
-  -d '{"rootDirectory": "board-site"}' https://api.vercel.com/v9/projects/mailroom-dev
+  -d '{"rootDirectory": "board-site"}' https://api.vercel.com/v9/projects/digital-mailroom
 ```
-
-(An early 2026-09-06 note claimed the opposite — "must be UNSET" after a
-"Root Directory 'board-site' does not exist" failure; that failure did not
-reproduce and is contradicted by the 2026-09-09 verified deploy with the
-setting live. The setting is the fix, not the problem.)
 
 Then verify against the alias:
 
 ```bash
-curl https://mailroom-dev.vercel.app/api/board        # 200 + JSON cards
-curl -i https://mailroom-dev.vercel.app/api/board/HUB-055   # 405 (PATCH only)
+curl https://digital-mailroom-theta.vercel.app/api/board        # 200 + JSON cards
+curl -i https://digital-mailroom-theta.vercel.app/api/board/DMR-001   # 405 (PATCH only)
 ```
 
 A `PATCH` smoke move (e.g. lane → same lane, or a round-trip that restores

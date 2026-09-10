@@ -45,7 +45,7 @@ python scripts/board_state.py project-sync --apply  # mirror the open table into
 
 Since HUB-055 the board also runs as a **live, issue-backed web site** — a
 dispatch board any agent can view and edit in a browser at
-**https://mailroom-dev.vercel.app**, deployed from the monorepo to Vercel
+**https://digital-mailroom-theta.vercel.app**, deployed from the monorepo to Vercel
 (project `mailroom-dev`; deploy root = `board-site/`). The GitHub issues
 are the store, which makes the site auto-updating + shared:
 
@@ -58,7 +58,7 @@ are the store, which makes the site auto-updating + shared:
   comment (the mirror law); priority swaps, body-section rewrites, and
   assignee changes PATCH the issue; archive = close, restore = reopen.
 - **Config (Vercel env secrets):** `GITHUB_TOKEN` (or `MAILROOM_GH_TOKEN`)
-  with Issues read/write on `Exios66/mailroom-dev`; `MAILROOM_GITHUB_REPO` to
+  with Issues read/write on `LLM-Mailroom-Services/Digital-Mailroom`; `MAILROOM_GITHUB_REPO` to
   override. Never commit these.
 - **Reconciliation:** TASKS.md stays canonical. After served-site edits
   (which write issues, not TASKS.md), run `board_state.py pull-issues` to
@@ -75,7 +75,7 @@ lanes, malformed issue links, missing attention tags, phantom commit
 references); **warnings** are hygiene drift (pending-archive rows,
 unclaimed cards with commits, stale `in_progress`). `--strict` fails on
 warnings too. The CI gate
-[`.github/workflows/board-governance.yml`](https://github.com/Exios66/mailroom-dev/blob/main/.github/workflows/board-governance.yml)
+[`.github/workflows/board-governance.yml`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/.github/workflows/board-governance.yml)
 runs `check` + the label audit + the doc-class taxonomy parity gate
 (`scripts/taxonomy_parity.py`, HUB-019 §65A — fails when the canonical
 five-class surfaces disagree; also triggered by changes to the taxonomy

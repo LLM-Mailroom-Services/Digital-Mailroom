@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "Declarative label taxonomy for Exios66/mailroom-dev (HUB-014). Source of truth for scripts/github_labels.py sync/audit. Bridge between GitHub issues and the governance/TASKS.md lanes: stage/* mirrors the four board lanes, attention/* mirrors the needs_attention tags (needs:/review:/decision:), type/* and priority/* classify work, domain/* scopes it to the hub or a package, and kanban marks a synced board card (one card = one issue). Colors may repeat; names must not. Sync with: python scripts/github_labels.py sync",
+  "note": "Declarative label taxonomy for LLM-Mailroom-Services/Digital-Mailroom (HUB-014). Source of truth for scripts/github_labels.py sync/audit. Bridge between GitHub issues and the governance/TASKS.md lanes: stage/* mirrors the four board lanes, attention/* mirrors the needs_attention tags (needs:/review:/decision:), type/* and priority/* classify work, domain/* scopes it to the hub or a package, and kanban marks a synced board card (one card = one issue). Colors may repeat; names must not. Sync with: python scripts/github_labels.py sync",
   "labels": [
     {
       "name": "stage/assigned",
@@ -50,7 +50,7 @@
     {
       "name": "type/task",
       "color": "D4C5F9",
-      "description": "TODO item / board-card work item (HUB-0NN) - the default work unit"
+      "description": "TODO item / board-card work item (DMR-0NN) - the default work unit"
     },
     {
       "name": "type/docs",
@@ -160,7 +160,7 @@
     {
       "name": "kanban",
       "color": "000000",
-      "description": "Synced board card: mirrors a HUB-0NN card on governance/TASKS.md (board = source of truth)"
+      "description": "Synced board card: mirrors a DMR-0NN card on governance/TASKS.md (board = source of truth)"
     }
   ]
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sync docs/wiki/ -> https://github.com/Exios66/mailroom-dev/wiki (HUB-017).
+# Sync docs/wiki/ -> https://github.com/LLM-Mailroom-Services/Digital-Mailroom/wiki (DMR-002).
 # Same pattern as packages/llm-entity-extraction/docs/wiki/sync-wiki.sh:
 # the wiki source is version-controlled HERE; the GitHub wiki is a mirror.
 #
@@ -9,8 +9,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-WIKI_URL="https://github.com/Exios66/mailroom-dev.wiki.git"
-WIKI_TMP="${WIKI_TMP:-/tmp/mailroom-dev-wiki}"
+WIKI_URL="https://github.com/LLM-Mailroom-Services/Digital-Mailroom.wiki.git"
+WIKI_TMP="${WIKI_TMP:-/tmp/digital-mailroom-wiki}"
 SRC="$REPO_ROOT/docs/wiki"
 
 cd "$SRC"
@@ -49,7 +49,7 @@ done
 cd "$WIKI_TMP"
 if [[ -n "$(git status --porcelain)" ]]; then
     git add -A
-    git commit -q -m "HUB-017: sync wiki from mailroom-dev docs/wiki/ ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+    git commit -q -m "DMR-002: sync wiki from Digital-Mailroom docs/wiki/ ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
     git push --quiet origin master
     echo "pushed $copied page(s) to the wiki"
 else

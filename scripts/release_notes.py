@@ -30,7 +30,7 @@ Rendered-template contract (what a valid release body must contain):
   - a Highlights section summarising the changes in one line per card
   - the full changelog section body (the detailed change description)
   - a PRs section naming every pull request merged into the release
-  - a Key commits section naming the HUB-card commits that landed
+  - a Key commits section naming the DMR-card commits that landed
   - changelog + compare references
 """
 
@@ -47,12 +47,12 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CHANGELOG = REPO_ROOT / "CHANGELOG.md"
 TEMPLATE = REPO_ROOT / ".github" / "RELEASE_TEMPLATE.md"
-REPO = "Exios66/mailroom-dev"
+REPO = "LLM-Mailroom-Services/Digital-Mailroom"
 TAG_PREFIX = "v"
 
 SECTION_RE = re.compile(r"^## \[(?P<name>[^\]]+)\](?P<stamp> - \d{4}-\d{2}-\d{2})?\s*$")
 VERSION_RE = re.compile(r"^(?P<maj>\d+)\.(?P<min>\d+)\.(?P<pat>\d+)(?:-[0-9A-Za-z.-]+)?$")
-HUB_RE = re.compile(r"\bHUB-\d{3,}\b")
+CARD_RE = re.compile(r"\b(?:DMR|HUB)-\d{3,}\b")
 PR_MERGE_RE = re.compile(r"\bMerge pull request #(?P<num>\d+) from")
 
 
@@ -145,7 +145,7 @@ def bold_headlines(body: str) -> list[str]:
 
     A changelog card headline can span lines:
         '- **Headline text
-          (HUB-0NN, 2026-09-04):** the body...'
+          (DMR-0NN, 2026-09-04):** the body...'
     -> 'Headline text'. Returns each headline (trailing card refs trimmed).
     """
     lines = body.split("\n")
@@ -160,7 +160,7 @@ def bold_headlines(body: str) -> list[str]:
                 buf += " " + lines[i].strip()
             head, _, _ = buf.partition(":**")
             head = head.strip().strip("*").strip()
-            for sep in (" (HUB-", " — ", " - ", " ("):
+            for sep in (" (DMR-", " (HUB-", " — ", " - ", " ("):
                 if sep in head:
                     head = head.split(sep, 1)[0]
             headlines.append(head.strip(" .:"))
@@ -239,10 +239,10 @@ def prs_in_range(prev_tag: str, version: str, *, net: bool) -> list[dict]:
 
 
 def key_commits(commits: list[dict], limit: int = 15) -> list[dict]:
-    """Prefer HUB-card-referenced commits (the critical ones); pad with the
+    """Prefer DMR-card-referenced commits (the critical ones); pad with the
     rest so the release always names its commit evidence."""
-    hub = [c for c in commits if HUB_RE.search(c["subject"])]
-    others = [c for c in commits if not HUB_RE.search(c["subject"])]
+    hub = [c for c in commits if CARD_RE.search(c["subject"])]
+    others = [c for c in commits if not CARD_RE.search(c["subject"])]
     chosen = hub + others
     return chosen[:limit]
 

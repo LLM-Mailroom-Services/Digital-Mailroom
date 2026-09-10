@@ -35,7 +35,7 @@ module.exports = async function handler(req, res) {
   try {
     if (req.method !== "PATCH") return sendJson(res, 405, { error: "method not allowed (use PATCH)" });
     const cardId = String((req.url || "").split("?")[0].split("/").pop()).toUpperCase();
-    if (!/^HUB-\d{3,}$/.test(cardId)) return sendJson(res, 400, { error: `bad card id ${cardId}` });
+    if (!/^DMR-\d{3,}$/.test(cardId)) return sendJson(res, 400, { error: `bad card id ${cardId}` });
 
     const issue = await ghx.findIssueByCardId(cardId);
     const body = await readBody(req);

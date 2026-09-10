@@ -5,7 +5,7 @@
 One checkout, one virtualenv — never import across separate repositories:
 
 ```bash
-git clone https://github.com/Exios66/mailroom-dev.git
+git clone https://github.com/LLM-Mailroom-Services/Digital-Mailroom.git
 cd mailroom-dev
 uv sync        # install every workspace member editable into .venv
 ```
@@ -62,7 +62,7 @@ Live local-LLM tests need `SANDBOX_LOCAL_LLM=1`. See [[Offline-Sandbox]].
 `governance/TASKS.md` FIRST every session, claims cards before edits, and
 closes them with proof.
 
-The board is also served live at https://mailroom-dev.vercel.app — view and
+The board is also served live at https://digital-mailroom-theta.vercel.app — view and
 edit cards in a browser (issue-backed, auto-updating). Site edits write
 issues, not TASKS.md: run `python scripts/board_state.py pull-issues
 --apply` afterward to pull lane moves back into the canonical board

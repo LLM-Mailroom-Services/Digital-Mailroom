@@ -41,7 +41,7 @@ version key (see the llm-entity-extraction AGENTS.md).
 schema v8, 2,000 rows ([[HF-Corpus]]). Uploads go through the centralized
 `mailroom_eda` helpers only.
 
-**Q: A card is missing from the served board at mailroom-dev.vercel.app.**
+**Q: A card is missing from the served board at digital-mailroom-theta.vercel.app.**
 The site only lists issues labeled `kanban` — every board card needs a
 synced issue (one card = one issue, `kanban` + `stage/*` + `priority/*` +
 `domain/*` labels) with the link in the card's Issue column, otherwise it

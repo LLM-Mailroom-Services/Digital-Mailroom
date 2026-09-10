@@ -1494,7 +1494,7 @@
             <div class="modal-body" id="modalBody">
                 <div class="form-group">
                     <label class="form-label" for="formId">Card ID</label>
-                    <input class="form-input" type="text" id="formId" placeholder="HUB-000" readonly>
+                    <input class="form-input" type="text" id="formId" placeholder="DMR-000" readonly>
                     <div class="modal-meta" id="modalMeta"></div>
                 </div>
                 <div class="form-group">
@@ -1587,6 +1587,7 @@
                 offlineError: null,
                 lastSyncedAt: null,
                 generatedAt: null,
+                repo: null,
                 searchQuery: '',
                 priorityFilter: null,
                 agentFilter: null,
@@ -1709,6 +1710,7 @@
                     state.loading = false;
                     state.lastSyncedAt = Date.now();
                     state.generatedAt = data.generatedAt || null;
+                    state.repo = data.repo || null;
                     setSyncBadge('live', `● LIVE · ${state.cards.length} cards`);
                 } catch (err) {
                     // Live-only board: never inject a snapshot. If the proxy is
@@ -1864,14 +1866,14 @@
 
             function getNextCardId() {
                 const maxNum = state.cards.reduce((max, card) => {
-                    const match = (card.id || '').match(/HUB-(\d+)/i);
+                    const match = (card.id || '').match(/DMR-(\d+)/i);
                     if (match) {
                         const num = parseInt(match[1], 10);
                         if (num > max) max = num;
                     }
                     return max;
                 }, 0);
-                return `HUB-${String(maxNum + 1).padStart(3, '0')}`;
+                return `DMR-${String(maxNum + 1).padStart(3, '0')}`;
             }
 
             // ─── AGE HELPERS ───
@@ -1983,7 +1985,7 @@
             function updateRepoContext() {
                 const el = $('#repoContext');
                 if (!el) return;
-                const repo = state.generatedAt ? 'Exios66/mailroom-dev' : '';
+                const repo = state.repo || (state.generatedAt ? 'LLM-Mailroom-Services/Digital-Mailroom' : '');
                 el.textContent = repo ? `⎇ ${repo}` : '';
                 el.title = repo ? 'Source repository: ' + repo : '';
                 el.style.display = repo ? '' : 'none';
@@ -2378,7 +2380,7 @@
                         evidence: cardData.evidence,
                     });
                 } else {
-                    // New card -> create a GitHub issue; server assigns HUB-0NN.
+                    // New card -> create a GitHub issue; server assigns DMR-0NN.
                     const tmp = tmpNewCardId || cardData.id;
                     state.cards.push({ ...cardData, id: tmp, archived: false });
                     renderBoard();

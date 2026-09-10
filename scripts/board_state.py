@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Board governance state tracker for the mailroom-hub Kanban board (HUB-014).
+"""Board governance state tracker for the Digital-Mailroom Kanban board (DMR-001).
 
 Reads the LIVE state of ``governance/TASKS.md`` — the single source of truth
 for cross-agent task state in the monorepo — into a computationally readable
@@ -9,7 +9,7 @@ board with Lane/Owner/Card fields).
 
 Usage:
     python scripts/board_state.py status         [--json]
-    python scripts/board_state.py card HUB-0NN   [--json]
+    python scripts/board_state.py card DMR-0NN   [--json]
     python scripts/board_state.py check          [--with-issues] [--stale-days N]
                                                  [--log-limit N] [--strict] [--json]
     python scripts/board_state.py sync-issues    [--apply] [--repo OWNER/NAME]
@@ -34,7 +34,7 @@ Usage:
 Parsing rules (governance/TASKS.md structure):
   open cards  | Card | Status | Task | Owner | Issue | Evidence | rows under
               "## Open cards"; the lane is the backticked token in Status.
-  archive     "- **HUB-0NN** (done YYYY-MM-DD) — ..." bullets under "## Archive".
+  archive     "- **DMR-0NN** (done YYYY-MM-DD) — ..." bullets under "## Archive".
 
 Findings severity contract:
   error    machine-verifiable structural contradiction (duplicate IDs, invalid
@@ -64,8 +64,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 BOARD_PATH = REPO_ROOT / "governance" / "TASKS.md"
 CONFIG_PATH = REPO_ROOT / "scripts" / "board_config.json"
 
-DEFAULT_REPO = "Exios66/mailroom-dev"
-DEFAULT_PROJECT_TITLE = "mailroom-hub board"
+DEFAULT_REPO = "LLM-Mailroom-Services/Digital-Mailroom"
+DEFAULT_PROJECT_TITLE = "digital-mailroom board"
 
 LANES = ("assigned", "in_progress", "needs_attention", "done")
 LANE_LABELS = {
@@ -82,8 +82,8 @@ ATTENTION_LABELS = {
 PRIORITIES = ("low", "medium", "high", "critical")
 DOMAIN_DASH = {"—", "--", "-"}
 
-CARD_RE = re.compile(r"HUB-\d{3,}")
-ARCHIVE_ROW_RE = re.compile(r"^\s*-\s+\*\*(HUB-\d+)\*\*\s+\(done\s+(\d{4}-\d{2}-\d{2})\)")
+CARD_RE = re.compile(r"DMR-\d{3,}")
+ARCHIVE_ROW_RE = re.compile(r"^\s*-\s+\*\*(DMR-\d+)\*\*\s+\(done\s+(\d{4}-\d{2}-\d{2})\)")
 ISSUE_LINK_RE = re.compile(r"\[#(\d+)\]\((https://github\.com/[^)\s]+/issues/\d+)\)")
 ISSUE_BARE_RE = re.compile(r"^\s*#(\d+)\s*$")
 
@@ -707,19 +707,19 @@ def _list_kanban_issues(repo: str) -> list[dict]:
 
 
 def _card_id_from_issue(issue: dict) -> str | None:
-    match = re.search(r"\b(HUB-\d{3,})\b", issue.get("title") or "", re.I)
+    match = re.search(r"\b(DMR-\d{3,})\b", issue.get("title") or "", re.I)
     if match:
         return match.group(1).upper()
     if issue.get("body"):
         section = issue_body_section(issue["body"], "Card ID")
         if section:
-            match = re.search(r"\b(HUB-\d{3,})\b", section, re.I)
+            match = re.search(r"\b(DMR-\d{3,})\b", section, re.I)
             if match:
                 return match.group(1).upper()
     return None
 
 
-LANE_RE = re.compile(r"^\|\s*(HUB-\d{3,})\s*\|\s*`([a-z_]+)`")
+LANE_RE = re.compile(r"^\|\s*(DMR-\d{3,})\s*\|\s*`([a-z_]+)`")
 
 
 def cmd_pull_issues(args: argparse.Namespace) -> int:
@@ -798,7 +798,7 @@ def cmd_pull_issues(args: argparse.Namespace) -> int:
                 failures.append(f"{cid}: row not in a rewritable shape: {row[:60].strip()}…")
                 continue
             today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            new_row = re.sub(r"^\|\s*(HUB-\d{3,})\s*\|\s*`[a-z_]+`",
+            new_row = re.sub(r"^\|\s*(DMR-\d{3,})\s*\|\s*`[a-z_]+`",
                              rf"| \1 | `{issue_lane}`", row, count=1)
             note = f" **pull-issues {today}:** lane synced from issue #{issue['number']} (`{card.lane}` → `{issue_lane}`)"
             # Append the note to the LAST cell (Evidence), before the row's closing " |".

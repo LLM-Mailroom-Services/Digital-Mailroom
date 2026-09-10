@@ -1,6 +1,6 @@
 // Zero-dependency GitHub REST proxy helpers for the Kanban dispatch board.
 // Auth: GITHUB_TOKEN (or MAILROOM_GH_TOKEN) Vercel secret. Repo:
-// MAILROOM_GITHUB_REPO (default Exios66/mailroom-dev).
+// MAILROOM_GITHUB_REPO (default LLM-Mailroom-Services/Digital-Mailroom).
 //
 // Lane flow: unassigned → assigned → in-progress → needs-attention → done
 // Issues with no stage/* label AND no assignees land in "unassigned" (triage queue).
@@ -23,8 +23,8 @@ const STAGE_LABELS = LANES.map((l) => l.label);
 // cross-origin at all for unknown ones) so a third-party website cannot use
 // a visitor's browser to PATCH the board.
 const ALLOWED_ORIGINS = new Set([
-  "https://mailroom-dev.vercel.app",
-  "https://mailroom-dev-lucius-projects-54efe0bb.vercel.app",
+  "https://digital-mailroom-theta.vercel.app",
+  "https://digital-mailroom-theta-lucius-projects-54efe0bb.vercel.app",
   "http://localhost:3000",
   "http://localhost:8787",
   "null",
@@ -56,7 +56,7 @@ function token() {
 }
 
 function repo() {
-  return process.env.MAILROOM_GITHUB_REPO || "Exios66/mailroom-dev";
+  return process.env.MAILROOM_GITHUB_REPO || "LLM-Mailroom-Services/Digital-Mailroom";
 }
 
 function actor(req) {
@@ -112,9 +112,9 @@ async function gh(path, { method = "GET", body, query, ifNoneMatch } = {}) {
 // ---- issue -> board card normalization ---------------------------------
 
 function cardIdFromIssue(issue) {
-  const t = (issue.title || "").match(/HUB-\d{3,}/i);
+  const t = (issue.title || "").match(/DMR-\d{3,}/i);
   if (t) return t[0].toUpperCase();
-  const b = (issue.body || "").match(/HUB-\d{3,}/i);
+  const b = (issue.body || "").match(/DMR-\d{3,}/i);
   return b ? b[0].toUpperCase() : null;
 }
 
@@ -272,10 +272,10 @@ async function nextCardId() {
   const data = await fetchAllKanbanIssues();
   let max = 0;
   for (const issue of data || []) {
-    const m = (issue.title || "").match(/HUB-(\d{3,})/i);
+    const m = (issue.title || "").match(/DMR-(\d{3,})/i);
     if (m) max = Math.max(max, parseInt(m[1], 10));
   }
-  return `HUB-${String(max + 1).padStart(3, "0")}`;
+  return `DMR-${String(max + 1).padStart(3, "0")}`;
 }
 
 module.exports = {

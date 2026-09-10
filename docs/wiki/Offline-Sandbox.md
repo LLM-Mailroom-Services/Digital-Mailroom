@@ -58,7 +58,7 @@ sandbox up --compose-profile langfuse --compose-profile ollama --compose-profile
   **HEALTHCHECK** on Jupyter Lab (:8888).
 - Stateful services carry healthchecks; Langfuse 3 init keys come from the
   environment (headless, no web wizard).
-- Full guide: [`docs/docker-offline.md`](https://github.com/Exios66/mailroom-dev/blob/main/packages/local-mailroom-sandbox/docs/docker-offline.md).
+- Full guide: [`docs/docker-offline.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/packages/local-mailroom-sandbox/docs/docker-offline.md).
 
 ## Commands
 

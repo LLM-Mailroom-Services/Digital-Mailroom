@@ -31,7 +31,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = REPO_ROOT / ".github" / "labels.json"
 
-DEFAULT_REPO = "Exios66/mailroom-dev"
+DEFAULT_REPO = "LLM-Mailroom-Services/Digital-Mailroom"
 
 
 def run(cmd: list[str]) -> subprocess.CompletedProcess:

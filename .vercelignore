@@ -1,0 +1,8 @@
+# Vercel CLI deploy root filter (project Root Directory = board-site).
+# The repo is a monorepo; only the served board ships to Vercel. Git-integration
+# builds use the project Root Directory setting and ignore this file; CLI
+# deploys run from the repo root so the Root Directory check finds board-site/.
+/*
+!/board-site
+board-site/.vercel
+board-site/.env*

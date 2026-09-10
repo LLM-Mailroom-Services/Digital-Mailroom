@@ -1,8 +1,7 @@
-name: Board card (HUB-0NN)
+name: Board card (DMR-0NN)
 description: Open the GitHub-issue mirror of a cross-package card on the governance/TASKS.md Kanban board
-title: "HUB-0NN: "
+title: "DMR-0NN: "
 labels: ["kanban", "type/task"]
-assignees: Exios66
 body:
   - type: markdown
     attributes:
@@ -27,8 +26,8 @@ body:
     id: card_id
     attributes:
       label: Card ID
-      description: "The HUB-0NN this issue mirrors. Must already exist on governance/TASKS.md and must not collide with any other card."
-      placeholder: "HUB-014"
+      description: "The DMR-0NN this issue mirrors. Must already exist on governance/TASKS.md and must not collide with any other card."
+      placeholder: "DMR-014"
     validations:
       required: true
   - type: dropdown
@@ -107,4 +106,4 @@ body:
         - label: "The card's Issue column on governance/TASKS.md carries the full link to this issue"
         - label: "Lane moves on the board will be mirrored here as comments"
         - label: "This issue will be closed in the SAME commit that archives the card"
-        - label: "Commits reference the card: `HUB-0NN: <summary>`"
+        - label: "Commits reference the card: `DMR-0NN: <summary>`"

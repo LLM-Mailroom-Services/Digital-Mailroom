@@ -1,4 +1,4 @@
-# Changelog — mailroom-hub
+# Changelog — Digital-Mailroom
 
 All notable changes to the **mailroom-dev monorepo itself** (workspace wiring,
 cross-package governance, sync tooling, corpus governance, hub infrastructure)
@@ -22,6 +22,29 @@ and is recorded there, not here.
 ## [Unreleased]
 ### Added
 
+- **Standalone board restart + served dispatch board (DMR-001/DMR-002/DMR-003,
+  2026-09-09):** the Digital-Mailroom clone now runs its own task board and
+  served site. **DMR-001** restarts `governance/TASKS.md` in a fresh `DMR-`
+  namespace (predecessor `HUB-*` cards stay canonical in `Exios66/mailroom-dev`;
+  lineage recorded in the board header) and re-points every board tool at
+  `LLM-Mailroom-Services/Digital-Mailroom`: `scripts/board_state.py`
+  (`DEFAULT_REPO`, card/archive/lane/issue regexes, project title),
+  `scripts/github_labels.py`, `.github/labels.json`, `scripts/release_chain.py`,
+  `scripts/release_notes.py`, and the `.github/ISSUE_TEMPLATE/hub_card.yml`
+  template; the 32-label kanban taxonomy was seeded in the new repo. **DMR-002**
+  stands up the new Vercel project `digital-mailroom` (Root Directory
+  `board-site`, Vercel Authentication off, `GITHUB_TOKEN` production secret)
+  serving the issue-backed board at
+  **https://digital-mailroom-theta.vercel.app** — `board-site/lib/gh.js`,
+  `board-site/api/board/[id].js` and `board-site/index.html` now read/write the
+  new repo under the `DMR-` prefix with the new CORS origins, and a repo-root
+  `.vercelignore` keeps CLI deploys limited to `board-site/`. **DMR-003**
+  verified the predecessor board stays modifiable (`PATCH /api/board/HUB-064`
+  through the original proxy) and disabled Vercel Authentication on project
+  `mailroom-dev` so raw deployment URLs (e.g.
+  `mailroom-4sc2d0sxd-lucius-projects-54efe0bb.vercel.app`) serve publicly.
+  Docs currency: `AGENTS.md` board/served-board sections, `README.md` hub +
+  governance pointers, `docs/wiki/Served-Board.md` and `docs/wiki/sync-wiki.sh`.
 - **Release-notes generator + template (`.github/RELEASE_TEMPLATE.md` +
   `scripts/release_notes.py`):** all hub GitHub Releases now render their body
   with `python scripts/release_notes.py X.Y.Z` — it compiles the freshly-cut

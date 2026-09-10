@@ -302,7 +302,7 @@ def _stamp_changelog(version: str, today: str) -> None:
 
 def _relink_footer(new_version: str, previous: str | None) -> None:
     text = CHANGELOG.read_text(encoding="utf-8")
-    base = "https://github.com/Exios66/mailroom-dev"
+    base = "https://github.com/LLM-Mailroom-Services/Digital-Mailroom"
     old_unreleased = f"[Unreleased]: {base}/compare/{TAG_PREFIX}{previous}...HEAD" if previous else f"[Unreleased]: {base}/compare/{TAG_PREFIX}{new_version}...HEAD"
     new_unreleased = f"[Unreleased]: {base}/compare/{TAG_PREFIX}{new_version}...HEAD"
     links = [new_unreleased]
@@ -367,7 +367,7 @@ def cut(version: str, apply: bool, make_tag: bool, allow_dirty: bool, allow_empt
     print(f"  3. footer links: Unreleased-compare -> v{version}; release link [{version}] added")
     if make_tag:
         print(f"  4. annotated tag {TAG_PREFIX}{version} (message: '{TAG_MESSAGE_PREFIX} {TAG_PREFIX}{version}')")
-    print("  (commit + push stay with the caller — reference the HUB card)")
+    print("  (commit + push stay with the caller — reference the DMR card)")
 
     if not apply:
         print("\ndry run — pass --apply to write the changes")

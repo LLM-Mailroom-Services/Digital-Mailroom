@@ -44,7 +44,7 @@ Multi-agent legal-document pipeline · Prompt-experiment loop · Deterministic s
                     └──────────────────────────┬───────────────────────────┘
                                                ▼
                     ┌──────────────────────────────────────────────────────┐
-                    │              mailroom-dev — this monorepo            │
+                    │            Digital-Mailroom — this standalone repo     │
                     │        (central truth; every box lives in it)        │
                     └──────────────────────────────────────────────────────┘
 ```
@@ -57,7 +57,7 @@ All ten packages live in `packages/` as git subtrees and mirror independent `Exi
 
 | Layer | Repository | GitHub Pages |
 |:---|:---|:---|
-| **Hub** (central truth) | [`Exios66/mailroom-dev`](https://github.com/Exios66/mailroom-dev) | — |
+| **Hub** (central truth) | [`LLM-Mailroom-Services/Digital-Mailroom`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) | — |
 | **Corpus feed** | [`Exios66/Enron-Evaluation-Environment`](https://github.com/Exios66/Enron-Evaluation-Environment) | [exios66.github.io/Enron-Evaluation-Environment](https://exios66.github.io/Enron-Evaluation-Environment/) |
 | **Corpus feed** | [`Exios66/claims-data-eda`](https://github.com/Exios66/claims-data-eda) | [exios66.github.io/claims-data-eda](https://exios66.github.io/claims-data-eda/) |
 | **Corpus EDA + HF** | [`Exios66/Mailroom-Corpus-EDA`](https://github.com/Exios66/Mailroom-Corpus-EDA) | [exios66.github.io/Mailroom-Corpus-EDA](https://exios66.github.io/Mailroom-Corpus-EDA/) |
@@ -153,7 +153,8 @@ python scripts/sync_packages.py snapshot                # cursor verification
 
 ## GitHub Governance Tooling
 
-The board and GitHub surface are kept machine-readable and mutually consistent:
+The board and GitHub surface are kept machine-readable and mutually consistent.
+The live dispatch board is **https://digital-mailroom-theta.vercel.app** (issue-backed; see `board-site/` and `docs/wiki/Served-Board.md`):
 
 ```bash
 python scripts/board_state.py status            # live board snapshot (--json for machines)
@@ -170,7 +171,7 @@ See `.github/ISSUE_TEMPLATE/`, `.github/PULL_REQUEST_TEMPLATE/`, `.github/labels
 
 ## Wiki
 
-The [GitHub wiki](https://github.com/Exios66/mailroom-dev/wiki) is mirrored from `docs/wiki/`.
+The [GitHub wiki](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/wiki) is mirrored from `docs/wiki/`.
 
 ## Release Flow
 

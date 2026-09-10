@@ -106,7 +106,7 @@ change what every release carries, never hand-type a release body.
   root; the new [terminal console](https://exios66.github.io/The-Mailroom/docs/terminal/)
   lives under `/docs/terminal/`),
   [llm-mailroom-graph](https://exios66.github.io/llm-mailroom-graph/).
-- **The served Kanban board — Vercel:** https://mailroom-dev.vercel.app
+- **The served Kanban board — Vercel:** https://digital-mailroom-theta.vercel.app
   (project `mailroom-dev`, deploy root `board-site/`). It is its own deploy
   surface with its own `vercel.json`, a `GITHUB_TOKEN` production secret,
   and the redeploy workflow documented in [[Served-Board]].

@@ -81,6 +81,12 @@ simplified counterpart of
 `packages/llm-entity-extraction/governance/MESSAGE_BOARD.md` (same laws,
 fewer steps); package-scoped work keeps its own board.
 
+**DMR namespace (DMR-001, 2026-09-09):** this repo is the standalone
+Digital-Mailroom version, cloned from the original `Exios66/mailroom-dev`
+monorepo. Its board was restarted fresh: cards use `DMR-00N` and never reuse
+the predecessor `HUB-00N` numbers. HUB-era evidence lives in the original
+repo and this repo's git history.
+
 The four lanes: `assigned` (queued/claimed, nothing underway) →
 `in_progress` (any work exists — label the card before the code, never after)
 → `needs_attention` (blocked / review / decision, tagged in Evidence) →
@@ -94,7 +100,7 @@ The four lanes: `assigned` (queued/claimed, nothing underway) →
   packages, a clean `git status` for the card's scope, Evidence naming the
   commit(s), and (for synced cards) the GitHub issue closed in the same
   commit. An agent is NOT done until its card says so.
-- **Commit discipline** — reference cards: `HUB-00N: <summary>`; stage
+- **Commit discipline** — reference cards: `DMR-00N: <summary>`; stage
   targeted paths only (`git add <explicit paths>` — never `git add .`/`-A`
   or a bare directory). Shared checkout: re-check `git status --porcelain`
   before every commit and unstage files you don't own (HUB-024/HUB-027
@@ -107,7 +113,7 @@ The four lanes: `assigned` (queued/claimed, nothing underway) →
 - **Issue routing** — board-only for small/single-session/low-risk cards;
   critical or cross-package cards get an issue in the repo where the work
   lands (this monorepo for hub scope, the package repo for package scope).
-  Synced issues use the *Board card (HUB-0NN)* template
+  Synced issues use the *Board card (DMR-0NN)* template
   (`.github/ISSUE_TEMPLATE/hub_card.yml`), carry the `kanban` + lane labels
   (taxonomy: `.github/labels.json`, applied by `board_state.py sync-issues`),
   and are mirrored both ways: the card's Issue column links the issue, lane
@@ -124,25 +130,26 @@ Run `check` before closing any card that touches the board; the CI gate
 ### Served Kanban board (`board-site/`, Vercel)
 
 The board also runs as a **live, issue-backed web site** on Vercel
-(HUB-055) — a "dispatch board" any agent can view and edit in a browser
-at **https://mailroom-dev.vercel.app**. The issues themselves are the
+(DMR-002) — a "dispatch board" any agent can view and edit in a browser
+at **https://digital-mailroom-theta.vercel.app**. The issues themselves are the
 store, which is what makes the site auto-updating + shared. The full
 operational doc (API contract, env secrets, redeploy, reconciliation) is
 the wiki page `docs/wiki/Served-Board.md` (mirror to
-<https://github.com/Exios66/mailroom-dev/wiki/Served-Board>):
+<https://github.com/LLM-Mailroom-Services/Digital-Mailroom/wiki/Served-Board>):
 
-- **Deploy root is `board-site/`** (Vercel project `mailroom-dev`, live
+- **Deploy root is `board-site/`** (Vercel project `digital-mailroom`, live
   production; project Root Directory = `board-site` so BOTH CLI and
   Git-integration deploys build the board site — never leave it unset, or a
   push-triggered Git deploy serves the repo root as a bare file listing and
   404s `/api/board` (observed 2026-09-09). The dir carries its own
-  `board-site/vercel.json`). Serverless functions
+  `board-site/vercel.json`; the repo-root `.vercelignore` limits CLI deploys
+  from the repo root to `board-site/`). Serverless functions
   under `board-site/api/`; static `board-site/index.html` is the adapted
   `mailroom-dispatch-board.html` (drag/move/edit + archive UI, filters,
   stats). Project secret `GITHUB_TOKEN` (gh keyring token, repo scope:
   Issues read/write) powers the proxy; never commit it.
 - **Read path:** `GET /api/board` lists every open + closed issue labeled
-  `kanban` and normalizes it to a board card (id `HUB-0NN` from title/body,
+  `kanban` and normalizes it to a board card (id `DMR-0NN` from title/body,
   lane from `stage/*`, priority from `priority/*`, desc/evidence from the
   `### Task` / `### Evidence plan` body sections, archived = closed).
 - **Agents = the `### Owner` body section (never GitHub assignees).** The
@@ -160,15 +167,15 @@ the wiki page `docs/wiki/Served-Board.md` (mirror to
   snapshot. The canonical board stays `governance/TASKS.md` — `pull-issues`
   imports served-site moves back into TASKS.md, `sync-issues` pushes
   TASKS.md truth into the issues (labels + body sections).
-- **Write-back:** the UI PATCHes `/api/board/HUB-0NN` on every move/save;
+- **Write-back:** the UI PATCHes `/api/board/DMR-0NN` on every move/save;
   the proxy swaps the `stage/*` label (+ posts a dated "Board lane move"
   comment for the board mirror law), swaps `priority/*`, rewrites the body
   sections (incl. `### Owner` for agent changes), and closes/reopens for
   archive/restore. It never sets GitHub assignees to agent names (those
   aren't repo users).
 - **Config (Vercel env secrets):** `GITHUB_TOKEN` (or `MAILROOM_GH_TOKEN`)
-  with repo `Exios66/mailroom-dev` Issues read/write; `MAILROOM_GITHUB_REPO`
-  to override. Never commit these.
+  with repo `LLM-Mailroom-Services/Digital-Mailroom` Issues read/write;
+  `MAILROOM_GITHUB_REPO` to override. Never commit these.
 - **Canonical board reconciliation:** TASKS.md stays the source of truth.
   After edits made on the served site (which write issues, not TASKS.md),
   run `python scripts/board_state.py pull-issues` — it reports issue-side

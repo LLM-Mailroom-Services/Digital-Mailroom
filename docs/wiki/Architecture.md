@@ -18,15 +18,15 @@
 └────────────────────────┘        └──────────────────┬────────────────────┘
                                                      ▼
 ┌── surfaces ──────────────────────────────────────────┐
-                    │  The-Mailroom (visualizer)     agent-mailroom        │
-                    │  local-mailroom-sandbox        llm-mailroom-graph    │
-                    │  mailroom-dev.vercel.app (served board, board-site/) │
-                    └──────────────────────────┬───────────────────────────┘
-                                                ▼
-                    ┌──────────────────────────────────────────────────────┐
-                    │              mailroom-dev — this monorepo            │
-                    │        (central truth; every box lives in it)        │
-                    └──────────────────────────────────────────────────────┘
+│  The-Mailroom (visualizer)     agent-mailroom        │
+│  local-mailroom-sandbox        llm-mailroom-graph    │
+│  Digital-Mailroom dispatch board (Vercel)            │
+└──────────────────────────┬───────────────────────────┘
+                           ▼
+┌──────────────────────────────────────────────────────┐
+│  Digital-Mailroom — this standalone repo             │
+│  (central truth; every box lives in it)              │
+└──────────────────────────────────────────────────────┘
 ```
 
 ## Every repository, with links
@@ -37,8 +37,8 @@ operational. GitHub Pages sites exist for three of them.
 
 | Layer | Repository | GitHub Pages |
 | --- | --- | --- |
-| Hub (central truth, this repo) | [Exios66/mailroom-dev](https://github.com/Exios66/mailroom-dev) | — |
-| Hub — served board (`board-site/`, Vercel) | [mailroom-dev.vercel.app](https://mailroom-dev.vercel.app) | — |
+| Hub (central truth, this repo) | [LLM-Mailroom-Services/Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) | — |
+| Hub — served board (`board-site/`, Vercel) | [digital-mailroom-theta.vercel.app](https://digital-mailroom-theta.vercel.app) | — |
 | Corpus feed | [Exios66/Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment) | — |
 | Corpus feed | [Exios66/claims-data-eda](https://github.com/Exios66/claims-data-eda) | — |
 | Corpus EDA + HF upload helpers | [Exios66/Mailroom-Corpus-EDA](https://github.com/Exios66/Mailroom-Corpus-EDA) | — |

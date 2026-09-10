@@ -71,3 +71,4 @@ data/watcher_heartbeat.tmp
 
 # Vercel serverless functions (board-site deploy root)
 .vercel/
+.vercel

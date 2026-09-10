@@ -148,6 +148,7 @@
 | 2026-09-10 | DMR-011 through DMR-029 veracity audit | 10 of 12 cards have missing implementations; 2 cards correctly scoped as execution-only | Created DMR-028 through DMR-037; wrote STATE.md | None yet |
 | 2026-09-10 | Fix pass: DMR-029, DMR-030, DMR-031, DMR-032 | Archived cards DMR-021/DMR-022 claimed fixes were shipped but only applied to local-mailroom-sandbox | Fixed vllm-specialist.md version, both Modal deploy files (Secret.from_local, image tag, log flag), htcondor templates (image tag, log flag) | DMR-029/DMR-030 remaining issues (cache volume, revision knob, pyproject pin) needed separate design decisions |
 | 2026-09-10 | Fix pass 2: DMR-029, DMR-030 remaining items | Both deploy files lacked vLLM cache volume, revision knob, GPU memory utilization, max-num-seqs; pyproject.toml files had stale `modal>=0.73` pin | Added all missing knobs to both deploy files (porting from local-mailroom-sandbox reference), pinned `modal==1.5.5` in both pyproject.toml files | None — sandbox reference was the gold standard |
+| 2026-09-10 | Comprehensive documentation drift audit (#3) | Full monorepo sweep: Exios66 refs, --disable-log-requests refs, vLLM versions, Modal SDK pins, test stubs, wiki pages, AGENTS.md roster, deploy configs. DMR-040 card claim verified as INCORRECT. All deploy files verified OK. Exios66 refs in docs/ are contextual (lineage). README release badges may be stale. | Updated STATE.md with full audit entry; verified all open card claims against code | DMR-040 card claimed a problem that doesn't exist — always verify line-specific claims before creating follow-up work |
 
 ## Lessons Learned
 - **2026-09-10:** Always verify the actual file:line references in DMR cards against the current codebase. Cards synced from HUB issues may reference line numbers that have shifted or implementations that were never actually completed. The card's "Evidence" field describes the problem but does not confirm the fix was shipped.
@@ -156,6 +157,8 @@
 - **2026-09-10:** Archived cards that claim "DELIVERED" may only have fixed the problem in ONE location (e.g., local-mailroom-sandbox) without porting to sibling packages (llm-mailroom, llm-entity-extraction). Always cross-check all deploy files when a fix is claimed.
 - **2026-09-10 (audit 2):** When DMR-031 claimed the vllm-specialist.md version policy was fixed, the fix was only applied to lines 37-44 (the version policy section) — the playbook section at line 83 still carried the old `--disable-log-requests` flag name. A fix that touches one section of a doc does not automatically fix other sections that reference the same concept. Always grep for the full pattern across the entire file.
 - **2026-09-10 (audit 2):** Test stubs that mock `Secret.from_local` are functionally harmless when the deploy code calls `Secret.from_dict` (the stub's `from_local` is simply never invoked), but they are logically stale and should be updated for correctness. Don't dismiss stale test mocks just because they don't cause test failures — they mask the fact that the test doesn't exercise the actual code path.
+- **2026-09-10 (audit 3):** When auditing cross-references, distinguish between (a) contextually correct references to the predecessor monorepo (historical lineage, cross-board links, troubleshooting docs that document the error and its fix) and (b) stale references that should point to the current repo. The `Exios66/mailroom-dev` references in `llm-mailroom/docs/` are contextual (they describe the monorepo relationship). The `Exios66/llm-mailroom` release badge links in READMEs are potentially stale if the repo has moved to `LLM-Mailroom-Services/Digital-Mailroom`.
+- **2026-09-10 (audit 3):** DMR cards can contain factually incorrect claims. DMR-040 claimed `vllm-specialist.md:83-84` still references `--disable-log-requests`, but lines 83-84 actually have the CORRECT flag name `--no-enable-log-requests`. Always verify the specific line numbers cited in a card before creating follow-up work.
 
 ## Comprehensive Audit #2 (2026-09-10)
 
@@ -200,3 +203,84 @@ DMR-026, DMR-028, DMR-029, DMR-030, DMR-031, DMR-032: all verified as shipped ag
 4. Checked `docs/wiki/Served-Board.md` for drift.
 5. Identified DMR-011 as a board hygiene discrepancy (fix shipped, card still open).
 6. Updated STATE.md with this audit entry.
+
+## Comprehensive Audit #3 — Documentation Drift (2026-09-10)
+
+### Scope
+Full documentation drift audit across the entire monorepo: every package README, AGENTS.md, deploy config, wiki page, cross-reference, and the `docs/wiki/` pages. Checked for stale `Exios66/mailroom-dev` references, stale `--disable-log-requests` flag names, stale vLLM versions (pre-v0.28.0), stale Modal SDK versions (pre-1.5.x), and missing documentation.
+
+### Findings Summary
+
+| Category | Status | Details |
+|----------|--------|---------|
+| Deploy files (modal_vllm.py) | ✅ ALL FIXED | DMR-029, DMR-030, DMR-032 all verified against reference implementation |
+| HTCondor templates | ✅ FIXED | DMR-032: v0.28.0 tag + `--no-enable-log-requests` |
+| Modal SDK pins | ✅ CORRECT | All 3 packages pin `modal==1.5.5` matching specialist docs |
+| vllm-specialist.md version policy | ✅ FIXED | DMR-031: v0.29.0 current stable documented |
+| vllm-specialist.md playbook | ✅ ACTUALLY CORRECT | Lines 83-84 have `--no-enable-log-requests` — DMR-040 card claim is WRONG |
+| modal-specialist.md | ✅ CORRECT | SDK 1.5.5 documented |
+| Test stubs (from_local) | ⚠️ STALE | DMR-023, DMR-024: test mocks still define `from_local`, deploy calls `from_dict` |
+| Wiki cross-board links | ✅ CONTEXTUALLY CORRECT | `mailroom-dev.vercel.app` refs describe predecessor board, not current deploy |
+| Wiki --disable-log-requests | ✅ CONTEXTUALLY CORRECT | Troubleshooting docs document the error and its fix |
+| Exios66/mailroom-dev in docs | ⚠️ CONTEXTUALLY CORRECT | `llm-mailroom/docs/` references are lineage descriptions, not active URLs |
+| Exios66 release badges | ⚠️ POTENTIALLY STALE | README badges point to `Exios66/llm-mailroom` releases |
+| TODO/FIXME/HACK in deploy files | ✅ CLEAN | No markers found |
+| AGENTS.md roster | ✅ CORRECT | Specialist roster matches `.opencode/agents/` directory |
+| Package AGENTS.md coverage | ✅ CORRECT | Packages without AGENTS.md (llm-dojo-scoring, agent-mailroom, llm-mailroom-graph) per root AGENTS.md |
+
+### Detailed Findings
+
+#### 1. DMR-040 Card Claim is INCORRECT
+- **Card claim:** `.opencode/agents/vllm-specialist.md:83-84` still references `--disable-log-requests`
+- **Actual content at lines 83-84:** `--no-enable-log-requests` (the CORRECT flag name)
+- **Verdict:** The card's claim is factually wrong. No fix needed.
+- **Action:** Note in STATE.md; card should be updated or closed.
+
+#### 2. Exios66 References in Package READMEs (POTENTIALLY STALE)
+Multiple package READMEs contain `Exios66/` references in release badges and links:
+- `packages/llm-mailroom/README.md`: release badge points to `Exios66/llm-mailroom/releases/tag/v0.6.0`
+- `packages/llm-dojo-scoring/README.md`: release badge points to `Exios66/llm-dojo-scoring/releases/tag/v0.13.0`
+- `packages/agent-mailroom/README.md`: pipeline/scoring badges point to Exios66 repos
+- `packages/llm-mailroom-graph/README.md`: links point to Exios66 repos
+- **Context:** These may be correct if the packages still live in Exios66 repos as mirrors. The monorepo is the dev source of truth, but releases may still be cut from the Exios66 mirrors.
+- **Action:** Verify whether releases are still cut from Exios66 repos or from `LLM-Mailroom-Services/Digital-Mailroom`.
+
+#### 3. Exios66/mailroom-dev References in llm-mailroom/docs/ (CONTEXTUALLY CORRECT)
+Extensive references in `packages/llm-mailroom/docs/wiki/` and `docs/sister-repos.md`:
+- `Home.md`, `_Sidebar.md`, `Getting-Started.md`, `sister-repos.md` all reference `Exios66/mailroom-dev`
+- **Context:** These are lineage descriptions explaining the monorepo relationship. They are factually correct — the predecessor monorepo IS `Exios66/mailroom-dev`.
+- **Action:** No fix needed.
+
+#### 4. Exios66/mailroom-dev References in Code/Tests (CONTEXTUALLY CORRECT)
+- `packages/llm-mailroom/src/pipeline/gmail_intake.py`: HTML email template includes `Exios66/mailroom-dev` link
+- `packages/llm-mailroom/src/tests/test_gmail_intake.py`: tests assert the URL is present
+- **Context:** These are part of the email template that links back to the project. The URL may be stale but changing it requires updating the template AND the tests.
+- **Action:** Consider updating to `LLM-Mailroom-Services/Digital-Mailroom` if the repo has permanently moved.
+
+#### 5. Exios66 References in The-Mailroom TUI/Terminal (CONTEXTUALLY CORRECT)
+- `packages/The-Mailroom/tui/repos.py`: references `Exios66/mailroom-dev` in UI
+- `packages/The-Mailroom/terminal/js/data.js`: references `Exios66/mailroom-dev` in UI data
+- **Context:** These are the UI's "about" or "repos" display. They describe the upstream monorepo.
+- **Action:** Consider updating if the UI should point to the current repo.
+
+#### 6. Exios66 References in mailroom-corpus-eda (CONTEXTUALLY CORRECT)
+- `packages/mailroom-corpus-eda/scripts/backfill_intent.py`: references `Exios66/mailroom-dev/issues/5`
+- `packages/mailroom-corpus-eda/src/mailroom_eda/intent_backfill.py`: references same issue
+- **Context:** These are code comments referencing the original issue that motivated the code. The issue URL is historically accurate.
+- **Action:** No fix needed.
+
+### Actions Taken
+1. Searched entire repo for stale `Exios66/mailroom-dev` references
+2. Searched entire repo for stale `--disable-log-requests` flag references
+3. Searched entire repo for stale vLLM versions (v0.8.5, v0.24.0)
+4. Verified all 3 modal_vllm.py deploy files against reference implementation
+5. Verified all pyproject.toml Modal SDK pins
+6. Verified HTCondor templates
+7. Verified vllm-specialist.md and modal-specialist.md
+8. Checked for TODO/FIXME/HACK markers in deploy files
+9. Verified AGENTS.md roster against .opencode/agents/ directory
+10. Checked open card claims against actual code (DMR-023, DMR-024, DMR-040)
+11. Updated STATE.md with this audit entry
+
+### New DMR Cards Required
+**None.** All discrepancies are already tracked by existing cards (DMR-023, DMR-024). The DMR-040 card claim is incorrect and should be updated or closed.

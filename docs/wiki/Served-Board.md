@@ -82,6 +82,20 @@ The UI PATCHes on every move/save. Only the changed keys need to be sent:
 - `agents` → rewrites the `### Owner` body section. It never sets GitHub
   assignees (agent names aren't repo users and GitHub rejects them with
   422).
+- **Owner dropdown (edit modal):** the Owner field is a `<select>` with
+  `<optgroup>`s — **Agent roles** (the 11-specialty roster from AGENTS.md:
+  `athena-database-agent`, `lucius`, `atom`, `prompt-engineer`,
+  `hazel-ui-software-master`, `jarvis-systems-maximizer`,
+  `vllm-specialist`, `modal-specialist`, `board-evidence-auditor`,
+  `explore`, `general`), **Models** (GLM-5.3-Flash, GLM-4.7-Flash,
+  Claude Opus/Sonnet 4.5, GPT-5, Gemini 2.5 Pro, Llama 4 Maverick,
+  DeepSeek V3.2, Kimi K2, Qwen 3 Max), **Users** (`lucius (Jack J
+  Burleson)`, `human`), **Harness composites** (`opencode (GLM-5.3-Flash)`),
+  plus `unclaimed` (default) and `✏️ Custom…`. Custom reveals the legacy
+  free-text input with its datalist history (fed by owners already on the
+  board), so free-form composites keep working; unknown stored owners
+  re-open as Custom. The PATCH payload is unchanged — a single-element
+  `agents` array.
 - `archived: true` → **closes** the issue (lands in the archive);
   `archived: false` → **reopens** it.
 - Any other HTTP method → `405`; malformed card ids → `400`; missing token –

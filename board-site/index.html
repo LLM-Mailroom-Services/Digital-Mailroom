@@ -1565,8 +1565,44 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="formAgents">Agents (comma-separated)</label>
-                    <input class="form-input" type="text" id="formAgents" list="agentSuggestions" placeholder="human, opencode, Lucius, cursor">
+                    <label class="form-label" for="formOwner">Owner (agent / model / user)</label>
+                    <select class="form-select" id="formOwner">
+                        <option value="unclaimed">unclaimed</option>
+                        <optgroup label="Agent roles">
+                            <option value="athena-database-agent">athena-database-agent</option>
+                            <option value="lucius">lucius</option>
+                            <option value="atom">atom</option>
+                            <option value="prompt-engineer">prompt-engineer</option>
+                            <option value="hazel-ui-software-master">hazel-ui-software-master</option>
+                            <option value="jarvis-systems-maximizer">jarvis-systems-maximizer</option>
+                            <option value="vllm-specialist">vllm-specialist</option>
+                            <option value="modal-specialist">modal-specialist</option>
+                            <option value="board-evidence-auditor">board-evidence-auditor</option>
+                            <option value="explore">explore</option>
+                            <option value="general">general</option>
+                        </optgroup>
+                        <optgroup label="Models">
+                            <option value="GLM-5.3-Flash">GLM-5.3-Flash</option>
+                            <option value="GLM-4.7-Flash">GLM-4.7-Flash</option>
+                            <option value="Claude Opus 4.5">Claude Opus 4.5</option>
+                            <option value="Claude Sonnet 4.5">Claude Sonnet 4.5</option>
+                            <option value="GPT-5">GPT-5</option>
+                            <option value="Gemini 2.5 Pro">Gemini 2.5 Pro</option>
+                            <option value="Llama 4 Maverick">Llama 4 Maverick</option>
+                            <option value="DeepSeek V3.2">DeepSeek V3.2</option>
+                            <option value="Kimi K2">Kimi K2</option>
+                            <option value="Qwen 3 Max">Qwen 3 Max</option>
+                        </optgroup>
+                        <optgroup label="Users">
+                            <option value="lucius (Jack J Burleson)">lucius (Jack J Burleson)</option>
+                            <option value="human">human</option>
+                        </optgroup>
+                        <optgroup label="Harness composites">
+                            <option value="opencode (GLM-5.3-Flash)">opencode (GLM-5.3-Flash)</option>
+                        </optgroup>
+                        <option value="__custom__">✏️ Custom…</option>
+                    </select>
+                    <input class="form-input" type="text" id="formAgents" list="agentSuggestions" placeholder="custom owner, e.g. cursor (Claude Sonnet 4.5)" style="display:none;margin-top:0.4rem">
                     <datalist id="agentSuggestions"></datalist>
                 </div>
                 <div class="form-group">
@@ -1672,6 +1708,7 @@
             const formDesc = $('#formDesc');
             const formLane = $('#formLane');
             const formPriority = $('#formPriority');
+            const formOwner = $('#formOwner');
             const formAgents = $('#formAgents');
             const formEvidence = $('#formEvidence');
             const formDate = $('#formDate');
@@ -2452,6 +2489,35 @@
             }
 
             // ─── MODAL ───
+            // Owner dropdown: keep the select and the custom text input in
+            // sync. Known owner strings (agent roles, models, users, harness
+            // composites) pick their option; anything else (free-form
+            // composites like "cursor (Claude Sonnet 4.5)") falls back to
+            // Custom + the text input with its datalist history.
+            function setOwnerFields(owner) {
+                const val = (owner || 'unclaimed').trim() || 'unclaimed';
+                const known = [...formOwner.options].some((o) => o.value === val);
+                if (known) {
+                    formOwner.value = val;
+                    formAgents.style.display = 'none';
+                    formAgents.value = '';
+                } else {
+                    formOwner.value = '__custom__';
+                    formAgents.style.display = '';
+                    formAgents.value = val;
+                }
+            }
+
+            formOwner.addEventListener('change', () => {
+                if (formOwner.value === '__custom__') {
+                    formAgents.style.display = '';
+                    formAgents.focus();
+                } else {
+                    formAgents.style.display = 'none';
+                    formAgents.value = '';
+                }
+            });
+
             function openEditModal(card) {
                 state.editingCardId = card.id;
                 modalTitle.textContent = `✏️ Edit ${card.id}`;
@@ -2461,7 +2527,7 @@
                 formDesc.value = card.desc || '';
                 formLane.value = card.lane || 'assigned';
                 formPriority.value = card.priority || 'medium';
-                formAgents.value = (card.agents || []).join(', ');
+                setOwnerFields((card.agents || [])[0] || 'unclaimed');
                 formEvidence.value = card.evidence || '';
                 formDate.value = card.date || new Date().toISOString().split('T')[0];
                 const meta = [];
@@ -2495,7 +2561,7 @@
                 formDesc.value = '';
                 formLane.value = laneId || 'unassigned';
                 formPriority.value = 'medium';
-                formAgents.value = '';
+                setOwnerFields('unclaimed');
                 formEvidence.value = '';
                 formDate.value = new Date().toISOString().split('T')[0];
                 modalDelete.style.display = 'none';
@@ -2517,7 +2583,9 @@
                     desc: formDesc.value.trim(),
                     lane: formLane.value,
                     priority: formPriority.value,
-                    agents: formAgents.value.split(',').map((a) => a.trim()).filter(Boolean),
+                    agents: (formOwner.value === '__custom__'
+                        ? formAgents.value.split(',').map((a) => a.trim()).filter(Boolean)
+                        : (formOwner.value === 'unclaimed' ? [] : [formOwner.value])),
                     evidence: formEvidence.value.trim(),
                     date: formDate.value || new Date().toISOString().split('T')[0],
                 };

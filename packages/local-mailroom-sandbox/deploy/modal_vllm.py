@@ -13,8 +13,15 @@ Pinned / verified 2026-09-09:
   missing names, which would break optional ``HF_TOKEN`` /
   ``MODAL_VLLM_API_TOKEN``).
 * vLLM **v0.28.0** — default image tag ``vllm/vllm-openai:v0.28.0``, matching
-  the local compose pin (``v0.29.0`` is the newest stable as of 2026-09-09;
-  adopt deliberately after a parity run).
+  the local compose pin. ``v0.29.0`` is the newest stable (2026-09-09) but
+  flips Model Runner V2 to the default for all models — a new engine core
+  with zero soak time, so the sandbox keeps v0.28.0 until a live parity run.
+  Engine posture for v0.28.0 (docs-verified): chunked prefill and prefix
+  caching are on by default, CUDA graphs are on (the ``sandbox-vllm-cache``
+  Volume matches vLLM's ``VLLM_CACHE_ROOT`` default of ``~/.cache/vllm``),
+  and per-request logging is opt-in — the old ``--disable-log-requests``
+  flag was replaced by ``--enable-log-requests`` (BooleanOptionalAction),
+  so the argv pins it off with ``--no-enable-log-requests``.
 * ``@modal.web_server`` remains supported (not deprecated); ``@app.server``
   (SDK 1.5.1+) is the modern low-latency path — migration notes live in
   ``deploy/README.md``.
@@ -57,6 +64,14 @@ QUANTIZATION = os.environ.get("MODAL_VLLM_QUANTIZATION", "")
 MAX_MODEL_LEN = os.environ.get("MODAL_VLLM_MAX_MODEL_LEN", "32768")
 REVISION = os.environ.get("MODAL_VLLM_REVISION", "")
 
+# Memory budget for a TEST sandbox: vLLM's default is 0.92 of the GPU; 0.90
+# keeps a little headroom on the 24 GB L4 (and on shared local GPUs) at a
+# negligible KV-pool cost. Raise deliberately for throughput runs.
+GPU_MEMORY_UTILIZATION = os.environ.get("MODAL_VLLM_GPU_MEMORY_UTILIZATION", "0.90")
+# vLLM resolves 256 for the OpenAI server on <=70 GB GPUs; pinned here so the
+# local compose and Modal schedule the same concurrency on any GPU class.
+MAX_NUM_SEQS = os.environ.get("MODAL_VLLM_MAX_NUM_SEQS", "256")
+
 # Pinned for reproducible deploys; override deliberately (tag or digest).
 VLLM_IMAGE_TAG = os.environ.get("MODAL_VLLM_IMAGE_TAG", "v0.28.0")
 
@@ -71,10 +86,15 @@ STARTUP_TIMEOUT_SECONDS = int(
 )
 
 # Knobs copied from the local env at DEPLOY time (values may be absent).
+# These MUST travel through the Secret: the container re-imports this module,
+# so without them the module constants would silently fall back to defaults.
 CONFIG_ENV_KEYS = (
     "MODAL_VLLM_MODEL",
     "MODAL_VLLM_QUANTIZATION",
     "MODAL_VLLM_MAX_MODEL_LEN",
+    "MODAL_VLLM_GPU_MEMORY_UTILIZATION",
+    "MODAL_VLLM_MAX_NUM_SEQS",
+    "MODAL_VLLM_REVISION",
     "MODAL_VLLM_API_TOKEN",
     "HF_TOKEN",
 )
@@ -150,7 +170,13 @@ def _server_env() -> dict[str, str]:
 
 
 def build_vllm_command(model: str) -> list[str]:
-    """Assemble the `vllm serve` argv. Kept pure for unit testing."""
+    """Assemble the `vllm serve` argv. Kept pure for unit testing.
+
+    Flags verified against vLLM v0.28.0 (engine-args docs + generated CLI
+    reference). ``--disable-log-requests`` no longer exists in v0.28.0; the
+    opt-in ``--enable-log-requests`` replaced it, so the explicit negation
+    below keeps per-request logging off and documents intent.
+    """
     cmd = [
         "vllm",
         "serve",
@@ -161,13 +187,17 @@ def build_vllm_command(model: str) -> list[str]:
         str(SERVER_PORT),
         "--max-model-len",
         MAX_MODEL_LEN,
+        "--gpu-memory-utilization",
+        GPU_MEMORY_UTILIZATION,
+        "--max-num-seqs",
+        MAX_NUM_SEQS,
     ]
     if REVISION:
         # Pin the Hub revision to avoid silent weight changes.
         cmd += ["--revision", REVISION]
     if QUANTIZATION:
         cmd += ["--quantization", QUANTIZATION]
-    cmd += ["--disable-log-requests"]
+    cmd += ["--no-enable-log-requests"]
     return cmd
 
 

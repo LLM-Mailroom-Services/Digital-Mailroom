@@ -94,9 +94,11 @@ For evals: `SANDBOX_PROFILE=modal-vllm` + `DEFAULT_PROVIDER=vllm` (see
 | `MODAL_VLLM_MODEL` | `Qwen/Qwen3-8B` | HF repo id |
 | `MODAL_VLLM_GPU` | `L4` | 24 GB VRAM |
 | `MODAL_VLLM_MAX_MODEL_LEN` | `32768` | context cap (KV-cache budget) |
+| `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | fraction of GPU memory; vLLM's default is `0.92` |
+| `MODAL_VLLM_MAX_NUM_SEQS` | `256` | concurrency cap; vLLM's own L4/OpenAI-server default |
 | `MODAL_VLLM_QUANTIZATION` | empty | `awq` / `gptq` / … |
 | `MODAL_VLLM_IMAGE_TAG` | `v0.28.0` | pin; tag or `@sha256:` digest |
-| `MODAL_VLLM_REVISION` | empty | HF revision (recommended for runs) |
+| `MODAL_VLLM_REVISION` | empty | HF revision (recommended for runs; travels via the deploy Secret) |
 | `MODAL_VLLM_API_TOKEN` | empty | maps to `VLLM_API_KEY` (bearer) |
 | `HF_TOKEN` | empty | gated/private weights |
 | `MODAL_VLLM_SCALEDOWN_SECONDS` | `900` | idle warm window |
@@ -105,8 +107,43 @@ For evals: `SANDBOX_PROFILE=modal-vllm` + `DEFAULT_PROVIDER=vllm` (see
 | `MODAL_VLLM_STARTUP_TIMEOUT_SECONDS` | `1200` | first-boot budget |
 
 Image pin: v0.28.0 tracks the local compose pin so offline and Modal runs
-speak the same engine version; v0.29.0 is the newest upstream stable
-(2026-09-09) — bump both pins together after a parity run.
+speak the same engine version. v0.29.0 is the newest upstream stable
+(released 2026-09-09) but flips Model Runner V2 to the default for all
+models — bump **both** pins together only after a live parity run.
+
+### Engine posture (v0.28.0, docs-verified 2026-09-09)
+
+The local compose service (`deploy/docker-compose.yml`) and this app send
+the same `vllm serve` argv:
+
+| Flag | Value | Why |
+| --- | --- | --- |
+| `--host` / `--port` | `0.0.0.0` / `8000` | reachable from the compose network / Modal proxy |
+| `--max-model-len` | `32768` (knob) | caps the KV-cache working set |
+| `--gpu-memory-utilization` | `0.90` (knob) | vLLM's default is `0.92`; 0.90 keeps headroom on a 24 GB L4 and on shared local GPUs |
+| `--max-num-seqs` | `256` (knob) | vLLM's own L4/OpenAI-server default, pinned so local and Modal schedule the same concurrency on any GPU |
+| `--no-enable-log-requests` | on | v0.28.0 made request logging opt-in (`--enable-log-requests`); the pre-0.28 `--disable-log-requests` flag no longer exists |
+| `--revision` / `--quantization` | optional | weight pin / quantized checkpoints (Modal knobs; compose overrides via a command override) |
+
+Deliberately **not** set — the v0.28.0 defaults are already the safe test
+posture:
+
+- **Chunked prefill** — on by default (`SchedulerConfig.enable_chunked_prefill=True`).
+- **Prefix caching** — on by default for decoder-only models
+  (`CacheConfig.enable_prefix_caching=True`); the sandbox evals reuse a
+  system prefix, so it pays off with no flag.
+- **CUDA graphs / `--enforce-eager`** — graphs stay on; the
+  `sandbox-vllm-cache` Volume mounts vLLM's default `VLLM_CACHE_ROOT`
+  (`~/.cache/vllm`), so JIT/compile artifacts survive cold boots.
+- **`--async-scheduling`** — opt-in in v0.28.0 (default scheduler is
+  synchronous); a test sandbox values reproducibility over the latency win.
+- **`--served-model-name`** — the default served id is the HF repo id, which
+  the profiles' `default_model` (and `sandbox health`) already expect.
+- **`--guided-decoding-backend`** — replaced by `--structured-outputs-config`
+  (backend default `auto`, xgrammar); `response_format={"type":
+  "json_object"}` works unflagged.
+- **`--swap-space`** — removed with the V1 engine; CPU swap is not a
+  v0.28.0 knob.
 
 ### Cost (verified 2026-09-09, modal.com/pricing)
 
@@ -140,6 +177,10 @@ modal volume ls sandbox-vllm-cache   # vLLM JIT/CUDA-graph cache
 - Private endpoint: bearer enforced by vLLM inside the container
   (`MODAL_VLLM_API_TOKEN` → `VLLM_API_KEY`). Never deploy a shared endpoint
   without it.
+- The bearer covers the `/v1`, `/v2`, `/inference`, and `/cohere` path
+  prefixes; `/health` (and `/metrics`) stay unauthenticated by design. So
+  `sandbox health` proves the token on `/v1/models` — a 200 from `/health`
+  only means the process is up.
 - Secrets are built at deploy time from local env (`Secret.from_dict`); only
   variable names appear in the repo. The app prints argv, never token values.
 - Do **not** set `requires_proxy_auth=True`: the OpenAI client seam speaks
@@ -167,3 +208,5 @@ modal volume ls sandbox-vllm-cache   # vLLM JIT/CUDA-graph cache
 | first request slow | cold start; pre-warm and/or raise `MODAL_VLLM_SCALEDOWN_SECONDS` |
 | CUDA OOM at boot | lower `MODAL_VLLM_MAX_MODEL_LEN`, quantize, or pick a bigger GPU |
 | deploy import error on `from_local` | stale app revision — SDK 1.5.5 removed it; this file uses `from_dict` |
+| `unrecognized arguments: --disable-log-requests` | pre-0.28 flag — v0.28.0 renamed it to the opt-in `--enable-log-requests`; the app/compose pin it off with `--no-enable-log-requests` |
+| changed a `MODAL_VLLM_*` knob, redeployed, no effect | deploy-time knobs travel through the Secret; export the new value and re-run `modal deploy` |

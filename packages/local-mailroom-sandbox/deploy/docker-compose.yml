@@ -92,6 +92,17 @@ services:
     environment:
       OLLAMA_KEEP_ALIVE: 30m
 
+  # vLLM v0.28.0 — same image tag as the Modal app (deploy/modal_vllm.py), so
+  # local and remote runs share one engine version. The image entrypoint is
+  # `vllm serve`; v0.28.0 made per-request logging opt-in
+  # (`--enable-log-requests`), so `--no-enable-log-requests` pins it off (the
+  # pre-0.28 `--disable-log-requests` flag no longer exists).
+  # Memory posture (TEST sandbox on an L4 24 GB): 0.90 of GPU memory (vLLM
+  # default 0.92) and 256 concurrent sequences (vLLM's own L4/OpenAI-server
+  # default), pinned for local<->Modal parity. Compose substitution reads the
+  # shell env or deploy/.env (the compose project directory):
+  #   VLLM_MODEL, VLLM_MAX_MODEL_LEN, VLLM_GPU_MEMORY_UTILIZATION,
+  #   VLLM_MAX_NUM_SEQS, VLLM_API_KEY, HF_TOKEN.
   vllm:
     image: vllm/vllm-openai:v0.28.0
     container_name: sandbox-vllm
@@ -101,16 +112,24 @@ services:
     volumes:
       - hf_cache:/root/.cache/huggingface
     environment:
-      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
+      # Same bearer contract as Modal (MODAL_VLLM_API_TOKEN -> VLLM_API_KEY):
+      # empty disables auth; a set value makes /v1/* require the bearer.
+      VLLM_API_KEY: ${VLLM_API_KEY:-}
+      # Gated/private weights; vLLM reads HF_TOKEN via huggingface_hub.
+      HF_TOKEN: ${HF_TOKEN:-}
     command:
-      - Qwen/Qwen3-8B
+      - ${VLLM_MODEL:-Qwen/Qwen3-8B}
       - --host
       - 0.0.0.0
       - --port
       - "8000"
       - --max-model-len
-      - "32768"
-      - --disable-log-requests
+      - ${VLLM_MAX_MODEL_LEN:-32768}
+      - --gpu-memory-utilization
+      - ${VLLM_GPU_MEMORY_UTILIZATION:-0.90}
+      - --max-num-seqs
+      - ${VLLM_MAX_NUM_SEQS:-256}
+      - --no-enable-log-requests
     ipc: host
 
   llamacpp:

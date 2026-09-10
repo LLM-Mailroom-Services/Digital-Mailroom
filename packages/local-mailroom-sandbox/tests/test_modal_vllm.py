@@ -3,8 +3,9 @@
 The real `modal` package is a deploy-time extra, never installed in the
 runtime venv (same rule as llm-mailroom's
 `src/tests/test_vllm_modal_capability.py`). These tests pin the deploy
-surface: app/volume scoping, the vLLM argv builder, the bearer-env mapping,
-the cost guards, and the SDK-1.5.5 secret API (``from_local`` was removed).
+surface: app/volume scoping, the vLLM argv builder (v0.28.0 flags), the
+bearer-env mapping, the cost guards, the SDK-1.5.5 secret API
+(``from_local`` was removed), and local compose <-> Modal argv parity.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ import pytest
 from mailroom_sandbox.paths import repo_root
 
 DEPLOY_APP = repo_root() / "deploy" / "modal_vllm.py"
+COMPOSE = repo_root() / "deploy" / "docker-compose.yml"
 PYPROJECT = repo_root() / "pyproject.toml"
 
 KNOB_ENV = (
@@ -27,6 +29,8 @@ KNOB_ENV = (
     "MODAL_VLLM_GPU",
     "MODAL_VLLM_QUANTIZATION",
     "MODAL_VLLM_MAX_MODEL_LEN",
+    "MODAL_VLLM_GPU_MEMORY_UTILIZATION",
+    "MODAL_VLLM_MAX_NUM_SEQS",
     "MODAL_VLLM_IMAGE_TAG",
     "MODAL_VLLM_REVISION",
     "MODAL_VLLM_API_TOKEN",
@@ -171,6 +175,8 @@ class TestDeploySurface:
         assert mod.GPU == "L4"
         assert mod.VLLM_IMAGE_TAG == "v0.28.0"  # never `latest`
         assert mod.MAX_MODEL_LEN == "32768"
+        assert mod.GPU_MEMORY_UTILIZATION == "0.90"  # below vLLM's 0.92 default
+        assert mod.MAX_NUM_SEQS == "256"  # vLLM's own L4/OpenAI-server default
         assert mod.SCALEDOWN_SECONDS == 15 * 60
         assert mod.MAX_CONTAINERS == 1  # a test sandbox must not fan out GPUs
         assert mod.MIN_CONTAINERS == 0  # scale-to-zero
@@ -225,9 +231,25 @@ class TestCommandBuilder:
         assert "--host" in cmd and cmd[cmd.index("--host") + 1] == "0.0.0.0"
         assert "--port" in cmd and cmd[cmd.index("--port") + 1] == "8000"
         assert "--max-model-len" in cmd
+        # Safe test-sandbox memory posture (v0.28.0 flags).
+        assert cmd[cmd.index("--gpu-memory-utilization") + 1] == "0.90"
+        assert cmd[cmd.index("--max-num-seqs") + 1] == "256"
         # fp16/bf16 default: no quantization or revision flag unless configured.
         assert "--quantization" not in cmd
         assert "--revision" not in cmd
+        # v0.28.0 renamed the log flag (opt-in `--enable-log-requests`); the
+        # explicit negation keeps request logging off, and the pre-0.28 flag
+        # would make the server reject its own argv.
+        assert "--no-enable-log-requests" in cmd
+        assert "--disable-log-requests" not in cmd
+
+    def test_memory_knobs_read_env_at_import(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_GPU_MEMORY_UTILIZATION", "0.85")
+        monkeypatch.setenv("MODAL_VLLM_MAX_NUM_SEQS", "64")
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B")
+        assert cmd[cmd.index("--gpu-memory-utilization") + 1] == "0.85"
+        assert cmd[cmd.index("--max-num-seqs") + 1] == "64"
 
     def test_quantization_flag_injected_when_configured(self):
         mod = _load_app_module()
@@ -294,6 +316,70 @@ class TestSecretApi:
             "use from_dict / from_local_environ"
         )
         assert "Secret.from_dict" in text
+
+    def test_engine_knobs_travel_through_secret(self, modal_stub, monkeypatch):
+        """The container re-imports the module; argv knobs need the Secret."""
+        monkeypatch.setenv("MODAL_VLLM_REVISION", "abc123")
+        monkeypatch.setenv("MODAL_VLLM_GPU_MEMORY_UTILIZATION", "0.85")
+        monkeypatch.setenv("MODAL_VLLM_MAX_NUM_SEQS", "64")
+        mod = _load_app_module()
+        assert len(modal_stub.Secret.calls) == 2
+        for call in modal_stub.Secret.calls:
+            assert call["MODAL_VLLM_REVISION"] == "abc123"
+            assert call["MODAL_VLLM_GPU_MEMORY_UTILIZATION"] == "0.85"
+            assert call["MODAL_VLLM_MAX_NUM_SEQS"] == "64"
+        for name in (
+            "MODAL_VLLM_REVISION",
+            "MODAL_VLLM_GPU_MEMORY_UTILIZATION",
+            "MODAL_VLLM_MAX_NUM_SEQS",
+        ):
+            assert name in mod.CONFIG_ENV_KEYS
+
+
+class TestComposeParity:
+    """Local compose and Modal must speak the same vLLM v0.28.0 argv."""
+
+    @staticmethod
+    def _vllm_service() -> dict:
+        import yaml
+
+        data = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
+        return data["services"]["vllm"]
+
+    def test_same_pinned_image(self):
+        mod = _load_app_module()
+        assert self._vllm_service()["image"] == mod.image.ref == "vllm/vllm-openai:v0.28.0"
+
+    def test_command_parity(self):
+        cmd = self._vllm_service()["command"]
+        assert cmd[0] == "${VLLM_MODEL:-Qwen/Qwen3-8B}"
+        assert cmd[cmd.index("--host") + 1] == "0.0.0.0"
+        assert cmd[cmd.index("--port") + 1] == "8000"
+        assert cmd[cmd.index("--max-model-len") + 1] == "${VLLM_MAX_MODEL_LEN:-32768}"
+        assert (
+            cmd[cmd.index("--gpu-memory-utilization") + 1]
+            == "${VLLM_GPU_MEMORY_UTILIZATION:-0.90}"
+        )
+        assert cmd[cmd.index("--max-num-seqs") + 1] == "${VLLM_MAX_NUM_SEQS:-256}"
+        assert cmd[-1] == "--no-enable-log-requests"
+
+    def test_defaults_match_modal_constants(self):
+        mod = _load_app_module()
+        cmd = self._vllm_service()["command"]
+        assert f"${{VLLM_MAX_MODEL_LEN:-{mod.MAX_MODEL_LEN}}}" in cmd
+        assert f"${{VLLM_GPU_MEMORY_UTILIZATION:-{mod.GPU_MEMORY_UTILIZATION}}}" in cmd
+        assert f"${{VLLM_MAX_NUM_SEQS:-{mod.MAX_NUM_SEQS}}}" in cmd
+
+    def test_bearer_and_hf_env_contract(self):
+        env = self._vllm_service()["environment"]
+        assert env["VLLM_API_KEY"] == "${VLLM_API_KEY:-}"
+        assert env["HF_TOKEN"] == "${HF_TOKEN:-}"
+
+    def test_removed_log_flag_absent(self):
+        # Comments may document the rename; the argv must never carry it.
+        assert "--disable-log-requests" not in self._vllm_service()["command"]
+        mod = _load_app_module()
+        assert "--disable-log-requests" not in mod.build_vllm_command("Qwen/Qwen3-8B")
 
 
 class TestVersionPins:

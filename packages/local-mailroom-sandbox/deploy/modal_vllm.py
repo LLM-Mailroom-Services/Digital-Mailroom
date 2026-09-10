@@ -219,6 +219,32 @@ def build_vllm_command(model: str) -> list[str]:
     return cmd
 
 
+def _masked_config() -> dict[str, str]:
+    """The effective serve config for boot diagnostics — secrets masked.
+
+    Prints ``set``/``unset`` instead of token values (DMR-053): the container
+    log must never carry the bearer token or HF_TOKEN.
+    """
+    def presence(name: str) -> str:
+        return "set" if os.environ.get(name, "").strip() else "unset"
+
+    return {
+        "model": os.environ.get("MODAL_VLLM_MODEL", MODEL),
+        "gpu": GPU,
+        "image": VLLM_IMAGE_TAG,
+        "max_model_len": MAX_MODEL_LEN,
+        "gpu_memory_utilization": GPU_MEMORY_UTILIZATION,
+        "max_num_seqs": MAX_NUM_SEQS,
+        "tensor_parallel_size": TP_SIZE,
+        "quantization": QUANTIZATION or "unset(bf16)",
+        "revision": REVISION or "unset(tip)",
+        "VLLM_API_KEY": presence("MODAL_VLLM_API_TOKEN"),
+        "HF_TOKEN": presence("HF_TOKEN"),
+        "scaledown_seconds": str(SCALEDOWN_SECONDS),
+        "startup_timeout_seconds": str(STARTUP_TIMEOUT_SECONDS),
+    }
+
+
 @app.function(
     gpu=GPU,
     volumes={HF_CACHE_MOUNT: hf_cache, VLLM_CACHE_MOUNT: vllm_cache},
@@ -233,6 +259,11 @@ def build_vllm_command(model: str) -> list[str]:
 def serve() -> None:
     model = os.environ.get("MODAL_VLLM_MODEL", MODEL)
     cmd = build_vllm_command(model)
+    # Boot diagnostics (masked): the web-server container log is the first
+    # stop when a cold start fails, so it must show the EFFECTIVE config.
+    print("=== sandbox-vllm serve config (masked) ===")
+    for key, value in _masked_config().items():
+        print(f"  {key}: {value}")
     print("starting:", " ".join(cmd))  # never contains secret values
     subprocess.Popen(cmd, env={**os.environ, **_server_env()})
 
@@ -247,46 +278,79 @@ def download_model(model: str = "", revision: str = "") -> None:
     """Pre-warm the HF cache Volume so the first `serve` boot skips downloads.
 
     ``modal run deploy/modal_vllm.py::download_model [--model ...]``
+
+    Fails loudly when nothing was cached (DMR-053): a silent empty snapshot
+    would leave the first serve boot downloading weights anyway.
     """
     from huggingface_hub import snapshot_download
 
     model = model or os.environ.get("MODAL_VLLM_MODEL", MODEL)
     revision = revision or os.environ.get("MODAL_VLLM_REVISION", REVISION) or None
-    snapshot_download(repo_id=model, revision=revision)
+    print(f"pre-warming {model}" + (f"@{revision}" if revision else ""))
+    paths = snapshot_download(repo_id=model, revision=revision)
+    n_files = len(paths) if isinstance(paths, list) else 1
+    if isinstance(paths, list) and not paths:
+        raise SystemExit(
+            f"snapshot_download returned no files for {model} — check the repo id, "
+            "the revision, and HF_TOKEN for gated repos (see the masked boot log)"
+        )
     hf_cache.commit()
-    print(f"cached {model}" + (f"@{revision}" if revision else ""))
+    print(f"cached {model}" + (f"@{revision}" if revision else "") + f" ({n_files} file(s))")
 
 
 def _smoke_check(base: str) -> None:
-    """Bearer-aware `/models` probe for `modal run ... --check`."""
+    """Bearer-aware `/models` probe for `modal run ... --check` (DMR-053)."""
     import httpx
 
     if not base:
         raise SystemExit(
-            "VLLM_BASE_URL is not set — export the URL printed by `modal deploy`"
+            "VLLM_BASE_URL is not set — export the URL printed by `modal deploy` "
+            "(https://<workspace>--sandbox-vllm-serve.modal.run/v1)"
         )
     token = os.environ.get("VLLM_API_KEY", "").strip()
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     try:
         resp = httpx.get(f"{base}/models", headers=headers, timeout=30.0)
     except httpx.HTTPError as exc:
-        raise SystemExit(f"probe failed: {type(exc).__name__}: {exc}") from exc
+        raise SystemExit(
+            f"probe failed: {type(exc).__name__}: {exc}\n"
+            "hints: is the app deployed (`modal app list`)? is VLLM_BASE_URL the "
+            "modal.run URL, not localhost?"
+        ) from exc
     if resp.status_code == 401:
-        raise SystemExit("401 — set VLLM_API_KEY to the deployed MODAL_VLLM_API_TOKEN")
+        raise SystemExit(
+            f"401 from {base}/models — the server enforces a bearer token; set "
+            "VLLM_API_KEY to the deployed MODAL_VLLM_API_TOKEN value"
+        )
     if resp.status_code >= 400:
-        raise SystemExit(f"HTTP {resp.status_code} from {base}/models")
-    payload = resp.json()
+        body = resp.text[:400]
+        raise SystemExit(
+            f"HTTP {resp.status_code} from {base}/models\nresponse body: {body!r}"
+        )
+    try:
+        payload = resp.json()
+    except ValueError as exc:
+        raise SystemExit(
+            f"{base}/models returned non-JSON (HTTP {resp.status_code}): "
+            f"{resp.text[:400]!r}"
+        ) from exc
     ids = [
         item.get("id")
         for item in payload.get("data", [])
         if isinstance(item, dict) and item.get("id")
     ]
     print(f"ok: {base}/models -> {ids}")
+    if ids and os.environ.get("MODAL_VLLM_MODEL", MODEL) not in ids:
+        print(
+            f"note: served model(s) {ids} differ from MODAL_VLLM_MODEL="
+            f"{os.environ.get('MODAL_VLLM_MODEL', MODEL)} — the provider may 404 "
+            "on the configured model id"
+        )
 
 
 @app.local_entrypoint()
-def main(check: bool = False) -> None:
-    """`modal run deploy/modal_vllm.py [--check]` — guidance + optional probe."""
+def main(check: bool = False, debug: bool = False) -> None:
+    """`modal run deploy/modal_vllm.py [--check] [--debug]` — guidance + probe."""
     name = Path(__file__).name
     base = os.environ.get("VLLM_BASE_URL", "").rstrip("/")
     print(f"Deploy:   modal deploy {name}")
@@ -300,5 +364,13 @@ def main(check: bool = False) -> None:
         f"Cost:     GPU billed only while warm; scale-to-zero after "
         f"{SCALEDOWN_SECONDS}s idle (max {MAX_CONTAINERS} container(s))"
     )
+    if debug:
+        print("=== resolved config (masked) ===")
+        for key, value in _masked_config().items():
+            print(f"  {key}: {value}")
+        print(
+            f"  volumes: {HF_CACHE_VOLUME_NAME} -> {HF_CACHE_MOUNT}, "
+            f"{VLLM_CACHE_VOLUME_NAME} -> {VLLM_CACHE_MOUNT}"
+        )
     if check:
         _smoke_check(base)

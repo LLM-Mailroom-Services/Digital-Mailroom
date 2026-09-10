@@ -109,7 +109,10 @@ def fire(store: RunStore, *, payload: dict | None = None) -> dict[str, Any]:
     if local_hash is None or _remote_lock_hash(store.run_id) != local_hash:
         rc, err = upload_run_dir(store.dir)
         if rc != 0:
-            raise RuntimeError(f"modal volume put failed: {err or 'rc=%d' % rc}")
+            raise RuntimeError(
+                f"modal volume put failed: {err or 'rc=%d' % rc} — check `modal token new` "
+                f"and `modal volume ls {VOLUME_NAME}`"
+            )
     modal = _modal()
     fn = modal.Function.from_name(APP_NAME, FN_NAME)
     call = fn.spawn(payload or {"run_id": store.run_id, "mock": _lock_mock(store)})

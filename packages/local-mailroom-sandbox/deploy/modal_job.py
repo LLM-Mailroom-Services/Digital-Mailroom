@@ -110,6 +110,33 @@ def _config_secrets() -> list[modal.Secret]:
     return [modal.Secret.from_dict(values)]
 
 
+def _enable_debug_logging() -> None:
+    """SANDBOX_DEBUG=1: DEBUG-level Python logging for the sandbox + mailroom."""
+    if os.environ.get("SANDBOX_DEBUG", "").strip() in {"1", "true", "yes"}:
+        import logging
+
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        )
+        for name in ("mailroom_sandbox", "llm", "pipeline", "graph", "agents"):
+            logging.getLogger(name).setLevel(logging.DEBUG)
+
+
+def _diagnostics() -> dict[str, Any]:
+    """Runtime diagnostics for the terminal state dict (DMR-053)."""
+    import sys
+
+    out: dict[str, Any] = {"python": sys.version.split()[0], "sandbox_root": SANDBOX_ROOT}
+    for name in ("mailroom_sandbox", "llm_dojo_scoring", "openai", "mailroom"):
+        try:
+            mod = __import__(name)
+            out[name] = getattr(mod, "__version__", "?")
+        except Exception as exc:  # noqa: BLE001
+            out[name] = f"UNAVAILABLE ({type(exc).__name__})"
+    return out
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -122,10 +149,13 @@ def _now() -> str:
 )
 def run_job(payload: dict) -> dict:
     """Run a locked job from the Volume; mirror progress to the state Dict."""
+    import traceback
+
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.otel import configure_tracing, flush_tracer, resolve_sink
     from mailroom_sandbox.job.runner import run_job as run_local_job
 
+    _enable_debug_logging()
     run_id = str(payload["run_id"])
     store = RunStore(Path(RUNS_MOUNT) / run_id)
     lock = store.read_lock() or {}
@@ -169,12 +199,30 @@ def run_job(payload: dict) -> dict:
                 pass
 
     payload_mock = payload.get("mock")
-    result = run_local_job(
-        store,
-        mock=None if payload_mock is None else bool(payload_mock),
-        tracer=tracer,
-        on_event=on_event,
-    )
+    try:
+        result = run_local_job(
+            store,
+            mock=None if payload_mock is None else bool(payload_mock),
+            tracer=tracer,
+            on_event=on_event,
+        )
+    except Exception as exc:  # noqa: BLE001 — DMR-053: terminal diagnostics, never a silent drop
+        failed = {
+            "run_id": run_id,
+            "spec_hash": spec_hash,
+            "state": "failed",
+            "error": f"{type(exc).__name__}: {str(exc)[:512]}",
+            "traceback_tail": "\n".join(traceback.format_exc().splitlines()[-12:]),
+            "diagnostics": _diagnostics(),
+            "heartbeat_at": _now(),
+        }
+        try:
+            state_dict.put(failed)
+            runs_volume.commit()
+        except Exception:
+            pass
+        flush_tracer(tracer)
+        return failed
 
     # The reports dir is container-local; copy the run's experiment records
     # into the volume-committed run dir so the CLI can pull them back (DMR-047).
@@ -192,6 +240,14 @@ def run_job(payload: dict) -> dict:
 
 
 @app.local_entrypoint()
-def main() -> None:
+def main(debug: bool = False) -> None:
     print(f"Deploy:  modal deploy {Path(__file__).name}")
     print("Then:    sandbox run start --job-mode modal --spec <run>.yaml")
+    if debug:
+        print("=== sandbox-job app config ===")
+        print(f"  volumes: {RUNS_VOLUME_NAME} -> {RUNS_MOUNT}, {HF_VOLUME_NAME} -> {HF_MOUNT}")
+        print(f"  state dict: {STATE_DICT}")
+        print(f"  sandbox root: {SANDBOX_ROOT} (config/ + data/fixtures bundled)")
+        print(f"  secret keys: {list(_DEPLOY_ENV_KEYS)}")
+        print(f"  volume commit cadence: every {COMMIT_EVERY_EVENTS} progress events")
+        print(f"  mailroom pin: mailroom @ git+https://github.com/Exios66/llm-mailroom.git@v0.6.0")

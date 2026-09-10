@@ -799,7 +799,10 @@ def _finalize_remote(store) -> bool:
 
     rc, err = job_remote.pull_run_dir(store)
     if rc != 0:
-        print(f"warning: could not pull remote run dir: {err}")
+        print(
+            f"warning: could not pull remote run dir: {err} — check `modal token new` "
+            f"and `modal volume ls {job_remote.VOLUME_NAME}`"
+        )
         return False
     record_path = store.dir / "experiment_log.jsonl"
     if record_path.is_file():
@@ -820,6 +823,17 @@ def _watch_remote(store, args) -> int:
         print(f"{store.run_id} {state} {progress or {}}")
         if state in {"done", "failed"}:
             _finalize_remote(store)
+            if state == "failed":
+                error = (progress or {}).get("error") or (store.read_checkpoint() or {}).get(
+                    "last_error"
+                )
+                trace_tail = (progress or {}).get("traceback_tail")
+                print(f"run failed: {error}")
+                if trace_tail:
+                    print("--- worker traceback tail ---")
+                    print(trace_tail)
+                    print("-----------------------------")
+                print(f"diagnose with: sandbox run status {store.run_id} --watch (or --config ... --force)")
             return 0 if state == "done" else 1
         time.sleep(3.0)
 

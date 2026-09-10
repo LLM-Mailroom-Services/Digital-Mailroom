@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run_batch_eval.sh — CHTC/HTCondor job executable (HUB-026, DMR-044).
+# run_batch_eval.sh — CHTC/HTCondor job executable (HUB-026, DMR-044, DMR-053).
 #
 # Runs INSIDE the vLLM container on the execute node:
 #   1. unpack the portable conda env (sandbox deps; conda-pack output)
@@ -11,10 +11,21 @@
 #   6. guard: fail if any record shows offline_fallback > 0 (live-or-loud)
 #   7. leave everything under results/ for HTCondor to transfer back
 #
+# DEBUGGING (DMR-053):
+#   - every step logs a timestamped line to stderr AND results/run.log
+#   - SANDBOX_DEBUG=1 turns on `set -x` (full trace on stderr)
+#   - any failure dumps a diagnostics block into run.log: python/package
+#     versions, the masked engine env, dataset row counts, and the vLLM log
+#     tail — then the job exits non-zero so HTCondor marks it failed
+#
 # Requires the two input tarballs (see README.md one-time setup):
 #   mailroom-sandbox.tar.gz   — git archive of packages/local-mailroom-sandbox
 #   env-mailroom-sandbox.tar.gz — conda-pack of the mailroom-sandbox env
 set -euo pipefail
+if [ "${SANDBOX_DEBUG:-0}" = "1" ]; then
+    set -x
+    export PS4='+ [${BASH_SOURCE}:${LINENO}] '
+fi
 
 MODEL="${MODEL:-Qwen/Qwen3-8B}"
 # Engine parity knobs (compose/Modal contract); overridable per submission via
@@ -31,17 +42,87 @@ export MODEL MAX_MODEL_LEN GPU_MEMORY_UTILIZATION MAX_NUM_SEQS
 # the job's initial directory (DMR-044 path fix).
 RESULTS_DIR="$(pwd)/results"
 mkdir -p "$RESULTS_DIR"
+RUN_LOG="$RESULTS_DIR/run.log"
+: > "$RUN_LOG"
+
+log() {
+    local line
+    line="[$(date -u +%FT%TZ)] $*"
+    printf '%s\n' "$line" | tee -a "$RUN_LOG" >&2
+}
+
+DIAG_DUMPED=0
+
+dump_diagnostics() {
+    [ "$DIAG_DUMPED" = "1" ] && return
+    DIAG_DUMPED=1
+    {
+        echo "===== diagnostics ($(date -u +%FT%TZ)) ====="
+        echo "-- python: $(command -v python || echo missing)"
+        python - <<'PY' 2>/dev/null || echo "(version probe failed)"
+import importlib
+
+for name in ("vllm", "torch", "openai", "mailroom", "llm_dojo_scoring", "mailroom_sandbox", "langchain_openai"):
+    try:
+        mod = importlib.import_module(name)
+        print(f"{name} = {getattr(mod, '__version__', '?')}")
+    except Exception as exc:
+        print(f"{name} = UNAVAILABLE ({type(exc).__name__})")
+PY
+        echo "-- engine env (masked):"
+        env | sort | sed -E 's/((MODAL_VLLM_API_TOKEN|VLLM_API_KEY|HF_TOKEN|OPENROUTER_API_KEY|LANGFUSE_SECRET_KEY)=).*/\1<redacted>/' \
+            | grep -E '^(MODEL|MAX_MODEL_LEN|GPU_MEMORY_UTILIZATION|MAX_NUM_SEQS|TP_SIZE|SANDBOX_|DEFAULT_PROVIDER|VLLM_|HF_TOKEN|MAILROOM_)' || true
+        echo "-- dataset:"
+        if [ -f dataset.jsonl ]; then
+            echo "rows=$(wc -l < dataset.jsonl) bytes=$(wc -c < dataset.jsonl)"
+        else
+            echo "dataset.jsonl absent"
+        fi
+        if [ -f reports/experiment_log.jsonl ]; then
+            echo "experiment records=$(wc -l < reports/experiment_log.jsonl)"
+        fi
+        if [ -f "$RESULTS_DIR/vllm_serve.log" ]; then
+            echo "-- vllm_serve.log tail:"
+            tail -30 "$RESULTS_DIR/vllm_serve.log" || true
+        fi
+        echo "===== end diagnostics ====="
+    } >> "$RUN_LOG" 2>&1
+    cat "$RUN_LOG" >&2 || true
+}
+
+fail() {
+    echo "FATAL: $*" >&2
+    dump_diagnostics
+    exit 1
+}
+
+on_exit() {
+    local rc=$?
+    if [ "$rc" -ne 0 ]; then
+        dump_diagnostics
+    else
+        {
+            echo "[$(date -u +%FT%TZ)] run finished rc=0"
+            echo "results: $(ls "$RESULTS_DIR")"
+        } >> "$RUN_LOG" 2>&1 || true
+    fi
+    if [ -n "${VLLM_PID:-}" ]; then
+        kill "$VLLM_PID" 2>/dev/null || true
+    fi
+}
+trap on_exit EXIT
+
+log "job start model=$MODEL max_model_len=$MAX_MODEL_LEN gpu_util=$GPU_MEMORY_UTILIZATION max_num_seqs=$MAX_NUM_SEQS tp=${TP_SIZE:-1}"
 
 echo "== unpack portable env =="
 if [ ! -f env-mailroom-sandbox.tar.gz ]; then
-    echo "FATAL: env-mailroom-sandbox.tar.gz not transferred" >&2
-    exit 1
+    fail "env-mailroom-sandbox.tar.gz not transferred (see README §4 one-time setup)"
 fi
 mkdir -p env
 tar -xzf env-mailroom-sandbox.tar.gz -C env
 # conda-pack requires activating from the unpacked prefix
 source env/bin/activate
-echo "python: $(command -v python)"
+log "python: $(command -v python)"
 
 echo "== unpack sandbox package =="
 tar -xzf mailroom-sandbox.tar.gz
@@ -81,6 +162,7 @@ for mod in (
         raise SystemExit(f"FATAL: cannot import {mod}: {exc!r} — eval would silently mock")
 print("OK: eval agent stack importable")
 PY
+log "preflight gate passed"
 
 echo "== serve vLLM in-process =="
 # Parity with deploy/docker-compose.yml + deploy/modal_vllm.py (same image tag,
@@ -93,28 +175,28 @@ vllm serve "$MODEL" --host 0.0.0.0 --port "$PORT" \
     --no-enable-log-requests \
     > "$RESULTS_DIR/vllm_serve.log" 2>&1 &
 VLLM_PID=$!
-trap 'kill "$VLLM_PID" 2>/dev/null || true; cp -r reports "$RESULTS_DIR/" 2>/dev/null || true' EXIT
+log "vllm serve pid=$VLLM_PID (log: results/vllm_serve.log)"
 
 echo "== wait for /v1/models =="
 HEALTHY=0
-for _ in $(seq 1 120); do
+for i in $(seq 1 120); do
     if curl -sf "http://localhost:${PORT}/v1/models" > /dev/null; then
         echo "vLLM healthy"
         HEALTHY=1
         break
     fi
     if ! kill -0 "$VLLM_PID" 2> /dev/null; then
-        echo "FATAL: vLLM exited during startup" >&2
-        tail -50 "$RESULTS_DIR/vllm_serve.log" >&2
-        exit 1
+        fail "vLLM exited during startup (tail below)"
+    fi
+    if [ $((i % 10)) -eq 0 ]; then
+        log "health wait: ${i}0s elapsed, still warming (cold start can take minutes)"
     fi
     sleep 10
 done
 if [ "$HEALTHY" -ne 1 ]; then
-    echo "FATAL: /v1/models not healthy after 20m" >&2
-    tail -50 "$RESULTS_DIR/vllm_serve.log" >&2
-    exit 1
+    fail "/v1/models not healthy after 20m"
 fi
+log "vLLM healthy after ~${i}0s"
 
 export SANDBOX_PROFILE=vllm-local
 export DEFAULT_PROVIDER=vllm
@@ -159,7 +241,8 @@ for rec in rows:
             sys.exit(1)
 print(f"OK: {len(rows)} record(s) live (offline_fallback=0)")
 PY
+log "live-or-loud guard passed"
 
 echo "== collect =="
 cp -r reports "$RESULTS_DIR/" 2> /dev/null || true
-echo "done: $(ls "$RESULTS_DIR")"
+log "done: $(ls "$RESULTS_DIR")"

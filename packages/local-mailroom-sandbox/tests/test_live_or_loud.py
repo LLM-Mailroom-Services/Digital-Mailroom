@@ -132,3 +132,22 @@ def test_htcondor_batch_script_is_live_or_loud():
     assert "offline_fallback" in script
     # The results dir is anchored before the script `cd`s into the package.
     assert 'RESULTS_DIR="$(pwd)/results"' in script
+
+
+def test_htcondor_batch_script_has_debug_logging():
+    """DMR-053 static guard: log(), SANDBOX_DEBUG trace, diagnostics dump."""
+    from mailroom_sandbox.paths import repo_root
+
+    script = (repo_root() / "deploy" / "htcondor" / "run_batch_eval.sh").read_text(
+        encoding="utf-8"
+    )
+    assert 'SANDBOX_DEBUG' in script and "set -x" in script
+    assert "RUN_LOG" in script and "log()" in script
+    assert "dump_diagnostics" in script and "DIAG_DUMPED" in script
+    assert "vllm_serve.log tail" in script
+    assert "redacted" in script  # masked-env dump
+    assert "health wait" in script  # cold-start progress logging
+    serve = (repo_root() / "deploy" / "htcondor" / "serve_vllm.sh").read_text(
+        encoding="utf-8"
+    )
+    assert "SANDBOX_DEBUG" in serve and "argv:" in serve

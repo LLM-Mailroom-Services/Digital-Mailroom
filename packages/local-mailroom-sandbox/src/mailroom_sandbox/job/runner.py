@@ -67,6 +67,28 @@ def _task_defaults(store: RunStore) -> dict[str, Any]:
     return lock.get("job", {})
 
 
+def _lock_prompt_source(store: RunStore) -> str:
+    """The lock's default prompt source ('' when the lock has no prompt block)."""
+    lock = store.read_lock() or {}
+    prompt_block = lock.get("prompt") or {}
+    return str((prompt_block.get("default") or {}).get("source") or "code-default")
+
+
+def _lock_prompt_variant(store: RunStore) -> str | None:
+    """The lock's default LOCAL prompt variant stem, when pinned.
+
+    The runners' ``prompt_version`` param is a local variant stem (e.g.
+    ``sorter_local_v0``), never the source string — passing 'code-default'
+    would trigger the prompt-patch machinery. Langfuse/code-default locks
+    pass None (overrides are already applied in-process).
+    """
+    lock = store.read_lock() or {}
+    default = (lock.get("prompt") or {}).get("default") or {}
+    if isinstance(default, dict) and default.get("source") == "local":
+        return str(default.get("file") or "") or None
+    return None
+
+
 def _run_whole_run(
     store: RunStore,
     task: str,
@@ -89,14 +111,18 @@ def _run_whole_run(
 
     lock = store.read_lock() or {}
     prompt_block = lock.get("prompt") or {}
-    default_ref = (prompt_block.get("default") or {}).get("source") or "code-default"
+    default_ref = _lock_prompt_source(store)
+    prompt_variant = _lock_prompt_variant(store)
     kwargs: dict[str, Any] = {
         "mock": mock,
         "dry_run": False,
         "experiment_name": f"sandbox_{task}_{store.run_id}",
         "profile": profile,
         "model": model,
-        "prompt_version": None,  # overrides already applied via _apply_prompt_overrides
+        # DMR-053 (plan gap): the delegated runner used to label every whole-run
+        # record 'mailroom-default' even when the lock pinned a local variant —
+        # pass the LOCK's default variant stem so log records carry it.
+        "prompt_version": prompt_variant,
         "agent_models": None,
     }
     try:
@@ -128,6 +154,15 @@ def _run_whole_run(
     processed = result.get("n") if isinstance(result.get("n"), int) else None
     if processed is None:
         processed = scores.get("n") if isinstance(scores.get("n"), int) else len(store.dataset_rows())
+    # DMR-053: stamp the returned record with the lock's provenance so the
+    # caller (and the Modal state dict) can pair it with the locked spec even
+    # though the runner appended its own log copy.
+    record = result.get("record") if isinstance(result, dict) else None
+    if isinstance(record, dict):
+        record.setdefault("spec_hash", store.spec_hash() or "")
+        record.setdefault("dataset_fingerprint", _fingerprint(store))
+        record.setdefault("prompt_version", prompt_variant or default_ref)
+        record.setdefault("run_id", store.run_id)
     store.write_checkpoint(state="done", cursor=processed, total=processed, remote=None)
     store.append_event("done", "info", cursor=processed, ok_count=processed)
     return {
@@ -139,6 +174,8 @@ def _run_whole_run(
         "errors": 0,
         "scores": scores,
         "default_prompt_source": default_ref,
+        "spec_hash": store.spec_hash() or "",
+        "dataset_fingerprint": _fingerprint(store),
         "result": result,
     }
 

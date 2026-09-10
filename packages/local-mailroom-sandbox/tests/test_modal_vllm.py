@@ -417,6 +417,55 @@ class TestComposeParity:
         assert "--disable-log-requests" not in mod.build_vllm_command("Qwen/Qwen3-8B")
 
 
+class TestSmokeCheckDiagnostics:
+    """DMR-053: helpful smoke-check errors carry response bodies + hints."""
+
+    def test_401_mentions_bearer_hint(self, monkeypatch):
+        mod = _load_app_module()
+
+        class _Resp:
+            status_code = 401
+            text = "unauthorized"
+
+        monkeypatch.setattr("httpx.get", lambda *a, **k: _Resp())
+        with pytest.raises(SystemExit, match="VLLM_API_KEY"):
+            mod._smoke_check("https://x--sandbox-vllm-serve.modal.run/v1")
+
+    def test_http_error_includes_body(self, monkeypatch):
+        mod = _load_app_module()
+
+        class _Resp:
+            status_code = 503
+            text = "model warming up"
+
+        monkeypatch.setattr("httpx.get", lambda *a, **k: _Resp())
+        with pytest.raises(SystemExit, match="503"):
+            mod._smoke_check("https://x--sandbox-vllm-serve.modal.run/v1")
+
+    def test_non_json_body_reported(self, monkeypatch):
+        mod = _load_app_module()
+
+        class _Resp:
+            status_code = 200
+            text = "not json at all"
+
+            def json(self):
+                raise ValueError("no json")
+
+        monkeypatch.setattr("httpx.get", lambda *a, **k: _Resp())
+        with pytest.raises(SystemExit, match="non-JSON"):
+            mod._smoke_check("https://x--sandbox-vllm-serve.modal.run/v1")
+
+    def test_masked_config_never_prints_token(self, monkeypatch):
+        mod = _load_app_module()
+        monkeypatch.setenv("MODAL_VLLM_API_TOKEN", "super-secret-token")
+        cfg = mod._masked_config()
+        assert cfg["VLLM_API_KEY"] == "set"
+        assert "super-secret-token" not in str(cfg)
+        assert cfg["model"] == "Qwen/Qwen3-8B"
+        monkeypatch.delenv("MODAL_VLLM_API_TOKEN")
+
+
 class TestVersionPins:
     def test_deploy_extra_pins_modal_sdk(self):
         import tomllib

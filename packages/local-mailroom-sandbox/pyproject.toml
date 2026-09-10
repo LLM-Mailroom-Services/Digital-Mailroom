@@ -36,7 +36,10 @@ observability = [
     "langfuse>=4.0,<5",
 ]
 deploy = [
-    "modal>=0.73",
+    # Pinned SDK for deploy/modal_vllm.py (verified 2026-09-09; the app file
+    # records the same version). Bump deliberately after reading the release
+    # notes — 1.5.5 removed `Secret.from_local`.
+    "modal==1.5.5",
 ]
 # Current llm-mailroom release (v0.6.0 aligns with the family dojo pin).
 pipeline = [

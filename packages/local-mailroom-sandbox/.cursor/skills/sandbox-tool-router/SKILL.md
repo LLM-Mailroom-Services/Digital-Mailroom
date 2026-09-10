@@ -37,7 +37,7 @@ Sandbox evals implement the Langfuse v4 `document-pipeline` contract in `mailroo
 1. **`--mock` / offline prep** — no live LLM  
 2. **Ollama** — default local path (`sandbox up`, `sandbox pull-models`)  
 3. **vLLM local** — NVIDIA host + compose profile `vllm`  
-4. **Modal vLLM** — remote GPU; `pip install -e ".[deploy]"` + `modal deploy`  
+4. **Modal vLLM** — remote GPU; `pip install -e ".[deploy]"` + pre-warm + `modal deploy` (see [modal](../modal/SKILL.md))
 5. **llama.cpp / LM Studio** — generic OpenAI base URL profiles  
 6. **OpenRouter** — opt-in only (`OPENROUTER_API_KEY`); never the sandbox default  
 

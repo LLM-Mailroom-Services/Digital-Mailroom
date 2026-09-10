@@ -13,6 +13,22 @@
   on the shared GPU Lab where `condor_ssh_to_job` is unavailable) and an
   owned-GPU server variant tied to the tunnel profile
   (`docs/remote-serving.md` is the overview).
+- **Modal deploy hardening (SDK 1.5.5 / vLLM v0.28.0)**: `deploy/modal_vllm.py`
+  now pins the Modal SDK (`modal==1.5.5` in the `[deploy]` extra), defaults to
+  `vllm/vllm-openai:v0.28.0` (matching the local compose pin), caches vLLM
+  JIT/CUDA-graph artifacts in a `sandbox-vllm-cache` Volume, pre-warms weights
+  with `modal run deploy/modal_vllm.py::download_model` (HF cache Volume +
+  explicit commit), tags the app for cost allocation, and bounds cost with
+  `max_containers=1` / `min_containers=0` plus configurable scaledown and
+  startup timeouts (`MODAL_VLLM_SCALEDOWN_SECONDS`,
+  `MODAL_VLLM_MAX_CONTAINERS`, `MODAL_VLLM_MIN_CONTAINERS`,
+  `MODAL_VLLM_STARTUP_TIMEOUT_SECONDS`) and an optional
+  `MODAL_VLLM_REVISION` pin. New network-free contract tests
+  (`tests/test_modal_vllm.py`) pin the argv builder, bearer env mapping,
+  secret construction, cost guards, and the SDK/image pins. Docs:
+  `deploy/README.md` (deploy → verify → cost → security → troubleshooting),
+  `.cursor/skills/modal/SKILL.md`, `docs/remote-serving.md`,
+  `config/.env.example`.
 
 ### Changed
 
@@ -29,6 +45,14 @@
   row. Dockerfile gains a non-root user + HEALTHCHECK; all four `:latest`
   compose images pinned (ollama 0.33.2, vllm v0.28.0, phoenix version-20.4.0,
   minio RELEASE.2025-09-07…).
+
+### Fixed
+
+- **Modal SDK 1.5.5 removed `Secret.from_local`** — `deploy/modal_vllm.py`
+  used it and would fail at import/deploy. Knobs are now built with
+  `Secret.from_dict`, which skips absent keys, preserving the optional
+  `HF_TOKEN` / `MODAL_VLLM_API_TOKEN` contract (`from_local_environ` raises
+  on missing names). Regression-guarded by `tests/test_modal_vllm.py`.
 
 ### Added
 

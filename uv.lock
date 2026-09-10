@@ -3628,7 +3628,7 @@ requires-dist = [
     { name = "mailroom-sandbox", extras = ["deploy"], marker = "extra == 'gpu'", editable = "packages/local-mailroom-sandbox" },
     { name = "mailroom-sandbox", extras = ["dev", "deploy", "evals", "observability", "notebooks"], marker = "extra == 'all'", editable = "packages/local-mailroom-sandbox" },
     { name = "matplotlib", marker = "extra == 'notebooks'", specifier = ">=3.8" },
-    { name = "modal", marker = "extra == 'deploy'", specifier = ">=0.73" },
+    { name = "modal", marker = "extra == 'deploy'", specifier = "==1.5.5" },
     { name = "openai", specifier = ">=1.30" },
     { name = "pandas", marker = "extra == 'notebooks'", specifier = ">=2.2" },
     { name = "pydantic", specifier = ">=2.0" },

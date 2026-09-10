@@ -20,13 +20,28 @@ sandbox health --profile vllm-local
 
 ## Modal
 
+Modal SDK **1.5.5** (pinned in the `[deploy]` extra) + vLLM **v0.28.0**;
+full workflow (knobs, costs, security, troubleshooting) in
+[`deploy/README.md`](../deploy/README.md).
+
 ```bash
 pip install -e ".[deploy]" && modal token new
-MODAL_VLLM_API_TOKEN=<secret> modal deploy deploy/modal_vllm.py
+export MODAL_VLLM_MODEL=Qwen/Qwen3-8B
+export MODAL_VLLM_GPU=L4
+export MODAL_VLLM_API_TOKEN=<secret>
+
+modal run deploy/modal_vllm.py::download_model   # pre-warm weights (CPU-only)
+modal deploy deploy/modal_vllm.py                # prints the URL
+
 export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
 export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
-sandbox health --profile modal-vllm
+sandbox health --profile modal-vllm              # 401 = token mismatch
 ```
+
+Cost posture: scale-to-zero after 900 s idle, `max_containers=1` by default
+(L4 ≈ $0.80/hr while warm; rates at modal.com/pricing, verified 2026-09-09).
+Teardown: `modal app stop sandbox-vllm` — weights survive in the
+`sandbox-hf-cache` Volume.
 
 ## SSH tunnels (`vllm-remote` + `sandbox tunnel`)
 

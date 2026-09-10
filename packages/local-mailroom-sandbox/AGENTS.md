@@ -49,10 +49,11 @@ pytest -v                           # network-free; live LLM tests need SANDBOX_
 sandbox datasets prepare            # offline JSONL under data/runtime/prepared/
 sandbox up --compose-profile jupyter  # Lab on :8888 (deploy/Dockerfile)
 sandbox tunnel plan|up|status|down    # SSH forward for vllm-remote (HUB-026)
+modal run deploy/modal_vllm.py::download_model  # Modal: pre-warm HF cache ([deploy])
 ```
 
 - Config: `config/profiles/*.yaml` + `config/taxonomy.overlay.yaml` + `config/components.yaml` + `config/models.yaml`.
-- Remote serving (Modal / SSH-tunneled vLLM / CHTC / conda): `docs/remote-serving.md` + `deploy/htcondor/` + `deploy/conda/`. CLI rule: pass `--profile` AFTER the subcommand (or via `SANDBOX_PROFILE`) — a `--profile` before the subcommand is clobbered by the subparser default.
+- Remote serving (Modal / SSH-tunneled vLLM / CHTC / conda): `docs/remote-serving.md` + `deploy/htcondor/` + `deploy/conda/`. Modal deploy workflow (SDK pinned `modal==1.5.5`; pre-warm → deploy → verify → teardown, cost guards, troubleshooting) lives in `deploy/README.md`. CLI rule: pass `--profile` AFTER the subcommand (or via `SANDBOX_PROFILE`) — a `--profile` before the subcommand is clobbered by the subparser default.
 - Runtime taxonomy is written to `data/runtime/taxonomy.yaml` (gitignored).
 - Prepared fixtures: `data/runtime/prepared/` via notebooks or `sandbox datasets prepare`.
 - Experiment log: `reports/experiment_log.jsonl` (sandbox-local, not a sister-repo mirror).

@@ -20,6 +20,11 @@ dev = [
     "nbformat>=5.10",
     "nbclient>=0.10",
     "ipykernel>=6.29",
+    # Interactive JupyterLab over the whole monorepo's notebooks (browse,
+    # edit, run). `uv run jupyter lab` from the repo root opens every
+    # package's notebooks/; per-section: `uv run jupyter lab <pkg>/notebooks`.
+    "jupyterlab>=4.0",
+    "ipywidgets>=8.1",
     # mailroom-corpus-eda script deps that no other member pulls in
     # transitively (virtual member is not installable; its EDA/HF scripts
     # need these in the shared venv).

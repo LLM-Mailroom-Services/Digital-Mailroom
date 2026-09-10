@@ -3513,7 +3513,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "mailroom-hub"
-version = "0.2.0"
+version = "0.4.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]
@@ -3521,6 +3521,8 @@ dev = [
     { name = "agent-mailroom" },
     { name = "huggingface-hub" },
     { name = "ipykernel" },
+    { name = "ipywidgets" },
+    { name = "jupyterlab" },
     { name = "langchain" },
     { name = "llm-dojo-scoring" },
     { name = "llm-entity-extraction" },
@@ -3544,6 +3546,8 @@ dev = [
     { name = "agent-mailroom", editable = "packages/agent-mailroom" },
     { name = "huggingface-hub", specifier = ">=1.29" },
     { name = "ipykernel", specifier = ">=6.29" },
+    { name = "ipywidgets", specifier = ">=8.1" },
+    { name = "jupyterlab", specifier = ">=4.0" },
     { name = "langchain", specifier = ">=0.3" },
     { name = "llm-dojo-scoring", editable = "packages/llm-dojo-scoring" },
     { name = "llm-entity-extraction", editable = "packages/llm-entity-extraction" },

@@ -132,8 +132,11 @@ the wiki page `docs/wiki/Served-Board.md` (mirror to
 <https://github.com/Exios66/mailroom-dev/wiki/Served-Board>):
 
 - **Deploy root is `board-site/`** (Vercel project `mailroom-dev`, live
-  production; Root Directory is unset so the deploy runs from `board-site/`,
-  which carries its own `board-site/vercel.json`). Serverless functions
+  production; project Root Directory = `board-site` so BOTH CLI and
+  Git-integration deploys build the board site — never leave it unset, or a
+  push-triggered Git deploy serves the repo root as a bare file listing and
+  404s `/api/board` (observed 2026-09-09). The dir carries its own
+  `board-site/vercel.json`). Serverless functions
   under `board-site/api/`; static `board-site/index.html` is the adapted
   `mailroom-dispatch-board.html` (drag/move/edit + archive UI, filters,
   stats). Project secret `GITHUB_TOKEN` (gh keyring token, repo scope:

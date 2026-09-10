@@ -25,8 +25,9 @@ are reconciled by the `board_state.py` legs (see below).
 ## Deploy root and layout
 
 The deploy root is **`board-site/`** (Vercel project `mailroom-dev`;
-Root Directory is unset so the deploy runs from `board-site/` itself,
-which carries its own `board-site/vercel.json`):
+project Root Directory = `board-site` so both CLI and Git-integration
+deploys build the board site, which carries its own
+`board-site/vercel.json`):
 
 ```
 board-site/
@@ -126,14 +127,21 @@ re-assert the alias onto the deployment you verified:
 vercel alias set <your-deployment-url> mailroom-dev.vercel.app --token "$VERCEL_TOKEN"
 ```
 
-**The project's Root Directory must be UNSET.** If it gets set (e.g. to
-`board-site`) the deploy fails with "Root Directory 'board-site' does not
-exist". Reset it via the API, then deploy from `board-site/`:
+**The project's Root Directory must be `board-site`.** With it unset, every
+push-triggered Git-integration deploy builds the REPO ROOT — the live site
+becomes a bare directory listing and `/api/board` 404s (observed 2026-09-09,
+recovered by re-setting the Root Directory via the API + redeploying). Set /
+repair it via the API, then deploy from `board-site/`:
 
 ```bash
 curl -X PATCH -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" \
-  -d '{"rootDirectory": null}' https://api.vercel.com/v9/projects/mailroom-dev
+  -d '{"rootDirectory": "board-site"}' https://api.vercel.com/v9/projects/mailroom-dev
 ```
+
+(An early 2026-09-06 note claimed the opposite — "must be UNSET" after a
+"Root Directory 'board-site' does not exist" failure; that failure did not
+reproduce and is contradicted by the 2026-09-09 verified deploy with the
+setting live. The setting is the fix, not the problem.)
 
 Then verify against the alias:
 

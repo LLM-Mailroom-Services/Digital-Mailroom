@@ -154,3 +154,49 @@
 - **2026-09-10:** DMR cards that say "synced from HUB-XXX" with a specific issue number are mirroring the predecessor board's state, not confirming that work was done in the DMR repo. The sync operation copies the card, not the implementation.
 - **2026-09-10:** When auditing deploy files, check both the `modal.Secret.from_local` removal (SDK 1.5.x breaking change) AND the `--disable-log-requests` → `--no-enable-log-requests` rename (vLLM v0.28.0 breaking change). These two issues affect multiple deploy files across the monorepo.
 - **2026-09-10:** Archived cards that claim "DELIVERED" may only have fixed the problem in ONE location (e.g., local-mailroom-sandbox) without porting to sibling packages (llm-mailroom, llm-entity-extraction). Always cross-check all deploy files when a fix is claimed.
+- **2026-09-10 (audit 2):** When DMR-031 claimed the vllm-specialist.md version policy was fixed, the fix was only applied to lines 37-44 (the version policy section) — the playbook section at line 83 still carried the old `--disable-log-requests` flag name. A fix that touches one section of a doc does not automatically fix other sections that reference the same concept. Always grep for the full pattern across the entire file.
+- **2026-09-10 (audit 2):** Test stubs that mock `Secret.from_local` are functionally harmless when the deploy code calls `Secret.from_dict` (the stub's `from_local` is simply never invoked), but they are logically stale and should be updated for correctness. Don't dismiss stale test mocks just because they don't cause test failures — they mask the fact that the test doesn't exercise the actual code path.
+
+## Comprehensive Audit #2 (2026-09-10)
+
+### Scope
+Full board state audit (DMR-011 through DMR-040), documentation drift check, archived card verification, and STATE.md maintenance.
+
+### Verdict Summary
+
+| Card | Status | Verdict |
+|---|---|---|
+| DMR-011 | unassigned | **FIX IS SHIPPED** — card should be archived (DMR-028 delivered the `git ls-tree` + `git cat-file blob` fix) |
+| DMR-012 | unassigned | CORRECTLY SCOPED — legitimate "needs execution" |
+| DMR-013 | unassigned | CORRECTLY SCOPED — legitimate "needs execution" |
+| DMR-014 | unassigned | NOT SHIPPED — no mutation operators exist |
+| DMR-015 | unassigned | NOT SHIPPED — surfaces still 4-token |
+| DMR-016 | unassigned | NOT SHIPPED — extended-8 grading persists |
+| DMR-017 | unassigned | NOT SHIPPED — only pilot variants exist |
+| DMR-018 | unassigned | NOT SHIPPED — no INSURBIAS evaluation |
+| DMR-023 | unassigned | PARTIALLY SHIPPED — deploy fixed (DMR-029), test mock stale (`from_local` in stub, should be `from_dict`) |
+| DMR-024 | unassigned | PARTIALLY SHIPPED — deploy fixed (DMR-030), test mock stale (`from_local` in stub, should be `from_dict`) |
+| DMR-040 | unassigned | NOT SHIPPED — `vllm-specialist.md:83` still says `--disable-log-requests`, should be `--no-enable-log-requests` |
+
+### Archived Card Verification
+DMR-026, DMR-028, DMR-029, DMR-030, DMR-031, DMR-032: all verified as shipped against actual codebase state.
+
+**Exception:** DMR-031 claimed the vllm-specialist.md was fully fixed, but the playbook section (line 83) still carries the stale flag name — this is the DMR-040 gap.
+
+### Documentation Drift Findings
+1. **AGENTS.md specialist roster** — ✅ No drift. The four `mode: all` project specialists match actual `.opencode/agents/*.md` files.
+2. **vllm-specialist.md playbook** — ⚠️ Stale flag `--disable-log-requests` at line 83 (tracked by DMR-040).
+3. **Test stub staleness** — ⚠️ Both `test_vllm_modal_capability.py` and `test_kanban096_modal_vllm.py` define `_Secret.from_local` (dead code); deploy code calls `from_dict` (not mocked). Functionally harmless but logically stale (tracked by DMR-023, DMR-024).
+4. **docs/wiki/Served-Board.md** — ✅ No drift. Correct repo name, deploy URL, tool commands.
+5. **TASKS.md archive** — ✅ Verified. DMR-026 through DMR-039 archive entries match codebase state.
+
+### New DMR Cards
+**None required.** All discrepancies are already tracked by existing open cards (DMR-023, DMR-024, DMR-040) or archival actions (DMR-011).
+
+### Actions Taken
+1. Verified all 11 open cards (DMR-011 through DMR-040) against actual codebase.
+2. Verified 7 archived cards (DMR-026 through DMR-032) against actual codebase.
+3. Checked AGENTS.md roster against `.opencode/agents/` directory.
+4. Checked `docs/wiki/Served-Board.md` for drift.
+5. Identified DMR-011 as a board hygiene discrepancy (fix shipped, card still open).
+6. Updated STATE.md with this audit entry.

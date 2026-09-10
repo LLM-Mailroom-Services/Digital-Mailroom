@@ -121,6 +121,15 @@ _DOCCONTEXT_V1 = (
     "(carrier, pde, outpatient, inpatient).\n"
 )
 
+# v2 context block — adds v8 LOB subclasses (property/auto) to the insurance
+# claim dimension (DMR-015). v0/v1 variants stay frozen.
+_DOCCONTEXT_V2 = _DOCCONTEXT_V1.replace(
+    "insurance_claim -> claim-document type "
+    "(carrier, pde, outpatient, inpatient).\n",
+    "insurance_claim -> claim-document type "
+    "(carrier, pde, outpatient, inpatient, property, auto).\n",
+)
+
 _SPECIALIST_RULES = (
     "DOCLASS RULES FOR THIS SPECIALIST:\n"
     "1. The assigned doc_type/doc_subclass is pipeline ROUTING STATE, not "
@@ -609,6 +618,27 @@ REVIEWER_DOCCLASS_PROMPT_V1 = REVIEWER_DOCCLASS_PROMPT_V0.replace(
     "Docclass variant: reviewer_docclass_v1 (KANBAN-101).",
 )
 
+# v2 reviewer — extends v1 with v8 LOB subclasses (property/auto) via
+# _REVIEWER_V2_EXTRA (DMR-015). Frozen v0/v1 stay unchanged.
+REVIEWER_DOCCLASS_PROMPT_V2 = REVIEWER_DOCCLASS_PROMPT_V0.replace(
+    "- every other doc_type: null.",
+    _REVIEWER_V2_EXTRA,
+).replace(
+    "Docclass variant: reviewer_docclass_v0 (KANBAN-090).",
+    "Docclass variant: reviewer_docclass_v2 (DMR-015, 6-token insurance).",
+)
+
+# v2 reviewer extra — adds v8 LOB subclasses (property/auto) to the insurance
+# claim dimension (DMR-015). v0/v1 reviewer variants stay frozen.
+_REVIEWER_V2_EXTRA = _REVIEWER_V1_EXTRA.replace(
+    "- insurance_claim: the CLAIM-DOCUMENT TYPE — carrier, pde, outpatient, "
+    "or inpatient (CMS setting in the document's own heading outranks generic "
+    "family).\n",
+    "- insurance_claim: the CLAIM-DOCUMENT TYPE — carrier, pde, outpatient, "
+    "inpatient, property, or auto (CMS setting in the document's own heading "
+    "outranks generic family; property/auto cover non-CMS lines of business).\n",
+)
+
 _ARBITER_V1_EXTRA = (
     "Exhibit-vs-form: charter/bylaws/POA/rights-instrument BODY -> "
     "corporate_record even under an S-1/10-K wrapper; CMS claim tables -> "
@@ -703,11 +733,22 @@ _PILOT_CONTEXT = (
     "outpatient, inpatient).\n"
 )
 
+# v1 pilot context — adds v8 LOB subclasses (property/auto) to the insurance
+# claim dimension (DMR-015). The base _PILOT_CONTEXT stays frozen.
+_PILOT_CONTEXT_V1 = _PILOT_CONTEXT.replace(
+    "insurance_claim -> claim-document type (carrier, pde, "
+    "outpatient, inpatient).\n",
+    "insurance_claim -> claim-document type (carrier, pde, "
+    "outpatient, inpatient, property, auto).\n",
+)
+
 def _with_pilot_context(text: str) -> str:
-    if _DOCCONTEXT in text:
-        return text.replace(_DOCCONTEXT, _PILOT_CONTEXT)
+    if _DOCCONTEXT_V2 in text:
+        return text.replace(_DOCCONTEXT_V2, _PILOT_CONTEXT_V1)
     if _DOCCONTEXT_V1 in text:
         return text.replace(_DOCCONTEXT_V1, _PILOT_CONTEXT)
+    if _DOCCONTEXT in text:
+        return text.replace(_DOCCONTEXT, _PILOT_CONTEXT)
     raise AssertionError("anchor drift: docclass context missing")
 
 
@@ -896,6 +937,7 @@ DOCCLASS_PROMPT_VERSIONS: dict[str, str] = {
     "insurance_claims_specialist_docclass_v1": INSURANCE_CLAIMS_SPECIALIST_DOCCLASS_PROMPT_V1,
     "reviewer_docclass_v0": REVIEWER_DOCCLASS_PROMPT_V0,
     "reviewer_docclass_v1": REVIEWER_DOCCLASS_PROMPT_V1,
+    "reviewer_docclass_v2": REVIEWER_DOCCLASS_PROMPT_V2,
     "arbiter_docclass_v0": ARBITER_DOCCLASS_PROMPT_V0,
     "arbiter_docclass_v1": ARBITER_DOCCLASS_PROMPT_V1,
     # Derived judgment/escalation variants

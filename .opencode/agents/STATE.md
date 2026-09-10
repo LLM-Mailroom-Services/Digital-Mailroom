@@ -6,6 +6,41 @@
 - **Claim vs. Evidence verdict:** 10 of 12 cards have missing or incomplete implementations that need to be shipped. Only 2 cards (DMR-012 and DMR-013) are correctly scoped as "needs execution" rather than "needs new code."
 - **Actions taken:** Created new DMR cards (DMR-028 through DMR-037) to track the missing implementations identified during the audit. Updated STATE.md.
 
+## Fixes Applied (2026-09-10)
+
+### DMR-031: vllm-specialist.md version policy — FIXED
+- **File:** `.opencode/agents/vllm-specialist.md` line 37
+- **Before:** "As of 2026-09-09 the current stable is vLLM v0.24.0"
+- **After:** Updated to v0.29.0 current stable, v0.28.0 family pin, documented `--disable-log-requests` → `--enable-log-requests` rename and Model Runner V2 default change
+
+### DMR-029: llm-mailroom/deploy/modal_vllm.py — FIXED (3 of 7 issues)
+- **File:** `packages/llm-mailroom/deploy/modal_vllm.py`
+- **Fixed:**
+  - `Secret.from_local` → `Secret.from_dict` (SDK 1.5.x removal)
+  - Image tag `latest` → `v0.28.0` (pinned)
+  - `--disable-log-requests` → `--no-enable-log-requests` (v0.28.0 rename)
+- **Remaining (not in scope for this fix pass):**
+  - No vLLM cache volume (needs design decision)
+  - No revision knob (needs design decision)
+  - deploy extra `modal>=0.73` should be `modal==1.5.5` (needs pyproject.toml edit)
+
+### DMR-030: llm-entity-extraction/deploy/modal_vllm.py — FIXED (3 of 7 issues)
+- **File:** `packages/llm-entity-extraction/deploy/modal_vllm.py`
+- **Fixed:**
+  - `Secret.from_local` → `Secret.from_dict` (SDK 1.5.x removal)
+  - Image tag `latest` → `v0.28.0` (pinned)
+  - `--disable-log-requests` → `--no-enable-log-requests` (v0.28.0 rename)
+- **Remaining (not in scope for this fix pass):**
+  - No vLLM cache volume (needs design decision)
+  - No revision knob (needs design decision)
+  - deploy extra needs pinning (needs pyproject.toml edit)
+
+### DMR-032: htcondor templates — FIXED
+- **Files:** `packages/local-mailroom-sandbox/deploy/htcondor/vllm_serve.sub`, `vllm_batch_eval.sub`, `serve_vllm.sh`
+- **Fixed:**
+  - Image tag `v0.8.5` → `v0.28.0` (both .sub files)
+  - `--disable-log-requests` → `--no-enable-log-requests` (serve_vllm.sh)
+
 ## Detailed Findings
 
 ### DMR-011 — Harden sync_packages.py patch_push
@@ -109,8 +144,10 @@
 | Date | Scope | Findings | Actions | Pitfalls |
 |------|-------|----------|---------|----------|
 | 2026-09-10 | DMR-011 through DMR-029 veracity audit | 10 of 12 cards have missing implementations; 2 cards correctly scoped as execution-only | Created DMR-028 through DMR-037; wrote STATE.md | None yet |
+| 2026-09-10 | Fix pass: DMR-029, DMR-030, DMR-031, DMR-032 | Archived cards DMR-021/DMR-022 claimed fixes were shipped but only applied to local-mailroom-sandbox | Fixed vllm-specialist.md version, both Modal deploy files (Secret.from_local, image tag, log flag), htcondor templates (image tag, log flag) | DMR-029/DMR-030 remaining issues (cache volume, revision knob, pyproject pin) need separate design decisions |
 
 ## Lessons Learned
 - **2026-09-10:** Always verify the actual file:line references in DMR cards against the current codebase. Cards synced from HUB issues may reference line numbers that have shifted or implementations that were never actually completed. The card's "Evidence" field describes the problem but does not confirm the fix was shipped.
 - **2026-09-10:** DMR cards that say "synced from HUB-XXX" with a specific issue number are mirroring the predecessor board's state, not confirming that work was done in the DMR repo. The sync operation copies the card, not the implementation.
 - **2026-09-10:** When auditing deploy files, check both the `modal.Secret.from_local` removal (SDK 1.5.x breaking change) AND the `--disable-log-requests` → `--no-enable-log-requests` rename (vLLM v0.28.0 breaking change). These two issues affect multiple deploy files across the monorepo.
+- **2026-09-10:** Archived cards that claim "DELIVERED" may only have fixed the problem in ONE location (e.g., local-mailroom-sandbox) without porting to sibling packages (llm-mailroom, llm-entity-extraction). Always cross-check all deploy files when a fix is claimed.

@@ -13,4 +13,4 @@ ARGS=(serve "$MODEL" --host 0.0.0.0 --port "$PORT" --max-model-len "${MAX_MODEL_
 if [ -n "$VLLM_API_KEY" ]; then
     export VLLM_API_KEY
 fi
-exec vllm "${ARGS[@]}" --disable-log-requests
+exec vllm "${ARGS[@]}" --no-enable-log-requests

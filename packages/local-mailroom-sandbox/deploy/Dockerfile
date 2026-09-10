@@ -8,7 +8,7 @@
 # harness and notebook extras so you can prepare fixtures and activate profiles
 # without a cloud LLM.
 
-FROM python:3.14-slim-bookworm
+FROM python:3.13-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -57,3 +57,7 @@ CMD ["jupyter", "lab", \
      "--ServerApp.password=", \
      "--ServerApp.root_dir=/workspace", \
      "--allow-root"]
+
+# To run the sandbox CLI instead of Jupyter:
+#   docker run --entrypoint sandbox mailroom-sandbox:offline pilot --mock
+#   docker run --entrypoint sandbox mailroom-sandbox:offline up --profile ollama

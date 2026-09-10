@@ -30,7 +30,7 @@ when_to_transfer_output = ON_EXIT
 # (`condor_submit -i`) and stage it, adding the staging requirement:
 #   container_image = osdf:///chtc/staging/CHTC_USERNAME/vllm-openai.sif
 #   requirements = (HasCHTCStaging == true)
-container_image = docker://vllm/vllm-openai:v0.8.5
+container_image = docker://vllm/vllm-openai:v0.28.0
 
 # CHTC GPU Lab flags ("Use GPUs" guide). short = 12h cap, most parallel
 # capacity per user (2/3 of the Lab); a fixture eval run is well under 12h.

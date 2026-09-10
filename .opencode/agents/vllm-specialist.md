@@ -34,9 +34,14 @@ checked version.
 3. **Pin what you deploy.** Record the exact vLLM version (image tag or
    `vllm==X.Y.Z`) in the deploy file/comment. `latest` is acceptable only
    for throwaway experiments.
-4. As of 2026-09-09 the current stable is **vLLM v0.24.0**; the NVIDIA
-   container line ships 0.24.0 in release 26.07 and 0.22.1 in 26.06. Treat
-   this as a checkpoint, not truth — re-verify before use.
+4. As of 2026-09-09 the current stable is **vLLM v0.29.0**; the family pin
+   is **v0.28.0** (the NVIDIA container line ships 0.28.0 in release 26.07
+   and 0.22.1 in 26.06). v0.29.0 flips Model Runner V2 to the default for
+   all models — keep v0.28.0 in pinned deploys until a live parity run.
+   **Breaking change in v0.28.0:** `--disable-log-requests` was removed;
+   per-request logging is now opt-in via `--enable-log-requests` (opt-out
+   via `--no-enable-log-requests`). Treat version references as checkpoints,
+   not truth — re-verify before use.
 
 ## Current capability map (verify against the docs for your version)
 

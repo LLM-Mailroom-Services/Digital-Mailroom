@@ -4,6 +4,21 @@ All notable changes to The-Mailroom are documented here, following
 [Keep a Changelog](https://keepachangelog.com) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **DMR-016: vendored docclass mirror resynced 32→74 keys.**
+  `mailroom_ui/docclass_prompts.py::DOCLASS_PROMPT_VERSIONS` regenerated
+  verbatim (byte-identical, order-preserving) from llm-entity-extraction
+  `src/prompts_docclass.py::DOCCLASS_PROMPT_VERSIONS` — the mirror had gone
+  stale at the KANBAN-090 era (32 keys) while the source registry grew to 74
+  (KANBAN-101/103 specialists, HUB-041 mailroom v8, DMR-015 reviewer v2 +
+  the 14-key `mailroom_prompts` lineage). Count pin in
+  `tests/test_prompts.py::test_docclass_registry_shape` bumped to match.
+  Defaults unchanged; `scripts/sync_prompts.py --docclass` pushes the
+  refreshed family to Langfuse when run.
+
 ## [0.4.0] - 2026-09-04
 
 ### Added

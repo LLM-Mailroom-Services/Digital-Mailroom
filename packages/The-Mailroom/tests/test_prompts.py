@@ -69,11 +69,14 @@ def test_schema_roster_consistency():
 
 
 def test_docclass_registry_shape():
-    """KANBAN-090 mirror + pilot-universe variants: 31 docclass prompts
-    + the HUB-041 mailroom-named v8 sorter key (32)."""
+    """Vendored docclass mirror, resynced verbatim from
+    llm-entity-extraction src/prompts_docclass.py (DMR-016): KANBAN-090
+    family + pilot universe + HUB-041 mailroom v8 sorter + KANBAN-101/103
+    specialists + DMR-015 reviewer v2 + DMR-015 mailroom_prompts lineage
+    (74)."""
     from mailroom_ui.docclass_prompts import DOCLASS_PROMPT_VERSIONS, load_docclass_templates
 
-    assert len(DOCLASS_PROMPT_VERSIONS) == 32
+    assert len(DOCLASS_PROMPT_VERSIONS) == 74
     assert "sorter_mailroom_pilot_v0" in DOCLASS_PROMPT_VERSIONS
     for key, template in DOCLASS_PROMPT_VERSIONS.items():
         assert isinstance(template, str) and len(template) > 200, key

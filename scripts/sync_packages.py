@@ -73,18 +73,18 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def run(cmd: list[str], *, capture: bool = True) -> subprocess.CompletedProcess:
+def run(cmd: list[str], *, capture: bool = True, binary: bool = False) -> subprocess.CompletedProcess:
     return subprocess.run(
         cmd,
         cwd=REPO_ROOT,
         check=False,
-        text=True,
+        text=not binary,
         capture_output=capture,
     )
 
 
-def git(args: list[str], *, capture: bool = True) -> subprocess.CompletedProcess:
-    return run(["git", *args], capture=capture)
+def git(args: list[str], *, capture: bool = True, binary: bool = False) -> subprocess.CompletedProcess:
+    return run(["git", *args], capture=capture, binary=binary)
 
 
 def load_manifest() -> dict:
@@ -356,7 +356,9 @@ def patch_push(package: str, url: str, tip: str, *, dry_run: bool) -> int:
             _mode, _type, blob_sha = meta.split(" ", 2)
             dst = tmp / rel[len(f"packages/{package}/"):]
             dst.parent.mkdir(parents=True, exist_ok=True)
-            blob = git(["cat-file", "blob", blob_sha])
+            # cat-file must stay BINARY: blobs are arbitrary bytes and
+            # write_bytes rejects the text-mode str output (DMR-054).
+            blob = git(["cat-file", "blob", blob_sha], binary=True)
             if blob.returncode != 0:
                 print(f"!! cat-file failed for {rel}: {blob.stderr.strip()}", file=sys.stderr)
                 return 1

@@ -368,7 +368,21 @@ def run_job(
             "errors": error_count,
             "last_error": last_error,
         }
-    scores = _score(task, expected, predicted) if expected and predicted else {}
+    ok_by_index = {int(d["index"]): bool(d.get("ok", False)) for d in store.load_items()}
+    # Score only completed, ok rows — a failed row must never count as a wrong
+    # prediction, and the error count is reported explicitly (DMR-049 F4).
+    scored_pairs = [
+        (expected[i], predicted[i])
+        for i in range(len(rows))
+        if ok_by_index.get(i, False) and predicted[i] != ""
+    ]
+    scores = (
+        _score(task, [e for e, _ in scored_pairs], [p for _, p in scored_pairs])
+        if scored_pairs
+        else {}
+    )
+    if error_count:
+        scores["error_count"] = error_count
     record = _build_record(store, task, model, scores, mock=mock)
     experiment_log.append(record)
     store.append_event("done", "info", cursor=final_cursor, ok_count=ok_count)

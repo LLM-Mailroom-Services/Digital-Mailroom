@@ -152,9 +152,39 @@ def serving_headlines() -> list[str]:
 
 
 def attach_serving_identity(record: dict[str, Any]) -> dict[str, Any]:
-    """Stamp ``serving_kind`` from provider/profile. Do not invent timings."""
-    record.setdefault("serving_kind", classify_serving_kind(record))
+    """Stamp ``serving_kind`` from provider/profile. Do not invent timings.
+
+    The dojo classifier has no ``modal`` category and maps the ``modal-vllm``
+    profile to ``local`` — the sandbox's own bucket table is authoritative for
+    its records (DMR-049 G), so a Modal run never lands in the local bucket.
+    """
+    if "serving_kind" not in record:
+        record["serving_kind"] = _sandbox_serving_kind(record) or classify_serving_kind(record)
     return record
+
+
+_SANDBOX_MODAL_PROFILES = ("modal-vllm",)
+_SANDBOX_LOCAL_PROFILES = ("ollama", "vllm-local", "vllm-remote", "llamacpp", "lmstudio")
+_SANDBOX_API_PROFILES = ("openrouter",)
+
+
+def _sandbox_serving_kind(record: Mapping[str, Any]) -> str | None:
+    """The sandbox bucket for a record, or None when it is not sandbox-scoped."""
+    profile = str(record.get("profile") or "")
+    provider = str(record.get("provider") or "").lower()
+    if profile in _SANDBOX_MODAL_PROFILES or "modal" in profile:
+        return "modal"
+    if profile in _SANDBOX_API_PROFILES or provider == "openrouter":
+        return "api"
+    if profile in _SANDBOX_LOCAL_PROFILES or provider in {
+        "vllm",
+        "ollama",
+        "llamacpp",
+        "lmstudio",
+        "generic",
+    }:
+        return "local"
+    return None
 
 
 def serving_record(

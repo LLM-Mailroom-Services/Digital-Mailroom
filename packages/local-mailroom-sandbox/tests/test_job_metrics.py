@@ -71,3 +71,41 @@ def test_record_from_run_aggregates_items():
     assert rec["prompt_tokens"] == 30 and rec["completion_tokens"] == 10
     assert abs(rec["e2e_latency_seconds"] - 0.2) < 1e-9
     assert rec["scores"]["exact_match"] == 1.0
+
+
+# ── DMR-049: modal bucketing, cost table, ok-only latency ────────────────────
+
+
+def test_attach_serving_identity_stamps_modal():
+    from mailroom_sandbox.eval import scoring
+
+    rec = scoring.attach_serving_identity(
+        {"profile": "modal-vllm", "provider": "vllm", "model": "Qwen/Qwen3-8B"}
+    )
+    assert rec["serving_kind"] == "modal"
+    # A pre-stamped record is never reclassified.
+    assert scoring.attach_serving_identity({**rec, "serving_kind": "api"})["serving_kind"] == "api"
+
+
+def test_estimate_cost_covers_flagship_default():
+    cost = metrics._estimate_cost(1_000_000, 0, "Qwen/Qwen3-8B")
+    assert cost == pytest.approx(0.03)
+    assert metrics._estimate_cost(0, 0, "Qwen/Qwen3-8B") is None
+    assert metrics._estimate_cost(10, 10, "not-a-model") is None
+
+
+def test_record_from_run_latency_excludes_failed_items():
+    rec = metrics.record_from_run(
+        run_id="r2",
+        spec_hash="sh",
+        task="sorter",
+        profile="ollama",
+        model="Qwen/Qwen3-8B",
+        prompt_version="code-default",
+        dataset_fingerprint="fp",
+        items=[
+            {"latency_ms": 100, "ok": True},
+            {"latency_ms": 9500, "ok": False},  # retry/backoff inflated
+        ],
+    )
+    assert abs(rec["e2e_latency_seconds"] - 0.1) < 1e-9

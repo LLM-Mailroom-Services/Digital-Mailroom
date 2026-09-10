@@ -17,6 +17,48 @@ MODAL_PROFILES = ("modal-vllm",)
 LOCAL_PROFILES = ("ollama", "vllm-local", "vllm-remote", "llamacpp", "lmstudio")
 API_PROFILES = ("openrouter",)
 
+# Champion-model prices for locally/Modal-served weights: the OpenRouter list
+# price of the matrix champion each HF id maps to, so local-vs-API cost
+# comparisons stay like-for-like. The dojo table only knows the OpenRouter
+# slugs; without this the flagship default model always costed None (DMR-049).
+SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
+    "Qwen/Qwen3-8B": (0.03, 0.13),  # qwen/qwen3.7-flash champion
+    "Qwen/Qwen3-8B-AWQ": (0.03, 0.13),
+    "Qwen/Qwen3-14B": (0.03, 0.13),
+    "Qwen/Qwen3-14B-AWQ": (0.03, 0.13),
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B": (0.05, 0.25),  # deepseek-v4-flash
+    "deepseek-ai/DeepSeek-R1-Distill-Llama-8B": (0.05, 0.25),
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": (0.435, 0.87),  # deepseek-v4-pro
+}
+
+
+def _estimate_cost(
+    prompt_tokens: int, completion_tokens: int, model: str
+) -> float | None:
+    """Dojo cost first; fall back to the sandbox champion-price table."""
+    try:
+        cost = estimate_cost(prompt_tokens, completion_tokens, model)
+        if cost is not None:
+            return float(cost)
+    except Exception:
+        pass
+    if not model:
+        return None
+    prices = SANDBOX_MODEL_PRICES.get(model)
+    if prices is None:
+        for known, price in SANDBOX_MODEL_PRICES.items():
+            if model.startswith(known):
+                prices = price
+                break
+    if prices is None or prompt_tokens + completion_tokens <= 0:
+        return None
+    per_million_in, per_million_out = prices
+    return round(
+        prompt_tokens * per_million_in / 1_000_000
+        + completion_tokens * per_million_out / 1_000_000,
+        6,
+    )
+
 
 def bucket_kind(record: Mapping[str, Any]) -> str:
     kind = str(record.get("serving_kind") or "").lower()
@@ -51,7 +93,10 @@ def record_from_run(
 ) -> dict[str, Any]:
     """Aggregate per-item captures into one dojo-compatible serving record."""
     kind = bucket_kind({"serving_kind": "", "profile": profile, "provider": _provider_for(profile)})
-    latencies = [float(i.get("latency_ms", 0)) for i in items if i.get("latency_ms") is not None]
+    # Failed/retried items carry inflated latency (backoff sleeps) — average
+    # only successful items (DMR-049 H).
+    ok_items = [i for i in items if i.get("ok", True) is not False]
+    latencies = [float(i.get("latency_ms", 0)) for i in ok_items if i.get("latency_ms") is not None]
     prompt_tokens = sum(int(i.get("prompt_tokens") or 0) for i in items)
     completion_tokens = sum(int(i.get("completion_tokens") or 0) for i in items)
     total_tokens = prompt_tokens + completion_tokens
@@ -81,7 +126,7 @@ def record_from_run(
     if scores:
         rec["scores"] = dict(scores)
     try:
-        cost = estimate_cost(prompt_tokens, completion_tokens, model)
+        cost = _estimate_cost(prompt_tokens, completion_tokens, model)
         if cost is not None:
             rec["estimated_cost_usd"] = float(cost)
     except Exception:

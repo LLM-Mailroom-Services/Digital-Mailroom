@@ -349,7 +349,11 @@ def patch_push(package: str, url: str, tip: str, *, dry_run: bool) -> int:
         for entry in tracked:
             if not entry or "\t" not in entry:
                 continue
-            _mode, _type, blob_sha, rel = entry.split("\t", 1)
+            # ls-tree -z emits "<mode> <type> <sha>\t<path>"; the path is the
+            # ONLY tab-delimited tail (paths may contain tabs when -z is on),
+            # so split the metadata off first, then the mode/type/sha triple.
+            meta, rel = entry.split("\t", 1)
+            _mode, _type, blob_sha = meta.split(" ", 2)
             dst = tmp / rel[len(f"packages/{package}/"):]
             dst.parent.mkdir(parents=True, exist_ok=True)
             blob = git(["cat-file", "blob", blob_sha])

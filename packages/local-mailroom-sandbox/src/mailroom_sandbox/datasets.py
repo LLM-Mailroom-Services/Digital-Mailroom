@@ -42,8 +42,23 @@ def parse_expected_fields(row: dict[str, str]) -> dict | None:
 
 
 def dataset_fingerprint(rows: list[dict[str, str]]) -> str:
+    """One canonical dataset fingerprint for records of the SAME rows.
+
+    Covers id/filename/class/subclass/expected_fields so two same-id datasets
+    with different GT content cannot collide; eval-run and job-run records
+    share this function so ``pair_comparable_runs`` can pair them (DMR-049).
+    """
     blob = json.dumps(
-        [(r.get("id"), r.get("filename"), r.get("expected_doc_class")) for r in rows],
+        [
+            (
+                r.get("id"),
+                r.get("filename"),
+                r.get("expected_doc_class"),
+                r.get("expected_subclass"),
+                json.dumps(r.get("expected_fields") or {}, sort_keys=True, default=str),
+            )
+            for r in rows
+        ],
         sort_keys=True,
     )
     return hashlib.md5(blob.encode()).hexdigest()[:12]

@@ -124,6 +124,13 @@ def load_hf_rows(spec: DatasetSpec) -> list[dict[str, Any]]:
             r["source_revision"] = resolved
         return merged
     if default is not None:
+        if spec.config in ("", "ground_truth"):
+            # The blind rows would be scored as unlabeled (expected_doc_class
+            # "") — a silent 0.0/unknown scorecard. Refuse instead (DMR-049).
+            raise RuntimeError(
+                f"ground_truth config is absent at {repo}@{resolved} for split "
+                f"{spec.split!r} — refusing to prepare blind rows as labeled data"
+            )
         for r in default:
             r["source_revision"] = resolved
         return default
@@ -264,12 +271,14 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
         source_meta = {"source": "local", "revision": "offline"}
     else:
         rows = load_hf_rows(spec)
+        resolved = str(rows[0].get("source_revision") or "") if rows else ""
         source_meta = {
             "source": "huggingface",
             "repo": spec.repo,
             "config": spec.config,
             "split": spec.split,
             "revision": spec.revision or FAMILY_HF_REVISION,
+            "revision_resolved": resolved or None,
         }
 
     rows = normalize_rows(rows)
@@ -292,6 +301,7 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
         "strata_actual": dict(sorted(counts.items())),
         "metadata": source_meta,
         "revision_requested": spec.revision or FAMILY_HF_REVISION,
+        "revision_resolved": source_meta.get("revision_resolved"),
     }
 
 

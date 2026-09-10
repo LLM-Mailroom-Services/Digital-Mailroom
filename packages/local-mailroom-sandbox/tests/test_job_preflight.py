@@ -97,6 +97,71 @@ def test_run_job_refuses_drifted_dataset(tmp_path, job_data_dir):
         runner.run_job(store, mock=None)
 
 
+def test_prompt_text_change_triggers_drift(tmp_path, job_data_dir, monkeypatch):
+    """DMR-049: a local prompt FILE body change must refuse the stale lock."""
+    variant_dir = tmp_path / "prompts"
+    variant_dir.mkdir()
+    (variant_dir / "sorter_x.txt").write_text("prompt version A", encoding="utf-8")
+    monkeypatch.setattr("mailroom_sandbox.prompt_registry.prompts_dir", lambda: variant_dir)
+
+    spec = _run_spec(tmp_path, run_id="pf-promptdrift")
+    spec.prompt = {"agents": {"sorter": {"source": "local", "file": "sorter_x"}}}
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared"
+    store = _store(report)
+    first_sha = (store.read_lock() or {}).get("prompt_text_sha")
+
+    (variant_dir / "sorter_x.txt").write_text("prompt version B", encoding="utf-8")
+    report2 = preflight.preflight(spec, offline=True)
+    assert report2["status"] == "drift_refused"
+
+    report3 = preflight.preflight(spec, offline=True, force=True)
+    assert report3["status"] == "prepared"
+    assert (store.read_lock() or {}).get("prompt_text_sha") != first_sha
+
+
+def test_hub_gt_absent_refuses_blind_rows(tmp_path, job_data_dir, monkeypatch):
+    """DMR-049: a missing ground_truth shard must never become unlabeled rows."""
+    from mailroom_sandbox.job.spec import FAMILY_HF_REVISION
+
+    import huggingface_hub
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    def _fake_list_repo_files(repo, revision=None, repo_type=None):
+        return ["parquet/default/test/test-00000-of-00001.parquet"]
+
+    dflt = tmp_path / "default.parquet"
+    pq.write_table(
+        pa.Table.from_pylist([{"filename": "f.txt", "doc_text": "t"}]),
+        dflt,
+    )
+
+    monkeypatch.setattr(huggingface_hub, "list_repo_files", _fake_list_repo_files)
+    monkeypatch.setattr(
+        huggingface_hub,
+        "hf_hub_download",
+        lambda repo, filename, revision=None, repo_type=None, **kw: str(dflt),
+    )
+
+    spec = RunSpec(
+        run_id="hub-blind",
+        task="sorter",
+        dataset=DatasetSpec(
+            provider="huggingface",
+            repo="Lucius-Morningstar/mailroom-corpus",
+            revision=FAMILY_HF_REVISION,
+            limit=1,
+        ),
+        engine={"kind": "vllm-local", "modal": None},
+        trace={"sink": "none"},
+        job={"mock": True},
+    )
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "failed"
+    assert "refusing to prepare blind rows" in str(report["checks"][-1]["detail"])
+
+
 def test_preflight_unknown_prompt_agent_fails(tmp_path):
     spec = _run_spec(tmp_path)
     spec.prompt = {"agents": {"extract": {"source": "code-default"}}}
@@ -119,9 +184,13 @@ def test_preflight_hub_spec_locks_pinned_revision(tmp_path, monkeypatch):
         return _FakeInfo()
 
     def _fake_list_repo_files(repo, revision=None, repo_type=None):
-        return ["parquet/default/test/test-00000-of-00001.parquet"]
+        return [
+            "parquet/default/test/test-00000-of-00001.parquet",
+            "parquet/ground_truth/test/test-00000-of-00001.parquet",
+        ]
 
     dflt = tmp_path / "default.parquet"
+    gt = tmp_path / "ground_truth.parquet"
     import pyarrow as pa
     import pyarrow.parquet as pq
 
@@ -138,9 +207,21 @@ def test_preflight_hub_spec_locks_pinned_revision(tmp_path, monkeypatch):
         ),
         dflt,
     )
+    pq.write_table(
+        pa.Table.from_pylist(
+            [
+                {
+                    "filename": "f0.txt",
+                    "expected": "contract",
+                    "expected_subclass": "service",
+                }
+            ]
+        ),
+        gt,
+    )
 
     def _fake_hf_hub_download(repo, filename, revision=None, repo_type=None, **kw):
-        return str(dflt)
+        return str(gt if "ground_truth" in filename else dflt)
 
     monkeypatch.setattr(huggingface_hub.HfApi, "dataset_info", _fake_dataset_info)
     monkeypatch.setattr(huggingface_hub, "list_repo_files", _fake_list_repo_files)

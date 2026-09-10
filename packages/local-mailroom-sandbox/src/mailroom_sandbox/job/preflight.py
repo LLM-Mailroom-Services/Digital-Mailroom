@@ -132,6 +132,9 @@ def _dataset_lock(prov: dict[str, Any], spec: RunSpec) -> dict[str, Any]:
         "config": spec.dataset.config,
         "split": spec.dataset.split,
         "revision": prov.get("revision_requested") or spec.effective_revision(),
+        # DMR-049: the resolved 40-hex sha (branch/tag revisions resolve via
+        # dataset_info; the default pin is already a full sha).
+        "revision_resolved": prov.get("revision_resolved"),
         "limit": spec.dataset.limit,
         "sample_seed": spec.dataset.sample_seed,
         "strata": spec.dataset.strata,
@@ -139,6 +142,26 @@ def _dataset_lock(prov: dict[str, Any], spec: RunSpec) -> dict[str, Any]:
         "sha256": prov.get("sha256"),
         "metadata": prov.get("metadata", {}),
     }
+
+
+def _prompt_text_sha(block: dict[str, Any]) -> str:
+    """Hash of the RESOLVED prompt texts (local/langfuse), not just refs.
+
+    ``spec_hash`` covers prompt REFS; two identical refs whose file bodies
+    changed hash the same, so a resume would replay with different prompt
+    text. This sha lands in the lock and is checked on every preflight
+    (DMR-049).
+    """
+    import hashlib
+
+    agents = block.get("agents") or {}
+    parts = []
+    for agent in sorted(agents):
+        ref = agents[agent]
+        if not isinstance(ref, dict):
+            continue
+        parts.append(f"{agent}:{ref.get('sha256') or ''}:{ref.get('text') or ''}")
+    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
 
 
 def preflight(
@@ -159,37 +182,45 @@ def preflight(
     store = RunStore(run_dir(run_id))
 
     existing = store.read_lock()
-    if existing and not force:
-        if existing.get("spec_hash") != spec.spec_hash():
-            return {
-                "status": "drift_refused",
-                "run_id": run_id,
-                "spec_hash": spec.spec_hash(),
-                "locked_spec_hash": existing.get("spec_hash"),
-                "detail": "spec drifted since the lock; pass --force to re-lock",
-            }
-
-    # write_lock refuses to overwrite in place, so a forced re-lock archives
-    # the old generation first — new dataset bytes must never sit under an old
-    # lock/checkpoint (DMR-049).
-    archived = store.archive_generation() if (existing and force) else None
 
     report: dict[str, Any] = {"run_id": run_id, "status": "prepared", "checks": []}
-    if archived is not None:
-        report["archived"] = str(archived)
     if dry_run:
         return report
 
     # 1) prompt surface — resolves all agent overrides (fails fast on typos).
+    #    Resolved FIRST so the drift check can hash the prompt TEXTS: spec_hash
+    #    covers refs only, and two identical refs whose file bodies changed
+    #    would otherwise resume with different prompt text (DMR-049).
     try:
         prompt_block = prompt_lock_block(spec.prompt, offline=offline)
     except KeyError as exc:
         report["status"] = "failed"
         report["checks"] = [{"name": "prompt", "ok": False, "detail": str(exc)}]
         return report
+    prompt_text_sha = _prompt_text_sha(prompt_block)
     report["checks"].append(
         {"name": "prompt", "ok": True, "detail": _prompt_summary(prompt_block)}
     )
+
+    if existing and not force:
+        drifted = existing.get("spec_hash") != spec.spec_hash()
+        if not drifted and existing.get("prompt_text_sha") and existing.get("prompt_text_sha") != prompt_text_sha:
+            drifted = True
+        if drifted:
+            return {
+                "status": "drift_refused",
+                "run_id": run_id,
+                "spec_hash": spec.spec_hash(),
+                "locked_spec_hash": existing.get("spec_hash"),
+                "detail": "spec (or resolved prompt text) drifted since the lock; pass --force to re-lock",
+            }
+
+    # write_lock refuses to overwrite in place, so a forced re-lock archives
+    # the old generation first — new dataset bytes must never sit under an old
+    # lock/checkpoint (DMR-049).
+    archived = store.archive_generation() if (existing and force) else None
+    if archived is not None:
+        report["archived"] = str(archived)
 
     # 2) dataset — prepared subset (idempotent; network only for Hub specs).
     try:
@@ -268,6 +299,7 @@ def preflight(
         "run_id": run_id,
         "created_at": checkpoint.utc_now(),
         "spec_hash": spec.spec_hash(),
+        "prompt_text_sha": prompt_text_sha,
         "task": spec.task,
         "profile": spec.profile,
         "prompt": prompt_block,

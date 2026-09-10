@@ -9,7 +9,6 @@ existing public eval runner at whole-run granularity.
 
 from __future__ import annotations
 
-import hashlib
 import time
 from typing import Any, Callable
 
@@ -190,8 +189,11 @@ def _fingerprint(store: RunStore) -> str:
     rows = store.dataset_rows()
     if not rows:
         return ""
-    parts = [f"{r.get('id')}|{r.get('expected_doc_class')}" for r in rows]
-    return hashlib.md5(";".join(sorted(parts)).encode()).hexdigest()[:12]
+    # One canonical fingerprint shared with the eval-run records so
+    # pair_comparable_runs can pair job and eval runs (DMR-049).
+    from mailroom_sandbox.datasets import dataset_fingerprint
+
+    return dataset_fingerprint(rows)
 
 
 def _apply_prompt_overrides(store: RunStore) -> None:

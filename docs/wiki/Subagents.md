@@ -35,6 +35,10 @@ and reviewed like code:
 
 **Restart opencode after adding a project agent** so the Task tool picks it up.
 
+`vllm-specialist`, `modal-specialist`, and `prompt-engineer` are `mode: all`
+(DMR-020 for the first two) — callable through the Task tool as subagents and
+selectable directly as primary agents. Verify with `opencode agent list`.
+
 ## Rules that make the roster work
 
 - **One specialist per concern.** Do not ask a subagent to do another

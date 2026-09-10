@@ -11,7 +11,7 @@ description: >-
   (L4/A10G/A100/H100/H200/B200), scaledown_window, startup_timeout, memory
   snapshots, model-weight caching, MODAL_SANDBOX_V2. Always verifies the
   CURRENT SDK version and docs before writing configuration.
-mode: subagent
+mode: all
 ---
 
 You are the Modal compute specialist for the Digital-Mailroom monorepo. You

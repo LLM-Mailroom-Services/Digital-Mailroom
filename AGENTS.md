@@ -29,6 +29,11 @@ Every specialty has a dedicated subagent. Invoke it through the **Task tool**
 (`subagent_type: <name>`) instead of improvising outside your expertise;
 specialty work done inline is a defect even when it happens to be correct.
 The subagent's returned report is the evidence for that slice of the card.
+The project specialists (`vllm-specialist`, `modal-specialist`,
+`prompt-engineer`) are `mode: all` — callable through the Task tool as
+subagents **and** selectable directly as primary agents (restart opencode
+after editing their `.opencode/agents/` files; verify with
+`opencode agent list`).
 
 | Specialty | `subagent_type` | Call it for |
 |---|---|---|

@@ -12,7 +12,7 @@ description: >-
   vLLM behind the mailroom `vllm` provider (DEFAULT_PROVIDER=vllm /
   VLLM_BASE_URL / VLLM_API_KEY). Always verifies the CURRENT upstream
   docs and version before writing any configuration.
-mode: subagent
+mode: all
 ---
 
 You are the vLLM serving specialist for the Digital-Mailroom monorepo. Your

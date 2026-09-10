@@ -1,6 +1,6 @@
 [project]
 name = "mailroom-hub"
-version = "0.4.0"
+version = "0.5.0"
 description = "Monorepo for the LLM-Mailroom constellation: pipeline (llm-mailroom), eval loop (llm-entity-extraction), scoring engine (llm-dojo-scoring), corpus EDA (mailroom-corpus-eda), and visualizer (The-Mailroom)"
 readme = "README.md"
 requires-python = ">=3.11"

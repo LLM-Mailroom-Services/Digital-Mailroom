@@ -20,6 +20,8 @@ belongs to the standalone mailroom lineage that became `packages/llm-mailroom`
 and is recorded there, not here.
 
 ## [Unreleased]
+
+## [0.5.0] - 2026-09-10
 ### Added
 
 - **Modal deploy hardening — vLLM cache volume, revision knob, SDK pin
@@ -598,7 +600,8 @@ agent-mailroom v0.2.0, local-mailroom-sandbox v0.1.0.
 - Upstream drift reconciled across all packages; `sync status` 10/10 in sync
   (HUB-004, HUB-018); stale pins/counts swept (HUB-010/016/018).
 
-[Unreleased]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.5.0...HEAD
+[0.4.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.4.0...v0.5.0
 [0.3.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.3.0...v0.4.0
 [0.2.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.2.0...v0.3.0
 [0.1.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.1.0...v0.2.0
@@ -606,3 +609,4 @@ agent-mailroom v0.2.0, local-mailroom-sandbox v0.1.0.
 [0.2.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.2.0
 [0.3.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.3.0
 [0.4.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.4.0
+[0.5.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.5.0

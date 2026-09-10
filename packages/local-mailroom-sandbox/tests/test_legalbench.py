@@ -111,7 +111,7 @@ def _legalbench_store(tmp_path, rows: int = 5, run_id: str = "run-lb"):
     return RunStore(run_dir(report["run_id"]))
 
 
-def test_legalbench_job_expected_uses_answer_field(tmp_path):
+def test_legalbench_job_expected_uses_answer_field(tmp_path, job_data_dir):
     store = _legalbench_store(tmp_path)
     summary = runner.run_job(store, mock=None)
     assert summary["state"] == "done"
@@ -122,7 +122,7 @@ def test_legalbench_job_expected_uses_answer_field(tmp_path):
     assert summary["scores"]["exact_match"] > 0.0
 
 
-def test_legalbench_job_guard_rejects_non_legalbench_rows(tmp_path):
+def test_legalbench_job_guard_rejects_non_legalbench_rows(tmp_path, job_data_dir):
     path = tmp_path / "corpus.jsonl"
     with open(path, "w", encoding="utf-8") as fh:
         for i in range(3):

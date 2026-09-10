@@ -110,11 +110,11 @@ section's content) and recovers bodies previously corrupted by an old bug.
 
 ## Deploy / redeploy
 
-**Git integration (preferred once connected):** a push to `main` builds
-`board-site/` automatically when the Vercel GitHub App is installed on the
-`LLM-Mailroom-Services` org and the project is Git-linked. Until then (the
-app install is a browser-side org action; DMR-002 tracks the decision),
-deploy with the CLI from the **repo root** — the project Root Directory
+**Git integration (live since DMR-004, 2026-09-09):** a push to `main` builds
+`board-site/` automatically — the Vercel GitHub App is installed on the
+`LLM-Mailroom-Services` org and project `digital-mailroom` is Git-linked
+(production branch `main`, Root Directory `board-site`). CLI deploys remain
+the fallback: run them from the **repo root** — the project Root Directory
 `board-site` is applied to the uploaded tree, and the repo-root
 `.vercelignore` limits the upload to `board-site/`:
 

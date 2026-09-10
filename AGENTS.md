@@ -138,10 +138,11 @@ the wiki page `docs/wiki/Served-Board.md` (mirror to
 <https://github.com/LLM-Mailroom-Services/Digital-Mailroom/wiki/Served-Board>):
 
 - **Deploy root is `board-site/`** (Vercel project `digital-mailroom`, live
-  production; project Root Directory = `board-site` so BOTH CLI and
-  Git-integration deploys build the board site — never leave it unset, or a
-  push-triggered Git deploy serves the repo root as a bare file listing and
-  404s `/api/board` (observed 2026-09-09). The dir carries its own
+  production; Git integration is live (DMR-004, 2026-09-09) — every push to
+  `main` builds the board site. Project Root Directory = `board-site` so BOTH
+  CLI and Git-integration deploys build the board site — never leave it unset,
+  or a push-triggered Git deploy serves the repo root as a bare file listing
+  and 404s `/api/board` (observed 2026-09-09). The dir carries its own
   `board-site/vercel.json`; the repo-root `.vercelignore` limits CLI deploys
   from the repo root to `board-site/`). Serverless functions
   under `board-site/api/`; static `board-site/index.html` is the adapted

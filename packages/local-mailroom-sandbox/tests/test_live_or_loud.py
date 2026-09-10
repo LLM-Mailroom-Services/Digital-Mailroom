@@ -107,3 +107,27 @@ def test_normalize_rows_carries_question_answer_stage_and_json_fields():
     assert row["expected_fields"] == {"a": 1}
     assert row["question"] == "Is it valid?"
     assert row["answer"] == "Yes"
+
+
+def test_htcondor_batch_script_is_live_or_loud():
+    """Static guard: the CHTC executable keeps its live-or-loud contract."""
+    from mailroom_sandbox.paths import repo_root
+
+    script = (repo_root() / "deploy" / "htcondor" / "run_batch_eval.sh").read_text(
+        encoding="utf-8"
+    )
+    # Parity flags (compose/Modal argv) and no stale 8192 hardcode.
+    assert "--gpu-memory-utilization" in script
+    assert "--max-num-seqs" in script
+    assert "--no-enable-log-requests" in script
+    assert "--max-model-len 8192" not in script
+    # The eval stack is the mailroom dist, pinned — never the shadowing
+    # llm-entity-extraction package (the original card's wrong prescription).
+    assert "llm-mailroom.git@v0.6.0" in script
+    assert "llm-entity-extraction" not in script
+    # No silent swallows on the eval/prep lines, and the post-run guard exists.
+    assert "datasets prepare || true" not in script
+    assert "eval extract --local || true" not in script
+    assert "offline_fallback" in script
+    # The results dir is anchored before the script `cd`s into the package.
+    assert 'RESULTS_DIR="$(pwd)/results"' in script

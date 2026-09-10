@@ -51,7 +51,18 @@ request_memory = 32GB
 # must cover the container image + model weights + env tarball
 request_disk = 40GB
 
-# Model override without editing the script:
-# environment = "MODEL=Qwen/Qwen3-14B"
+# Engine posture (parity with deploy/docker-compose.yml + deploy/modal_vllm.py).
+# The script's ${VAR:-default} keeps every knob optional; edit this line to
+# override per submission (TP_SIZE only matters for multi-GPU/70B-class jobs).
+environment = "MODEL=Qwen/Qwen3-8B,MAX_MODEL_LEN=32768,GPU_MEMORY_UTILIZATION=0.90,MAX_NUM_SEQS=256"
+
+# 70B-class example (Llama-3.3-70B-Instruct, FP8 TP2, gated — needs HF_TOKEN):
+#   environment = "MODEL=meta-llama/Llama-3.3-70B-Instruct,TP_SIZE=2,MAX_MODEL_LEN=32768"
+#   request_gpus = 2
+#   gpus_minimum_memory = 40000        # A100-80G/H100/H200 only for TP2
+#   gpus_minimum_capability = 8.0      # Ampere+ (FP8 emulates slower on A100)
+#   request_memory = 96GB              # host RAM ≈ 1.3-1.5x weights
+#   request_disk = 140GB               # 70GB FP8 weights + image + env tarball
+#   +GPUJobLength = "medium"           # 24h: cold start + download + evals
 
 queue 1

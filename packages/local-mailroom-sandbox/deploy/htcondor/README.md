@@ -117,18 +117,31 @@ git archive --format=tar.gz -o mailroom-sandbox.tar.gz HEAD packages/local-mailr
 #     directory — archive the subtree if you copied only the package)
 # 2. portable conda env — BUILD IT HERE, on the AP (glibc match; see §2)
 conda env create -f deploy/conda/environment.yml
-pip install -e ".[deploy]"              # inside the env, package root
+pip install -e ".[pipeline]"             # inside the env, package root
+#    [pipeline] carries mailroom + its langchain stack so the execute-node
+#    install is a no-op fallback; run_batch_eval.sh still pins
+#    mailroom@v0.6.0 explicitly (the extra floats on main).
 conda pack -n mailroom-sandbox -o env-mailroom-sandbox.tar.gz
 # 3. submit
 mkdir -p logs
 condor_submit vllm_batch_eval.sub
 ```
 
-`run_batch_eval.sh` unpacks the env, serves `Qwen/Qwen3-8B` (override via
-`environment = "MODEL=..."` in the submit file), waits for `/v1/models`,
-then runs `sandbox eval sorter --local` / `eval extract --local` with
-`SANDBOX_PROFILE=vllm-local` — identical scoring surfaces to your local GPU
-box. Results land in `results/` next to the job's logs; watch progress with
+`run_batch_eval.sh` unpacks the env, installs the eval stack
+(`mailroom@v0.6.0` + the sandbox), and **proves it is importable before
+starting vLLM** — a missing stack fails the job instead of silently scoring
+mocks. It then serves `Qwen/Qwen3-8B` with the same engine argv as
+`deploy/docker-compose.yml` and `deploy/modal_vllm.py` (`--max-model-len
+32768 --gpu-memory-utilization 0.90 --max-num-seqs 256
+--no-enable-log-requests`; override per submission via the `.sub`
+`environment` line, including `TP_SIZE` for 70B-class multi-GPU jobs), waits
+for `/v1/models` (hard failure on death or a 20-minute timeout), then runs
+`sandbox eval sorter --local` / `eval extract --local` with
+`SANDBOX_PROFILE=vllm-local` and `--model "$MODEL"` so the agents always
+request the served model. A final **live-or-loud guard** fails the job if any
+experiment-log record shows `offline_fallback > 0`. Results land in the job's
+`results/` directory (absolute path — the script `cd`s into the unpacked
+package, so the dir is anchored at submission time); watch progress with
 `condor_tail <cluster>.<process>`.
 
 ## 5. Server path (owned GPUs only)

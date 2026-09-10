@@ -73,6 +73,66 @@ def test_preflight_unknown_prompt_agent_fails(tmp_path):
     assert any(c["name"] == "prompt" and not c["ok"] for c in report["checks"])
 
 
+def test_preflight_hub_spec_locks_pinned_revision(tmp_path, monkeypatch):
+    """DMR-042: a Hub-spec preflight must lock the pinned sha, not float."""
+    from mailroom_sandbox.job.spec import FAMILY_HF_REVISION
+
+    # Stub the corpus Hub path so preflight's dataset check is network-free.
+    import huggingface_hub
+
+    class _FakeInfo:
+        sha = FAMILY_HF_REVISION
+
+    def _fake_dataset_info(repo, revision=None):
+        return _FakeInfo()
+
+    def _fake_list_repo_files(repo, revision=None, repo_type=None):
+        return ["parquet/default/test/test-00000-of-00001.parquet"]
+
+    dflt = tmp_path / "default.parquet"
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    pq.write_table(
+        pa.Table.from_pylist(
+            [
+                {
+                    "filename": "f0.txt",
+                    "doc_text": "hub text 0",
+                    "prompt": "",
+                    "metadata": {"source": "test"},
+                }
+            ]
+        ),
+        dflt,
+    )
+
+    def _fake_hf_hub_download(repo, filename, revision=None, repo_type=None, **kw):
+        return str(dflt)
+
+    monkeypatch.setattr(huggingface_hub.HfApi, "dataset_info", _fake_dataset_info)
+    monkeypatch.setattr(huggingface_hub, "list_repo_files", _fake_list_repo_files)
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", _fake_hf_hub_download)
+
+    spec = RunSpec(
+        run_id="hub-lock",
+        task="sorter",
+        dataset=DatasetSpec(
+            provider="huggingface",
+            repo="Lucius-Morningstar/mailroom-corpus",
+            revision=FAMILY_HF_REVISION,
+            limit=1,
+        ),
+        engine={"kind": "vllm-local", "modal": None},
+        trace={"sink": "none"},
+        job={"mock": True},
+    )
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    store = _store(report)
+    lock = store.read_lock() or {}
+    assert lock["dataset"]["revision"] == FAMILY_HF_REVISION
+    assert lock["dataset"]["rows"] == 1
 
 
 pytestmark = pytest.mark.usefixtures("job_data_dir")

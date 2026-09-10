@@ -121,7 +121,7 @@ def _dataset_lock(prov: dict[str, Any], spec: RunSpec) -> dict[str, Any]:
         "repo": (spec.dataset.local_file().name if spec.dataset.local_file() else spec.dataset.repo),
         "config": spec.dataset.config,
         "split": spec.dataset.split,
-        "revision": prov.get("revision_requested") or spec.dataset.effective_revision(),
+        "revision": prov.get("revision_requested") or spec.effective_revision(),
         "limit": spec.dataset.limit,
         "sample_seed": spec.dataset.sample_seed,
         "strata": spec.dataset.strata,

@@ -51,6 +51,82 @@ def _task_defaults(store: RunStore) -> dict[str, Any]:
     return lock.get("job", {})
 
 
+def _run_whole_run(
+    store: RunStore,
+    task: str,
+    *,
+    mock: bool,
+    model: str | None,
+    profile: str | None,
+) -> dict[str, Any]:
+    """Delegate a whole-run task to the existing public eval runner.
+
+    Per-item tasks (``sorter``, ``legalbench``) run row-by-row so a
+    pause/error resumes from the last appended item. Everything else in
+    ``RUNNABLE_TASKS`` delegates to the matching ``eval.runners`` function at
+    whole-run granularity: the locked prompt overrides are applied, the runner
+    is invoked with lock-derived kwargs, and a terminal checkpoint + event
+    record the completion. The experiment log record is appended by the
+    delegated runner itself.
+    """
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    lock = store.read_lock() or {}
+    prompt_block = lock.get("prompt") or {}
+    default_ref = (prompt_block.get("default") or {}).get("source") or "code-default"
+    kwargs: dict[str, Any] = {
+        "mock": mock,
+        "dry_run": False,
+        "experiment_name": f"sandbox_{task}_{store.run_id}",
+        "profile": profile,
+        "model": model,
+        "prompt_version": None,  # overrides already applied via _apply_prompt_overrides
+        "agent_models": None,
+    }
+    try:
+        if task == "pipeline":
+            result = eval_runners.run_pipeline_eval(connected=True, **kwargs)
+        elif task == "extract":
+            result = eval_runners.run_extract_eval(**kwargs)
+        elif task == "chained":
+            result = eval_runners.run_chained_eval(**kwargs)
+        elif task == "local_vs_api":
+            result = eval_runners.run_local_vs_api_eval(**kwargs)
+        elif task == "isolated":
+            result = eval_runners.run_isolated_eval("sorter", **kwargs)
+        else:
+            raise ValueError(f"task {task!r} is not runnable")
+    except Exception as exc:  # noqa: BLE001
+        store.write_checkpoint(
+            state="failed",
+            cursor=0,
+            total=0,
+            last_error={"type": "whole-run", "message": f"{type(exc).__name__}: {str(exc)[:512]}", "at": utc_now(), "retryable": False},
+        )
+        store.append_event("failed", "error", cursor=0, last_error=str(exc)[:512])
+        return {"state": "failed", "task": task, "error": str(exc)[:512], "ok": 0, "errors": 1}
+
+    scores = result.get("scores") or {}
+    # The delegated runner reports how many rows it actually processed; fall
+    # back to the locked dataset length when the runner has no n.
+    processed = result.get("n") if isinstance(result.get("n"), int) else None
+    if processed is None:
+        processed = scores.get("n") if isinstance(scores.get("n"), int) else len(store.dataset_rows())
+    store.write_checkpoint(state="done", cursor=processed, total=processed, remote=None)
+    store.append_event("done", "info", cursor=processed, ok_count=processed)
+    return {
+        "state": "done",
+        "task": task,
+        "cursor": processed,
+        "total": processed,
+        "ok": processed,
+        "errors": 0,
+        "scores": scores,
+        "default_prompt_source": default_ref,
+        "result": result,
+    }
+
+
 def _max_retries(store: RunStore) -> int:
     return int(_task_defaults(store).get("max_retries", 2))
 
@@ -146,6 +222,16 @@ def run_job(
         return {"state": "dry_run", "task": task, "n": len(rows), "cursor": 0, "total": len(rows)}
     if store.terminal():
         return store.summary()
+
+    # Whole-run tasks delegate to the existing public eval runner; the locked
+    # dataset may legitimately be empty for serving-only tasks (local_vs_api),
+    # so dispatch before the per-item row guard.
+    _apply_prompt_overrides(store)
+    if task not in PER_ITEM_TASKS:
+        if task not in RUNNABLE_TASKS:
+            raise ValueError(f"task {task!r} is not runnable; have {sorted(RUNNABLE_TASKS)}")
+        return _run_whole_run(store, task, mock=mock, model=model, profile=profile)
+
     if not rows:
         store.write_checkpoint(state="done", cursor=0, total=0, remote=None)
         store.append_event("done", "info", cursor=0)
@@ -153,7 +239,6 @@ def run_job(
 
     cursor = store.resume_cursor()
     total = len(rows)
-    _apply_prompt_overrides(store)
 
     # Reconstruct already-completed predictions so final scoring covers all rows.
     completed: dict[int, dict[str, Any]] = {}

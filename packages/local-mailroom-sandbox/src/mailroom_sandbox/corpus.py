@@ -12,9 +12,40 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import re
 from typing import Any
 
 from mailroom_sandbox.job.spec import DatasetSpec, FAMILY_HF_REVISION
+
+_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+
+
+def _resolve_revision(repo: str, revision: str) -> str:
+    """Resolve a Hub revision to a full 40-hex sha.
+
+    A revision that already is a full sha is trusted as-is (no network call —
+    the pinned default is a full sha, so the default path is network-free for
+    resolution). Any other revision (branch/tag/partial sha) is resolved via
+    ``dataset_info``; auth/gating/network failures propagate with context
+    instead of silently floating to the requested string.
+    """
+    if _SHA_RE.fullmatch(revision):
+        return revision
+    import huggingface_hub
+
+    try:
+        info = huggingface_hub.HfApi().dataset_info(repo, revision=revision)
+    except Exception as exc:
+        raise RuntimeError(
+            f"cannot resolve dataset revision {revision!r} for {repo}: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+    resolved = getattr(info, "sha", "") or revision
+    if not _SHA_RE.fullmatch(resolved):
+        raise RuntimeError(
+            f"dataset_info for {repo}@{revision} returned non-sha {resolved!r}"
+        )
+    return resolved
 
 GT_FIELD_LISTS = {
     "insurance_claim": [
@@ -70,11 +101,8 @@ def load_hf_rows(spec: DatasetSpec) -> list[dict[str, Any]]:
     import huggingface_hub
 
     repo = spec.repo
-    revision = spec.effective_revision()
-    try:
-        resolved = huggingface_hub.HfApi().dataset_info(repo, revision=revision).sha
-    except Exception:
-        resolved = revision
+    revision = spec.revision or FAMILY_HF_REVISION
+    resolved = _resolve_revision(repo, revision)
     files = set(huggingface_hub.list_repo_files(repo, revision=resolved, repo_type="dataset"))
 
     def shard(config: str) -> str:
@@ -225,13 +253,13 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
         rows = _read_jsonl(local_file)
         source_meta = {"source": "local", "revision": "offline"}
     else:
-        rows = load_hf(spec)
+        rows = load_hf_rows(spec)
         source_meta = {
             "source": "huggingface",
             "repo": spec.repo,
             "config": spec.config,
             "split": spec.split,
-            "revision": spec.effective_revision(),
+            "revision": spec.revision or FAMILY_HF_REVISION,
         }
 
     rows = normalize_rows(rows)

@@ -26,7 +26,9 @@ data/runtime/runs/<run_id>/
 ```yaml
 schema: sandbox.run/v1
 run_id: <optional; auto ><task>-<model>-<utc>
-task: sorter                # sorter | legalbench (per-item v1); others at whole-run
+task: sorter                # per-item: sorter | legalbench (resumable row-by-row)
+                            # whole-run: pipeline | extract | chained | local_vs_api | isolated
+                            #   (delegated to the public eval runner; isolated runs the sorter spec)
 profile: vllm-local         # ollama | vllm-local | vllm-remote | modal-vllm | openrouter
 
 prompt:                     # ALL pipeline agents: local variants + Langfuse + code

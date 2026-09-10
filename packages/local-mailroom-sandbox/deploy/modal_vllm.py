@@ -72,6 +72,16 @@ GPU_MEMORY_UTILIZATION = os.environ.get("MODAL_VLLM_GPU_MEMORY_UTILIZATION", "0.
 # local compose and Modal schedule the same concurrency on any GPU class.
 MAX_NUM_SEQS = os.environ.get("MODAL_VLLM_MAX_NUM_SEQS", "256")
 
+# Tensor-parallel size: 1 (single GPU) by default. For a multi-GPU container
+# (e.g. MODAL_VLLM_GPU="A100-80GB:2" for 70B-class) this MUST match the `:N`
+# suffix or vLLM silently serves on 1 GPU and OOMs. Derive the default from
+# the GPU knob suffix; override explicitly when needed.
+TP_SIZE = os.environ.get("MODAL_VLLM_TP_SIZE", "") or str(
+    int(os.environ.get("MODAL_VLLM_GPU", "L4").split(":")[1])
+    if ":" in os.environ.get("MODAL_VLLM_GPU", "L4")
+    else 1
+)
+
 # Pinned for reproducible deploys; override deliberately (tag or digest).
 VLLM_IMAGE_TAG = os.environ.get("MODAL_VLLM_IMAGE_TAG", "v0.28.0")
 
@@ -94,6 +104,7 @@ CONFIG_ENV_KEYS = (
     "MODAL_VLLM_MAX_MODEL_LEN",
     "MODAL_VLLM_GPU_MEMORY_UTILIZATION",
     "MODAL_VLLM_MAX_NUM_SEQS",
+    "MODAL_VLLM_TP_SIZE",
     "MODAL_VLLM_REVISION",
     "MODAL_VLLM_API_TOKEN",
     "HF_TOKEN",
@@ -192,6 +203,9 @@ def build_vllm_command(model: str) -> list[str]:
         "--max-num-seqs",
         MAX_NUM_SEQS,
     ]
+    if TP_SIZE and TP_SIZE != "1":
+        # Multi-GPU containers must pass this or vLLM uses only 1 GPU and OOMs.
+        cmd += ["--tensor-parallel-size", TP_SIZE]
     if REVISION:
         # Pin the Hub revision to avoid silent weight changes.
         cmd += ["--revision", REVISION]

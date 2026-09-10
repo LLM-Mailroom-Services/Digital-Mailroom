@@ -97,6 +97,7 @@ For evals: `SANDBOX_PROFILE=modal-vllm` + `DEFAULT_PROVIDER=vllm` (see
 | `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | fraction of GPU memory; vLLM's default is `0.92` |
 | `MODAL_VLLM_MAX_NUM_SEQS` | `256` | concurrency cap; vLLM's own L4/OpenAI-server default |
 | `MODAL_VLLM_QUANTIZATION` | empty | `awq` / `gptq` / … |
+| `MODAL_VLLM_TP_SIZE` | from GPU suffix | tensor-parallel size; default derived from `:N` in `MODAL_VLLM_GPU` (1 for single GPU). Set explicitly for 70B-class (`A100-80GB:2` → `2`). Travels via the deploy Secret. |
 | `MODAL_VLLM_IMAGE_TAG` | `v0.28.0` | pin; tag or `@sha256:` digest |
 | `MODAL_VLLM_REVISION` | empty | HF revision (recommended for runs; travels via the deploy Secret) |
 | `MODAL_VLLM_API_TOKEN` | empty | maps to `VLLM_API_KEY` (bearer) |
@@ -111,6 +112,26 @@ speak the same engine version. v0.29.0 is the newest upstream stable
 (released 2026-09-09) but flips Model Runner V2 to the default for all
 models — bump **both** pins together only after a live parity run.
 
+### Model matrix (DMR-045)
+
+`config/models.yaml` carries the per-model deploy matrix
+(`modal_models:`): exact HF repo id, recommended GPU, quantization, context
+cap, and tensor-parallel size. Rules of thumb (verified against v0.28.0,
+2026-09-10):
+
+- **L4 24 GB** (default): 8B bf16 or AWQ is the sweet spot; 14B **AWQ** fits,
+  14B **bf16 does not** (~29 GB > ~21.6 GB usable — the "14B trap").
+- **AWQ/GPTQ (4-bit)** runs on Ampere (A10G/A100); **FP8** is native on
+  Hopper (H100) and Ada (L4), *emulated* (slower) on A100.
+- **70B-class**: `MODAL_VLLM_GPU="A100-80GB:2"` + FP8 +
+  `MODAL_VLLM_TP_SIZE=2` (~35 GB/GPU), or a single `A100-80GB` at 4-bit
+  (~39 GB). The TP knob is load-bearing — without it vLLM uses 1 GPU and OOMs.
+- **Gated repos** (`meta-llama/*`): set `HF_TOKEN` in the deploy env.
+- `json_object` structured outputs work with xgrammar on v0.28.0 (no
+  `--guided-decoding-backend` needed — that flag is gone).
+- Swap models by re-exporting the knobs + `modal deploy --strategy recreate`
+  (a rolling redeploy keeps the old model warm for the scaledown window).
+
 ### Engine posture (v0.28.0, docs-verified 2026-09-09)
 
 The local compose service (`deploy/docker-compose.yml`) and this app send
@@ -123,6 +144,7 @@ the same `vllm serve` argv:
 | `--gpu-memory-utilization` | `0.90` (knob) | vLLM's default is `0.92`; 0.90 keeps headroom on a 24 GB L4 and on shared local GPUs |
 | `--max-num-seqs` | `256` (knob) | vLLM's own L4/OpenAI-server default, pinned so local and Modal schedule the same concurrency on any GPU |
 | `--no-enable-log-requests` | on | v0.28.0 made request logging opt-in (`--enable-log-requests`); the pre-0.28 `--disable-log-requests` flag no longer exists |
+| `--tensor-parallel-size` | `N` when `MODAL_VLLM_TP_SIZE` ≠ 1 | multi-GPU containers must pass this or vLLM uses only 1 GPU and OOMs (70B-class on `A100-80GB:2`) |
 | `--revision` / `--quantization` | optional | weight pin / quantized checkpoints (Modal knobs; compose overrides via a command override) |
 
 Deliberately **not** set — the v0.28.0 defaults are already the safe test

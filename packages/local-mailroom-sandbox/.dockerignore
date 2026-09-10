@@ -1,4 +1,4 @@
-# Context is the repo root when building via compose (`context: .`).
+# Context is the package root when building via compose (`context: ..`).
 .git
 .venv
 venv
@@ -22,7 +22,6 @@ vendor/*
 reports/scores
 reports/experiment_log.jsonl
 reports/experiment_log.md
-docker/volumes
 .idea
 .vscode
 *.swp

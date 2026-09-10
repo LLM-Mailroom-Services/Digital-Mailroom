@@ -1,7 +1,7 @@
 # Offline sandbox + Jupyter Lab image for local-mailroom-sandbox.
-# Build from repo root:
+# Build from the package root:
 #   docker build -f deploy/Dockerfile -t mailroom-sandbox:offline .
-# Or via compose:
+# Or via compose (context = package root):
 #   sandbox up --compose-profile jupyter
 #
 # This image does NOT reimplement the mailroom graph. It installs the sandbox

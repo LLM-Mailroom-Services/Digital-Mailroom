@@ -31,6 +31,7 @@ KNOB_ENV = (
     "MODAL_VLLM_MAX_MODEL_LEN",
     "MODAL_VLLM_GPU_MEMORY_UTILIZATION",
     "MODAL_VLLM_MAX_NUM_SEQS",
+    "MODAL_VLLM_TP_SIZE",
     "MODAL_VLLM_IMAGE_TAG",
     "MODAL_VLLM_REVISION",
     "MODAL_VLLM_API_TOKEN",
@@ -270,6 +271,40 @@ class TestCommandBuilder:
             assert cmd[cmd.index("--revision") + 1] == "abc123"
         finally:
             mod.REVISION = original
+
+    def test_tensor_parallel_defaults_to_1_single_gpu(self):
+        """DMR-045: no TP flag on a single-GPU deploy (the default)."""
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B")
+        assert "--tensor-parallel-size" not in cmd
+        assert mod.TP_SIZE == "1"
+
+    def test_tensor_parallel_from_gpu_suffix(self, monkeypatch):
+        """DMR-045: MODAL_VLLM_GPU='A100-80GB:2' must derive TP_SIZE=2."""
+        monkeypatch.setenv("MODAL_VLLM_GPU", "A100-80GB:2")
+        mod = _load_app_module()
+        assert mod.TP_SIZE == "2"
+        cmd = mod.build_vllm_command("meta-llama/Llama-3.3-70B-Instruct")
+        assert cmd[cmd.index("--tensor-parallel-size") + 1] == "2"
+
+    def test_tensor_parallel_explicit_override(self, monkeypatch):
+        """DMR-045: explicit MODAL_VLLM_TP_SIZE beats the GPU-suffix default."""
+        monkeypatch.setenv("MODAL_VLLM_GPU", "A100-80GB:2")
+        monkeypatch.setenv("MODAL_VLLM_TP_SIZE", "1")
+        mod = _load_app_module()
+        assert mod.TP_SIZE == "1"
+        cmd = mod.build_vllm_command("Qwen/Qwen3-32B")
+        assert "--tensor-parallel-size" not in cmd
+
+    def test_tensor_parallel_knob_travels_through_secret(self, modal_stub, monkeypatch):
+        """DMR-045: TP_SIZE must reach the container via the deploy Secret."""
+        monkeypatch.setenv("MODAL_VLLM_TP_SIZE", "2")
+        monkeypatch.setenv("MODAL_VLLM_GPU", "A100-80GB:2")
+        mod = _load_app_module()
+        assert len(modal_stub.Secret.calls) == 2
+        for call in modal_stub.Secret.calls:
+            assert call["MODAL_VLLM_TP_SIZE"] == "2"
+        assert "MODAL_VLLM_TP_SIZE" in mod.CONFIG_ENV_KEYS
 
 
 class TestServerEnv:

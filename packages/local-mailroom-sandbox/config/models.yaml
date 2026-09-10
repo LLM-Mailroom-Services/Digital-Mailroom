@@ -42,6 +42,14 @@ map:
     openrouter: openai/gpt-4o
 
 # Local catalog (recommendations; not an allowlist).
+# GPU notes (DMR-045, 2026-09-10, vllm-specialist + modal-specialist verified):
+#   - L4 24GB @ 0.90 util = ~21.6GB usable. 8B AWQ is the sweet spot; 14B AWQ
+#     fits; 14B bf16 does NOT (29GB > 21.6GB — the "14B trap").
+#   - AWQ/GPTQ 4-bit runs on Ampere (A10G/A100); FP8 is native on Hopper
+#     (H100) and Ada (L4), EMULATED (slower) on A100.
+#   - 70B-class needs MODAL_VLLM_GPU="A100-80GB:2" + MODAL_VLLM_TP_SIZE=2
+#     (FP8, ~35GB/GPU) or a single A100-80GB at 4-bit.
+#   - meta-llama/* checkpoints are GATED — HF_TOKEN must be in the deploy env.
 local_catalog:
   ollama:
     - qwen3:8b
@@ -55,3 +63,89 @@ local_catalog:
     - Qwen/Qwen3-8B
     - Qwen/Qwen3-14B
     - meta-llama/Llama-3.1-8B-Instruct
+
+# Per-model Modal+vLLM deploy matrix (MODAL_VLLM_MODEL / MODAL_VLLM_GPU /
+# MODAL_VLLM_QUANTIZATION / MODAL_VLLM_MAX_MODEL_LEN / MODAL_VLLM_TP_SIZE).
+# One deployment = one model; swap by re-exporting the knobs + `modal deploy
+# --strategy recreate`. Quantization must be left EMPTY for FP16 (bf16).
+modal_models:
+  Qwen/Qwen3-8B:
+    gpu: L4
+    quantization: ""
+    max_model_len: 32768
+    tp_size: 1
+    notes: Default workhorse. ~16GB bf16 fits L4 with ~5.5GB KV headroom.
+  Qwen/Qwen3-8B-AWQ:
+    gpu: L4
+    quantization: awq
+    max_model_len: 32768
+    tp_size: 1
+    notes: Pre-quantized 4-bit (~4.4GB); safest L4 choice. Open weights.
+  Qwen/Qwen3-14B:
+    gpu: A100-40GB
+    quantization: ""
+    max_model_len: 32768
+    tp_size: 1
+    notes: bf16 ~29GB — does NOT fit L4 (14B trap). Use A100-40GB+.
+  Qwen/Qwen3-14B-AWQ:
+    gpu: L4
+    quantization: awq
+    max_model_len: 32768
+    tp_size: 1
+    notes: Pre-quantized (~8GB); fits L4 with headroom. Open weights.
+  Qwen/Qwen3-30B-A3B:
+    gpu: A100-80GB
+    quantization: fp8
+    max_model_len: 32768
+    tp_size: 1
+    notes: MoE ~31GB FP8 — A100-80GB/H100 only. Open weights.
+  Qwen/Qwen3-32B:
+    gpu: A100-80GB
+    quantization: fp8
+    max_model_len: 32768
+    tp_size: 1
+    notes: FP8 ~32GB; AWQ ~19GB has no KV room on L4. A100-80GB+.
+  deepseek-ai/DeepSeek-R1-Distill-Qwen-7B:
+    gpu: L4
+    quantization: ""
+    max_model_len: 32768
+    tp_size: 1
+    notes: "~14GB bf16 fits L4. Open weights. Reasoning model: parse `content`."
+  deepseek-ai/DeepSeek-R1-Distill-Llama-8B:
+    gpu: L4
+    quantization: ""
+    max_model_len: 32768
+    tp_size: 1
+    notes: ~16GB bf16 fits L4. Open weights.
+  deepseek-ai/DeepSeek-R1-Distill-Qwen-14B:
+    gpu: A100-40GB
+    quantization: ""
+    max_model_len: 32768
+    tp_size: 1
+    notes: ~28GB bf16 — A100-40GB+. AWQ checkpoint is gated.
+  meta-llama/Llama-3.1-8B-Instruct:
+    gpu: L4
+    quantization: ""
+    max_model_len: 32768
+    tp_size: 1
+    notes: GATED — HF_TOKEN required. ~16GB bf16 fits L4.
+  mistralai/Mistral-Small-3.1-24B-Instruct-2503:
+    gpu: A100-80GB
+    quantization: ""
+    max_model_len: 32768
+    tp_size: 1
+    notes: ~48GB bf16 — A100-80GB+; AWQ checkpoint gated, L4 needs 16K ctx cap.
+  microsoft/Phi-4-mini-instruct:
+    gpu: L4
+    quantization: ""
+    max_model_len: 32768
+    tp_size: 1
+    notes: ~8GB bf16; small fast L4 option. Open weights.
+  # 70B-class: requires the TP knob (MODAL_VLLM_TP_SIZE=2). FP8 TP2 on
+  # A100-80GB:2 = ~35GB/GPU; single A100-80GB 4-bit also fits (~39GB).
+  meta-llama/Llama-3.3-70B-Instruct:
+    gpu: A100-80GB:2
+    quantization: fp8
+    max_model_len: 32768
+    tp_size: 2
+    notes: GATED — HF_TOKEN required. FP8 TP2 ~35GB/GPU; needs --tensor-parallel-size 2.

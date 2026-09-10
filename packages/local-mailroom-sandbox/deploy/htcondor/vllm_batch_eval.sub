@@ -26,6 +26,10 @@ when_to_transfer_output = ON_EXIT
 
 # vLLM container, pulled from Docker Hub by Apptainer on the execute node
 # (the container carries its own OS/CUDA — no host-OS coupling).
+# NOTE (2026-09-10): the default v0.28.0 tag is a CUDA 13.0 image; if the Lab
+# nodes' driver baseline rejects it, switch BOTH .sub files to
+# docker://vllm/vllm-openai:v0.28.0-cu129 (identical vLLM version, broadest
+# driver compatibility).
 # Alternative: build a .sif once in an interactive build job
 # (`condor_submit -i`) and stage it, adding the staging requirement:
 #   container_image = osdf:///chtc/staging/CHTC_USERNAME/vllm-openai.sif

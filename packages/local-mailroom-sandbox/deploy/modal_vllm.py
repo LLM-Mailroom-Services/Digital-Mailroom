@@ -13,9 +13,13 @@ Pinned / verified 2026-09-09:
   missing names, which would break optional ``HF_TOKEN`` /
   ``MODAL_VLLM_API_TOKEN``).
 * vLLM **v0.28.0** — default image tag ``vllm/vllm-openai:v0.28.0``, matching
-  the local compose pin. ``v0.29.0`` is the newest stable (2026-09-09) but
-  flips Model Runner V2 to the default for all models — a new engine core
-  with zero soak time, so the sandbox keeps v0.28.0 until a live parity run.
+  the local compose pin. ``v0.29.0`` is the newest stable (2026-09-09). The
+  pinned models already run Model Runner V2 under v0.28.0 (dense default
+  since v0.25.0, Qwen MoE since v0.24.0); v0.29.0 completes the MRV2 rollout
+  (retires the residual V1 stragglers) and changes MRV2's memory/throughput
+  behavior (KV auto-sizing against graph memory, batch-sharded sampling,
+  FlashInfer all-reduce default for TP groups) — so the sandbox keeps
+  v0.28.0 until a live parity run (vllm-specialist verified 2026-09-10).
   Engine posture for v0.28.0 (docs-verified): chunked prefill and prefix
   caching are on by default, CUDA graphs are on (the ``sandbox-vllm-cache``
   Volume matches vLLM's ``VLLM_CACHE_ROOT`` default of ``~/.cache/vllm``),

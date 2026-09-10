@@ -2,7 +2,7 @@
 
 # 📚 Monorepo Documentation
 
-**The documentation hub for the mailroom-dev monorepo — architecture, contracts, audits, and wiki pages.**
+**The documentation hub for the Digital-Mailroom monorepo — architecture, contracts, audits, and wiki pages.**
 
 </div>
 

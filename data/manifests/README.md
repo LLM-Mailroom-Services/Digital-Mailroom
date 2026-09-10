@@ -2,7 +2,7 @@
 
 # 📁 Data Manifests
 
-**Pipeline manifests and document catalogs for the mailroom-dev monorepo.**
+**Pipeline manifests and document catalogs for the Digital-Mailroom monorepo.**
 
 </div>
 

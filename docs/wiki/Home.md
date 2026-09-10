@@ -1,6 +1,6 @@
-# mailroom-dev — the LLM-Mailroom monorepo wiki
+# Digital-Mailroom — the LLM-Mailroom monorepo wiki
 
-**mailroom-dev** is the central checkout of the LLM-Mailroom constellation:
+**Digital-Mailroom** is the central checkout of the LLM-Mailroom constellation:
 one uv workspace, one lockfile, one virtualenv, ten packages under
 [`packages/`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/main/packages) —
 each mirroring an independent, standalone-operational `Exios66/*` repository.

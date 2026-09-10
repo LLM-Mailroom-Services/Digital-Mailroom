@@ -46,7 +46,7 @@ python scripts/board_state.py project-sync --apply  # mirror the open table into
 Since HUB-055 the board also runs as a **live, issue-backed web site** — a
 dispatch board any agent can view and edit in a browser at
 **https://digital-mailroom-theta.vercel.app**, deployed from the monorepo to Vercel
-(project `mailroom-dev`; deploy root = `board-site/`). The GitHub issues
+(project `digital-mailroom`; deploy root = `board-site/`). The GitHub issues
 are the store, which makes the site auto-updating + shared:
 
 - **Read:** `GET /api/board` lists every open + closed issue labeled

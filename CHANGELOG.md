@@ -1,6 +1,6 @@
 # Changelog — Digital-Mailroom
 
-All notable changes to the **mailroom-dev monorepo itself** (workspace wiring,
+All notable changes to the **Digital-Mailroom monorepo itself** (workspace wiring,
 cross-package governance, sync tooling, corpus governance, hub infrastructure)
 are documented in this file.
 
@@ -22,6 +22,22 @@ and is recorded there, not here.
 ## [Unreleased]
 ### Added
 
+- **Org-migration reference audit + CI gate (DMR-006, 2026-09-09):** the
+  hub-identity migration from `Exios66/mailroom-dev` to
+  `LLM-Mailroom-Services/Digital-Mailroom` is now audited and enforced.
+  New `docs/reports/audits/org_migration_audit.md` + `.json` inventory every
+  reference across three tiers — migrate (hub), intentional package-mirror
+  (`Exios66/*` standalone repos), and historical (HUB-era) — and new
+  `scripts/audit_references.py` fails CI (wired into
+  `.github/workflows/board-governance.yml`) on any non-allowlisted stale hub
+  reference. Sweep applied to the issue-template config links, the changelog
+  scope line + compare/release footer, the wiki pages (Home, _Sidebar,
+  Getting-Started, FAQ incl. the stale Root-Directory note, Board-Governance,
+  Releases, Architecture), the README family, `docs/docclass-merged-plan.md`,
+  `.opencode/agents/prompt-engineer.md`, `LICENSE`, the README footer
+  (LLM-Mailroom-Services · Exios66 · grantmooslin), and `sync_packages.py`'s
+  propagation message. Package mirrors, upstream pins, and HUB-era history are
+  deliberately unchanged (allowlisted).
 - **Standalone board restart + served dispatch board (DMR-001/DMR-002/DMR-003,
   2026-09-09):** the Digital-Mailroom clone now runs its own task board and
   served site. **DMR-001** restarts `governance/TASKS.md` in a fresh `DMR-`
@@ -530,11 +546,11 @@ agent-mailroom v0.2.0, local-mailroom-sandbox v0.1.0.
 - Upstream drift reconciled across all packages; `sync status` 10/10 in sync
   (HUB-004, HUB-018); stale pins/counts swept (HUB-010/016/018).
 
-[Unreleased]: https://github.com/Exios66/mailroom-dev/compare/v0.4.0...HEAD
-[0.3.0]: https://github.com/Exios66/mailroom-dev/compare/v0.3.0...v0.4.0
-[0.2.0]: https://github.com/Exios66/mailroom-dev/compare/v0.2.0...v0.3.0
-[0.1.0]: https://github.com/Exios66/mailroom-dev/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/Exios66/mailroom-dev/releases/tag/v0.1.0
-[0.2.0]: https://github.com/Exios66/mailroom-dev/releases/tag/v0.2.0
-[0.3.0]: https://github.com/Exios66/mailroom-dev/releases/tag/v0.3.0
-[0.4.0]: https://github.com/Exios66/mailroom-dev/releases/tag/v0.4.0
+[Unreleased]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.4.0...HEAD
+[0.3.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.3.0...v0.4.0
+[0.2.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.2.0...v0.3.0
+[0.1.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.1.0
+[0.2.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.2.0
+[0.3.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.3.0
+[0.4.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.4.0

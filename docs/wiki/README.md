@@ -2,7 +2,7 @@
 
 # 📖 GitHub Wiki Pages
 
-**GitHub wiki pages for the mailroom-dev monorepo.**
+**GitHub wiki pages for the Digital-Mailroom monorepo.**
 
 </div>
 

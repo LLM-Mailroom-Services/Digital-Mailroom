@@ -6,7 +6,7 @@ One checkout, one virtualenv — never import across separate repositories:
 
 ```bash
 git clone https://github.com/LLM-Mailroom-Services/Digital-Mailroom.git
-cd mailroom-dev
+cd Digital-Mailroom
 uv sync        # install every workspace member editable into .venv
 ```
 

@@ -71,7 +71,7 @@ live.
 ## Repository layout
 
 ```
-mailroom-dev/
+Digital-Mailroom/
 ├── AGENTS.md                    # workspace conventions (read before editing)
 ├── governance/TASKS.md          # the task board (single source of truth)
 ├── board-site/                  # served Kanban dispatch board (Vercel deploy root)

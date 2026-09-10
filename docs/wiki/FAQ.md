@@ -55,10 +55,11 @@ the issue-side lane moves, then `--apply` to rewrite the Lane cells +
 append a dated Evidence note ([[Board-Governance]], [[Served-Board]]).
 
 **Q: How do I redeploy the served board / change its code?**
-The deploy root is `board-site/` (project `mailroom-dev`, Root Directory
-unset). `vercel link --project mailroom-dev` → optional
-`vercel env add GITHUB_TOKEN production` → `vercel deploy --prod` from
-`board-site/`. Full workflow + smoke checks in [[Served-Board]].
+The deploy root is `board-site/` (project `digital-mailroom`, Root Directory
+`board-site`; Git integration is live — every push to `main` deploys).
+Fallback: `vercel link --project digital-mailroom` → optional
+`vercel env add GITHUB_TOKEN production` → `vercel --prod` from the repo root.
+Full workflow + smoke checks in [[Served-Board]].
 
 **Q: Where did the reporter agent go?**
 Retired (HUB-015): the graph's `compile_report` node is the computational

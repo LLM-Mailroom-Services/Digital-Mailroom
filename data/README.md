@@ -2,7 +2,7 @@
 
 # 📁 Monorepo Data Directory
 
-**Shared data assets for the mailroom-dev monorepo — manifests, pipelines, and runtime data.**
+**Shared data assets for the Digital-Mailroom monorepo — manifests, pipelines, and runtime data.**
 
 </div>
 

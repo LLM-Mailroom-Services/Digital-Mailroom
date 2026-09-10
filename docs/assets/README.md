@@ -2,7 +2,7 @@
 
 # 📁 Documentation Assets
 
-**Shared documentation assets for the mailroom-dev monorepo.**
+**Shared documentation assets for the Digital-Mailroom monorepo.**
 
 </div>
 

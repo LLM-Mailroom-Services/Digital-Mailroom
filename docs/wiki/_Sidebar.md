@@ -1,4 +1,4 @@
-**mailroom-dev wiki**
+**Digital-Mailroom wiki**
 
 - [[Home]]
 - [[Getting-Started]]

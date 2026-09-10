@@ -2,7 +2,7 @@
 
 # 🏛️ Governance
 
-**Task board, card tracking, and cross-agent coordination for the mailroom-dev monorepo.**
+**Task board, card tracking, and cross-agent coordination for the Digital-Mailroom monorepo.**
 
 </div>
 

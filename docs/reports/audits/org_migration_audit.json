@@ -1,0 +1,227 @@
+{
+  "audit": "DMR-006",
+  "date": "2026-09-09",
+  "title": "Org-migration reference audit: Exios66/mailroom-dev -> LLM-Mailroom-Services/Digital-Mailroom",
+  "new_repo": "LLM-Mailroom-Services/Digital-Mailroom",
+  "old_repo": "Exios66/mailroom-dev",
+  "old_board": "mailroom-dev.vercel.app",
+  "gated_patterns": [
+    "old-hub-repo",
+    "old-hub-board",
+    "changelog-footer"
+  ],
+  "allowlist": {
+    "old-hub-repo": [
+      "packages/**",
+      "governance/TASKS.md",
+      "AGENTS.md",
+      "CHANGELOG.md",
+      "board-site/index.html",
+      "scripts/apply_hub064_board.py",
+      "scripts/audit_references.py",
+      "docs/reports/audits/org_migration_audit.*"
+    ],
+    "old-hub-board": [
+      "packages/**",
+      "governance/TASKS.md",
+      "CHANGELOG.md",
+      "board-site/index.html",
+      "scripts/audit_references.py",
+      "docs/reports/audits/org_migration_audit.*"
+    ]
+  },
+  "migrated": [
+    {
+      "file": ".github/ISSUE_TEMPLATE/config.yml",
+      "change": "TASKS.md + AGENTS.md contact links -> new repo"
+    },
+    {
+      "file": "CHANGELOG.md",
+      "change": "scope line -> Digital-Mailroom monorepo; compare/release footer links -> new repo; DMR-006 entry"
+    },
+    {
+      "file": "README.md",
+      "change": "repository tree label -> Digital-Mailroom/; footer -> LLM-Mailroom-Services (Exios66 . grantmooslin)"
+    },
+    {
+      "file": "LICENSE",
+      "change": "copyright holder -> LLM-Mailroom Services (Exios66, grantmooslin)"
+    },
+    {
+      "file": "docs/wiki/Home.md",
+      "change": "wiki identity -> Digital-Mailroom"
+    },
+    {
+      "file": "docs/wiki/_Sidebar.md",
+      "change": "sidebar title -> Digital-Mailroom wiki"
+    },
+    {
+      "file": "docs/wiki/README.md",
+      "change": "descriptive text -> Digital-Mailroom monorepo"
+    },
+    {
+      "file": "docs/wiki/Getting-Started.md",
+      "change": "clone checkout dir -> Digital-Mailroom"
+    },
+    {
+      "file": "docs/wiki/FAQ.md",
+      "change": "redeploy answer -> project digital-mailroom, Root Directory board-site, Git integration live"
+    },
+    {
+      "file": "docs/wiki/Board-Governance.md",
+      "change": "served-board project -> digital-mailroom"
+    },
+    {
+      "file": "docs/wiki/Releases.md",
+      "change": "hub naming + served-board project -> Digital-Mailroom / digital-mailroom"
+    },
+    {
+      "file": "docs/wiki/Architecture.md",
+      "change": "repository tree -> Digital-Mailroom/"
+    },
+    {
+      "file": "docs/README.md",
+      "change": "descriptive text -> Digital-Mailroom monorepo"
+    },
+    {
+      "file": "docs/assets/README.md",
+      "change": "descriptive text -> Digital-Mailroom monorepo"
+    },
+    {
+      "file": "docs/assets/mailroom-pipeline.svg",
+      "change": "canonical-diagram caption -> Digital-Mailroom/..."
+    },
+    {
+      "file": "docs/reports/README.md",
+      "change": "descriptive text -> Digital-Mailroom monorepo"
+    },
+    {
+      "file": "docs/reports/audits/README.md",
+      "change": "descriptive text -> Digital-Mailroom monorepo"
+    },
+    {
+      "file": "reports/README.md",
+      "change": "descriptive text -> Digital-Mailroom monorepo"
+    },
+    {
+      "file": "data/README.md",
+      "change": "descriptive text -> Digital-Mailroom monorepo"
+    },
+    {
+      "file": "data/manifests/README.md",
+      "change": "descriptive text -> Digital-Mailroom monorepo"
+    },
+    {
+      "file": "governance/README.md",
+      "change": "descriptive text -> Digital-Mailroom monorepo"
+    },
+    {
+      "file": "scripts/README.md",
+      "change": "descriptive text -> Digital-Mailroom monorepo"
+    },
+    {
+      "file": "docs/docclass-merged-plan.md",
+      "change": "repository header -> new repo"
+    },
+    {
+      "file": ".opencode/agents/prompt-engineer.md",
+      "change": "workspace naming -> Digital-Mailroom"
+    },
+    {
+      "file": ".github/dependabot.yml",
+      "change": "scope comment -> Digital-Mailroom monorepo"
+    },
+    {
+      "file": "scripts/sync_packages.py",
+      "change": "propagation commit message -> from Digital-Mailroom@<stamp>"
+    },
+    {
+      "file": "scripts/audit_references.py",
+      "change": "new CI audit gate (this audit)"
+    },
+    {
+      "file": "docs/reports/audits/org_migration_audit.md",
+      "change": "this report"
+    },
+    {
+      "file": "docs/reports/audits/org_migration_audit.json",
+      "change": "machine-readable companion"
+    }
+  ],
+  "intentional": [
+    {
+      "tier": "package-mirror",
+      "paths": [
+        "packages/**"
+      ],
+      "why": "the ten standalone repos remain Exios66/* release vehicles; their docs name the original hub correctly"
+    },
+    {
+      "tier": "mirror-wiring",
+      "paths": [
+        "scripts/sync_packages.py ORIGIN",
+        "scripts/packages_sync.json",
+        "packages/*/pyproject.toml git pins",
+        "scripts/deploy_gh_pages.py",
+        "GH Pages URLs"
+      ],
+      "why": "unchanged until/unless the package repos migrate to the org (separate migration)"
+    },
+    {
+      "tier": "historical",
+      "paths": [
+        "governance/TASKS.md",
+        "AGENTS.md lineage",
+        "CHANGELOG.md HUB-era entries",
+        "scripts/apply_hub064_board.py"
+      ],
+      "why": "predecessor history is append-only and accurate"
+    },
+    {
+      "tier": "cross-board-ui",
+      "paths": [
+        "board-site/index.html"
+      ],
+      "why": "the switcher deliberately links the original HUB board"
+    }
+  ],
+  "bare_name_sweep": [
+    "docs/wiki/Home.md",
+    "docs/wiki/_Sidebar.md",
+    "docs/wiki/Getting-Started.md",
+    "docs/wiki/FAQ.md",
+    "docs/wiki/Board-Governance.md",
+    "docs/wiki/Releases.md",
+    "docs/wiki/Architecture.md",
+    "README.md",
+    "docs/README.md",
+    "docs/assets/README.md",
+    "docs/reports/README.md",
+    "docs/reports/audits/README.md",
+    "reports/README.md",
+    "data/README.md",
+    "data/manifests/README.md",
+    "governance/README.md",
+    "scripts/README.md",
+    ".opencode/agents/prompt-engineer.md",
+    ".github/dependabot.yml",
+    "scripts/sync_packages.py",
+    "docs/assets/mailroom-pipeline.svg"
+  ],
+  "scan": {
+    "new_repo": "LLM-Mailroom-Services/Digital-Mailroom",
+    "old_repo": "Exios66/mailroom-dev",
+    "old_board": "mailroom-dev.vercel.app",
+    "findings": [],
+    "clean": true
+  },
+  "gate": {
+    "script": "scripts/audit_references.py",
+    "ci": ".github/workflows/board-governance.yml",
+    "usage": "python scripts/audit_references.py [--json]"
+  },
+  "live_surfaces": {
+    "dmr_board": "https://digital-mailroom-theta.vercel.app",
+    "hub_board": "https://mailroom-dev.vercel.app"
+  }
+}

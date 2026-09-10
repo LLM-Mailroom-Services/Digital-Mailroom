@@ -360,7 +360,7 @@ def patch_push(package: str, url: str, tip: str, *, dry_run: bool) -> int:
             return 0
         stamp = git(["rev-parse", "--short", "HEAD"]).stdout.strip()
         message = (
-            f"Monorepo propagation: {package} from mailroom-dev@{stamp}\n\n"
+            f"Monorepo propagation: {package} from Digital-Mailroom@{stamp}\n\n"
             f"{n_files} tracked file(s) carried from the monorepo (source of truth "
             "for development); subtree patch-push because the recorded cursor had "
             "no real graft ancestry (HUB-012/HUB-021)."

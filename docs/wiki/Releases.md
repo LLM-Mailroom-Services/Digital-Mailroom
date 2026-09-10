@@ -5,7 +5,7 @@ remain the release vehicles for the deployed surfaces (HF Spaces, Railway).
 
 ## Hub release chain (HUB-024)
 
-The hub (mailroom-dev) versions **itself** with a Keep a Changelog +
+The hub (Digital-Mailroom) versions **itself** with a Keep a Changelog +
 Semantic Versioning chain:
 
 - `CHANGELOG.md` (root) accumulates work under `[Unreleased]` between
@@ -107,6 +107,6 @@ change what every release carries, never hand-type a release body.
   lives under `/docs/terminal/`),
   [llm-mailroom-graph](https://exios66.github.io/llm-mailroom-graph/).
 - **The served Kanban board — Vercel:** https://digital-mailroom-theta.vercel.app
-  (project `mailroom-dev`, deploy root `board-site/`). It is its own deploy
+  (project `digital-mailroom`, deploy root `board-site/`). It is its own deploy
   surface with its own `vercel.json`, a `GITHUB_TOKEN` production secret,
   and the redeploy workflow documented in [[Served-Board]].

@@ -2,7 +2,7 @@
 
 # 📊 Monorepo Reports
 
-**Top-level reports, audits, and analysis documents for the mailroom-dev monorepo.**
+**Top-level reports, audits, and analysis documents for the Digital-Mailroom monorepo.**
 
 </div>
 

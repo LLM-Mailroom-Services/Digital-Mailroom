@@ -2,7 +2,7 @@
 
 # ⚙️ Monorepo Scripts
 
-**Shared governance, sync, and build scripts for the mailroom-dev monorepo.**
+**Shared governance, sync, and build scripts for the Digital-Mailroom monorepo.**
 
 </div>
 

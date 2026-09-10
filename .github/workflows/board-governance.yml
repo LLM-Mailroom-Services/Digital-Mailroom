@@ -3,7 +3,7 @@ name: board-governance
 # HUB-014: keeps the governance board honest on every change to it or to the
 # tooling that reads it. Blocking: board invariants + label-manifest drift +
 # document-class taxonomy parity (HUB-019, plan §65A) + hub release-chain
-# invariants (HUB-024).
+# invariants (HUB-024) + org-migration reference audit (DMR-006).
 # Non-blocking: the Projects v2 mirror drift (needs a token with the
 # `project` scope; the default GITHUB_TOKEN may not have it — configure via
 # repository settings if you want the mirror job enforced).
@@ -68,6 +68,8 @@ jobs:
         run: python scripts/board_state.py check --log-limit 500
       - name: Label manifest drift
         run: python scripts/github_labels.py audit --repo ${{ github.repository }}
+      - name: Reference-migration audit (DMR-006)
+        run: python scripts/audit_references.py
       - name: Taxonomy parity (HUB-019 §65A)
         run: python scripts/taxonomy_parity.py
       - name: Release-chain invariants (HUB-024)

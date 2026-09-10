@@ -74,7 +74,7 @@ push this file's truth into the issues.
 
 | Card | Status | Task | Owner | Issue | Evidence |
 |---|---|---|---|---|---|
-| — | — | _No open cards — the DMR board's first epoch is delivered. New work spawns its own card._ | — | — | — |
+| DMR-006 | `in_progress` | **Org-migration reference audit + wiring sweep + CI gate** — human directive 2026-09-09: run an audit in line with the board's audit-log/evidence law and migrate every current-state hub reference from `Exios66/mailroom-dev` to `LLM-Mailroom-Services/Digital-Mailroom`. Delivered: `docs/reports/audits/org_migration_audit.{md,json}` (three-tier inventory: migrate / package-mirror / historical), root-level sweep (issue-template config, CHANGELOG scope+footer, wiki pages incl. the stale Root-Directory FAQ, README family, LICENSE, `.opencode`, plan doc, SVG caption, dependabot comment, sync propagation message), new `scripts/audit_references.py` gate wired into `.github/workflows/board-governance.yml`, and GitHub About topics. Intentionally unchanged (allowlisted): `packages/**` mirrors, `sync_packages.py`/`packages_sync.json`/pyproject pins/`deploy_gh_pages.py`, HUB-era history, the cross-board switcher. Original-repo leg: HUB-067 (successor note). | opencode (deepseek-v4-flash-vision-exp) | [#10](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/10) | opened 2026-09-09 by human directive. Baseline gate: 11 stale hits (config.yml ×2, CHANGELOG footer ×8, plan doc ×1); post-sweep `audit_references.py` clean. Gates at close: board check, labels audit, release chain, taxonomy parity. |
 
 ## Rules that keep the board honest
 

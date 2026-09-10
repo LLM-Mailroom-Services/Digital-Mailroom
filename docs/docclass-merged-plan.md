@@ -18,7 +18,7 @@
 DOCCLASS-MERGED → Mailroom Ingress &
 Evaluation Corpus
 Comprehensive Implementation Plan
-Repository: Exios66/mailroom-dev Dataset: Lucius-Morningstar/docclass-merged
+Repository: LLM-Mailroom-Services/Digital-Mailroom Dataset: Lucius-Morningstar/docclass-merged
 Purpose: Mailroom document-ingress simulation, classification, extraction, grouping,
 routing, adjudication, retry, and regression evaluation Status: Current working corpus
 Primary target: Harden and extend the current corpus without prematurely turning it into a

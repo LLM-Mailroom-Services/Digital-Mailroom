@@ -2,7 +2,7 @@
 
 # 📊 Audit Reports
 
-**Baseline audits and structural analysis for the mailroom-dev monorepo.**
+**Baseline audits and structural analysis for the Digital-Mailroom monorepo.**
 
 </div>
 

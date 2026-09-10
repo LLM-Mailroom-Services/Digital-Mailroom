@@ -95,7 +95,7 @@ All ten packages live in `packages/` as git subtrees and mirror independent `Exi
 ## Repository Structure
 
 ```
-mailroom-dev/
+Digital-Mailroom/
 ├── AGENTS.md              # workspace rules & cross-package conventions
 ├── README.md              # this file — the canonical entry point
 ├── pyproject.toml         # uv workspace definition
@@ -187,6 +187,6 @@ The monorepo is the development source of truth. Upstream repositories remain th
 **[The-Mailroom](https://github.com/Exios66/The-Mailroom)** ·
 **[agent-mailroom](https://github.com/Exios66/agent-mailroom)**
 
-<sub>Built by the governed evaluation family under <a href="https://github.com/Exios66">@Exios66</a> · 2026</sub>
+<sub>Built by the governed evaluation family under <a href="https://github.com/LLM-Mailroom-Services">LLM-Mailroom-Services</a> (Exios66 · grantmooslin) · 2026</sub>
 
 </div>

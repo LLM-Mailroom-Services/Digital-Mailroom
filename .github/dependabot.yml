@@ -1,4 +1,4 @@
-# Dependabot for the mailroom-dev monorepo (HUB-030).
+# Dependabot for the Digital-Mailroom monorepo (HUB-030).
 #
 # SCOPE NOTE — why packages/*/ manifests are deliberately absent:
 # every package under packages/ is a git-subtree mirror of an independent

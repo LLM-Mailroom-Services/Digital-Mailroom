@@ -2,7 +2,7 @@
 
 # 📊 Evaluation Reports
 
-**Evaluation reports for the mailroom-dev monorepo.**
+**Evaluation reports for the Digital-Mailroom monorepo.**
 
 </div>
 

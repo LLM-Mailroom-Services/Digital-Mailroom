@@ -80,7 +80,7 @@ checked version.
   and pass `response_format` JSON schema from the client.
 - Bursty, latency-tolerant legal-document batches: keep continuous batching
   wide (`--max-num-seqs`), disable per-request logging
-  (`--disable-log-requests`), and enable prefix caching when prompts share
+  (`--no-enable-log-requests`), and enable prefix caching when prompts share
   a system prefix.
 - Smoke test the OpenAI surface after every change:
   `curl -s $BASE_URL/models` and a `/v1/chat/completions` round-trip.

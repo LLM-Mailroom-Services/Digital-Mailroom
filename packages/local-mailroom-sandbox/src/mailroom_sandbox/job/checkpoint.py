@@ -128,6 +128,35 @@ class RunStore:
         lock = self.read_lock()
         return lock.get("spec_hash") if lock else None
 
+    def archive_generation(self) -> Path | None:
+        """Archive the current lock/items/checkpoint/events (preflight --force).
+
+        ``write_lock`` refuses to overwrite in place, so a forced re-lock must
+        move the old generation aside first — otherwise new dataset bytes live
+        under an old lock/checkpoint and resume silently replays wrong rows
+        (DMR-049). Returns the archive dir, or None when there was nothing to
+        archive.
+        """
+        if not any(
+            path.is_file()
+            for path in (self.lock_path, self.items_path, self.checkpoint_path)
+        ):
+            return None
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        dest = self.dir / f"archive-{stamp}"
+        dest.mkdir(parents=True, exist_ok=True)
+        for path in (
+            self.lock_path,
+            self.prompt_lock_path,
+            self.items_path,
+            self.checkpoint_path,
+            self.events_path,
+            self.dataset_path,
+        ):
+            if path.is_file():
+                path.rename(dest / path.name)
+        return dest
+
     def write_prompt_lock(self, payload: dict[str, Any]) -> Path:
         _atomic_write(self.prompt_lock_path, json.dumps(payload, indent=2, sort_keys=True, default=str))
         return self.prompt_lock_path

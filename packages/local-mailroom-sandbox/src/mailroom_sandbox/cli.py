@@ -731,6 +731,23 @@ def _run_endpoint(store, args) -> dict:
         )
 
 
+def _finalize_remote(store) -> bool:
+    """Pull a terminal remote run's dir back and append its records locally."""
+    from mailroom_sandbox.eval import experiment_log
+    from mailroom_sandbox.job import remote as job_remote
+
+    rc, err = job_remote.pull_run_dir(store)
+    if rc != 0:
+        print(f"warning: could not pull remote run dir: {err}")
+        return False
+    record_path = store.dir / "experiment_log.jsonl"
+    if record_path.is_file():
+        for line in record_path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                experiment_log.append(json.loads(line))
+    return True
+
+
 def _watch_remote(store, args) -> int:
     from mailroom_sandbox.job import remote as job_remote
 
@@ -741,6 +758,7 @@ def _watch_remote(store, args) -> int:
         state = (progress or {}).get("state") or store.state() or "unknown"
         print(f"{store.run_id} {state} {progress or {}}")
         if state in {"done", "failed"}:
+            _finalize_remote(store)
             return 0 if state == "done" else 1
         time.sleep(3.0)
 
@@ -757,8 +775,11 @@ def _cmd_run_status(args) -> int:
         return 1
     if getattr(args, "watch", False):
         return _watch_remote(store, args)
-    summary = store.summary()
     remote_progress = job_remote.read_progress(store) if _job_mode(store) == "modal" else None
+    if remote_progress and remote_progress.get("state") in {"done", "failed"}:
+        # Terminal remote run: sync items/checkpoints/records back locally.
+        _finalize_remote(store)
+    summary = store.summary()
     payload = summary
     if remote_progress:
         payload["remote"] = remote_progress
@@ -784,9 +805,12 @@ def _cmd_run_resume(args) -> int:
             _print(report)
             return 3
     if _job_mode(store) == "modal":
+        from mailroom_sandbox.job import remote as job_remote
+
+        action = job_remote.ensure_running(store)
+        _print({"run_id": run_id, **action})
         if getattr(args, "watch", False):
             return _watch_remote(store, args)
-        _print({"run_id": run_id, "state": "resume_queued"})
         return 0
     summary = _run_endpoint(store, args)
     _print(summary)

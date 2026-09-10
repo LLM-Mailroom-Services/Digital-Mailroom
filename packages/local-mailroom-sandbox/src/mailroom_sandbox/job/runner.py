@@ -141,6 +141,20 @@ def _max_retries(store: RunStore) -> int:
     return int(_task_defaults(store).get("max_retries", 2))
 
 
+def verify_dataset_lock(store: RunStore) -> None:
+    """Refuse to score when dataset.jsonl drifted from the lock's sha256."""
+    lock = store.read_lock() or {}
+    dataset_block = lock.get("dataset") if isinstance(lock.get("dataset"), dict) else {}
+    expected = str((dataset_block or {}).get("sha256") or "")
+    actual = store.dataset_sha256() or ""
+    if expected and actual and expected != actual:
+        raise RuntimeError(
+            f"dataset.jsonl changed since the lock (lock={expected[:12]} file={actual[:12]}) — "
+            "refusing to score drifted rows; re-run preflight with --force to archive this "
+            "generation and re-lock"
+        )
+
+
 def _fail_fast(store: RunStore) -> bool:
     return bool(_task_defaults(store).get("fail_fast", False))
 
@@ -228,6 +242,7 @@ def run_job(
     mock = _lock_mock(store, True) if mock is None else mock
 
     rows = store.dataset_rows()
+    verify_dataset_lock(store)
     if dry_run:
         return {"state": "dry_run", "task": task, "n": len(rows), "cursor": 0, "total": len(rows)}
     if store.terminal():

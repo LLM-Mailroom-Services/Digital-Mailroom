@@ -159,7 +159,14 @@ def preflight(
                 "detail": "spec drifted since the lock; pass --force to re-lock",
             }
 
+    # write_lock refuses to overwrite in place, so a forced re-lock archives
+    # the old generation first — new dataset bytes must never sit under an old
+    # lock/checkpoint (DMR-049).
+    archived = store.archive_generation() if (existing and force) else None
+
     report: dict[str, Any] = {"run_id": run_id, "status": "prepared", "checks": []}
+    if archived is not None:
+        report["archived"] = str(archived)
     if dry_run:
         return report
 

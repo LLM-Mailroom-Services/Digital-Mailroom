@@ -65,6 +65,38 @@ def test_preflight_drift_refusal_then_force(tmp_path):
     assert report3["status"] == "prepared"
 
 
+def test_force_relock_archives_old_generation(tmp_path, job_data_dir):
+    """DMR-049: --force must move the old lock/items aside, not leave them."""
+    from pathlib import Path
+
+    spec = _run_spec(tmp_path, limit=2, run_id="pf-archive")
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared"
+    store = _store(report)
+    old_hash = store.spec_hash()
+    drifted = _run_spec(tmp_path, limit=2, run_id=spec.run_id)
+    drifted.dataset = DatasetSpec(local_path=drifted.dataset.local_path, limit=1)
+    report2 = preflight.preflight(drifted, offline=True, force=True)
+    assert report2["status"] == "prepared"
+    archived = Path(report2["archived"])
+    assert archived.is_dir()
+    archived_lock = (archived / "spec.lock.json").read_text(encoding="utf-8")
+    assert old_hash in archived_lock
+    assert store.spec_hash() == drifted.spec_hash() != old_hash
+
+
+def test_run_job_refuses_drifted_dataset(tmp_path, job_data_dir):
+    """DMR-049: a dataset that changed under the lock must never be scored."""
+    from mailroom_sandbox.job import runner
+
+    spec = _run_spec(tmp_path, limit=2, run_id="pf-drift")
+    report = preflight.preflight(spec, offline=True)
+    store = _store(report)
+    store.dataset_path.write_text('{"id": "x", "doc_text": "mutated"}\n', encoding="utf-8")
+    with pytest.raises(RuntimeError, match="changed since the lock"):
+        runner.run_job(store, mock=None)
+
+
 def test_preflight_unknown_prompt_agent_fails(tmp_path):
     spec = _run_spec(tmp_path)
     spec.prompt = {"agents": {"extract": {"source": "code-default"}}}

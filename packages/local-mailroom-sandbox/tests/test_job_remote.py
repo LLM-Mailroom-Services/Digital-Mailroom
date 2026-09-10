@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import types
+from pathlib import Path
 from unittest import mock
 
 import mailroom_sandbox.job.remote as remote
@@ -32,6 +33,7 @@ def _stub_modal(monkeypatch, *, live_status="PENDING"):
     )
     monkeypatch.setattr(remote, "_modal", lambda: modal_stub)
     monkeypatch.setattr(remote, "upload_run_dir", lambda d: (0, ""))
+    monkeypatch.setattr(remote, "_remote_lock_hash", lambda run_id: None)
 
 
 class MockFunction:
@@ -64,9 +66,9 @@ class MockDict:
         return self.store.get(key, default)
 
 
-def _store(tmp_path) -> RunStore:
+def _store(tmp_path, lock=None) -> RunStore:
     store = RunStore(tmp_path / "run-r")
-    store.write_lock({"spec_hash": "s1"})
+    store.write_lock(lock or {"spec_hash": "s1"})
     store.write_dataset([])
     store.write_checkpoint(state="prepared", cursor=0, total=0, remote=None)
     return store
@@ -105,3 +107,62 @@ def test_cancel_calls_function_call(tmp_path, monkeypatch):
     remote.fire(store)
     remote.cancel(store)
     assert any(e["event"] == "cancel_requested" for e in store.events())
+
+
+# ── DMR-047: mock forwarding, no-clobber re-fire, results pull ───────────────
+
+
+def test_fire_sends_lock_mock_flag(tmp_path, monkeypatch):
+    _stub_modal(monkeypatch)
+    captured: dict = {}
+
+    class _Fn:
+        def spawn(self, payload=None):
+            captured.update(payload or {})
+            return _Call("PENDING")
+
+    modal_stub = types.SimpleNamespace(
+        Function=types.SimpleNamespace(from_name=lambda app, fn: _Fn()),
+        FunctionCall=types.SimpleNamespace(from_id=lambda call_id: _Call("PENDING")),
+        Dict=MockDict(),
+    )
+    monkeypatch.setattr(remote, "_modal", lambda: modal_stub)
+    store = _store(tmp_path, {"spec_hash": "s1", "job": {"mock": True}})
+    remote.fire(store)
+    assert captured == {"run_id": "run-r", "mock": True}
+
+
+def test_fire_skips_upload_when_remote_lock_matches(tmp_path, monkeypatch):
+    _stub_modal(monkeypatch)
+    uploads: list = []
+    monkeypatch.setattr(remote, "upload_run_dir", lambda d: uploads.append(d) or (0, ""))
+    monkeypatch.setattr(remote, "_remote_lock_hash", lambda run_id: "s1")
+    store = _store(tmp_path)
+    remote.fire(store)
+    assert uploads == []
+
+
+def test_fire_uploads_when_remote_lock_differs(tmp_path, monkeypatch):
+    _stub_modal(monkeypatch)
+    uploads: list = []
+    monkeypatch.setattr(remote, "upload_run_dir", lambda d: uploads.append(d) or (0, ""))
+    monkeypatch.setattr(remote, "_remote_lock_hash", lambda run_id: "other")
+    store = _store(tmp_path)
+    remote.fire(store)
+    assert len(uploads) == 1
+
+
+def test_pull_run_dir_copies_files(tmp_path, monkeypatch):
+    store = _store(tmp_path)
+
+    def fake_run(cmd, capture_output=True, text=True):
+        dest = Path(cmd[-1])
+        run_dir = dest / store.run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "items.jsonl").write_text('{"index": 0}\n', encoding="utf-8")
+        return types.SimpleNamespace(returncode=0, stderr="", stdout="")
+
+    monkeypatch.setattr(remote.subprocess, "run", fake_run)
+    rc, err = remote.pull_run_dir(store)
+    assert rc == 0 and err == ""
+    assert (store.dir / "items.jsonl").is_file()

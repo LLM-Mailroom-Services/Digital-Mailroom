@@ -278,7 +278,11 @@ def _cmd_down(args: argparse.Namespace) -> int:
 def _cmd_health(args: argparse.Namespace) -> int:
     from mailroom_sandbox.health import health_check, probe_models
     from mailroom_sandbox.overlay import load_profile as _lp
+    from mailroom_sandbox.runtime import load_env_file
 
+    # `.env` may carry VLLM_BASE_URL/VLLM_API_KEY for a deployed Modal endpoint
+    # — without it the probe reports on localhost (DMR-048).
+    load_env_file()
     result = health_check(args.profile)
     host = os.environ.get("LANGFUSE_HOST") or "http://localhost:3000"
     langfuse = probe_models(
@@ -303,9 +307,29 @@ def _cmd_health(args: argparse.Namespace) -> int:
 
 def _cmd_pull_models(args: argparse.Namespace) -> int:
     from mailroom_sandbox.compose import pull_ollama_models
+    from mailroom_sandbox.overlay import serving_family
 
     profile = load_profile(args.profile)
     models = list(args.models) or list(profile.get("pull_models") or [])
+    family = serving_family(profile)
+    if family == "vllm":
+        # vLLM weights live in the HF cache — `ollama pull` would be wrong.
+        # Modal: pre-warm the HF Volume; local compose: first serve downloads.
+        name = str(profile.get("name") or "")
+        model = models[0] if models else str(profile.get("default_model") or "Qwen/Qwen3-8B")
+        if "modal" in name:
+            print(
+                "vLLM profile is Modal-backed — weights are cached on the Modal Volume.\n"
+                f"Pre-warm:  MODAL_VLLM_MODEL={model} modal run deploy/modal_vllm.py::download_model\n"
+                "(requires the [deploy] extra + `modal token new`; run from the package root)"
+            )
+        else:
+            print(
+                "vLLM profile serves weights from the HF cache — no pull step.\n"
+                f"First boot downloads {model} into the compose hf_cache volume; "
+                "pre-warm with `docker compose --profile vllm up vllm`."
+            )
+        return 0
     return pull_ollama_models(models)
 
 
@@ -422,10 +446,30 @@ def _cmd_api(args: argparse.Namespace) -> int:
     return subprocess.call([sys.executable, "-m", "api.main"], env=_mailroom_env())
 
 
+def _mock_for(args: argparse.Namespace, *, subcommand: str) -> bool:
+    """Resolve the mock flag; warn when a vLLM/Modal profile would silently mock.
+
+    Live-or-loud (DMR-048): a vLLM/Modal profile without --local (and without
+    an explicit --mock) used to run a mock that looks like a real eval. The
+    warning keeps smoke runs working while surfacing the hazard.
+    """
+    from mailroom_sandbox.overlay import serving_family
+
+    explicit_mock = bool(getattr(args, "mock", False))
+    mock = explicit_mock or not bool(getattr(args, "local", False))
+    if mock and not explicit_mock and serving_family(load_profile(args.profile)) == "vllm":
+        print(
+            f"warning: {subcommand} would run MOCK against the vLLM profile "
+            f"{args.profile!r} — pass --local for a live run, or --mock to make "
+            "the mock explicit (DMR-048 live-or-loud)"
+        )
+    return mock
+
+
 def _cmd_pilot(args: argparse.Namespace) -> int:
     from mailroom_sandbox.eval.runners import run_pipeline_eval
 
-    mock = args.mock or not args.local
+    mock = _mock_for(args, subcommand="pilot")
     os.environ["SANDBOX_RUN_MODE"] = "mock" if mock else "local"
     result = run_pipeline_eval(
         mock=mock,
@@ -449,7 +493,7 @@ def _cmd_hf_pilot(args: argparse.Namespace) -> int:
         return 0 if rows else 1
     from mailroom_sandbox.eval.runners import run_sorter_eval
 
-    mock = args.mock or not args.local
+    mock = _mock_for(args, subcommand="eval")
     result = run_sorter_eval(
         mock=mock,
         sample=len(rows) or None,
@@ -465,7 +509,7 @@ def _cmd_hf_pilot(args: argparse.Namespace) -> int:
 def _cmd_legalbench(args: argparse.Namespace) -> int:
     from mailroom_sandbox.eval.runners import run_legalbench_eval
 
-    mock = args.mock or not args.local
+    mock = _mock_for(args, subcommand="legalbench")
     name = f"sandbox_legalbench_{args.task}"
     if args.suite:
         name += f"_n{args.n or 0}_s{args.seed}"
@@ -488,7 +532,7 @@ def _cmd_eval(args: argparse.Namespace) -> int:
     from mailroom_sandbox.eval import runners
     from mailroom_sandbox.eval.agents import SPECS
 
-    mock = args.mock or not args.local
+    mock = _mock_for(args, subcommand="eval")
     os.environ["SANDBOX_RUN_MODE"] = "mock" if mock else "local"
     kwargs = {
         "mock": mock,
@@ -524,7 +568,7 @@ def _cmd_eval(args: argparse.Namespace) -> int:
 def _cmd_matrix(args: argparse.Namespace) -> int:
     from mailroom_sandbox.eval.matrix import run_matrix
 
-    mock = args.mock or not args.local
+    mock = _mock_for(args, subcommand="matrix")
     result = run_matrix(
         task=args.task,
         providers=[p.strip() for p in args.providers.split(",") if p.strip()],
@@ -708,6 +752,23 @@ def _cmd_run_start(args) -> int:
     store = RunStore(run_dir(run_id))
     mode = getattr(args, "mode", None) or spec.job.mode
     if mode == "modal":
+        # DMR-048: default live probe before firing — a stale VLLM_BASE_URL
+        # used to lock 'prepared' and fail at item 0 on the worker. Skipped
+        # for mock runs and explicit --offline runs.
+        if not spec.job.mock and not getattr(args, "offline", False):
+            from mailroom_sandbox.job import preflight as _pf
+
+            probe = _pf.probe_engine(spec)
+            if not probe.get("ok"):
+                _print(
+                    {
+                        "run_id": run_id,
+                        "state": "engine_unreachable",
+                        "reason": probe.get("reason"),
+                        "base_url": probe.get("base_url"),
+                    }
+                )
+                return 1
         remote_action = job_remote.ensure_running(store)
         _print(remote_action)
         if not getattr(args, "watch", False):

@@ -101,6 +101,16 @@ def _probe_engine(spec: RunSpec) -> dict[str, Any]:
     return {"ok": True, **detail}
 
 
+def probe_engine(spec: RunSpec) -> dict[str, Any]:
+    """Live engine probe: /v1/models at the resolved base URL vs the spec model.
+
+    Public wrapper around the preflight live check so ``run start --job-mode
+    modal`` can verify the endpoint BEFORE firing (DMR-048) without re-running
+    the whole preflight.
+    """
+    return _probe_engine(spec)
+
+
 def _modal_check(spec: RunSpec) -> bool:
     modal = spec.engine.modal
     if modal is None:

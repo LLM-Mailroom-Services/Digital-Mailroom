@@ -45,6 +45,11 @@ def _load_dotenv() -> None:
             load_dotenv(candidate, override=False)
 
 
+def load_env_file() -> None:
+    """Load the sandbox .env files (idempotent; never overrides real env)."""
+    _load_dotenv()
+
+
 def _prepend_sys_path(path: Path) -> None:
     resolved = str(path.resolve())
     if resolved not in sys.path:

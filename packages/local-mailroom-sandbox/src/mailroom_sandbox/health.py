@@ -34,8 +34,23 @@ def _headers(profile: dict) -> dict[str, str]:
     return headers
 
 
+def _effective_base_url(profile: dict) -> str | None:
+    """The environment override for the profile's base URL, when set.
+
+    A deployed Modal endpoint lives in ``VLLM_BASE_URL`` while the profile's
+    static ``base_url`` stays localhost — the health probe must follow the
+    env override or it reports on the wrong server (DMR-048).
+    """
+    env_name = str(profile.get("base_url_env") or "").strip()
+    if env_name:
+        value = os.environ.get(env_name, "").strip()
+        if value:
+            return value
+    return None
+
+
 def probe_models(profile: dict, *, timeout: float = 3.0) -> ProbeResult:
-    endpoints = endpoints_for(profile)
+    endpoints = endpoints_for(profile, base_url_override=_effective_base_url(profile))
     url = endpoints.models_url
     try:
         resp = httpx.get(url, headers=_headers(profile), timeout=timeout)
@@ -56,7 +71,7 @@ def probe_models(profile: dict, *, timeout: float = 3.0) -> ProbeResult:
 
 
 def probe_chat(profile: dict, *, timeout: float = 8.0, json_object: bool = True) -> ProbeResult:
-    endpoints = endpoints_for(profile)
+    endpoints = endpoints_for(profile, base_url_override=_effective_base_url(profile))
     url = endpoints.chat_url
     model = profile.get("default_model") or "local"
     body: dict = {
@@ -93,9 +108,10 @@ def probe_chat(profile: dict, *, timeout: float = 8.0, json_object: bool = True)
 
 def health_check(profile_name: str) -> dict:
     profile = load_profile(profile_name)
+    override = _effective_base_url(profile)
     models = probe_models(profile)
     chat = probe_chat(profile) if models.ok else ProbeResult(
-        False, profile_name, endpoints_for(profile).chat_url, "skipped (models probe failed)"
+        False, profile_name, endpoints_for(profile, base_url_override=override).chat_url, "skipped (models probe failed)"
     )
     return {
         "profile": profile_name,

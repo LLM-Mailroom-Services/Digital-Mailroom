@@ -160,7 +160,9 @@ sandbox run list
 
 ```bash
 sandbox prompts list                      # all pipeline agent prompts
-sandbox prompts show <agent> [--variant X]
+sandbox prompts show <agent> [--variant X]  # unknown agents exit 2 (DMR-056);
+                                            # sorter/specialists surface the
+                                            # registry version_key (v14/v33)
 sandbox metrics compare --runs local,modal,api
 sandbox metrics compare --log
 ```
@@ -168,9 +170,17 @@ sandbox metrics compare --log
 ### Datasets & tunnels
 
 ```bash
+sandbox datasets pull --max-rows 50       # LIVE pinned Hub pull → data/cache/
+                                          # (network; pinned FAMILY_HF_REVISION,
+                                          # sha-verified, exit 1 on failure — DMR-056)
 sandbox datasets prepare                  # offline JSONL → data/runtime/prepared/
 sandbox tunnel --profile vllm-remote plan|up|status|down
 ```
+
+Whole-run job tasks (`pipeline`/`extract`/`chained`/`isolated`/ANY agent
+name) score the run spec's LOCKED dataset — a Hub `dataset:` block means the
+connected graph runs on live corpus rows (DMR-056). `task:` is validated at
+spec parse; bogus tasks are rejected up front.
 
 ### Tests
 

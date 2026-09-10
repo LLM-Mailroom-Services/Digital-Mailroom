@@ -30,12 +30,16 @@ fi
 MODEL="${MODEL:-Qwen/Qwen3-8B}"
 # Engine parity knobs (compose/Modal contract); overridable per submission via
 # the .sub `environment = "MODEL=...,MAX_MODEL_LEN=..."` line.
-MAX_MODEL_LEN="${MAX_MODEL_LEN:-32768}"
+# DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.28.0
+# raises at boot); AWQ/FP8 rows set 32768 explicitly.
+MAX_MODEL_LEN="${MAX_MODEL_LEN:-16384}"
 GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-0.90}"
 MAX_NUM_SEQS="${MAX_NUM_SEQS:-256}"
 TP_SIZE="${TP_SIZE:-}"
+QUANTIZATION="${QUANTIZATION:-}"
+REVISION="${REVISION:-}"
 PORT=8000
-export MODEL MAX_MODEL_LEN GPU_MEMORY_UTILIZATION MAX_NUM_SEQS
+export MODEL MAX_MODEL_LEN GPU_MEMORY_UTILIZATION MAX_NUM_SEQS TP_SIZE QUANTIZATION REVISION
 
 # Absolute results dir: the script `cd`s into the unpacked package, so a
 # relative `results/` would land in mailroom-sandbox/ while HTCondor transfers
@@ -172,6 +176,8 @@ vllm serve "$MODEL" --host 0.0.0.0 --port "$PORT" \
     --gpu-memory-utilization "$GPU_MEMORY_UTILIZATION" \
     --max-num-seqs "$MAX_NUM_SEQS" \
     ${TP_SIZE:+--tensor-parallel-size "$TP_SIZE"} \
+    ${QUANTIZATION:+--quantization "$QUANTIZATION"} \
+    ${REVISION:+--revision "$REVISION"} \
     --no-enable-log-requests \
     > "$RESULTS_DIR/vllm_serve.log" 2>&1 &
 VLLM_PID=$!
@@ -179,8 +185,15 @@ log "vllm serve pid=$VLLM_PID (log: results/vllm_serve.log)"
 
 echo "== wait for /v1/models =="
 HEALTHY=0
+# DMR-056: bounded probe (--max-time 5); forward the bearer when the job env
+# carries VLLM_API_KEY (v0.28.0 enforces it automatically — a keyless probe
+# would 401 forever and false-fail after 20 minutes).
+CURL_AUTH=()
+if [ -n "$VLLM_API_KEY" ]; then
+    CURL_AUTH=(-H "Authorization: Bearer $VLLM_API_KEY")
+fi
 for i in $(seq 1 120); do
-    if curl -sf "http://localhost:${PORT}/v1/models" > /dev/null; then
+    if curl -sf --max-time 5 "${CURL_AUTH[@]}" "http://localhost:${PORT}/v1/models" > /dev/null; then
         echo "vLLM healthy"
         HEALTHY=1
         break
@@ -189,14 +202,14 @@ for i in $(seq 1 120); do
         fail "vLLM exited during startup (tail below)"
     fi
     if [ $((i % 10)) -eq 0 ]; then
-        log "health wait: ${i}0s elapsed, still warming (cold start can take minutes)"
+        log "health wait: $((i * 10))s elapsed, still warming (cold start can take minutes)"
     fi
     sleep 10
 done
 if [ "$HEALTHY" -ne 1 ]; then
     fail "/v1/models not healthy after 20m"
 fi
-log "vLLM healthy after ~${i}0s"
+log "vLLM healthy after ~$((i * 10))s"
 
 export SANDBOX_PROFILE=vllm-local
 export DEFAULT_PROVIDER=vllm

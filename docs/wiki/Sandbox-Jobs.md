@@ -29,7 +29,12 @@ sandbox run resume --config config/runs/my-run.yaml --run-id <id>
 
 ```yaml
 schema: sandbox.run/v1
-task: sorter                  # sorter | legalbench
+task: sorter                  # per-item: sorter | legalbench
+                              # whole-run: pipeline | extract | chained | local_vs_api
+                              #   | isolated (sorter spec) | ANY registered agent name
+                              #   (DMR-056: every AgentSpec is a whole-run task; bogus
+                              #   tasks are rejected at spec parse; whole-run tasks
+                              #   score the LOCKED dataset — Hub spec = live corpus rows)
 profile: vllm-local           # provider profile
 
 prompt:
@@ -50,7 +55,9 @@ dataset:
 engine:
   kind: modal-vllm            # modal-vllm | vllm-local | vllm-remote
   model: Qwen/Qwen3-8B
-  vllm: {max_model_len: 32768, gpu_memory_utilization: 0.90}
+  vllm: {max_model_len: 16384, gpu_memory_utilization: 0.90}
+  # DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.28.0
+  # raises at boot); AWQ rows set 32768 explicitly.
 
 trace:
   sink: langfuse              # langfuse | phoenix | otlp | none
@@ -120,7 +127,8 @@ Emits OTEL job/item spans to the locked sink.
   mock/`--offline`) — a stale `VLLM_BASE_URL` fails fast as
   `engine_unreachable` (DMR-048).
 - Worker failures land in the state dict with `error`, `traceback_tail`, and
-  runtime `diagnostics`; `SANDBOX_DEBUG=1` enables DEBUG logging;
+  runtime `diagnostics`; `SANDBOX_DEBUG=1` enables DEBUG logging — export it
+  BEFORE `modal deploy` (it travels through the deploy Secret; DMR-056);
   `modal run modal_job.py --debug` prints the app config (DMR-053).
 - `--watch` prints the worker traceback + a diagnose hint on failure (DMR-053).
 

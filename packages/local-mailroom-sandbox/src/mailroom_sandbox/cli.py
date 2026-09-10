@@ -147,9 +147,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("datasets", help="Dataset helpers", parents=[shared])
     ds = p.add_subparsers(dest="datasets_cmd")
-    pull = ds.add_parser("pull", parents=[shared])
+    pull = ds.add_parser("pull", parents=[shared], help="Live pinned Hub pull into data/cache (network)")
     pull.add_argument("--dataset", default="Lucius-Morningstar/mailroom-corpus")
     pull.add_argument("--max-rows", type=int, default=50)
+    pull.add_argument(
+        "--revision",
+        default="",
+        help="Hub revision (default: the pinned FAMILY_HF_REVISION snapshot)",
+    )
+    pull.add_argument(
+        "--config",
+        default="ground_truth",
+        choices=("ground_truth", "default", ""),
+        help="parquet config: ground_truth (labels merged with blind text, the default) or 'default'/'' (blind)",
+    )
+    pull.add_argument("--split", default="test", help="parquet split (test|train)")
     pull.set_defaults(handler=_cmd_datasets_pull)
     prep = ds.add_parser(
         "prepare",
@@ -559,8 +571,13 @@ def _cmd_eval(args: argparse.Namespace) -> int:
             from_log=bool(getattr(args, "from_log", False)),
             **kwargs,
         )
-    else:
+    elif args.task == "legalbench":
         result = runners.run_legalbench_eval(**kwargs)
+    else:
+        # DMR-056: never fall through to the LegalBench runner for an unknown
+        # task — a future composite registered without its own arm would have
+        # been silently misrouted (scorecard pollution).
+        raise SystemExit(f"error: task {args.task!r} has no dispatch arm in _cmd_eval")
     _print(result)
     return 0
 
@@ -591,8 +608,17 @@ def _cmd_datasets_help(args: argparse.Namespace) -> int:
 def _cmd_datasets_pull(args: argparse.Namespace) -> int:
     from mailroom_sandbox.datasets import pull_hf_dataset
 
-    path = pull_hf_dataset(args.dataset, max_rows=args.max_rows)
-    print(path)
+    try:
+        pull_hf_dataset(
+            args.dataset,
+            split=args.split,
+            max_rows=args.max_rows,
+            revision=args.revision,
+            config=args.config,
+        )
+    except Exception as exc:  # live-or-loud (DMR-056): a failed pull is exit 1
+        print(f"error: {type(exc).__name__}: {exc}")
+        return 1
     return 0
 
 
@@ -942,17 +968,27 @@ def _cmd_prompts_list(args) -> int:
 
 def _cmd_prompts_show(args) -> int:
     from mailroom_sandbox.job.spec import PromptRef
-    from mailroom_sandbox.prompt_registry import agent_prompt_names, resolve_prompt
+    from mailroom_sandbox.prompt_registry import FAMILY_B_KEYS, agent_prompt_names, resolve_prompt
 
     name = args.name
+    if name not in agent_prompt_names():
+        print(
+            f"error: unknown agent {name!r} — have {sorted(agent_prompt_names())} "
+            "(DMR-056: show now validates, matching prompt_lock_block's refusal)"
+        )
+        return 2
     variant = getattr(args, "variant", None)
     if variant:
         ref = PromptRef(source="local", file=variant)
-    elif name == "mailroom-default":
-        ref = PromptRef(source="code-default")
     else:
         ref = PromptRef(source="code-default")
     resolved = resolve_prompt(name, ref, offline=bool(getattr(args, "offline", False)))
+    # DMR-056: surface the registry's pinned family-B version key (sorter_v14 /
+    # contracts_specialist_v33) — the lock resolves it even though code-default
+    # refs carry no version of their own.
+    pinned = FAMILY_B_KEYS.get(name) if not variant else None
+    if pinned:
+        resolved["version_key"] = pinned
     _print(resolved)
     return 0
 

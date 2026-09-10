@@ -337,7 +337,9 @@ sandbox run list
 ```yaml
 schema: sandbox.run/v1
 run_id: <auto if omitted>
-task: sorter                  # sorter | legalbench
+task: sorter                  # sorter | legalbench (per-item) | pipeline | extract |
+                              # chained | local_vs_api | isolated | ANY agent name
+                              # (DMR-056: every AgentSpec is a whole-run task)
 profile: vllm-local           # provider profile
 
 prompt:
@@ -359,7 +361,9 @@ dataset:
 engine:
   kind: modal-vllm
   model: Qwen/Qwen3-8B
-  vllm: {max_model_len: 32768, gpu_memory_utilization: 0.90}
+  vllm: {max_model_len: 16384, gpu_memory_utilization: 0.90}
+  # DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.28.0
+  # raises at boot); AWQ rows set 32768 explicitly.
 
 trace:
   sink: langfuse
@@ -429,7 +433,7 @@ sandbox health --profile modal-vllm
 |---|---|---|
 | `MODAL_VLLM_MODEL` | `Qwen/Qwen3-8B` | HF model id |
 | `MODAL_VLLM_GPU` | `L4` | GPU type |
-| `MODAL_VLLM_MAX_MODEL_LEN` | `32768` | Context cap |
+| `MODAL_VLLM_MAX_MODEL_LEN` | `16384` | Context cap — DMR-056: boot-valid default (v0.28.0 raises when the KV pool can't hold one request); AWQ/FP8 rows use 32768 |
 | `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | GPU memory fraction |
 | `MODAL_VLLM_MAX_NUM_SEQS` | `256` | Concurrency cap |
 | `MODAL_VLLM_TP_SIZE` | GPU `:N` suffix (1 single-GPU) | Tensor-parallel size — must match `MODAL_VLLM_GPU="A100-80GB:2"` for 70B-class |

@@ -30,6 +30,7 @@ import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import modal
 
@@ -55,8 +56,12 @@ _DEPLOY_ENV_KEYS = (
     "HF_TOKEN",
     "VLLM_BASE_URL",
     "VLLM_API_KEY",
-    "DEFAULT_PROVIDER",
+    "SANDBOX_DEBUG",  # DMR-056: must reach the container or --debug claims are false
 )
+# NOTE (DMR-056): DEFAULT_PROVIDER deliberately NOT in _DEPLOY_ENV_KEYS — the
+# image .env() below forces "vllm" because this worker always talks to the
+# Modal-hosted vLLM endpoint; a deploy env carrying the package default
+# (ollama) would otherwise silently flip the direct-live target.
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -190,7 +195,10 @@ def run_job(payload: dict) -> dict:
 
     def on_event(progress: dict) -> None:
         progress.update({"run_id": run_id, "spec_hash": spec_hash, "heartbeat_at": _now()})
-        state_dict.put(progress)
+        # DMR-056: Dict.put(key, value) is two-arg in modal 1.5.5 — the old
+        # one-arg call raised TypeError, killing the progress mirror + commit
+        # cadence in a REAL deploy (invisible to the stubbed test suite).
+        state_dict.put(run_id, progress)
         events["n"] += 1
         if events["n"] % COMMIT_EVERY_EVENTS == 0:
             try:
@@ -217,7 +225,7 @@ def run_job(payload: dict) -> dict:
             "heartbeat_at": _now(),
         }
         try:
-            state_dict.put(failed)
+            state_dict.put(run_id, failed)
             runs_volume.commit()
         except Exception:
             pass
@@ -233,7 +241,7 @@ def run_job(payload: dict) -> dict:
         except OSError:
             pass
 
-    state_dict.put({"run_id": run_id, "spec_hash": spec_hash, "heartbeat_at": _now(), **result})
+    state_dict.put(run_id, {"run_id": run_id, "spec_hash": spec_hash, "heartbeat_at": _now(), **result})
     runs_volume.commit()
     flush_tracer(tracer)
     return result

@@ -188,32 +188,49 @@ def cache_dir() -> Path:
     return path
 
 
-def pull_hf_dataset(dataset_id: str = HF_DATASET, split: str = "test", max_rows: int = 50) -> Path:
-    """Download a Hub dataset slice into data/cache (network)."""
-    try:
-        from huggingface_hub import hf_hub_download  # type: ignore
-    except ImportError as exc:
-        raise RuntimeError(
-            "huggingface_hub is required for Hub pulls. pip install huggingface_hub"
-        ) from exc
-    dest = cache_dir() / dataset_id.replace("/", "__")
-    dest.mkdir(parents=True, exist_ok=True)
-    # Best-effort: try a parquet/json in the repo; fall back to datasets lib.
-    try:
-        from datasets import load_dataset  # type: ignore
+def pull_hf_dataset(
+    dataset_id: str = HF_DATASET,
+    split: str = "test",
+    max_rows: int = 50,
+    revision: str = "",
+    config: str = "ground_truth",
+) -> Path:
+    """LIVE-or-loud pinned Hub pull into data/cache (DMR-056).
 
-        ds = load_dataset(dataset_id, split=split)
-        out = dest / f"{split}_head.jsonl"
-        with out.open("w", encoding="utf-8") as fh:
-            for i, row in enumerate(ds):
-                if i >= max_rows:
-                    break
-                fh.write(json.dumps(dict(row), default=str) + "\n")
-        return out
-    except Exception:
-        marker = dest / "README.md"
-        marker.write_text(
-            f"Could not stream {dataset_id}. Place a JSONL dump here for offline use.\n",
-            encoding="utf-8",
+    Routes through the SAME corpus loader the job preflight uses
+    (``corpus.prepare_subset``): pinned revision (default
+    ``FAMILY_HF_REVISION``), ``default``+``ground_truth`` merge on filename,
+    ``content_sha256`` verification, GT-shard-absent refusal, deterministic
+    subsetting (never first-N). ANY failure raises (the CLI maps it to exit
+    1) — the old ``except Exception -> README marker -> exit 0`` silent no-op
+    is gone, so a pull that fetched zero rows can never look successful.
+    """
+    from mailroom_sandbox.corpus import prepare_subset
+    from mailroom_sandbox.job.spec import DatasetSpec, FAMILY_HF_REVISION
+
+    rev = revision or FAMILY_HF_REVISION
+    spec = DatasetSpec(
+        provider="huggingface",
+        repo=dataset_id,
+        config=config,
+        split=split,
+        revision=rev,
+        limit=max_rows,
+    )
+    dest = (
+        cache_dir()
+        / f"{dataset_id.replace('/', '__')}__{rev[:12]}"
+        / f"{config or 'default'}_{split}_subset.jsonl"
+    )
+    result = prepare_subset(spec, dest)
+    if not result.get("rows"):
+        raise RuntimeError(
+            f"pull returned 0 rows for {dataset_id}@{rev} "
+            f"({config or 'default'}/{split}) — refusing to write an empty dataset"
         )
-        return marker
+    print(
+        f"pulled {result['rows']} row(s) from {dataset_id}@"
+        f"{result.get('revision_resolved') or rev[:12]} ({config or 'default'}/{split}) "
+        f"sha256={result['sha256'][:12]} -> {dest}"
+    )
+    return dest

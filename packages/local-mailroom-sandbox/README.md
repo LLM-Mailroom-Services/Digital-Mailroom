@@ -63,7 +63,7 @@ sandbox legalbench --mock|--local
 sandbox eval <agent>|extract|chained|pipeline|legalbench|local_vs_api [--mock|--local]
 sandbox eval local_vs_api --from-log   # compare experiment_log local vs API-key runs
 sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0
-sandbox datasets pull
+sandbox datasets pull          # LIVE pinned Hub pull into data/cache/ (network; exit 1 on failure)
 sandbox datasets prepare   # offline clean → data/runtime/prepared/
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml
 sandbox run start --config <run.yaml> --job-mode modal --watch   # Modal worker

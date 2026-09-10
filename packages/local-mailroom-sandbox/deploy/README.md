@@ -93,7 +93,7 @@ For evals: `SANDBOX_PROFILE=modal-vllm` + `DEFAULT_PROVIDER=vllm` (see
 | --- | --- | --- |
 | `MODAL_VLLM_MODEL` | `Qwen/Qwen3-8B` | HF repo id |
 | `MODAL_VLLM_GPU` | `L4` | 24 GB VRAM |
-| `MODAL_VLLM_MAX_MODEL_LEN` | `32768` | context cap (KV-cache budget) |
+| `MODAL_VLLM_MAX_MODEL_LEN` | `16384` | context cap (KV-cache budget). DMR-056: v0.28.0 RAISES at boot when the pool can't hold one request — L4-bf16 8B rows cap at 16384; AWQ/FP8 rows set 32768 |
 | `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | fraction of GPU memory; vLLM's default is `0.92` |
 | `MODAL_VLLM_MAX_NUM_SEQS` | `256` | concurrency cap; vLLM's own L4/OpenAI-server default |
 | `MODAL_VLLM_QUANTIZATION` | empty | `awq` / `gptq` / … |
@@ -119,13 +119,18 @@ models — bump **both** pins together only after a live parity run.
 cap, and tensor-parallel size. Rules of thumb (verified against v0.28.0,
 2026-09-10):
 
-- **L4 24 GB** (default): 8B bf16 or AWQ is the sweet spot; 14B **AWQ** fits,
-  14B **bf16 does not** (~29 GB > ~21.6 GB usable — the "14B trap").
-- **AWQ/GPTQ (4-bit)** runs on Ampere (A10G/A100); **FP8** is native on
-  Hopper (H100) and Ada (L4), *emulated* (slower) on A100.
-- **70B-class**: `MODAL_VLLM_GPU="A100-80GB:2"` + FP8 +
-  `MODAL_VLLM_TP_SIZE=2` (~35 GB/GPU), or a single `A100-80GB` at 4-bit
-  (~39 GB). The TP knob is load-bearing — without it vLLM uses 1 GPU and OOMs.
+- **L4 24 GB** (default): 8B bf16 (16K context) or AWQ (32K) is the sweet
+  spot; 14B **AWQ** fits, 14B **bf16 does not** (~29 GB > ~21.6 GB usable —
+  the "14B trap").
+- **AWQ/GPTQ (4-bit)** runs on Ampere (A10/A100); **FP8** is native on
+  Hopper (H100) and Ada (L4), *weight-only Marlin* (slower) on A100 — the
+  FP8 matrix rows point at the PUBLISHED `-FP8` checkpoints (auto-detected;
+  no forced `--quantization`).
+- **70B-class**: `MODAL_VLLM_GPU="A100-80GB:2"` +
+  `MODAL_VLLM_TP_SIZE=2` with the published `RedHatAI/
+  Llama-3.3-70B-Instruct-FP8-dynamic` checkpoint (~35 GB/GPU); forcing
+  online FP8 on the bf16 weights OOMs at load (~70.5 GB/GPU vs 72 GB
+  budget). The TP knob is load-bearing — without it vLLM uses 1 GPU and OOMs.
 - **Gated repos** (`meta-llama/*`): set `HF_TOKEN` in the deploy env.
 - `json_object` structured outputs work with xgrammar on v0.28.0 (no
   `--guided-decoding-backend` needed — that flag is gone).
@@ -140,7 +145,7 @@ the same `vllm serve` argv:
 | Flag | Value | Why |
 | --- | --- | --- |
 | `--host` / `--port` | `0.0.0.0` / `8000` | reachable from the compose network / Modal proxy |
-| `--max-model-len` | `32768` (knob) | caps the KV-cache working set |
+| `--max-model-len` | `16384` (knob) | DMR-056: boot-valid default for L4-bf16 8B rows — v0.28.0 RAISES (not warns) when the KV pool can't hold one request at the cap; AWQ rows use 32768 |
 | `--gpu-memory-utilization` | `0.90` (knob) | vLLM's default is `0.92`; 0.90 keeps headroom on a 24 GB L4 and on shared local GPUs |
 | `--max-num-seqs` | `256` (knob) | vLLM's own L4/OpenAI-server default, pinned so local and Modal schedule the same concurrency on any GPU |
 | `--no-enable-log-requests` | on | v0.28.0 made request logging opt-in (`--enable-log-requests`); the pre-0.28 `--disable-log-requests` flag no longer exists |
@@ -242,8 +247,9 @@ sandbox run start --job-mode modal --config <run.yaml> --watch
 ```
 
 Deploy-time env (export before `modal deploy`): `LANGFUSE_*`,
-`OTEL_EXPORTER_OTLP_ENDPOINT`, `VLLM_BASE_URL`, `VLLM_API_KEY`, `HF_TOKEN`.
-See `docs/jobs.md`.
+`OTEL_EXPORTER_OTLP_ENDPOINT`, `VLLM_BASE_URL`, `VLLM_API_KEY`, `HF_TOKEN`,
+`SANDBOX_DEBUG` (DMR-056: it now travels through the deploy Secret — export
+it BEFORE `modal deploy` or the worker never sees it). See `docs/jobs.md`.
 
 Failures surface in the state dict with `error`/`traceback_tail`/`diagnostics`;
 `SANDBOX_DEBUG=1` enables DEBUG logging; `modal run modal_job.py --debug`

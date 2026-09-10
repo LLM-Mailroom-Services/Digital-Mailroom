@@ -132,11 +132,15 @@ condor_submit vllm_batch_eval.sub
 starting vLLM** — a missing stack fails the job instead of silently scoring
 mocks. It then serves `Qwen/Qwen3-8B` with the same engine argv as
 `deploy/docker-compose.yml` and `deploy/modal_vllm.py` (`--max-model-len
-32768 --gpu-memory-utilization 0.90 --max-num-seqs 256
---no-enable-log-requests`; override per submission via the `.sub`
-`environment` line, including `TP_SIZE` for 70B-class multi-GPU jobs), waits
-for `/v1/models` (hard failure on death or a 20-minute timeout), then runs
-`sandbox eval sorter --local` / `eval extract --local` with
+16384 --gpu-memory-utilization 0.90 --max-num-seqs 256
+--no-enable-log-requests` — DMR-056: 16384 is the boot-valid default for
+L4-class bf16 8B rows; override per submission via the `.sub`
+`environment` line, including `TP_SIZE` for 70B-class multi-GPU jobs and
+`QUANTIZATION`/`REVISION` for pre-quantized/pinned checkpoints), waits
+for `/v1/models` (hard failure on death or a 20-minute timeout; the probe is
+bounded with `--max-time 5` and forwards the bearer when `VLLM_API_KEY` is
+set — v0.28.0 enforces it automatically, a keyless probe would 401 forever),
+then runs `sandbox eval sorter --local` / `eval extract --local` with
 `SANDBOX_PROFILE=vllm-local` and `--model "$MODEL"` so the agents always
 request the served model. A final **live-or-loud guard** fails the job if any
 experiment-log record shows `offline_fallback > 0`. Results land in the job's

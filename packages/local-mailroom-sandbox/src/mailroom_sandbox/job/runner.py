@@ -19,7 +19,30 @@ from mailroom_sandbox.job.metrics import record_from_run
 from mailroom_sandbox.job.otel import job_span
 
 PER_ITEM_TASKS = ("sorter", "legalbench")
-RUNNABLE_TASKS = PER_ITEM_TASKS + ("pipeline", "extract", "chained", "local_vs_api", "isolated")
+_WHOLE_RUN_TASKS = ("pipeline", "extract", "chained", "local_vs_api", "isolated")
+
+# DMR-056: every registered isolated agent (SPECS in eval/agents.py) is also a
+# runnable whole-run job task — registering a new AgentSpec is the ONE-file
+# extension point for a new eval task, and it automatically becomes runnable
+# via `sandbox run start --config <run.yaml>` with `task: <agent>`.
+# The dispatch + validation lookups are LIVE (see _agent_task_names /
+# job.spec.known_tasks) so a spec registered at runtime is picked up without
+# re-import; this tuple is the import-time snapshot used for messages/tests.
+try:
+    from mailroom_sandbox.eval.agents import SPECS as _AGENT_SPECS
+
+    ISOLATED_AGENT_TASKS = tuple(name for name in _AGENT_SPECS if name not in PER_ITEM_TASKS)
+except Exception:  # pragma: no cover — import fallback for isolated tooling
+    ISOLATED_AGENT_TASKS = ()
+
+RUNNABLE_TASKS = PER_ITEM_TASKS + _WHOLE_RUN_TASKS + ISOLATED_AGENT_TASKS
+
+
+def _agent_task_names() -> tuple[str, ...]:
+    """LIVE agent-task names (DMR-056): a spec registered after import counts."""
+    from mailroom_sandbox.eval.agents import SPECS
+
+    return tuple(name for name in SPECS if name not in PER_ITEM_TASKS)
 
 
 def _expected_for(task: str, row: dict[str, Any]) -> str:
@@ -125,17 +148,26 @@ def _run_whole_run(
         "prompt_version": prompt_variant,
         "agent_models": None,
     }
+    # DMR-056: whole-run tasks score the LOCKED live dataset when the run spec
+    # prepared one (Hub/local); an empty lock falls back to the runners'
+    # fixture defaults (serving-only specs like local_vs_api stay fixture-based).
+    locked_rows = store.dataset_rows() or None
     try:
         if task == "pipeline":
-            result = eval_runners.run_pipeline_eval(connected=True, **kwargs)
+            result = eval_runners.run_pipeline_eval(connected=True, rows=locked_rows, **kwargs)
         elif task == "extract":
-            result = eval_runners.run_extract_eval(**kwargs)
+            result = eval_runners.run_extract_eval(rows=locked_rows, **kwargs)
         elif task == "chained":
-            result = eval_runners.run_chained_eval(**kwargs)
+            result = eval_runners.run_chained_eval(rows=locked_rows, **kwargs)
         elif task == "local_vs_api":
             result = eval_runners.run_local_vs_api_eval(**kwargs)
         elif task == "isolated":
-            result = eval_runners.run_isolated_eval("sorter", **kwargs)
+            # Historical alias: `isolated` runs the sorter spec (docs/jobs.md).
+            result = eval_runners.run_isolated_eval("sorter", rows=locked_rows, **kwargs)
+        elif task in _agent_task_names():
+            # DMR-056: any registered AgentSpec name is a whole-run job task —
+            # `task: judge` / `task: gmail_triage` (once registered) etc.
+            result = eval_runners.run_isolated_eval(task, rows=locked_rows, **kwargs)
         else:
             raise ValueError(f"task {task!r} is not runnable")
     except Exception as exc:  # noqa: BLE001
@@ -299,8 +331,10 @@ def run_job(
     # so dispatch before the per-item row guard.
     _apply_prompt_overrides(store)
     if task not in PER_ITEM_TASKS:
-        if task not in RUNNABLE_TASKS:
-            raise ValueError(f"task {task!r} is not runnable; have {sorted(RUNNABLE_TASKS)}")
+        from mailroom_sandbox.job.spec import known_tasks
+
+        if task not in known_tasks():
+            raise ValueError(f"task {task!r} is not runnable; have {sorted(known_tasks())}")
         return _run_whole_run(store, task, mock=mock, model=model, profile=profile)
 
     if not rows:

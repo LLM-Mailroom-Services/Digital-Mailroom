@@ -48,6 +48,11 @@ def _call_status(fc: Any) -> str | None:
     try:
         graph = fc.get_call_graph()
     except Exception:
+        # NOTE (DMR-056): a status-lookup failure returns None, and None is
+        # NOT in TERMINAL_STATES — so is_alive treats an undeterminable call
+        # as alive and ensure_running attaches to it. Acceptable for a
+        # polling CLI; the SDK's own docs note call-graph data is not
+        # populated in real time and not recommended for critical use.
         return None
     if not graph:
         return None

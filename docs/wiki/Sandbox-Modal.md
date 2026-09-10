@@ -49,7 +49,7 @@ sandbox health --profile modal-vllm
 | --- | --- | --- |
 | `MODAL_VLLM_MODEL` | `Qwen/Qwen3-8B` | HF model id |
 | `MODAL_VLLM_GPU` | `L4` | GPU type (24 GB) |
-| `MODAL_VLLM_MAX_MODEL_LEN` | `32768` | Context cap |
+| `MODAL_VLLM_MAX_MODEL_LEN` | `16384` | Context cap — DMR-056: boot-valid default (v0.28.0 raises when the KV pool can't hold one request); AWQ/FP8 rows use 32768 |
 | `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | GPU memory fraction |
 | `MODAL_VLLM_MAX_NUM_SEQS` | `256` | Concurrency cap |
 | `MODAL_VLLM_TP_SIZE` | from GPU `:N` suffix (1 single-GPU) | Tensor-parallel size — must match `MODAL_VLLM_GPU="A100-80GB:2"` for 70B-class |
@@ -70,7 +70,7 @@ sandbox health --profile modal-vllm
 | Flag | Value | Why |
 | --- | --- | --- |
 | `--host` / `--port` | `0.0.0.0` / `8000` | Reachable from compose network / Modal proxy |
-| `--max-model-len` | `32768` (knob) | Caps KV-cache working set |
+| `--max-model-len` | `16384` (knob) | DMR-056: L4-bf16 8B rows cannot hold 32768 — v0.28.0 RAISES at boot (does not shrink-and-warn) |
 | `--gpu-memory-utilization` | `0.90` (knob) | Headroom below vLLM's 0.92 default |
 | `--max-num-seqs` | `256` (knob) | Same concurrency on any GPU |
 | `--no-enable-log-requests` | on | v0.28.0 made request logging opt-in |
@@ -121,6 +121,7 @@ modal volume ls sandbox-vllm-cache           # JIT/CUDA-graph cache
 | `401` | `VLLM_API_KEY` must equal `MODAL_VLLM_API_TOKEN` |
 | First request slow | Pre-warm or raise `MODAL_VLLM_SCALEDOWN_SECONDS` |
 | CUDA OOM at boot | Lower `MAX_MODEL_LEN`, quantize, or bigger GPU |
+| `ValueError: To serve at least one request with the model's max seq len...` | v0.28.0 admission check: the KV pool can't hold one request at `max_model_len` — cap at 16384 for L4-bf16 8B rows or use an AWQ/FP8 checkpoint (DMR-056) |
 | `--disable-log-requests` error | v0.28.0 renamed it; use `--no-enable-log-requests` |
 | `Secret.from_local` error | SDK 1.5.5 removed it; this file uses `from_dict` |
 | `download_model` cached 0 files | wrong repo id/revision or gated repo without `HF_TOKEN` (DMR-053) |

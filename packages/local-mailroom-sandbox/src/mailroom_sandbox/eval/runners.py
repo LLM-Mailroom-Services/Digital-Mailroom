@@ -73,12 +73,18 @@ def run_isolated_eval(
     model: str | None = None,
     agent_models: dict[str, str] | None = None,
     connected: bool = False,
+    rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Run one live agent / node against fixtures, nested under document-pipeline."""
+    """Run one live agent / node against fixtures, nested under document-pipeline.
+
+    ``rows`` (DMR-056): when the caller passes the locked live dataset rows
+    (the ``sandbox run`` whole-run path), score THOSE rows; otherwise fall
+    back to the agent's committed fixture rows.
+    """
     from mailroom_sandbox.eval.agents import spec_for
 
     spec = spec_for(task)
-    rows = spec.load_rows()
+    rows = spec.load_rows() if rows is None else rows
     if sample:
         rows = rows[: sample]
     plan = {
@@ -189,8 +195,9 @@ def run_sorter_eval(
     profile: str | None = None,
     model: str | None = None,
     agent_models: dict[str, str] | None = None,
+    rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    rows = load_manifest()
+    rows = load_manifest() if rows is None else rows
     if sample:
         rows = rows[: sample]
     plan = {
@@ -263,8 +270,9 @@ def run_extract_eval(
     model: str | None = None,
     prompt_version: str | None = None,
     agent_models: dict[str, str] | None = None,
+    rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    rows = [r for r in load_manifest() if parse_expected_fields(r)]
+    rows = [r for r in (load_manifest() if rows is None else rows) if parse_expected_fields(r)]
     if sample:
         rows = rows[: sample]
     plan = {"task": "extract", "n": len(rows), "mock": mock, "fingerprint": dataset_fingerprint(rows)}
@@ -282,7 +290,9 @@ def run_extract_eval(
             row["expected_doc_class"],
             predicted_fields,
             expected_fields,
-            doc_text=fixture_file(row).read_text(encoding="utf-8"),
+            # DMR-056: live corpus rows carry doc_text inline (no fixture file).
+            doc_text=row.get("doc_text")
+            or (fixture_file(row).read_text(encoding="utf-8") if fixture_file(row).is_file() else None),
         )
         value = scored.get("overall_extraction_score")
         if isinstance(value, (int, float)):
@@ -572,8 +582,11 @@ def run_pipeline_eval(
     prompt_version: str | None = None,
     agent_models: dict[str, str] | None = None,
     connected: bool = True,
+    rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    rows = load_manifest()
+    # DMR-056: rows=None keeps the fixture manifest default; the sandbox job
+    # whole-run path passes the LOCKED live dataset rows instead.
+    rows = load_manifest() if rows is None else rows
     if sample:
         rows = rows[: sample]
     plan = {
@@ -609,7 +622,14 @@ def run_pipeline_eval(
                 row["expected_doc_class"],
                 result.get("extracted_data") or {},
                 expected_fields,
-                doc_text=fixture_file(row).read_text(encoding="utf-8") if fixture_file(row).is_file() else None,
+                # DMR-056: live corpus rows carry doc_text inline; fixture rows
+                # read from disk (subdir guard — live rows have no subdir key).
+                doc_text=row.get("doc_text")
+                or (
+                    fixture_file(row).read_text(encoding="utf-8")
+                    if "subdir" in row and fixture_file(row).is_file()
+                    else None
+                ),
             )
             value = scored.get("overall_extraction_score")
             if isinstance(value, (int, float)):

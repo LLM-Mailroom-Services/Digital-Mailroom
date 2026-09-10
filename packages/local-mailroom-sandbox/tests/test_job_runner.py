@@ -166,11 +166,67 @@ def test_whole_run_local_vs_api_delegates(tmp_path):
 
 
 def test_whole_run_unknown_task_rejected(tmp_path):
-    store = _whole_run_store(tmp_path, task="bogus")
     import pytest
 
-    with pytest.raises(ValueError, match="not runnable"):
-        runner.run_job(store, mock=None)
+    # DMR-056: validation now lives at spec parse (known_tasks) — a bogus
+    # task dies at RunSpec construction, never "locks prepared then dies".
+    with pytest.raises(ValueError, match="unknown task"):
+        RunSpec(task="bogus")
+
+
+def test_whole_run_agent_task_delegates(tmp_path):
+    # DMR-056: any registered AgentSpec name is a whole-run job task —
+    # `task: judge` dispatches to run_isolated_eval without code changes.
+    store = _whole_run_store(tmp_path, task="judge")
+    summary = runner.run_job(store, mock=None)
+    assert summary["state"] == "done"
+    assert summary["task"] == "judge"
+    assert "scores" in summary
+    cp = store.read_checkpoint() or {}
+    assert cp["state"] == "done"
+
+
+def test_whole_run_pipeline_receives_locked_rows(tmp_path, monkeypatch):
+    # DMR-056: whole-run tasks score the LOCKED live dataset (3 rows here),
+    # not the 10-row fixture manifest — the live-data integration contract.
+    captured: dict = {}
+
+    def spy(**kwargs):
+        captured["rows"] = kwargs.get("rows")
+        captured["n"] = len(kwargs.get("rows") or [])
+        return {"scores": {"class_correct": 1.0, "n": captured["n"]}, "n": captured["n"]}
+
+    monkeypatch.setattr(runner.eval_runners, "run_pipeline_eval", spy)
+    store = _whole_run_store(tmp_path, task="pipeline")
+    summary = runner.run_job(store, mock=None)
+    assert summary["state"] == "done"
+    assert captured["n"] == 3, "whole-run pipeline must score the locked rows"
+
+
+def test_registering_new_agent_spec_is_the_extension_point(tmp_path, monkeypatch):
+    # THE DMR-056 extension-point contract: registering ONE AgentSpec is the
+    # one-file change; the new task then passes spec validation, is a whole-run
+    # job task, and dispatches — no enum, no dispatch table, no spec field.
+    from mailroom_sandbox.eval import agents as agents_mod
+    from mailroom_sandbox.eval.agents import AgentSpec
+    from mailroom_sandbox.job.spec import known_tasks
+
+    spec = AgentSpec(
+        name="dummy_agent",
+        observation="classify-document",
+        mock_predict=lambda row: {"doc_type": "contract"},
+        score_one=lambda row, pred: {"match": 1.0},
+    )
+    agents_mod.SPECS["dummy_agent"] = spec
+    try:
+        assert "dummy_agent" in known_tasks()  # validation accepts it
+        assert "dummy_agent" in runner._agent_task_names()  # dispatch accepts it
+        store = _whole_run_store(tmp_path, task="dummy_agent")
+        summary = runner.run_job(store, mock=None)
+        assert summary["state"] == "done"
+        assert summary["task"] == "dummy_agent"
+    finally:
+        agents_mod.SPECS.pop("dummy_agent", None)
 
 
 def test_whole_run_failure_writes_failed_checkpoint(tmp_path, monkeypatch):

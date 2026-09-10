@@ -58,12 +58,21 @@ class MockFunctionCall:
 class MockDict:
     def __init__(self):
         self.store = {}
+        # DMR-056: real modal 1.5.5 Dict.put is TWO-arg (key, value) — the
+        # worker regressed to one-arg calls that would TypeError in a real
+        # deploy; this stub enforces the real signature so the worker paths
+        # cannot silently pass with the old call shape.
+        self.put_calls: list[tuple] = []
 
     def from_name(self, name, create_if_missing=False):
         return self
 
     def get(self, key, default=None):
         return self.store.get(key, default)
+
+    def put(self, key, value):
+        self.put_calls.append((key, value))
+        self.store[key] = value
 
 
 def _store(tmp_path, lock=None) -> RunStore:
@@ -166,3 +175,25 @@ def test_pull_run_dir_copies_files(tmp_path, monkeypatch):
     rc, err = remote.pull_run_dir(store)
     assert rc == 0 and err == ""
     assert (store.dir / "items.jsonl").is_file()
+
+
+# ── DMR-056: modal_job.py Dict.put must be two-arg (regression) ──────────────
+
+
+def test_modal_job_state_dict_put_is_two_arg():
+    """Every state_dict.put in the deploy worker is keyed (real 1.5.5 API).
+
+    The DMR-047/053 worker called ``Dict.put(<one dict>)``; modal 1.5.5
+    requires ``put(key, value)``, so a real deploy TypeError'd on the first
+    progress event — the progress mirror, failure state dict, and volume
+    commit cadence all died, invisible to the fully-stubbed suite.
+    """
+    import re
+
+    src = (
+        Path(__file__).resolve().parent.parent / "deploy" / "modal_job.py"
+    ).read_text(encoding="utf-8")
+    puts = [ln for ln in src.splitlines() if "state_dict.put(" in ln]
+    assert puts, "expected state_dict.put call sites in modal_job.py"
+    for ln in puts:
+        assert re.search(r"state_dict\.put\(\s*(run_id|payload)", ln), f"one-arg put: {ln!r}"

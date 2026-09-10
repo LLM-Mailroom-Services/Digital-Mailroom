@@ -74,10 +74,67 @@ Offline catalog: `data/fixtures/` (see `ATTRIBUTION.md`). Tiny HF slice:
 `data/fixtures/agents/*.jsonl`. Tiny PDF/PNG: `data/fixtures/intake/`.
 Synthetic serving pair: `data/fixtures/serving/local_vs_api.json`.
 
-`sandbox datasets pull` streams a Hub head into `data/cache/` when network is
-allowed. `sandbox datasets prepare` (and notebooks `01`–`03`) clean the offline
-catalog into `data/runtime/prepared/` with no network — see
-[`docs/docker-offline.md`](docker-offline.md).
+`sandbox datasets pull` performs a LIVE, PINNED Hub pull into `data/cache/`
+(network required; default revision is the family pin `FAMILY_HF_REVISION` —
+never the floating Hub tip). It routes through the SAME corpus loader the job
+preflight uses: `default`+`ground_truth` merge, `content_sha256` verification,
+GT-shard-absent refusal, deterministic subsetting. Any failure exits 1 with
+the error — a pull that fetched zero rows can never look successful
+(live-or-loud, DMR-056):
+
+```bash
+sandbox datasets pull --max-rows 50                    # pinned ground_truth/test
+sandbox datasets pull --revision <sha> --config default --split train
+```
+
+`datasets prepare` (and notebooks `01`–`03`) clean the offline catalog into
+`data/runtime/prepared/` with no network — see
+[`docs/docker-offline.md`](docker-offline.md). Note: `prepare` output feeds
+the notebooks; JOB runs score the locked `dataset.jsonl` prepared by
+`run preflight` — for live data through the eval surface, use a run spec with
+a Hub `dataset:` block (below).
+
+## Whole-run job tasks score the locked dataset (DMR-056)
+
+`sandbox run` whole-run tasks (`pipeline`, `extract`, `chained`, `isolated`,
+and every registered agent name) score the run spec's LOCKED dataset rows —
+Hub or local — when the preflight prepared any. An empty lock (serving-only
+specs) falls back to the runner's fixture defaults. Per-item tasks
+(`sorter`, `legalbench`) always score the locked rows row-by-row. Example:
+a spec with a Hub `dataset:` block and `task: pipeline` scores the live
+corpus subset through the connected graph (see `config/runs/example.yaml`'s
+commented Hub block).
+
+## Adding a new eval task (the extension point, DMR-056)
+
+Registering a new eval task is a ONE-FILE change — there is no enum, no
+dispatch table, and no spec field to update:
+
+**Isolated agent task** (e.g. a new specialist agent): add an `AgentSpec`
+to `src/mailroom_sandbox/eval/agents.py` (`SPECS` / `_register()`; the
+specialist pattern is `SPECIALIST_CLASS` + `LIVE_CLASS_MAP`). That single
+registration automatically:
+
+- appears in `sandbox eval <name>` (CLI choices derive from `EVAL_TASKS`),
+- becomes a whole-run job task (`task: <name>` in a run spec — validation
+  via `job.spec.known_tasks()`, dispatch via `job.runner`),
+- is picked up by `sandbox matrix` (SPECS fallback),
+- passes spec-level validation (`RunSpec`/`JobSpec` task check).
+
+A registered task needs `mock_predict` + `score_one` (fixture rows via
+`load_rows`); `live_predict` is optional — without it a live run marks
+`offline_fallback` instead of silently mocking.
+
+**Composite task** (`extract`-style): touch all five seams —
+`COMPOSITE_TASKS` in `eval/agents.py`, a `_cmd_eval` arm in `cli.py`, the
+matrix map in `eval/matrix.py`, `_WHOLE_RUN_TASKS` in `job/runner.py`, and a
+`_run_whole_run` arm. The `_cmd_eval` fall-through to LegalBench is now an
+explicit `raise` — an unregistered composite fails loudly instead of being
+misrouted.
+
+The regression test `test_registering_new_agent_spec_is_the_extension_point`
+(`tests/test_job_runner.py`) pins this contract: register a dummy spec →
+validation + dispatch accept it, run it, done.
 
 ## Prompt variants
 

@@ -175,7 +175,7 @@ class TestDeploySurface:
         assert mod.MODEL == "Qwen/Qwen3-8B"
         assert mod.GPU == "L4"
         assert mod.VLLM_IMAGE_TAG == "v0.28.0"  # never `latest`
-        assert mod.MAX_MODEL_LEN == "32768"
+        assert mod.MAX_MODEL_LEN == "16384"  # DMR-056: L4-bf16 boot-valid default
         assert mod.GPU_MEMORY_UTILIZATION == "0.90"  # below vLLM's 0.92 default
         assert mod.MAX_NUM_SEQS == "256"  # vLLM's own L4/OpenAI-server default
         assert mod.SCALEDOWN_SECONDS == 15 * 60
@@ -211,7 +211,11 @@ class TestDeploySurface:
         mod = _load_app_module()
         assert mod.image.ref == "vllm/vllm-openai:v0.28.0"
         assert mod.image.add_python == "3.12"
-        assert mod.image.envs["HF_HUB_ENABLE_HF_TRANSFER"] == "1"
+        # DMR-056: huggingface_hub 1.x has no [hf_transfer] extra — Xet is the
+        # default backend; HF_HUB_ENABLE_HF_TRANSFER is a no-op and dropped.
+        assert mod.image.envs["HF_XET_HIGH_PERFORMANCE"] == "1"
+        assert "HF_HUB_ENABLE_HF_TRANSFER" not in mod.image.envs
+        assert mod.download_image.envs["HF_XET_HIGH_PERFORMANCE"] == "1"
         assert mod.image.envs["HF_XET_HIGH_PERFORMANCE"] == "1"
 
     def test_download_model_prewarm_surface(self):
@@ -390,7 +394,7 @@ class TestComposeParity:
         assert cmd[0] == "${VLLM_MODEL:-Qwen/Qwen3-8B}"
         assert cmd[cmd.index("--host") + 1] == "0.0.0.0"
         assert cmd[cmd.index("--port") + 1] == "8000"
-        assert cmd[cmd.index("--max-model-len") + 1] == "${VLLM_MAX_MODEL_LEN:-32768}"
+        assert cmd[cmd.index("--max-model-len") + 1] == "${VLLM_MAX_MODEL_LEN:-16384}"
         assert (
             cmd[cmd.index("--gpu-memory-utilization") + 1]
             == "${VLLM_GPU_MEMORY_UTILIZATION:-0.90}"

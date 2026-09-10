@@ -65,7 +65,11 @@ VLLM_CACHE_MOUNT = "/root/.cache/vllm"
 MODEL = os.environ.get("MODAL_VLLM_MODEL", "Qwen/Qwen3-8B")
 GPU = os.environ.get("MODAL_VLLM_GPU", "L4")
 QUANTIZATION = os.environ.get("MODAL_VLLM_QUANTIZATION", "")
-MAX_MODEL_LEN = os.environ.get("MODAL_VLLM_MAX_MODEL_LEN", "32768")
+# DMR-056: default 16384, NOT 32768 — v0.28.0 RAISES at boot when the KV pool
+# cannot hold one request at max_model_len (it does not shrink-and-warn), and
+# L4-bf16 8B-class rows cannot hold 32768 (see config/models.yaml). AWQ rows
+# explicitly set 32768 via the env knob.
+MAX_MODEL_LEN = os.environ.get("MODAL_VLLM_MAX_MODEL_LEN", "16384")
 REVISION = os.environ.get("MODAL_VLLM_REVISION", "")
 
 # Memory budget for a TEST sandbox: vLLM's default is 0.92 of the GPU; 0.90
@@ -138,10 +142,12 @@ vllm_cache = modal.Volume.from_name(VLLM_CACHE_VOLUME_NAME, create_if_missing=Tr
 
 image = (
     modal.Image.from_registry(f"vllm/vllm-openai:{VLLM_IMAGE_TAG}", add_python="3.12")
-    .run_commands("pip install --no-cache-dir huggingface_hub[hf_transfer]")
+    # DMR-056: huggingface_hub 1.x has no [hf_transfer] extra (pip warns and
+    # succeeds); Xet is the default transfer backend in 1.x, so the plain
+    # package + HF_XET_HIGH_PERFORMANCE is the correct, warning-free setup.
+    .run_commands("pip install --no-cache-dir huggingface_hub")
     .env(
         {
-            "HF_HUB_ENABLE_HF_TRANSFER": "1",
             "HF_XET_HIGH_PERFORMANCE": "1",
         }
     )
@@ -150,10 +156,9 @@ image = (
 # Slim image for the pre-warm function (no GPU, no vLLM).
 download_image = (
     modal.Image.debian_slim(python_version="3.12")
-    .uv_pip_install("huggingface_hub[hf_transfer]")
+    .uv_pip_install("huggingface_hub")
     .env(
         {
-            "HF_HUB_ENABLE_HF_TRANSFER": "1",
             "HF_XET_HIGH_PERFORMANCE": "1",
         }
     )
@@ -287,12 +292,17 @@ def download_model(model: str = "", revision: str = "") -> None:
     model = model or os.environ.get("MODAL_VLLM_MODEL", MODEL)
     revision = revision or os.environ.get("MODAL_VLLM_REVISION", REVISION) or None
     print(f"pre-warming {model}" + (f"@{revision}" if revision else ""))
-    paths = snapshot_download(repo_id=model, revision=revision)
-    n_files = len(paths) if isinstance(paths, list) else 1
-    if isinstance(paths, list) and not paths:
+    # DMR-056: huggingface_hub 1.x returns the snapshot DIRECTORY (str), not a
+    # file list — the old isinstance(paths, list) guard could never fire, so
+    # an empty snapshot would have been silently "cached". Count the files in
+    # the returned dir and raise loudly on an empty result.
+    snapshot_dir = snapshot_download(repo_id=model, revision=revision)
+    n_files = sum(1 for _ in Path(snapshot_dir).rglob("*")) if snapshot_dir else 0
+    if not n_files:
         raise SystemExit(
-            f"snapshot_download returned no files for {model} — check the repo id, "
-            "the revision, and HF_TOKEN for gated repos (see the masked boot log)"
+            f"snapshot_download returned an empty snapshot for {model} — check the "
+            "repo id, the revision, and HF_TOKEN for gated repos (see the masked "
+            "boot log)"
         )
     hf_cache.commit()
     print(f"cached {model}" + (f"@{revision}" if revision else "") + f" ({n_files} file(s))")

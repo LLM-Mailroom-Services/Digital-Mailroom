@@ -16,7 +16,7 @@ sandbox fetch-deps
 See mailroom `docs/examples/samples/ATTRIBUTION.md` for CUAD license terms.
 
 Tiny HF JSONL under `hf/` is a **synthetic** one-doc-per-class slice matching
-the `Lucius-Morningstar/docclass-merged` schema (not Hub content). Use
+the `Lucius-Morningstar/mailroom-corpus` schema (not Hub content). Use
 `sandbox datasets pull` for real Hub rows.
 
 Tiny PDF/PNG under `intake/` are original sandbox fixtures (ASCII PDF + 1×1 PNG)

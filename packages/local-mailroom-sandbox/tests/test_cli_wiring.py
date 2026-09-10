@@ -100,6 +100,84 @@ def test_pull_models_ollama_still_pulls(capsys, monkeypatch):
     assert called and called[0]  # ollama pull_models list forwarded
 
 
+# ── DMR-056: datasets pull is live-or-loud (never a silent marker) ───────────
+
+
+def test_datasets_pull_success_prints_rows_and_exit0(monkeypatch, capsys):
+    from mailroom_sandbox.job.spec import FAMILY_HF_REVISION
+
+    captured: dict = {}
+
+    def fake_prepare(spec, dest):
+        captured["spec"] = spec
+        return {
+            "rows": 7,
+            "sha256": "a" * 64,
+            "revision_resolved": "eafe1ab4c0d3",
+            "metadata": {"source": "huggingface"},
+        }
+
+    monkeypatch.setattr("mailroom_sandbox.corpus.prepare_subset", fake_prepare)
+    args = _args(
+        dataset="Lucius-Morningstar/mailroom-corpus",
+        max_rows=7,
+        revision="",
+        config="ground_truth",
+        split="test",
+    )
+    assert cli._cmd_datasets_pull(args) == 0
+    out = capsys.readouterr().out
+    assert "pulled 7 row(s)" in out
+    assert "sha256=aaaaaaaaaaaa" in out
+    # DMR-056: the default revision is the pinned FAMILY_HF_REVISION snapshot —
+    # a pull never floats to the Hub tip.
+    assert captured["spec"].revision == FAMILY_HF_REVISION
+    assert captured["spec"].config == "ground_truth"
+    assert captured["spec"].limit == 7
+
+
+def test_datasets_pull_failure_is_exit1(monkeypatch, capsys):
+    def boom(spec, dest):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr("mailroom_sandbox.corpus.prepare_subset", boom)
+    args = _args(dataset="Lucius-Morningstar/mailroom-corpus", max_rows=5, revision="", config="ground_truth", split="test")
+    assert cli._cmd_datasets_pull(args) == 1
+    assert "error: RuntimeError: network down" in capsys.readouterr().out
+
+
+def test_datasets_pull_zero_rows_refused(monkeypatch, capsys):
+    def empty(spec, dest):
+        return {"rows": 0, "sha256": "", "revision_resolved": None, "metadata": {}}
+
+    monkeypatch.setattr("mailroom_sandbox.corpus.prepare_subset", empty)
+    args = _args(dataset="Lucius-Morningstar/mailroom-corpus", max_rows=5, revision="", config="ground_truth", split="test")
+    assert cli._cmd_datasets_pull(args) == 1
+    assert "refusing to write an empty dataset" in capsys.readouterr().out
+
+
+# ── DMR-056: prompts show validates + surfaces the registry pin ──────────────
+
+
+def test_prompts_show_unknown_agent_exit2(capsys):
+    args = _args(name="not_an_agent", variant=None, offline=False)
+    assert cli._cmd_prompts_show(args) == 2
+    assert "unknown agent" in capsys.readouterr().out
+
+
+def test_prompts_show_sorter_surfaces_version_key(capsys):
+    args = _args(name="sorter", variant=None, offline=True)
+    assert cli._cmd_prompts_show(args) == 0
+    out = capsys.readouterr().out
+    assert "sorter_v14" in out  # the registry's pinned family-B key (DMR-056)
+
+
+def test_prompts_show_variant_has_no_version_key(capsys):
+    args = _args(name="sorter", variant="sorter_local_v0", offline=True)
+    assert cli._cmd_prompts_show(args) == 0
+    assert "version_key" not in capsys.readouterr().out
+
+
 # ── G34: matrix --providers takes profile names ──────────────────────────────
 
 

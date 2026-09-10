@@ -16,12 +16,16 @@ MODEL="${MODEL:-Qwen/Qwen3-8B}"
 PORT=8000
 VLLM_API_KEY="${VLLM_API_KEY:-}"
 # Engine parity knobs (compose/Modal contract), overridable per submission.
-MAX_MODEL_LEN="${MAX_MODEL_LEN:-32768}"
+# DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.28.0
+# raises at boot); AWQ rows set 32768 explicitly.
+MAX_MODEL_LEN="${MAX_MODEL_LEN:-16384}"
 GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-0.90}"
 MAX_NUM_SEQS="${MAX_NUM_SEQS:-256}"
 TP_SIZE="${TP_SIZE:-}"
+QUANTIZATION="${QUANTIZATION:-}"
+REVISION="${REVISION:-}"
 
-echo "[$(date -u +%FT%TZ)] serve_vllm start model=$MODEL max_model_len=$MAX_MODEL_LEN gpu_util=$GPU_MEMORY_UTILIZATION max_num_seqs=$MAX_NUM_SEQS tp=${TP_SIZE:-1} auth=$([ -n "$VLLM_API_KEY" ] && echo on || echo off)"
+echo "[$(date -u +%FT%TZ)] serve_vllm start model=$MODEL max_model_len=$MAX_MODEL_LEN gpu_util=$GPU_MEMORY_UTILIZATION max_num_seqs=$MAX_NUM_SEQS tp=${TP_SIZE:-1} quant=${QUANTIZATION:-bf16} auth=$([ -n "$VLLM_API_KEY" ] && echo on || echo off)"
 
 ARGS=(
     serve "$MODEL"
@@ -33,6 +37,12 @@ ARGS=(
 )
 if [ -n "$TP_SIZE" ]; then
     ARGS+=(--tensor-parallel-size "$TP_SIZE")
+fi
+if [ -n "$QUANTIZATION" ]; then
+    ARGS+=(--quantization "$QUANTIZATION")
+fi
+if [ -n "$REVISION" ]; then
+    ARGS+=(--revision "$REVISION")
 fi
 if [ -n "$VLLM_API_KEY" ]; then
     export VLLM_API_KEY

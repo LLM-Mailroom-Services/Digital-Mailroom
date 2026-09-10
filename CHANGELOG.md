@@ -21,6 +21,46 @@ and is recorded there, not here.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Modal+vLLM CLI three-mode readiness (DMR-056, 2026-09-10):** the sandbox
+  CLI is verified end-to-end in all three modes — mock smoke (fixture + live-
+  data mock runs reach `state=done` with honest `mock:` labels), live data
+  (`datasets pull` now performs a LIVE pinned-revision Hub pull through the
+  corpus loader with sha256 verification, deterministic subsetting, and exit
+  1 on any failure — the old `except Exception -> README marker -> exit 0`
+  silent no-op is gone; whole-run job tasks `pipeline`/`extract`/`chained`/
+  `isolated`/any agent name now score the run spec's LOCKED dataset rows
+  instead of always scoring the fixture manifest), and production config
+  (boot-valid defaults, live-or-loud guards, profile validation, `health`
+  probe honesty). The job worker's Modal `Dict.put` calls are now two-arg
+  (`put(run_id, payload)`) — the one-arg form TypeErrors on modal 1.5.5,
+  which silently killed the progress mirror, failure state dict, and volume
+  commit cadence in a REAL deploy (regression-pinned by a static test);
+  `SANDBOX_DEBUG` now travels through the deploy Secret (was unreachable in
+  the container); `download_model` counts the snapshot directory instead of
+  the dead `isinstance(paths, list)` branch (huggingface_hub 1.x returns a
+  str); the inert `huggingface_hub[hf_transfer]` extra is dropped from both
+  image builds. **Eval-task extension point:** registering one `AgentSpec`
+  in `eval/agents.py` is the one-file change — the new task automatically
+  passes spec-level task validation (`known_tasks`), becomes a `sandbox eval`
+  choice, a whole-run job task, and a matrix cell; the `_cmd_eval` fall-through
+  to LegalBench is now an explicit raise; `prompts show` validates agent names
+  (exit 2) and surfaces the registry version_key (sorter_v14/v33). **vLLM
+  matrix boot validity:** `MODAL_VLLM_MAX_MODEL_LEN` defaults to 16384 (L4-
+  bf16 8B-class rows cannot hold 32768 — v0.28.0 raises at the KV admission
+  check, it does not shrink-and-warn); the models.yaml rows are corrected
+  (Qwen3-8B/DS-8B/Llama-3.1-8B capped at 16384; the FP8 rows point at the
+  PUBLISHED `-FP8` checkpoints with auto-detected quantization; the 70B row
+  is the real ungated `RedHatAI/Llama-3.3-70B-Instruct-FP8-dynamic` at TP2);
+  htcondor health probe gets `--max-time 5` + bearer forwarding, `TP_SIZE`
+  joins the diagnostics export, `QUANTIZATION`/`REVISION` knobs added to both
+  scripts, and the `.sub` 70B example uses the real checkpoint. llm-mailroom's
+  Modal app gains cost tags + the `--check` probe for full parity. Docs:
+  `docs/evals.md` "Adding a new eval task", `docs/jobs.md`/`SANDBOX-GUIDE.md`/
+  `deploy/README.md`/htcondor README + wiki pages updated to match; suite
+  207 passed / 1 skipped.
+
 ### Added
 
 - **CHTC batch-eval live-or-loud path (DMR-044, 2026-09-10):**

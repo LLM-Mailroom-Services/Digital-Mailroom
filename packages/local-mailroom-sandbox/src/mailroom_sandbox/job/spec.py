@@ -234,6 +234,32 @@ class EngineSpec(BaseModel):
     modal: ModalSpec | None = Field(default_factory=ModalSpec)
 
 
+def known_tasks() -> tuple[str, ...]:
+    """Every runnable job task: per-item + whole-run + registered agents (DMR-056).
+
+    The agent half is data-driven from ``eval.agents.SPECS``: registering a
+    new ``AgentSpec`` is the ONE-file extension point, and the new task
+    automatically passes validation here, becomes a ``sandbox eval`` choice,
+    and a ``sandbox run`` whole-run task. No cycle: ``eval.agents`` does not
+    import ``job.spec``.
+    """
+    base = ("sorter", "legalbench", "pipeline", "extract", "chained", "local_vs_api", "isolated")
+    try:
+        from mailroom_sandbox.eval.agents import SPECS
+
+        agents = tuple(n for n in SPECS if n not in ("sorter", "legalbench"))
+    except Exception:  # pragma: no cover — defensive for partial tooling imports
+        agents = ()
+    return base + agents
+
+
+def _check_task(value: str) -> str:
+    tasks = known_tasks()
+    if value not in tasks:
+        raise ValueError(f"unknown task {value!r}; have {sorted(tasks)}")
+    return value
+
+
 class JobSpec(BaseModel):
     mode: Literal["endpoint", "modal"] = "endpoint"
     task: str = "sorter"
@@ -241,6 +267,11 @@ class JobSpec(BaseModel):
     checkpoint_every: int = 1
     max_retries: int = 2
     fail_fast: bool = False
+
+    @field_validator("task")
+    @classmethod
+    def _task_known(cls, v: str) -> str:
+        return _check_task(v)
 
     @field_validator("checkpoint_every")
     @classmethod
@@ -271,6 +302,11 @@ class RunSpec(BaseModel):
     note: str | None = None
 
     model_config = {"populate_by_name": True}
+
+    @field_validator("task")
+    @classmethod
+    def _task_known(cls, v: str) -> str:
+        return _check_task(v)
 
     @model_validator(mode="after")
     def _prompt_map(self) -> "RunSpec":

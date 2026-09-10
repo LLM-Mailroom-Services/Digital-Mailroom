@@ -14,11 +14,14 @@ override point is the ``langchain_agents.prompts.PROMPT_VERSIONS`` dict.
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 from typing import Any
 
 from mailroom_sandbox.job.spec import PromptRef
 from mailroom_sandbox.paths import prompts_dir
+
+logger = logging.getLogger(__name__)
 
 STATIC_AGENTS = (
     "sorter",
@@ -148,7 +151,21 @@ def resolve_prompt(agent: str, ref: PromptRef, *, offline: bool = False) -> dict
             }
         client = _langfuse_client()
         if client is None:
-            raise RuntimeError(f"langfuse prompt {name!r} requested but LANGFUSE_SECRET_KEY is unset")
+            if ref.version is not None:
+                # A pinned version cannot fall back — the run would silently
+                # use a different prompt than the lock claims.
+                raise RuntimeError(
+                    f"langfuse prompt {name!r} version {ref.version} requested but "
+                    "LANGFUSE_SECRET_KEY is unset — a pinned version cannot fall back"
+                )
+            # Floating label without credentials: mirror the mailroom runtime's
+            # soft fallback — log and lock the code default (DMR-052 G28).
+            logger.warning(
+                "langfuse prompt %s requested but LANGFUSE_SECRET_KEY is unset — "
+                "locking code-default (floating label cannot be pinned)",
+                name,
+            )
+            return resolve_prompt(agent, PromptRef(source="code-default"), offline=offline)
         try:
             prompt_obj = client.get_prompt(name, version=ref.version, label=ref.label)
         except Exception as exc:  # noqa: BLE001

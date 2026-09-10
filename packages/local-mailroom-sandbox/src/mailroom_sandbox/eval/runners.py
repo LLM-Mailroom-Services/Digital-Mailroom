@@ -718,6 +718,7 @@ def _run_pipeline_doc(
     mock: bool,
     session_id: str | None = None,
     experiment_name: str | None = None,
+    run_id: str | None = None,
 ) -> dict[str, Any]:
     """Run one row through mailroom ``run_pipeline`` when available.
 
@@ -725,7 +726,9 @@ def _run_pipeline_doc(
     (``doc_text`` inline — the DMR-027 job path); both are materialized into
     the inbox before the run. When the mailroom import fails a LIVE run
     raises (live-or-loud, DMR-044) instead of returning a mock-shaped
-    fallback; mock runs keep the deterministic fallback.
+    fallback; mock runs keep the deterministic fallback. ``run_id`` rides
+    into ``run_pipeline`` so the catalog provenance is not NULL for
+    sandbox-driven runs (DMR-052).
     """
     src = resolve_mailroom_src()
     name = _doc_source_name(row)
@@ -775,6 +778,7 @@ def _run_pipeline_doc(
         "source": "sandbox-fixtures",
         "ground_truth": gt,
         "session_id": session_id or matter_id,
+        "run_id": run_id or experiment_name,
     }
     if mock:
         with ExitStack() as stack:

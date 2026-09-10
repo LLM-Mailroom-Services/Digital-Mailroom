@@ -35,11 +35,18 @@ def _expected_for(task: str, row: dict[str, Any]) -> str:
     return str(row.get("expected_doc_class") or "")
 
 
-def _predict_row(task: str, row: dict[str, Any], *, mock: bool, model: str | None) -> tuple[Any, bool]:
+def _predict_row(
+    task: str,
+    row: dict[str, Any],
+    *,
+    mock: bool,
+    model: str | None,
+    run_id: str | None = None,
+) -> tuple[Any, bool]:
     if task == "sorter":
         if mock:
             return eval_runners._classify_mock(row), True
-        result = eval_runners._run_pipeline_doc(row, mock=False)
+        result = eval_runners._run_pipeline_doc(row, mock=False, run_id=run_id)
         return (result.get("doc_type") or "unknown"), True
     if task == "legalbench":
         if mock:
@@ -309,7 +316,7 @@ def run_job(
             while attempt < _max_retries(store) + 1:
                 attempt += 1
                 try:
-                    value, _ = _predict_row(task, row, mock=mock, model=model)
+                    value, _ = _predict_row(task, row, mock=mock, model=model, run_id=store.run_id)
                     error = None
                     break
                 except Exception as exc:  # noqa: BLE001

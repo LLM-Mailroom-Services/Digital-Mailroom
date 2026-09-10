@@ -44,6 +44,21 @@ def test_langfuse_offline_requires_version():
     assert got["version"] == 3 and got["offline"] is True
 
 
+def test_langfuse_floating_label_falls_back_without_key(monkeypatch):
+    """DMR-052 G28: no Langfuse credentials + a floating label locks the code
+    default (mirroring the mailroom runtime's soft fallback); a PINNED
+    version still refuses (silent prompt swaps are never acceptable)."""
+    monkeypatch.setattr(pr, "_langfuse_client", lambda: None)
+    got = pr.resolve_prompt("sorter", PromptRef(source="langfuse", name="mailroom-sorter"))
+    assert got["source"] == "code-default"
+    assert got["text"] is None
+    with pytest.raises(RuntimeError, match="pinned version cannot fall back"):
+        pr.resolve_prompt(
+            "sorter",
+            PromptRef(source="langfuse", name="mailroom-sorter", version=7),
+        )
+
+
 def test_prompt_lock_block_rejects_unknown_agent():
     with pytest.raises(KeyError):
         pr.prompt_lock_block({"agents": {"extract": {"source": "code-default"}}}, offline=True)

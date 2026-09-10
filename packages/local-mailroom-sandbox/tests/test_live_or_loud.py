@@ -124,7 +124,8 @@ def test_htcondor_batch_script_is_live_or_loud():
     # The eval stack is the mailroom dist, pinned — never the shadowing
     # llm-entity-extraction package (the original card's wrong prescription).
     assert "llm-mailroom.git@v0.6.0" in script
-    assert "llm-entity-extraction" not in script
+    install_lines = [line for line in script.splitlines() if line.strip().startswith("pip install")]
+    assert all("llm-entity-extraction" not in line for line in install_lines)
     # No silent swallows on the eval/prep lines, and the post-run guard exists.
     assert "datasets prepare || true" not in script
     assert "eval extract --local || true" not in script

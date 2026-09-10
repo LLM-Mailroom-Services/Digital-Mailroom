@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mailroom Kanban Dispatch Board — Agent-to-Agent Task Orchestration</title>
+    <title>DMR Dispatch Board — Digital-Mailroom Task Orchestration</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
-    <meta name="description" content="Interactive Kanban task dispatch board for multi-agent orchestration — drag, drop, assign, and track HUB cards across lanes.">
+    <meta name="description" content="Interactive Kanban task dispatch board for multi-agent orchestration — the standalone Digital-Mailroom board (DMR cards), cross-linked with the original mailroom-dev board.">
     <style>
         :root {
             --bg: #0b0e14;
@@ -139,6 +139,39 @@
             color: var(--text-muted);
             display: block;
             letter-spacing: 0.02em;
+        }
+
+        .board-tabs {
+            display: flex;
+            align-items: center;
+            gap: 0.2rem;
+            padding: 0.18rem;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: var(--bg-tertiary);
+            user-select: none;
+        }
+        .board-tab {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            padding: 0.3rem 0.7rem;
+            border-radius: 999px;
+            color: var(--text-muted);
+            text-decoration: none;
+            white-space: nowrap;
+            transition: color var(--transition), background var(--transition);
+        }
+        .board-tab:hover {
+            color: var(--text);
+            background: var(--bg-card-hover);
+        }
+        .board-tab.active {
+            color: var(--text);
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            cursor: default;
         }
 
         .top-actions {
@@ -1416,10 +1449,14 @@
         <a class="brand" href="#" aria-label="Mailroom Kanban Dispatch Board">
             <span class="logo">📋</span>
             <span>
-                Mailroom Dispatch Board
-                <span class="subtitle">Agent-to-Agent Task Orchestration</span>
+                DMR Dispatch Board
+                <span class="subtitle">Digital-Mailroom · Agent-to-Agent Task Orchestration</span>
             </span>
         </a>
+        <nav class="board-tabs" aria-label="Board switcher">
+            <span class="board-tab active" aria-current="page" title="This board — Digital-Mailroom (DMR cards)">DMR Board</span>
+            <a class="board-tab" href="https://mailroom-dev.vercel.app" title="Original mailroom-dev monorepo board (HUB cards)">HUB Board ↗</a>
+        </nav>
         <span class="sync-badge" id="syncBadge">● loading…</span>
         <span class="sync-badge" id="freshBadge" title="When the board last read the live GitHub issues">…</span>
         <span class="sync-badge" id="repoContext" title="Source repository" style="display:none"></span>

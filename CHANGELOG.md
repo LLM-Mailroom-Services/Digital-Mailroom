@@ -22,6 +22,21 @@ and is recorded there, not here.
 ## [Unreleased]
 ### Added
 
+- **Specialist subagent roster + dedicated vLLM/Modal subagents (DMR-008,
+  2026-09-09):** `AGENTS.md` now documents the full specialist roster —
+  `athena-database-agent`, `lucius`, `prompt-engineer`, `atom`,
+  `hazel-ui-software-master`, `jarvis-systems-maximizer`, the new
+  `vllm-specialist` and `modal-specialist`, plus `explore`/`general` — with
+  when-to-call guidance, one-specialist-per-concern, brief-like-a-card, and
+  caller-owns-the-work rules. New project agents
+  `.opencode/agents/vllm-specialist.md` and
+  `.opencode/agents/modal-specialist.md` require verifying the current
+  upstream docs/version before writing configuration and are grounded in the
+  repo's wiring: vLLM stable v0.24.0 (docs.vllm.ai), Modal Python SDK 1.5.5
+  (`@app.server`, `modal endpoint`, named Images, version-pinned lookups,
+  Sandbox v2), `deploy/modal_vllm.py` apps, `llm/providers.py` vLLM seam,
+  and `test_vllm_modal_capability.py`. Restart opencode to load the new
+  agents into the Task tool.
 - **Org-migration reference audit + CI gate (DMR-006, 2026-09-09):** the
   hub-identity migration from `Exios66/mailroom-dev` to
   `LLM-Mailroom-Services/Digital-Mailroom` is now audited and enforced.

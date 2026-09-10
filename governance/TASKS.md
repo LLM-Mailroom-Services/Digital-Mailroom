@@ -74,7 +74,7 @@ push this file's truth into the issues.
 
 | Card | Status | Task | Owner | Issue | Evidence |
 |---|---|---|---|---|---|
-| — | — | _No open cards — the DMR board's current epoch is delivered. New work spawns its own card._ | — | — | — |
+| DMR-008 | `in_progress` | **Specialist subagent roster in AGENTS.md + dedicated vLLM/Modal subagents** — human directive 2026-09-09: AGENTS.md now carries the "Specialist subagents — call them, don't impersonate them" roster (athena-database-agent, lucius, prompt-engineer, atom, hazel-ui-software-master, jarvis-systems-maximizer, vllm-specialist, modal-specialist, explore/general) with when-to-call rules and the caller-owns-the-work law. New project subagents `.opencode/agents/vllm-specialist.md` and `.opencode/agents/modal-specialist.md` ground their instructions in current upstream docs — vLLM stable v0.24.0 (docs.vllm.ai; PagedAttention, continuous batching, prefix caching, quantization, speculative decoding, structured outputs, parallelism) and Modal Python SDK 1.5.5 / Python 3.10–3.14 (`@app.server`, `modal endpoint`, named Images, version-pinned lookups, Sandbox v2, Volumes/Secrets) — plus the repo's existing `deploy/modal_vllm.py` apps, `llm/providers.py` vLLM seam, and `test_vllm_modal_capability.py` contract. | opencode (deepseek-v4-flash-vision-exp) | [#12](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/12) | opened 2026-09-09 by human directive; agents + AGENTS.md roster delivered; gates at close: board check, frontmatter parse, reference audit, release chain. |
 
 ## Rules that keep the board honest
 

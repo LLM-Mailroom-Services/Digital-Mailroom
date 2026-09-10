@@ -342,13 +342,21 @@ def patch_push(package: str, url: str, tip: str, *, dry_run: bool) -> int:
         print(f"!! worktree add failed: {worktree.stderr.strip()}", file=sys.stderr)
         return 1
     try:
-        tracked = git(["ls-files", "-z", "--", f"packages/{package}"]).stdout.split("\0")
-        files = [p for p in tracked if p]
-        for rel in files:
-            src = REPO_ROOT / rel
+        # DMR-028 fix: extract committed blobs (HEAD) instead of copying from
+        # the working tree.  Previously `git ls-files` + `shutil.copy2` would
+        # propagate uncommitted changes — a race when concurrent edits exist.
+        tracked = git(["ls-tree", "-r", "-z", "HEAD", "--", f"packages/{package}"]).stdout.split("\0")
+        for entry in tracked:
+            if not entry or "\t" not in entry:
+                continue
+            _mode, _type, blob_sha, rel = entry.split("\t", 1)
             dst = tmp / rel[len(f"packages/{package}/"):]
             dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, dst)
+            blob = git(["cat-file", "blob", blob_sha])
+            if blob.returncode != 0:
+                print(f"!! cat-file failed for {rel}: {blob.stderr.strip()}", file=sys.stderr)
+                return 1
+            dst.write_bytes(blob.stdout)
         add = git(["-C", str(tmp), "add", "-A"])
         if add.returncode != 0:
             print(f"!! staging failed: {add.stderr.strip()}", file=sys.stderr)

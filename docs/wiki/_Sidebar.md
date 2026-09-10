@@ -9,5 +9,7 @@
 - [[Sub-Package-Sync]]
 - [[HF-Corpus]]
 - [[Offline-Sandbox]]
+  - [[Sandbox-Jobs]]
+  - [[Sandbox-Modal]]
 - [[Releases]]
 - [[FAQ]]

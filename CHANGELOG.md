@@ -22,6 +22,25 @@ and is recorded there, not here.
 ## [Unreleased]
 ### Added
 
+- **Modal deploy hardening — vLLM cache volume, revision knob, SDK pin
+  (DMR-029/DMR-030, 2026-09-10):** both `llm-mailroom/deploy/modal_vllm.py`
+  and `llm-entity-extraction/deploy/modal_vllm.py` now match the
+  `local-mailroom-sandbox` reference implementation: `Secret.from_dict`
+  (SDK 1.5.5 removal of `Secret.from_local`), pinned image tag `v0.28.0`
+  (was `latest`), `--no-enable-log-requests` (v0.28.0 rename of
+  `--disable-log-requests`), vLLM cache Volume (`/root/.cache/vllm` —
+  JIT/CUDA-graph compile artifacts cut cold-start recompilation from minutes
+  to seconds), revision knob (`MODAL_VLLM_REVISION` env var + `--revision`
+  flag — pins Hub model weights for reproducibility), GPU memory utilization
+  (`MODAL_VLLM_GPU_MEMORY_UTILIZATION`, default 0.90), max-num-seqs
+  (`MODAL_VLLM_MAX_NUM_SEQS`, default 256). Both `pyproject.toml` deploy
+  extras pinned to `modal==1.5.5` (was `modal>=0.73`). htcondor templates
+  bumped from `v0.8.5` → `v0.28.0`; `serve_vllm.sh` log flag updated.
+- **vLLM specialist version policy refresh (DMR-031, 2026-09-10):**
+  `.opencode/agents/vllm-specialist.md` updated to current stable v0.29.0
+  (family pin v0.28.0), documents the `--disable-log-requests` →
+  `--enable-log-requests` opt-in rename and Model Runner V2 default change.
+
 - **Specialist subagent roster + dedicated vLLM/Modal subagents (DMR-008,
   2026-09-09):** `AGENTS.md` now documents the full specialist roster —
   `athena-database-agent`, `lucius`, `prompt-engineer`, `atom`,
@@ -110,6 +129,24 @@ and is recorded there, not here.
   retired for the card↔issue law — every board card carries a `kanban`
   synced issue (or it won't appear on the served board) + the post-site-edit
   `pull-issues` obligation.
+
+### Fixed
+
+- **Stale Modal SDK pin across deploy extras (DMR-029/DMR-030):**
+  `modal>=0.73` → `modal==1.5.5` in both `llm-mailroom` and
+  `llm-entity-extraction` `pyproject.toml` deploy extras — the old pin
+  allowed SDK versions that removed `Secret.from_local` and broke deploys.
+- **Missing vLLM cache volume in sibling deploy apps (DMR-029/DMR-030):**
+  `llm-mailroom` and `llm-entity-extraction` Modal deploys lacked the
+  `VLLM_CACHE_VOLUME` that `local-mailroom-sandbox` already had — every
+  cold boot burned GPU time recompiling JIT/CUDA-graph kernels.
+- **Stale vLLM image tag `latest` in Modal deploys (DMR-029/DMR-030):**
+  both sibling deploys defaulted to `latest` image tag instead of the
+  pinned `v0.28.0` — non-reproducible, vulnerable to breaking upstream
+  changes.
+- **Stale htcondor vLLM pins (DMR-032):** `vllm_serve.sub` and
+  `vllm_batch_eval.sub` pinned `v0.8.5` (11+ months stale);
+  `serve_vllm.sh` used the pre-v0.28.0 `--disable-log-requests` flag.
 
 ## [0.4.0] - 2026-09-05
 ### Added

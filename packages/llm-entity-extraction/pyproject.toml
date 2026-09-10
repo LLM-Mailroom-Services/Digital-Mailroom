@@ -64,7 +64,7 @@ notebooks = [
 # only — the runtime eval pipeline never imports modal. Install with:
 #   pip install -e ".[deploy]"
 deploy = [
-    "modal>=0.73",
+    "modal==1.5.5",
 ]
 dev = [
     "pytest>=8.0",

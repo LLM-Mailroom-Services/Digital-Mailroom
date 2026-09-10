@@ -13,27 +13,29 @@
 - **Before:** "As of 2026-09-09 the current stable is vLLM v0.24.0"
 - **After:** Updated to v0.29.0 current stable, v0.28.0 family pin, documented `--disable-log-requests` → `--enable-log-requests` rename and Model Runner V2 default change
 
-### DMR-029: llm-mailroom/deploy/modal_vllm.py — FIXED (3 of 7 issues)
+### DMR-029: llm-mailroom/deploy/modal_vllm.py — FULLY FIXED
 - **File:** `packages/llm-mailroom/deploy/modal_vllm.py`
 - **Fixed:**
   - `Secret.from_local` → `Secret.from_dict` (SDK 1.5.x removal)
   - Image tag `latest` → `v0.28.0` (pinned)
   - `--disable-log-requests` → `--no-enable-log-requests` (v0.28.0 rename)
-- **Remaining (not in scope for this fix pass):**
-  - No vLLM cache volume (needs design decision)
-  - No revision knob (needs design decision)
-  - deploy extra `modal>=0.73` should be `modal==1.5.5` (needs pyproject.toml edit)
+  - Added vLLM cache volume (`mailroom-vllm-cache` mounted at `/root/.cache/vllm`)
+  - Added revision knob (`MODAL_VLLM_REVISION` env var, `--revision` flag)
+  - Added GPU memory utilization knob (`MODAL_VLLM_GPU_MEMORY_UTILIZATION`, default 0.90)
+  - Added max-num-seqs knob (`MODAL_VLLM_MAX_NUM_SEQS`, default 256)
+  - Added `modal==1.5.5` pin in `pyproject.toml` (was `modal>=0.73`)
 
-### DMR-030: llm-entity-extraction/deploy/modal_vllm.py — FIXED (3 of 7 issues)
+### DMR-030: llm-entity-extraction/deploy/modal_vllm.py — FULLY FIXED
 - **File:** `packages/llm-entity-extraction/deploy/modal_vllm.py`
 - **Fixed:**
   - `Secret.from_local` → `Secret.from_dict` (SDK 1.5.x removal)
   - Image tag `latest` → `v0.28.0` (pinned)
   - `--disable-log-requests` → `--no-enable-log-requests` (v0.28.0 rename)
-- **Remaining (not in scope for this fix pass):**
-  - No vLLM cache volume (needs design decision)
-  - No revision knob (needs design decision)
-  - deploy extra needs pinning (needs pyproject.toml edit)
+  - Added vLLM cache volume (`entity-vllm-cache` mounted at `/root/.cache/vllm`)
+  - Added revision knob (`MODAL_VLLM_REVISION` env var, `--revision` flag)
+  - Added GPU memory utilization knob (`MODAL_VLLM_GPU_MEMORY_UTILIZATION`, default 0.90)
+  - Added max-num-seqs knob (`MODAL_VLLM_MAX_NUM_SEQS`, default 256)
+  - Added `modal==1.5.5` pin in `pyproject.toml` (was `modal>=0.73`)
 
 ### DMR-032: htcondor templates — FIXED
 - **Files:** `packages/local-mailroom-sandbox/deploy/htcondor/vllm_serve.sub`, `vllm_batch_eval.sub`, `serve_vllm.sh`
@@ -144,7 +146,8 @@
 | Date | Scope | Findings | Actions | Pitfalls |
 |------|-------|----------|---------|----------|
 | 2026-09-10 | DMR-011 through DMR-029 veracity audit | 10 of 12 cards have missing implementations; 2 cards correctly scoped as execution-only | Created DMR-028 through DMR-037; wrote STATE.md | None yet |
-| 2026-09-10 | Fix pass: DMR-029, DMR-030, DMR-031, DMR-032 | Archived cards DMR-021/DMR-022 claimed fixes were shipped but only applied to local-mailroom-sandbox | Fixed vllm-specialist.md version, both Modal deploy files (Secret.from_local, image tag, log flag), htcondor templates (image tag, log flag) | DMR-029/DMR-030 remaining issues (cache volume, revision knob, pyproject pin) need separate design decisions |
+| 2026-09-10 | Fix pass: DMR-029, DMR-030, DMR-031, DMR-032 | Archived cards DMR-021/DMR-022 claimed fixes were shipped but only applied to local-mailroom-sandbox | Fixed vllm-specialist.md version, both Modal deploy files (Secret.from_local, image tag, log flag), htcondor templates (image tag, log flag) | DMR-029/DMR-030 remaining issues (cache volume, revision knob, pyproject pin) needed separate design decisions |
+| 2026-09-10 | Fix pass 2: DMR-029, DMR-030 remaining items | Both deploy files lacked vLLM cache volume, revision knob, GPU memory utilization, max-num-seqs; pyproject.toml files had stale `modal>=0.73` pin | Added all missing knobs to both deploy files (porting from local-mailroom-sandbox reference), pinned `modal==1.5.5` in both pyproject.toml files | None — sandbox reference was the gold standard |
 
 ## Lessons Learned
 - **2026-09-10:** Always verify the actual file:line references in DMR cards against the current codebase. Cards synced from HUB issues may reference line numbers that have shifted or implementations that were never actually completed. The card's "Evidence" field describes the problem but does not confirm the fix was shipped.

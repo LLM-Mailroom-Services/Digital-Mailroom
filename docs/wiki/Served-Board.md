@@ -15,9 +15,10 @@ are reconciled by the `board_state.py` legs (see below).
 
 ## What you see
 
-- **Live cards** across the four lanes (assigned → in-progress →
+- **Live cards** across the five lanes (unassigned → assigned → in-progress →
   needs-attention → done/archive), plus priority, agents, and date, fetched
-  from every issue labeled `kanban` (open + closed).
+  from every issue labeled `kanban` (open + closed). Unclaimed work lands in
+  the **Unassigned** triage column.
 - A **LIVE / OFFLINE badge** reflecting whether the board API is reachable.
 - A **cross-board switcher** (`board-tabs`, DMR-005): the `DMR Board` chip is
   active and `HUB Board ↗` links to the predecessor's served board

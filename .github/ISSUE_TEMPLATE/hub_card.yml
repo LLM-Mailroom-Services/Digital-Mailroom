@@ -36,6 +36,7 @@ body:
       label: Lane (board status)
       description: The card's lane on the board at the time this issue is opened
       options:
+        - unassigned
         - assigned
         - in_progress
         - needs_attention

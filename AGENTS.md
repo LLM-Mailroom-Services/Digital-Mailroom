@@ -134,10 +134,11 @@ monorepo. Its board was restarted fresh: cards use `DMR-00N` and never reuse
 the predecessor `HUB-00N` numbers. HUB-era evidence lives in the original
 repo and this repo's git history.
 
-The four lanes: `assigned` (queued/claimed, nothing underway) →
-`in_progress` (any work exists — label the card before the code, never after)
-→ `needs_attention` (blocked / review / decision, tagged in Evidence) →
-`done` (Archive, append-only; reopen instead of delete).
+The five lanes: `unassigned` (queued and unclaimed — free for the next agent
+or team to claim) → `assigned` (claimed, nothing underway) → `in_progress`
+(any work exists — label the card before the code, never after) →
+`needs_attention` (blocked / review / decision, tagged in Evidence) → `done`
+(Archive, append-only; reopen instead of delete).
 
 - **Claim before edit** — one owner per card; claim = lane + Owner name + date.
 - **Update, don't duplicate** — work touching an existing card's scope updates

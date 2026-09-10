@@ -1,11 +1,16 @@
 {
   "version": 1,
-  "note": "Declarative label taxonomy for LLM-Mailroom-Services/Digital-Mailroom (HUB-014). Source of truth for scripts/github_labels.py sync/audit. Bridge between GitHub issues and the governance/TASKS.md lanes: stage/* mirrors the four board lanes, attention/* mirrors the needs_attention tags (needs:/review:/decision:), type/* and priority/* classify work, domain/* scopes it to the hub or a package, and kanban marks a synced board card (one card = one issue). Colors may repeat; names must not. Sync with: python scripts/github_labels.py sync",
+  "note": "Declarative label taxonomy for LLM-Mailroom-Services/Digital-Mailroom (HUB-014). Source of truth for scripts/github_labels.py sync/audit. Bridge between GitHub issues and the governance/TASKS.md lanes: stage/* mirrors the five board lanes, attention/* mirrors the needs_attention tags (needs:/review:/decision:), type/* and priority/* classify work, domain/* scopes it to the hub or a package, and kanban marks a synced board card (one card = one issue). Colors may repeat; names must not. Sync with: python scripts/github_labels.py sync",
   "labels": [
+    {
+      "name": "stage/unassigned",
+      "color": "EDEDED",
+      "description": "Board lane: unassigned - queued and unclaimed; free for the next agent or team to claim"
+    },
     {
       "name": "stage/assigned",
       "color": "BFD4F2",
-      "description": "Board lane: assigned - queued or claimed, nothing underway (no draft, no diff, no branch)"
+      "description": "Board lane: assigned - claimed or queued with an owner, nothing underway (no draft, no diff)"
     },
     {
       "name": "stage/in-progress",

@@ -5,11 +5,12 @@ of truth** for cross-agent task state. Read it FIRST every session, before
 any task. Package-scoped work keeps its own board (e.g.
 `packages/llm-entity-extraction/governance/MESSAGE_BOARD.md`).
 
-## The four lanes
+## The five lanes
 
 | Lane | Meaning |
 | --- | --- |
-| `assigned` | Queued or claimed, nothing underway — no draft, no diff, no branch |
+| `unassigned` | Queued and unclaimed — free for the next agent or team to claim; Owner is `unclaimed` |
+| `assigned` | Claimed (or queued with an owner), nothing underway — no draft, no diff, no branch |
 | `in_progress` | ANY work exists and an owner holds it — label the card before the code, never after |
 | `needs_attention` | Blocked / review / decision — the Evidence note says which (`needs:` / `review:` / `decision:`) |
 | `done` | Finished, verified, evidenced — moved to the Archive (append-only; reopen instead of delete) |
@@ -17,6 +18,7 @@ any task. Package-scoped work keeps its own board (e.g.
 ## The laws
 
 - **Claim before edit** — one owner per card; claim = lane + Owner name + date.
+- **Unclaimed = unassigned** — a card with Owner `unclaimed` lives in the `unassigned` lane, free for the next agent or team; claiming moves it to `assigned` and sets Owner + date.
 - **Update, don't duplicate** — work touching an existing card's scope updates that card; discovered-but-undelivered work spawns its own card before the parent closes.
 - **No silent completion** — `done` requires green suites for touched packages, clean `git status` for the card's scope, Evidence naming the commit(s), and (for synced cards) the GitHub issue closed in the same commit. An agent is NOT done until its card says so.
 - **Commit discipline** — reference cards: `DMR-0NN: <summary>` (or `DMR-0NN claimed/reopened` in the body). **Targeted staging (HUB-029):** `git add <explicit paths>` only — never `git add .` / `-A` / a bare directory; this is a shared checkout, so re-check `git status --porcelain` before every commit and unstage anything you don't own (HUB-024/HUB-027 sweep incidents).

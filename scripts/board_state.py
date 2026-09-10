@@ -67,8 +67,9 @@ CONFIG_PATH = REPO_ROOT / "scripts" / "board_config.json"
 DEFAULT_REPO = "LLM-Mailroom-Services/Digital-Mailroom"
 DEFAULT_PROJECT_TITLE = "digital-mailroom board"
 
-LANES = ("assigned", "in_progress", "needs_attention", "done")
+LANES = ("unassigned", "assigned", "in_progress", "needs_attention", "done")
 LANE_LABELS = {
+    "unassigned": "stage/unassigned",
     "assigned": "stage/assigned",
     "in_progress": "stage/in-progress",
     "needs_attention": "stage/needs-attention",
@@ -335,6 +336,12 @@ def board_findings(state: BoardState, refs: dict[str, list[tuple[str, str]]],
         if card.lane == "needs_attention" and not card.attention_tags:
             findings.append(Finding("error", "attention-tag-missing", card.id,
                                     "needs_attention card lacks a needs:/review:/decision: tag"))
+        if card.lane == "unassigned" and card.owner not in ("", "unclaimed"):
+            findings.append(Finding("error", "unassigned-with-owner", card.id,
+                                    f"lane unassigned but Owner is {card.owner!r} — unassigned is the free-to-claim lane"))
+        if card.lane == "assigned" and card.owner in ("", "unclaimed"):
+            findings.append(Finding("warning", "assigned-unclaimed", card.id,
+                                    "Owner is unclaimed in the assigned lane — move the card to unassigned (free to claim)"))
         if card.lane == "in_progress" and card.owner in ("", "unclaimed"):
             findings.append(Finding("warning", "in-progress-unclaimed", card.id,
                                     "in_progress means an owner holds it — set Owner or move back to assigned"))
@@ -655,19 +662,25 @@ def cmd_sync_issues(args: argparse.Namespace) -> int:
         want = desired_labels(card, issue.get("body") or "")
         have = {entry["name"] for entry in issue["labels"]}
         missing = [label for label in want if label not in have]
+        stale = [label for label in sorted(have)
+                 if (label.startswith("stage/") or label.startswith("attention/"))
+                 and label not in want]
         body_delta = desired_body(card, issue.get("body") or "")
         body_changed = body_delta != (issue.get("body") or "")
-        if not missing and not body_changed:
+        if not missing and not stale and not body_changed:
             print(f"{card.id}: issue #{card.issue_number} labels + body current")
             continue
         touched += 1
         print(f"{card.id}: issue #{card.issue_number}"
               + (f" add labels {missing}" if missing else "")
+              + (f" remove labels {stale}" if stale else "")
               + (" body-sync" if body_changed else ""))
         if args.apply:
             edit = ["gh", "issue", "edit", str(card.issue_number), "--repo", repo]
             for label in missing:
                 edit += ["--add-label", label]
+            for label in stale:
+                edit += ["--remove-label", label]
             if body_changed:
                 edit += ["--body", body_delta]
             result = run(edit)
@@ -959,7 +972,8 @@ def cmd_project_sync(args: argparse.Namespace) -> int:
 
     for card in state.open_cards:
         want_owner = card.owner if card.owner not in ("", "unclaimed") else "unclaimed"
-        want_lane = card.lane if card.lane in LANES else "assigned"
+        want_lane = card.lane if card.lane in LANES else (
+            "unassigned" if card.owner in ("", "unclaimed") else "assigned")
         if card.issue_url:
             item = by_url.get(card.issue_url)
             if item is None:

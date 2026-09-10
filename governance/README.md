@@ -16,9 +16,10 @@
 
 ## Board Laws
 
-The four lanes: `assigned` → `in_progress` → `needs_attention` → `done`
+The five lanes: `unassigned` → `assigned` → `in_progress` → `needs_attention` → `done`
 
 - **Claim before edit** — one owner per card
+- **Unclaimed = unassigned** — Owner `unclaimed` cards sit in the `unassigned` lane, free for the next agent or team to claim
 - **Update, don't duplicate** — work touching an existing card's scope updates that card
 - **No silent completion** — `done` requires green suites, clean git status, and Evidence commits
 

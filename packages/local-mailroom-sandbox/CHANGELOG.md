@@ -4,6 +4,19 @@
 
 ### Added
 
+- **DMR-059 — Modal doc-pipeline job queue plan**: `docs/modal-doc-jobs.md`
+  designs a `sandbox-doc-jobs` Modal app modeled on the Modal docs tutorial
+  (`09_job_queues/doc_ocr_jobs.py`) — a CPU-side document job queue whose LLM
+  is the already-deployed `sandbox-vllm` endpoint: bytes staged on a
+  `sandbox-doc-inbox` Volume, `extract_text` (pdf/image → text via the
+  vendored transcriber surface) + `process_document` (connected mailroom
+  graph through `DEFAULT_PROVIDER=vllm`) stages, `sandbox-doc-state` Dict
+  progress mirror, `modal run` local-entrypoint smoke, and
+  `Function.from_name(...).spawn(...)` consumption. Three phases (mock
+  smoke → live vLLM → CLI). The standalone repo also gains the monorepo's
+  `vllm-specialist` + `modal-specialist` opencode agents (`.opencode/agents/`,
+  sandbox-adapted wiring).
+
 - **DMR-058 — full CLI verification sweep + quickstart**: every `sandbox`
   command exercised against a fresh in-repo `.venv` (offline + live Hub
   paths); `docs/QUICKSTART.md` is the verified full command reference

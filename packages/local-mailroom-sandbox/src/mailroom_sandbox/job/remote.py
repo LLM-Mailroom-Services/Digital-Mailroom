@@ -91,19 +91,26 @@ def _lock_mock(store: RunStore) -> bool:
 
 
 def upload_run_dir(run_dir: Path) -> tuple[int, str]:
-    proc = subprocess.run(
-        [
-            "modal",
-            "volume",
-            "put",
-            "--force",
-            VOLUME_NAME,
-            str(run_dir),
-            f"/runs/{run_dir.name}",
-        ],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        proc = subprocess.run(
+            [
+                "modal",
+                "volume",
+                "put",
+                "--force",
+                VOLUME_NAME,
+                str(run_dir),
+                f"/runs/{run_dir.name}",
+            ],
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        # Modal job mode needs the SDK — point at the extra (DMR-058) instead
+        # of a bare "no such file: modal" from main()'s generic catch.
+        raise FileNotFoundError(
+            "modal CLI not installed — pip install -e \".[deploy]\" (then `modal token new`)"
+        )
     return proc.returncode, (proc.stderr.strip() or proc.stdout.strip())
 
 

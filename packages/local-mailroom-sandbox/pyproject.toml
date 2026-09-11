@@ -36,6 +36,17 @@ dev = [
     "huggingface_hub>=0.24",
     "pyarrow>=15.0",
 ]
+pipeline = [
+    # Eager third-party surface of the vendored llm-mailroom tree's langchain
+    # paths (legalbench suite, live mailroom agent calls) — DMR-058. The
+    # OFFLINE-first base install deliberately omits these; suite/live runs
+    # hint at this extra instead of crashing with a bare import error.
+    "langchain-core>=0.3",
+    "langchain-openai>=0.2",
+    "langgraph>=0.2",
+    "requests>=2.31",
+    "watchdog>=4.0",
+]
 notebooks = [
     "jupyterlab>=4.2",
     "ipykernel>=6.29",
@@ -62,7 +73,7 @@ deploy = [
 # `[pipeline]`/`[evals]` git-pin extras are gone; refresh the snapshots with
 # `sandbox fetch-deps` instead.
 all = [
-    "mailroom-sandbox[dev,deploy,hf,observability,notebooks]",
+    "mailroom-sandbox[dev,deploy,hf,observability,notebooks,pipeline]",
 ]
 
 [project.scripts]

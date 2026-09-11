@@ -124,7 +124,16 @@ def load_legalbench_suite_rows(task: str, *, sample: int, seed: int) -> list[dic
         )
     if str(src) not in sys.path:
         sys.path.insert(0, str(src))
-    from legalbench.tasks import get_task  # type: ignore
+    try:
+        from legalbench.tasks import get_task  # type: ignore
+    except ModuleNotFoundError as exc:
+        # The suite rides the vendored langchain_agents stack, which the
+        # offline-first base install intentionally omits (DMR-058) — point
+        # at the extra instead of leaking the import traceback.
+        raise FileNotFoundError(
+            f"legalbench suite needs the pipeline deps (missing {exc.name}) — "
+            'pip install -e ".[pipeline]"'
+        ) from exc
 
     task_obj = get_task(task)
     rows = task_obj.loader(sample, seed)

@@ -60,6 +60,19 @@ def test_legalbench_cli_suite_guard_degrades_cleanly(capsys):
     assert "error:" in out and "explicit --n/--sample" in out
 
 
+def test_legalbench_suite_hints_at_pipeline_extra_without_langchain(monkeypatch):
+    # DMR-058: a base install (no [pipeline] extra) must get a pointed hint,
+    # not a bare ModuleNotFoundError, when the vendored langchain stack is
+    # absent.
+    import sys
+
+    from mailroom_sandbox.datasets import load_legalbench_suite_rows
+
+    monkeypatch.setitem(sys.modules, "langchain_core", None)
+    with pytest.raises(FileNotFoundError, match=r"\[pipeline\]"):
+        load_legalbench_suite_rows("contract_qa", sample=2, seed=1)
+
+
 def test_legalbench_suite_requires_explicit_n():
     with pytest.raises(ValueError, match="explicit --n"):
         runners.run_legalbench_eval(mock=True, suite=True)

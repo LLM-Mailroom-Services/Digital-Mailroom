@@ -776,8 +776,12 @@ def _run_load_spec(args) -> tuple[object, Path]:
 
 def _run_id_required(args) -> str:
     run_id = getattr(args, "run_id", None) or ""
+    if not run_id and getattr(args, "config", None):
+        from mailroom_sandbox.job.spec import load_run_spec
+
+        run_id = load_run_spec(args.config).run_id
     if not run_id:
-        raise SystemExit("--run-id <id> is required here")
+        raise SystemExit("--run-id <id> is required here (or pass --config <run.yaml>)")
     return run_id
 
 

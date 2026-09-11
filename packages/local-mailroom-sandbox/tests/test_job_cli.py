@@ -68,4 +68,19 @@ def test_run_parser_has_lifecycle(tmp_path, capsys):
     out = capsys.readouterr().out
     assert '"status": "prepared"' in out
 
+def test_run_status_resolves_run_id_from_config(tmp_path, capsys):
+    # status/resume/cancel accept --config <run.yaml> alone: the embedded
+    # run_id is resolved from the spec (DMR-058).
+    rc = main(["run", "status", "--config", _write_run_yaml(tmp_path)])
+    assert rc == 1  # no lock yet, but the run_id resolved (not SystemExit)
+    out = capsys.readouterr().out
+    assert '"run_id": "cli-smoke"' in out
+    assert "no locked run found" in out
+
+
+def test_run_status_still_requires_some_id(tmp_path, capsys):
+    with pytest.raises(SystemExit):
+        main(["run", "status"])
+
+
 pytestmark = pytest.mark.usefixtures("job_data_dir")

@@ -676,6 +676,11 @@ def _cmd_datasets_pull(args: argparse.Namespace) -> int:
             revision=args.revision,
             config=args.config,
         )
+    except ModuleNotFoundError as exc:
+        # The Hub client lives in the [hf]/[dev] extras (offline-first base
+        # install) — say how to get it instead of a bare traceback (DMR-058).
+        print(f"error: {type(exc).__name__}: {exc}\n(hint: pip install -e \".[hf]\" — or -e \".[dev]\")")
+        return 1
     except Exception as exc:  # live-or-loud (DMR-056): a failed pull is exit 1
         print(f"error: {type(exc).__name__}: {exc}")
         return 1

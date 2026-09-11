@@ -629,6 +629,10 @@ def _cmd_legalbench(args: argparse.Namespace) -> int:
         # one-liner, not a traceback (DMR-058).
         print(f"error: {exc}")
         return 1
+    except Exception as exc:  # live-or-loud (DMR-049/058): CorpusUnavailable &
+        # missing-corpus keep naming the fetch command, without a traceback.
+        print(f"error: {type(exc).__name__}: {exc}")
+        return 1
     _print(result)
     return 0
 

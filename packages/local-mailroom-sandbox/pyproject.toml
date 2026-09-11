@@ -15,9 +15,15 @@ dependencies = [
     "structlog>=24.0",
     "pydantic>=2.0",
     "openai>=1.30",
-    # Self-contained (DMR-057): the pipeline (llm-mailroom@v0.6.0) and the
-    # scoring engine (llm-dojo-scoring@v0.12.2) ship as TRACKED snapshots
-    # under vendor/ — no git pip pins, no network needed to score/run.
+    # Vendored runtime surface (DMR-057/058): the TRACKED llm-dojo-scoring
+    # snapshot imports numpy/pandas/matplotlib/openpyxl eagerly (error_analysis,
+    # visualize, export) and the sandbox CLI imports llm_dojo_scoring at
+    # startup — a clean `pip install .` must land them or `sandbox` dies on
+    # ModuleNotFoundError. Keep in BASE deps, not [dev].
+    "numpy>=1.26",
+    "pandas>=2.0",
+    "matplotlib>=3.8",
+    "openpyxl>=3.1",
 ]
 
 [project.optional-dependencies]

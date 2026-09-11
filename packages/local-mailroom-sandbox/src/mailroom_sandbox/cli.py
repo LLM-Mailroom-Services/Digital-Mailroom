@@ -392,6 +392,21 @@ _VENDOR_PINS: tuple[tuple[str, str, str], ...] = (
 )
 
 
+def _package_src_dir(clone_root: Path) -> Path | None:
+    """Locate the package dir in a vendored-family clone (DMR-058).
+
+    llm-mailroom keeps ``src/``; llm-dojo-scoring ships the package at the
+    repo root (``llm_dojo_scoring/``) and the snapshot normalizes it under
+    ``src/``. Returns None when the layout is unrecognized — the caller must
+    NOT touch the tracked tree in that case.
+    """
+    for candidate in ("src", "llm_dojo_scoring", "llm_mailroom"):
+        p = clone_root / candidate
+        if p.is_dir():
+            return p
+    return None
+
+
 def _refresh_vendor(name: str, tag: str, url: str) -> int:
     import shutil
 
@@ -419,13 +434,21 @@ def _refresh_vendor(name: str, tag: str, url: str) -> int:
         return 1
     dest = vendor_dir() / name
     dest.mkdir(parents=True, exist_ok=True)
-    # llm-mailroom keeps src/ (minus tests); llm-dojo-scoring keeps the flat
-    # package under src/ — mirror the committed layout.
+    # Mirror the committed layout — llm-mailroom keeps src/; llm-dojo-scoring
+    # ships the package at the repo ROOT (llm_dojo_scoring/) and the snapshot
+    # normalizes it under src/. Validate the source BEFORE touching dest so a
+    # layout surprise can never half-wipe the tracked tree (DMR-058).
+    package_src = _package_src_dir(work)
+    if package_src is None:
+        print(
+            f"!! unexpected layout in {name}@{tag} clone (no src/, llm_dojo_scoring/, "
+            f"or llm_mailroom/ at root) — vendor/{name} left untouched",
+            file=sys.stderr,
+        )
+        shutil.rmtree(work, ignore_errors=True)
+        return 1
     shutil.rmtree(dest / "src", ignore_errors=True)
-    if (work / "src").is_dir():
-        shutil.copytree(work / "src", dest / "src", ignore=shutil.ignore_patterns("tests", "__pycache__", "*.pyc"))
-    else:
-        shutil.copytree(work / name, dest / "src", ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    shutil.copytree(package_src, dest / "src", ignore=shutil.ignore_patterns("tests", "__pycache__", "*.pyc"))
     head = subprocess.run(
         ["git", "-C", str(work), "rev-parse", "HEAD"],
         capture_output=True,

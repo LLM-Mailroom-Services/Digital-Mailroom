@@ -108,3 +108,23 @@ def test_legalbench_suite_bridge_still_loud_without_cuad_corpus():
     with pytest.raises(Exception) as excinfo:
         load_legalbench_suite_rows("contract_qa", sample=2, seed=1)
     assert "fetch_full_cuad" in str(excinfo.value)
+
+
+def test_refresh_locates_package_src_for_each_vendored_layout(tmp_path):
+    # DMR-058 regression: fetch-deps must map BOTH upstream layouts — llm-
+    # mailroom's src/ AND llm-dojo-scoring's root-level llm_dojo_scoring/ —
+    # and must refuse (None) anything unrecognized instead of half-wiping the
+    # tracked tree (the old `work / name` fallback crashed after rmtree).
+    from mailroom_sandbox.cli import _package_src_dir
+
+    mailroom = tmp_path / "mailroom"
+    (mailroom / "src" / "pipeline").mkdir(parents=True)
+    assert _package_src_dir(mailroom) == mailroom / "src"
+
+    dojo = tmp_path / "dojo"
+    (dojo / "llm_dojo_scoring").mkdir(parents=True)
+    assert _package_src_dir(dojo) == dojo / "llm_dojo_scoring"
+
+    weird = tmp_path / "weird"
+    weird.mkdir()
+    assert _package_src_dir(weird) is None

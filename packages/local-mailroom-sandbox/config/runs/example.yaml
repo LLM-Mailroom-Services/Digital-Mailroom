@@ -22,7 +22,10 @@ prompt:
 
 dataset:
   provider: file
-  local_path: packages/local-mailroom-sandbox/data/fixtures/hf/docclass_mini.jsonl
+  # CWD-relative (run from the repo/package root): this package's small HF
+  # fixture. The monorepo layout keeps the same tree under
+  # packages/local-mailroom-sandbox/.
+  local_path: data/fixtures/hf/docclass_mini.jsonl
   limit: 8
   sample_seed: 1
 

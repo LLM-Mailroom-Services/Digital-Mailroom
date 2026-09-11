@@ -448,7 +448,11 @@ def _refresh_vendor(name: str, tag: str, url: str) -> int:
         shutil.rmtree(work, ignore_errors=True)
         return 1
     shutil.rmtree(dest / "src", ignore_errors=True)
-    shutil.copytree(package_src, dest / "src", ignore=shutil.ignore_patterns("tests", "__pycache__", "*.pyc"))
+    # The tracked layout is vendor/<name>/src/<pkgdir> for BOTH trees:
+    # llm-mailroom already ships src/<pkgdir>, llm-dojo-scoring ships the
+    # package at the clone root and gets normalized under src/ (DMR-058).
+    dest_src = dest / "src" / package_src.name if package_src.name != "src" else dest / "src"
+    shutil.copytree(package_src, dest_src, ignore=shutil.ignore_patterns("tests", "__pycache__", "*.pyc"))
     head = subprocess.run(
         ["git", "-C", str(work), "rev-parse", "HEAD"],
         capture_output=True,

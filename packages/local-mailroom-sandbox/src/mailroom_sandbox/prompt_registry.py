@@ -3,8 +3,9 @@
 Resolves a prompt version for ANY pipeline agent from three sources: local
 ``config/prompts/*.txt`` variants, Langfuse-managed prompts (by integer
 version — the reproducible pin), or the code default. Enumerates the full
-agent surface from the vendored ``llm.prompts.prompt_templates()`` when
-present, with a static fallback roster otherwise.
+agent surface as the union of the sandbox static roster and the vendored
+``llm.prompts.prompt_templates()`` keys (DMR-057 — the snapshot is always
+importable).
 
 Family B (sorter, contracts_specialist) bypass ``get_managed_prompt``; their
 override point is the ``langchain_agents.prompts.PROMPT_VERSIONS`` dict.
@@ -58,15 +59,21 @@ FETCH_NAME_ALIASES = {
 
 
 def agent_prompt_names() -> list[str]:
+    """Full agent surface: sandbox static roster merged with the vendored
+    ``llm.prompts.prompt_templates()`` keys (DMR-057).
+
+    The vendored snapshot is always importable now, so the templates are the
+    pipeline's live keys; the static roster keeps the sandbox-only agents
+    (relations / gmail_triage / intake) that v0.6.0 does not template.
+    """
+    names = set(STATIC_AGENTS)
     try:
         import llm.prompts as prompts  # type: ignore
 
-        keys = prompts.prompt_templates()
-        if keys:
-            return sorted(keys)
+        names.update(prompts.prompt_templates())
     except Exception:
         pass
-    return list(STATIC_AGENTS)
+    return sorted(names)
 
 
 def local_variants() -> list[str]:

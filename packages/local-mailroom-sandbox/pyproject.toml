@@ -15,10 +15,9 @@ dependencies = [
     "structlog>=24.0",
     "pydantic>=2.0",
     "openai>=1.30",
-    # Current family scoring pin (aligned with llm-mailroom v0.6.0's own pin).
-    # mailroom stays off the core deps so offline installs stay lean — use
-    # `sandbox fetch-deps` (source tree @ v0.6.0) or the `[pipeline]` extra.
-    "llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.12.2",
+    # Self-contained (DMR-057): the pipeline (llm-mailroom@v0.6.0) and the
+    # scoring engine (llm-dojo-scoring@v0.12.2) ship as TRACKED snapshots
+    # under vendor/ — no git pip pins, no network needed to score/run.
 ]
 
 [project.optional-dependencies]
@@ -47,18 +46,12 @@ deploy = [
     # notes — 1.5.5 removed `Secret.from_local`.
     "modal==1.5.5",
 ]
-# Current llm-mailroom release (v0.6.0 aligns with the family dojo pin).
-pipeline = [
-    "mailroom @ git+https://github.com/Exios66/llm-mailroom.git",
-]
-evals = [
-    "llm-entity-extraction @ git+https://github.com/Exios66/llm-entity-extraction.git@v0.20.0",
-]
-gpu = [
-    "mailroom-sandbox[deploy]",
-]
+# DMR-057: the family eval stack (llm-mailroom@v0.6.0 + llm-dojo-scoring@v0.12.2)
+# is vendored under vendor/ and wired onto sys.path at import — the old
+# `[pipeline]`/`[evals]` git-pin extras are gone; refresh the snapshots with
+# `sandbox fetch-deps` instead.
 all = [
-    "mailroom-sandbox[dev,deploy,evals,hf,observability,notebooks]",
+    "mailroom-sandbox[dev,deploy,hf,observability,notebooks]",
 ]
 
 [project.scripts]
@@ -79,9 +72,6 @@ markers = [
     "local_llm: live test against a local OpenAI-compatible server (skipped unless SANDBOX_LOCAL_LLM=1)",
 ]
 
-# Monorepo dev: resolve family members from the workspace instead of the
-# release git pins above. Plain `pip install .` keeps using the pins.
-[tool.uv.sources]
-llm-dojo-scoring = { workspace = true }
-mailroom = { workspace = true }
-llm-entity-extraction = { workspace = true }
+# DMR-057: no workspace redirects needed — the family code is vendored and
+# tracked in this package (vendor/llm-mailroom + vendor/llm-dojo-scoring).
+# A plain `pip install .` (or `pip install -e ".[dev]"`) is fully self-contained.

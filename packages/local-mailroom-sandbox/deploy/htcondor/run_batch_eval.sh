@@ -133,17 +133,15 @@ tar -xzf mailroom-sandbox.tar.gz
 cd mailroom-sandbox
 
 echo "== install sandbox into env (light deps; torch/vLLM come from the container) =="
-VLLM_DOJO_PIN="${SANDBOX_DOJO_PIN:-v0.12.2}"
-pip install --no-deps "llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@${VLLM_DOJO_PIN}"
 pip install --no-deps -e .
 # Light runtime deps the container lacks (openai is also in the conda env).
 pip install pyyaml python-dotenv httpx structlog pydantic "openai>=1.30"
-# The eval agents import agents.sorter / graph.build_graph / pipeline.bins from
-# the MAILROOM dist (llm-mailroom v0.6.0) — NOT llm-entity-extraction (its
-# agents/ lacks sorter.py and would shadow mailroom's on sys.path).
-# --no-deps: torch/vLLM stay the container's; mailroom's tree is torch-free.
-pip install --no-deps "mailroom @ git+https://github.com/Exios66/llm-mailroom.git@v0.6.0"
-# Fallback when the conda env was not built with the [pipeline] extra (README §4).
+# DMR-057: the eval stack (agents.sorter / graph.build_graph / pipeline.bins
+# from llm-mailroom + llm_dojo_scoring) ships as TRACKED snapshots under
+# vendor/ in this package — the sandbox __init__ puts them on sys.path, so no
+# git pip pins are needed (the old mailroom@v0.6.0 / llm-dojo-scoring@v0.12.2
+# installs are gone; llm-entity-extraction never shadows anything).
+# Fallback when the conda env was not built with the langchain stack (README §4).
 pip install "langchain-core>=0.3.0" "langchain-openai>=0.3" "langgraph>=0.2.0" \
     "langgraph-checkpoint-sqlite>=1.0" "sqlalchemy[asyncio]>=2.0" "aiosqlite>=0.19"
 

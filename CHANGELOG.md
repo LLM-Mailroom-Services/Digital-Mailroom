@@ -63,6 +63,23 @@ and is recorded there, not here.
 
 ### Added
 
+- **Sandbox self-containment (DMR-057, 2026-09-10):** `packages/local-mailroom-sandbox`
+  no longer imports the family at runtime from pip git pins or a network
+  `fetch-deps` step — the code it needs ships as **tracked snapshots under
+  `vendor/`**: llm-mailroom `v0.6.0` (`src/` minus tests; pipeline/graph/
+  agents/llm/legalbench/observability/scripts) and llm-dojo-scoring `v0.12.2`.
+  `mailroom_sandbox/__init__` puts both trees on `sys.path` at import;
+  `agent_prompt_names()` merges the vendored `llm.prompts` template keys with
+  the sandbox static roster (fixes the v0.6.0-surface gap for relations/
+  gmail_triage/intake); the Modal worker bundles `vendor/` instead of
+  `pip install mailroom@git...`/`llm-dojo-scoring@git...`; the CHTC batch
+  script's eval-stack installs collapse to the sandbox package; the
+  `[pipeline]`/`[evals]` extras and `[tool.uv.sources]` redirects are gone;
+  `sandbox fetch-deps` is now an optional refresh of the pinned snapshots.
+  Regression-pinned by `tests/test_vendor.py` (+16 tests). Suite:
+  **223 passed / 1 skipped** in both the monorepo venv and a bare env with no
+  `mailroom` installed — self-containment verified.
+
 - **CHTC batch-eval live-or-loud path (DMR-044, 2026-09-10):**
   `deploy/htcondor/run_batch_eval.sh` installs the real eval stack
   (`mailroom@v0.6.0` + `llm-dojo-scoring@v0.12.2` + the sandbox — never

@@ -2,9 +2,13 @@
 
 Local-mailroom-sandbox: a **local-first experiment harness** around the governed
 LLM-Mailroom family. It does **not** reimplement the 13-node LangGraph pipeline.
-Pipeline code lives in [`llm-mailroom`](https://github.com/Exios66/llm-mailroom)
-`v0.6.0`; scoring in [`llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring)
-`v0.12.2`; prompt loops optionally in `llm-entity-extraction`.
+The family code the sandbox imports at runtime — the pipeline
+([`llm-mailroom`](https://github.com/Exios66/llm-mailroom) `v0.6.0`:
+`pipeline.*`/`graph.*`/`agents.*`/`llm.*`/`legalbench.*`) and scoring
+([`llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring) `v0.12.2`) —
+ships as **tracked snapshots under `vendor/`** (DMR-057). The sandbox is
+**self-contained**: no pip git pins, no `sandbox fetch-deps` step, no network
+needed to score or run evals. Prompt loops optionally in `llm-entity-extraction`.
 
 Python 3.11+, no build step.
 
@@ -37,7 +41,7 @@ sandbox cutover --profile ollama --agent-model judge=qwen3:14b
 sandbox up                          # langfuse + ollama compose profiles
 sandbox pull-models                 # ollama pull qwen3:8b
 sandbox health
-sandbox fetch-deps                  # vendor/llm-mailroom @ v0.6.0
+sandbox fetch-deps                  # optional: refresh tracked vendor snapshots (llm-mailroom v0.6.0, llm-dojo-scoring v0.12.2)
 sandbox fetch-deps --visualizer     # also clone The-Mailroom
 sandbox pilot --mock                # no LLM
 sandbox eval sorter --mock
@@ -85,12 +89,13 @@ sandbox metrics compare --runs local,modal,api   # serving metrics comparison
 ## Architecture gotchas
 
 - Activate **before** importing mailroom graph/agents: `mailroom_sandbox.runtime.activate(profile)`.
+- The vendored family trees are put on `sys.path` at package import (`mailroom_sandbox/__init__.py`) — a fresh checkout works offline, no `fetch-deps`. `MAILROOM_SRC` / `DOJO_SRC` env vars still override for refresh workflows.
 - Mailroom's `pipeline.config.CONFIG_PATH` is hardcoded; the sandbox monkeypatches it.
 - `DEFAULT_PROVIDER` alone is not enough — OpenRouter model ids must be rewritten via the overlay.
 - `--model` overrides every agent; `--agent-model NAME=tag` is surgical and wins last.
-- Scoring is pinned to `llm-dojo-scoring @ v0.12.2` (llm-mailroom v0.6.0's own pin). `sandbox fetch-deps` clones the v0.6.0 source tree; `pip install -e ".[pipeline]"` installs current mailroom *main*. In the monorepo, `[tool.uv.sources]` resolves mailroom/dojo/entity from the workspace. Importable `get_suite("local_vs_api")` compares offline vs API-key serving metrics (table + scorecard + cost; TTFT never inferred; GPU/KV stripped on API records).
-- Isolated evals call vendored agent classes when present; otherwise they mock and set `offline_fallback`.
-- `scripts/` and `legalbench/` are not in the installed `mailroom` wheel. `sandbox fetch-deps` supplies `PYTHONPATH` for `sandbox pipeline watcher` / `sandbox pipeline api`.
+- Scoring + pipeline are pinned by the tracked snapshots: `vendor/llm-mailroom/VENDOR.md` (v0.6.0, commit `3cf9fb92`) + `vendor/llm-dojo-scoring/VENDOR.md` (v0.12.2, commit `6dab61bd`); refresh both with `sandbox fetch-deps` and commit the diff. `get_suite("local_vs_api")` compares offline vs API-key serving metrics (table + scorecard + cost; TTFT never inferred; GPU/KV stripped on API records).
+- Isolated evals call vendored agent classes (always importable now); the `offline_fallback` path still exists for missing deps.
+- `scripts/` and `legalbench/` are not in the installed `mailroom` wheel — they ARE in the vendored tree, which also supplies `PYTHONPATH` for `sandbox pipeline watcher` / `sandbox pipeline api` (`_mailroom_env` adds both vendored srcs).
 - No second kanban board in this repo. Cross-family work stays on llm-entity-extraction's MESSAGE_BOARD.
 
 ## Tests

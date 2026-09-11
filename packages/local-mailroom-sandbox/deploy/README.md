@@ -242,7 +242,7 @@ The DMR-027 job CLI's remote mode pushes a locked run dir to the
 `sandbox-runs` Volume and spawns `run_job`:
 
 ```bash
-modal deploy modal_job.py        # once (installs sandbox pkg + dojo + otel)
+modal deploy modal_job.py        # once (installs sandbox pkg + otel; vendored family bundled, DMR-057)
 sandbox run start --job-mode modal --config <run.yaml> --watch
 ```
 

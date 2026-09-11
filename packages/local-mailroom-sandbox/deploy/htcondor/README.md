@@ -117,18 +117,21 @@ git archive --format=tar.gz -o mailroom-sandbox.tar.gz HEAD packages/local-mailr
 #     directory — archive the subtree if you copied only the package)
 # 2. portable conda env — BUILD IT HERE, on the AP (glibc match; see §2)
 conda env create -f deploy/conda/environment.yml
-pip install -e ".[pipeline]"             # inside the env, package root
-#    [pipeline] carries mailroom + its langchain stack so the execute-node
-#    install is a no-op fallback; run_batch_eval.sh still pins
-#    mailroom@v0.6.0 explicitly (the extra floats on main).
+pip install -e ".[dev]" "langchain-core>=0.3.0" "langchain-openai>=0.3" \
+    "langgraph>=0.2.0" "langgraph-checkpoint-sqlite>=1.0" \
+    "sqlalchemy[asyncio]>=2.0" "aiosqlite>=0.19"   # inside the env, package root
+#    the eval stack's langchain/graph deps (the vendored llm-mailroom v0.6.0
+#    tree ships in the package tarball — no git pip pins needed, DMR-057);
+#    run_batch_eval.sh's fallback install of the same stack is a no-op here.
 conda pack -n mailroom-sandbox -o env-mailroom-sandbox.tar.gz
 # 3. submit
 mkdir -p logs
 condor_submit vllm_batch_eval.sub
 ```
 
-`run_batch_eval.sh` unpacks the env, installs the eval stack
-(`mailroom@v0.6.0` + the sandbox), and **proves it is importable before
+`run_batch_eval.sh` unpacks the env, installs the sandbox (the eval stack —
+vendored `llm-mailroom@v0.6.0` + `llm-dojo-scoring@v0.12.2` — ships inside
+the package's `vendor/`, DMR-057), and **proves it is importable before
 starting vLLM** — a missing stack fails the job instead of silently scoring
 mocks. It then serves `Qwen/Qwen3-8B` with the same engine argv as
 `deploy/docker-compose.yml` and `deploy/modal_vllm.py` (`--max-model-len

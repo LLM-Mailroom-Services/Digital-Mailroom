@@ -121,9 +121,12 @@ def test_htcondor_batch_script_is_live_or_loud():
     assert "--max-num-seqs" in script
     assert "--no-enable-log-requests" in script
     assert "--max-model-len 8192" not in script
-    # The eval stack is the mailroom dist, pinned — never the shadowing
-    # llm-entity-extraction package (the original card's wrong prescription).
-    assert "llm-mailroom.git@v0.6.0" in script
+    # The eval stack is the TRACKED vendored snapshot (DMR-057) — no git
+    # pip pins, and never the shadowing llm-entity-extraction package (the
+    # original card's wrong prescription).
+    assert "llm-mailroom.git@v0.6.0" not in script
+    assert "llm-dojo-scoring.git@" not in script
+    assert "vendor/" in script  # the vendored family ships in the package
     install_lines = [line for line in script.splitlines() if line.strip().startswith("pip install")]
     assert all("llm-entity-extraction" not in line for line in install_lines)
     # No silent swallows on the eval/prep lines, and the post-run guard exists.

@@ -1,0 +1,187 @@
+import structlog
+import asyncio
+from pathlib import Path
+
+from pipeline.env import load_env
+
+load_env()
+from pipeline.env import default_environment
+
+default_environment("live")
+
+from pipeline.logging import setup_logging
+
+setup_logging()
+
+# O-1: kick the score-config warm-up off the document path at startup.
+from observability.scores import warmup_score_configs
+from observability.tracing import install_on_dropped
+
+install_on_dropped()  # O-3: dropped trace events log a warning, never vanish
+
+warmup_score_configs(blocking=False)
+from observability.field_scoring import warm_embedding_model
+
+warm_embedding_model(blocking=False)  # O-10: load embeddings off the document path
+
+from pipeline.bins import review_dir, failed_dir, get_base_dir, set_ingestion_paused, clear_ingestion_paused, is_ingestion_paused
+
+logger = structlog.get_logger(__name__)
+
+DEFAULT_SWEEP_INTERVAL = 300
+
+
+class OpsMonitor:
+    def __init__(self, sweep_interval: int | None = None):
+        import os
+        self.sweep_interval = sweep_interval or int(
+            os.environ.get("OPS_MONITOR_INTERVAL_SECONDS", DEFAULT_SWEEP_INTERVAL)
+        )
+        self._running = False
+        self._pause_file = get_base_dir() / "ops_monitor_paused"
+
+    async def start(self):
+        logger.info("ops_monitor_starting", interval=self.sweep_interval)
+        self._running = True
+        while self._running:
+            try:
+                await self._sweep()
+            except Exception:
+                logger.exception("ops_monitor_sweep_error")
+            await asyncio.sleep(self.sweep_interval)
+
+    async def start_until(self, stop_event: asyncio.Event):
+        """Like start(), but exits when ``stop_event`` is set (L-6: signal
+        driven graceful shutdown instead of relying on CancelledError)."""
+        logger.info("ops_monitor_starting", interval=self.sweep_interval)
+        self._running = True
+        while self._running and not stop_event.is_set():
+            try:
+                await self._sweep()
+            except Exception:
+                logger.exception("ops_monitor_sweep_error")
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=self.sweep_interval)
+            except asyncio.TimeoutError:
+                continue
+        self._running = False
+        logger.info("ops_monitor_stopped")
+
+    async def _sweep(self):
+        metrics = await self._gather_metrics()
+        findings = await self._analyze_metrics(metrics)
+        if findings.get("recommended_action") in ("alert", "pause_ingestion"):
+            logger.warning(
+                "ops_monitor_alert",
+                severity=findings.get("severity"),
+                action=findings.get("recommended_action"),
+                findings=findings.get("findings", []),
+            )
+            if findings.get("recommended_action") == "pause_ingestion":
+                # L-4/O-13: pause with actor+reason+TTL (auto-expires).
+                ok = set_ingestion_paused(
+                    actor="ops_monitor",
+                    reason="; ".join(findings.get("findings", [])[:3]) or "Boss recommended pause",
+                )
+                if ok:
+                    logger.critical("ops_monitor_paused_ingestion")
+                else:
+                    logger.error("ops_monitor_pause_write_failed")
+
+    async def _gather_metrics(self) -> dict:
+        metrics = {
+            "stuck_documents": [],
+            "error_rates": {},
+            "review_queue_size": 0,
+            "failed_queue_size": 0,
+        }
+
+        try:
+            catalog_data = await self._query_catalog()
+            stuck_docs = catalog_data.get("stuck_documents", [])
+            metrics["stuck_documents"] = len(stuck_docs) if isinstance(stuck_docs, list) else 0
+            metrics["error_rates"] = catalog_data.get("error_rates", {})
+        except Exception:
+            logger.exception("catalog_query_failed")
+
+        review = review_dir()
+        if review.exists():
+            metrics["review_queue_size"] = len(list(review.iterdir()))
+
+        failed = failed_dir()
+        if failed.exists():
+            metrics["failed_queue_size"] = len(list(failed.iterdir()))
+
+        return metrics
+
+    async def _query_catalog(self) -> dict:
+        try:
+            from storage.catalog import get_stuck_documents, get_error_rate_by_doc_type
+            stuck = await get_stuck_documents()
+            errors = await get_error_rate_by_doc_type()
+            return {
+                "stuck_documents": stuck,
+                "error_rates": errors,
+            }
+        except Exception:
+            return {"stuck_documents": [], "error_rates": {}}
+
+    async def _analyze_metrics(self, metrics: dict) -> dict:
+        try:
+            from agents.boss import BossAgent
+            boss = BossAgent()
+            return boss.analyze_system_metrics(metrics)
+        except Exception:
+            logger.exception("boss_analysis_error")
+            return {
+                "severity": "warning",
+                "recommended_action": "alert",
+                "findings": ["automated analysis failed"],
+            }
+
+    def stop(self):
+        self._running = False
+        logger.info("ops_monitor_stopped")
+
+    @property
+    def is_paused(self) -> bool:
+        # TTL-aware: a stale pause file that `is_ingestion_paused()` would
+        # auto-expire must not look paused here.
+        return is_ingestion_paused()
+
+    @property
+    def pause_info(self) -> dict | None:
+        """Pause metadata (actor/reason/expiry) via the TTL-aware helper."""
+        from pipeline.bins import get_pause_info
+
+        return get_pause_info()
+
+
+async def run_ops_monitor(sweep_interval: int | None = None):
+    monitor = OpsMonitor(sweep_interval=sweep_interval)
+    try:
+        await monitor.start()
+    except asyncio.CancelledError:
+        monitor.stop()
+
+
+if __name__ == "__main__":
+    import signal
+    from observability.tracing import ensure_process_tracing, flush
+
+    stop = asyncio.Event()
+
+    def _signal_handler(signum, frame):
+        logger.info("ops_monitor_signal_received", signal=signum)
+        stop.set()
+
+    signal.signal(signal.SIGTERM, _signal_handler)
+    signal.signal(signal.SIGINT, _signal_handler)
+    ensure_process_tracing()  # O-7/L-6: drop-warnings + flush/shutdown on exit
+
+    async def _main():
+        monitor = OpsMonitor()
+        await monitor.start_until(stop)
+
+    asyncio.run(_main())
+    flush()

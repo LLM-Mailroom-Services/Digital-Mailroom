@@ -1,7 +1,7 @@
 # Evals
 
 Isolated evals cover every live pipeline agent / node. Connected `pipeline`
-runs the vendored 13-node graph (when `sandbox fetch-deps` is present) and
+runs the vendored 13-node graph (tracked snapshot, DMR-057 — always present) and
 scores classification, stage, extraction, and routing together. All runners
 are `--dry-run` capable, append one JSONL record per completed experiment,
 and score with `llm-dojo-scoring` (never exact-match-on-extraction).
@@ -27,8 +27,8 @@ sandbox matrix --task sorter --providers ollama,openrouter \
   --models qwen3:8b --prompts mailroom-default --mock
 ```
 
-`--local` uses the active profile's OpenAI-compatible server (`sandbox fetch-deps`
-required for live agent classes). `--mock` uses deterministic fixtures / the fake
+`--local` uses the active profile's OpenAI-compatible server (live agent classes
+ship in the vendored tree — always importable, DMR-057). `--mock` uses deterministic fixtures / the fake
 client. `local_vs_api` is importable dojo serving comparison (`get_suite("local_vs_api")`):
 TTFT stays `None` unless recorded; GPU/KV/VRAM are stripped on API-key records;
 local Ollama cost stays `None` without a price table. The suite returns a

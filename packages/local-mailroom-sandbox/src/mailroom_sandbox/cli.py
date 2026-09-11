@@ -11,7 +11,7 @@ from pathlib import Path
 
 from mailroom_sandbox.overlay import list_profiles, load_profile
 from mailroom_sandbox.paths import repo_root, vendor_dir
-from mailroom_sandbox.runtime import activate, resolve_mailroom_src
+from mailroom_sandbox.runtime import activate, resolve_dojo_src, resolve_mailroom_src
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -60,8 +60,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("models", nargs="*")
     p.set_defaults(handler=_cmd_pull_models)
 
-    p = sub.add_parser("fetch-deps", help="Clone llm-mailroom @ v0.6.0 into vendor/", parents=[shared])
-    p.add_argument("--entity", action="store_true", help="Also clone llm-entity-extraction")
+    p = sub.add_parser(
+        "fetch-deps",
+        help="Refresh tracked vendor snapshots (llm-mailroom v0.6.0, llm-dojo-scoring v0.12.2) from pinned tags",
+        parents=[shared],
+    )
     p.add_argument("--visualizer", action="store_true", help="Also clone The-Mailroom (Langfuse observer)")
     p.set_defaults(handler=_cmd_fetch_deps)
 
@@ -346,18 +349,20 @@ def _cmd_pull_models(args: argparse.Namespace) -> int:
 
 
 def _cmd_fetch_deps(args: argparse.Namespace) -> int:
-    vendor_dir().mkdir(parents=True, exist_ok=True)
-    rc = _clone(
-        "https://github.com/Exios66/llm-mailroom.git",
-        vendor_dir() / "llm-mailroom",
-        "v0.6.0",
+    """Refresh the TRACKED vendor snapshots from their pinned upstream tags.
+
+    The family code ships in-repo (DMR-057), so a fresh checkout needs no
+    network. This refresh re-snapshots the pinned trees into ``vendor/`` from
+    a throwaway clone (no ``.git`` lands in the tracked tree) — the diff is
+    the new snapshot and should be committed like any code change.
+    """
+    print(
+        "vendor trees are tracked snapshots (self-contained); fetch-deps "
+        "re-snapshots them from the pinned upstream tags (network)"
     )
-    if args.entity:
-        rc = rc or _clone(
-            "https://github.com/Exios66/llm-entity-extraction.git",
-            vendor_dir() / "llm-entity-extraction",
-            "v0.20.0",
-        )
+    rc = 0
+    for name, tag, url in _VENDOR_PINS:
+        rc = rc or _refresh_vendor(name, tag, url)
     if getattr(args, "visualizer", False):
         dest = vendor_dir() / "The-Mailroom"
         if dest.is_dir() and (dest / ".git").exists():
@@ -369,12 +374,56 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
     return rc
 
 
-def _clone(url: str, dest: Path, tag: str) -> int:
-    if dest.is_dir() and (dest / ".git").exists():
-        subprocess.run(["git", "-C", str(dest), "fetch", "--tags"], check=False)
-        return subprocess.run(["git", "-C", str(dest), "checkout", tag], check=False).returncode
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    return subprocess.run(["git", "clone", "--branch", tag, "--depth", "1", url, str(dest)]).returncode
+# (vendor name, pinned tag, upstream url) — the tracked snapshot pins.
+_VENDOR_PINS: tuple[tuple[str, str, str], ...] = (
+    ("llm-mailroom", "v0.6.0", "https://github.com/Exios66/llm-mailroom.git"),
+    ("llm-dojo-scoring", "v0.12.2", "https://github.com/Exios66/llm-dojo-scoring.git"),
+)
+
+
+def _refresh_vendor(name: str, tag: str, url: str) -> int:
+    import shutil
+
+    stamp = subprocess.run(
+        ["git", "ls-remote", "--tags", url, tag],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if stamp.returncode != 0 or not stamp.stdout.strip():
+        print(f"!! could not resolve {tag} of {url}", file=sys.stderr)
+        return 1
+    work = vendor_dir() / ".refresh" / name
+    if work.is_dir():
+        shutil.rmtree(work)
+    work.parent.mkdir(parents=True, exist_ok=True)
+    clone = subprocess.run(
+        ["git", "clone", "--depth", "1", "--branch", tag, url, str(work)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if clone.returncode != 0:
+        print(f"!! clone {name}@{tag} failed: {clone.stderr.strip()}", file=sys.stderr)
+        return 1
+    dest = vendor_dir() / name
+    dest.mkdir(parents=True, exist_ok=True)
+    # llm-mailroom keeps src/ (minus tests); llm-dojo-scoring keeps the flat
+    # package under src/ — mirror the committed layout.
+    shutil.rmtree(dest / "src", ignore_errors=True)
+    if (work / "src").is_dir():
+        shutil.copytree(work / "src", dest / "src", ignore=shutil.ignore_patterns("tests", "__pycache__", "*.pyc"))
+    else:
+        shutil.copytree(work / name, dest / "src", ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    head = subprocess.run(
+        ["git", "-C", str(work), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.strip()
+    shutil.rmtree(work, ignore_errors=True)
+    print(f"== refreshed vendor/{name} @ {tag} (commit {head[:12]}) — commit the diff")
+    return 0
 
 
 def _cmd_cutover(args: argparse.Namespace) -> int:
@@ -439,9 +488,9 @@ def _cmd_agents_show(args: argparse.Namespace) -> int:
 def _mailroom_env() -> dict[str, str]:
     env = os.environ.copy()
     parts = [str(repo_root() / "src")]
-    src = resolve_mailroom_src()
-    if src is not None:
-        parts.insert(0, str(src))
+    for src in (resolve_mailroom_src(), resolve_dojo_src()):
+        if src is not None:
+            parts.insert(0, str(src))
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = os.pathsep.join(parts + ([existing] if existing else []))
     env.setdefault("OBSERVABILITY_ENVIRONMENT", os.environ.get("OBSERVABILITY_ENVIRONMENT") or "pilot")

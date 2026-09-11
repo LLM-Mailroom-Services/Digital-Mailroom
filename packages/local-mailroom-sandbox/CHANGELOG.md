@@ -93,11 +93,12 @@
 - Per-agent overlay knobs and `sandbox cutover --agent-model NAME=tag`.
 - Langfuse 3 compose (web + worker + postgres + clickhouse + redis + minio)
   with headless `LANGFUSE_INIT_*` keys matching The-Mailroom filters.
-- Scoring is pinned to `llm-dojo-scoring @ v0.12.2` (local vs API serving
-  table + scorecard + cost from [#10](https://github.com/Exios66/llm-dojo-scoring/pull/10);
-  aligned with llm-mailroom v0.6.0's own pin). Mailroom **v0.6.0** is the
-  `sandbox fetch-deps` source tree; `pip install -e ".[pipeline]"` installs
-  mailroom *main*.
+- Scoring + pipeline are **vendored snapshots** (DMR-057): `llm-dojo-scoring
+  @ v0.12.2` (local vs API serving table + scorecard + cost from
+  [#10](https://github.com/Exios66/llm-dojo-scoring/pull/10); aligned with
+  llm-mailroom v0.6.0's own pin) and llm-mailroom **v0.6.0** ship under
+  `vendor/` (tracked); `sandbox fetch-deps` refreshes them from the pinned
+  tags — the `[pipeline]` extra is gone.
 - `sandbox eval local_vs_api --mock` compares offline (Ollama/vLLM) vs API-key
   (OpenRouter) serving metrics via `get_suite("local_vs_api")` without needing
   `OPENROUTER_API_KEY`. The comparison returns a full T0/T1 **table** (missing

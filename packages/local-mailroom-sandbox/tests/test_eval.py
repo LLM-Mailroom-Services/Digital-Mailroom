@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -162,12 +164,16 @@ def test_dojo_pin_is_v0_12():
 
     import llm_dojo_scoring as dojo
     from llm_dojo_scoring import get_suite, headline_metrics
-    from mailroom_sandbox.paths import repo_root
+    from mailroom_sandbox.paths import repo_root, vendored_dojo_src
 
-    pin = (repo_root() / "pyproject.toml").read_text(encoding="utf-8")
-    assert "llm-dojo-scoring.git@v0.12.2" in pin
-    # Monorepo dev: the [tool.uv.sources] workspace redirect installs the
-    # workspace member, which can be newer than the release pin above.
+    # DMR-057: the scoring engine is the TRACKED vendored snapshot — resolved
+    # from the vendored tree's VENDOR.md, not a pyproject git pin.
+    vendor = vendored_dojo_src()
+    assert vendor is not None, "vendored llm-dojo-scoring snapshot missing"
+    vendor_md = (vendor.parent / "VENDOR.md").read_text(encoding="utf-8")
+    assert "v0.12.2" in vendor_md
+    assert str(vendor.resolve()) in sys.path, "vendored dojo must be on sys.path"
+    assert str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
     version = re.match(r"(\d+)\.(\d+)", dojo.__version__)
     assert version is not None
     assert tuple(map(int, version.groups())) >= (0, 12)

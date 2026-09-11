@@ -24,6 +24,15 @@ data/samples/
 data/*.log
 vendor/*
 !vendor/README.md
+# DMR-057: vendored family snapshots are TRACKED (self-contained); only the
+# refresh workspace and stray VCS metadata stay ignored.
+!vendor/llm-mailroom/
+!vendor/llm-mailroom/**
+!vendor/llm-dojo-scoring/
+!vendor/llm-dojo-scoring/**
+vendor/**/.git/
+vendor/.refresh/
+vendor/**/__pycache__/
 
 # Reports generated at runtime (keep README)
 reports/scores/

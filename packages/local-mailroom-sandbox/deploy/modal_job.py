@@ -17,11 +17,15 @@ the ``sandbox-runs`` Volume and spawns ``run_job`` here. The worker:
 
 The image bundles the eval surface the runners need: ``mailroom_sandbox``
 source, the sandbox ``config/`` (profiles + taxonomy overlay), the committed
-``data/fixtures/`` (LegalBench/agent fixtures), and the mailroom dist
-(``mailroom@v0.6.0``) whose ``agents.*``/``graph.*``/``pipeline.*`` modules
-the eval agents import — without them per-item evals silently mocked and
+``data/fixtures/`` (LegalBench/agent fixtures), and the TRACKED vendored
+family snapshots (DMR-057) — ``vendor/llm-mailroom/src`` (whose
+``agents.*``/``graph.*``/``pipeline.*`` modules the eval agents import) and
+``vendor/llm-dojo-scoring/src`` (scoring). The sandbox package puts both on
+``sys.path`` at import time, so NO ``mailroom@git``/``llm-dojo-scoring@git``
+pins are installed — without them per-item evals silently mocked and
 whole-run tasks crashed (DMR-047). ``SANDBOX_ROOT=/root`` anchors
-``repo_root()``/``config_dir()``/``fixtures_dir()`` at the bundled paths.
+``repo_root()``/``config_dir()``/``fixtures_dir()``/``vendor_dir()`` at the
+bundled paths.
 """
 
 from __future__ import annotations
@@ -71,6 +75,16 @@ image = (
         _PKG_ROOT / "data" / "fixtures",
         remote_path=f"{SANDBOX_ROOT}/data/fixtures",
     )
+    # DMR-057: the tracked family snapshots are bundled instead of pip-pinned
+    # git installs — the sandbox __init__ puts them on sys.path at import.
+    .add_local_dir(
+        _PKG_ROOT / "vendor" / "llm-mailroom" / "src",
+        remote_path=f"{SANDBOX_ROOT}/vendor/llm-mailroom/src",
+    )
+    .add_local_dir(
+        _PKG_ROOT / "vendor" / "llm-dojo-scoring" / "src",
+        remote_path=f"{SANDBOX_ROOT}/vendor/llm-dojo-scoring/src",
+    )
     .uv_pip_install(
         "httpx",
         "openai>=1.30",
@@ -83,10 +97,6 @@ image = (
         "langfuse>=4.0,<5",
         "opentelemetry-sdk",
         "opentelemetry-exporter-otlp-proto-http",
-        "llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.12.2",
-        # The eval agents import agents.sorter / graph.build_graph /
-        # pipeline.bins from the MAILROOM dist (v0.6.0) — the sandbox pins it.
-        "mailroom @ git+https://github.com/Exios66/llm-mailroom.git@v0.6.0",
     )
     .env(
         {
@@ -258,4 +268,4 @@ def main(debug: bool = False) -> None:
         print(f"  sandbox root: {SANDBOX_ROOT} (config/ + data/fixtures bundled)")
         print(f"  secret keys: {list(_DEPLOY_ENV_KEYS)}")
         print(f"  volume commit cadence: every {COMMIT_EVERY_EVENTS} progress events")
-        print(f"  mailroom pin: mailroom @ git+https://github.com/Exios66/llm-mailroom.git@v0.6.0")
+        print("  vendored family: vendor/llm-mailroom@v0.6.0 + vendor/llm-dojo-scoring@v0.12.2 (bundled, DMR-057)")

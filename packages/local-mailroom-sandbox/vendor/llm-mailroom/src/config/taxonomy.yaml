@@ -1,0 +1,429 @@
+# Mailroom Document Taxonomy
+# Adding a new doc class: add an entry below + a matching schema in schemas/documents.py
+# Adjusting thresholds: edit the numbers below — no code changes needed.
+
+pipeline:
+  bins:
+    inbox: "{base_dir}/pipeline/inbox"
+    processing: "{base_dir}/pipeline/processing"
+    classified: "{base_dir}/pipeline/classified"
+    review: "{base_dir}/pipeline/review"
+    failed: "{base_dir}/pipeline/failed"
+    archive: "{base_dir}/archive"
+    manifests: "{base_dir}/manifests"
+  # Text-based PDFs whose extraction yields at least this many chars/page are
+  # transcribed directly (no LLM reformat pass) — the LLM pass only runs for
+  # scanned/garbled PDFs. See agents/pdf_transcriber.py:_looks_clean_text_pdf.
+  pdf_direct_chars_per_page: 800
+
+llm_retry:
+  max_attempts: 5
+  base_delay: 1.0
+  rate_limit_base_delay: 8.0
+  max_delay: 60.0
+  jitter: 0.3
+
+run_limits:
+  # Hard wall-clock cutoff per document run (abort past this).
+  deadline_seconds: 3600
+  # Per-LLM-call socket timeout — bounds a single hanging provider request.
+  llm_call_timeout_seconds: 120
+  # Per-run cumulative output-token cap — aborts stuck/excessively-verbose
+  # models that keep generating past the point of usefulness.
+  max_total_output_tokens: 20000
+
+# Chunked extraction (vendored v15+ pass, every live specialist): long
+# documents are split on paragraph boundaries into overlapping windows,
+# each window extracted in its own call, and merged deterministically (list
+# fields union with normalized dedupe, scalars keep the first non-null value,
+# confidence takes the max) — nothing is truncated. Window size is capped at
+# the specialist's ``max_input_chars`` so a chunk is never silently truncated
+# inside ``extract()``. Documents that fit in a single window take the plain
+# single-pass path, so small documents are unaffected. The per-run
+# deadline/token budget still bounds the extra calls.
+chunking:
+  enabled: true
+  chunk_chars: 90000     # window size (chars); capped per-agent at max_input_chars
+  overlap_chars: 8000    # trailing overlap so clauses crossing a cut are seen twice
+
+# Approximate per-1M-token pricing used for estimated_cost_usd scoring and
+# synced to the Langfuse model registry via scripts/sync_models.py.
+# Update from the OpenRouter model page; unknown models estimate cost as 0.
+cost_models:
+  qwen/qwen3.7-flash:
+    input_per_million: 0.03
+    output_per_million: 0.13
+  deepseek/deepseek-v4-flash:
+    input_per_million: 0.05
+    output_per_million: 0.25
+  deepseek/deepseek-v4-pro:
+    input_per_million: 0.435
+    output_per_million: 0.87
+
+confidence:
+  # Global fallbacks (used before doc_type is known). Per-class severity overrides
+  # live under by_class and win once classification is set — see
+  # pipeline/config.py:get_confidence_thresholds.
+  # Critical legal/insurance work needs near-certain confidence to auto-continue;
+  # the band [low, high) is "classified but not clearly confident" → Lane A / review.
+  high: 0.97
+  low: 0.88        # below this → retry; still below after retry_max → human review
+  retry_max: 2     # classify + extract confidence retries before review
+  # Lane B: low <= extraction_confidence < judge_band_high fires judge_verify.
+  # Clean high-confidence extractions skip (zero added LLM calls).
+  judge_band_high: 0.95
+  # Approval-inclusive arbiter fix-list re-extracts (after_arbiter).
+  arbiter_retry_max: 2
+  # One completeness judge pass per extraction attempt (initial + each
+  # arbiter-approved retry). Keep = 1 + arbiter_retry_max.
+  judge_max_passes: 3
+  # Unused routing knob (kept for config-file compatibility). Matter conflicts
+  # escalate via deterministic same-class field comparison in
+  # graph/build_graph.py:_detect_conflict — not an extraction-confidence gap.
+  conflict_threshold: 0.3
+  by_class:
+    contract:
+      high: 0.98
+      low: 0.90
+      judge_band_high: 0.97
+    merger_agreement:
+      high: 0.98
+      low: 0.90
+      judge_band_high: 0.97
+    insurance_claim:
+      high: 0.98
+      low: 0.90
+      judge_band_high: 0.97
+    compliance_filing:
+      high: 0.97
+      low: 0.88
+      judge_band_high: 0.95
+    corporate_record:
+      high: 0.96
+      low: 0.86
+      judge_band_high: 0.94
+    correspondence:
+      high: 0.95
+      low: 0.85
+      judge_band_high: 0.92
+
+# Deterministic field-type-aware extraction scoring (issues #4/#5). The scorer
+# normalizes each field by its type (date/money/id exact-after-normalize, name
+# fuzzy match, free-text token F1, entity-list bipartite matching) and, for
+# ambiguous free-text/name fields, uses embedding cosine similarity
+# (sentence-transformers) as a second signal. `ambiguous_band` is the judge
+# escalation gate: fields scoring inside the band trigger the LLM judge; runs
+# scoring clearly above or below the band skip the judge entirely (2 evaluator
+# calls saved per run). `type_bands` overrides the band per field type —
+# calibrated by scripts/calibrate_field_scoring.py (issue #4): date/id/money/
+# free_text have a real deterministic cutoff, while name and entity_list
+# types are too lenient for a deterministic reject (Jaro-Winkler/token-set are
+# typo-tolerant by design), so every such field escalates to the judge
+# ("always"). See observability/field_scoring.py.
+field_scoring:
+  ambiguous_band: [0.5, 0.85]
+  type_bands:
+    date: never              # exact-after-normalize: decisive both ways
+    id: never                # exact match: decisive both ways
+    money: [0.675, 0.938]    # numeric tolerance: calibrated cutoff
+    free_text: [0.6, 0.95]   # token F1: paraphrases legitimately score 0.6-0.88 — escalate them
+    name: [0.5, 1.0]         # trust only perfect matches; near-misses go to judge
+    entity_list: [0.5, 1.0]  # trust only perfect lists; partial matches go to judge
+  bipartite_match_threshold: 0.6  # minimum pairwise similarity for a list match
+  embedding_enabled: true
+  embedding_model: sentence-transformers/all-MiniLM-L6-v2
+  embedding_rescue_below: 0.7  # only consult embeddings when string score is below this
+  # Fields whose expected value is a containment match: share of the EXPECTED
+  # text's (stopword-filtered) tokens covered by the prediction. For verbatim-
+  # clause fields whose label is one sentence of a longer passage.
+  containment_fields: [governing_law, term_length, renewal_terms, subject_matter]
+  # Fields whose ground-truth label set is a PARTIAL sample (not exhaustive):
+  # the reported list score becomes ground-truth coverage (recall), not F1 —
+  # extra correct extractions don't cut the score.
+  partial_gt_fields: [parties, keywords, cuad_clauses, maud_clauses, claim_checklist, action_items]
+  # Factuality audit: every predicted list item / scalar value is verified
+  # against the source document (normalized token coverage; dates parsed from
+  # candidates in any format) — items that neither match a ground-truth label
+  # nor appear in the document are hallucinations, reported as
+  # verified_precision / hallucination_rate.
+  factuality_verification:
+    enabled: true
+    token_coverage: 0.7
+
+# Vision-mode ingestion (issue: vision-capable models can read PDFs page-by-page
+# as images; text-only models still get the transcription). When a document's
+# input agent model is listed in `models` (substring match), the pipeline renders
+# the first `max_pages` PDF/scan pages to image data-URIs and sends them to the
+# classified/extraction prompt AS WELL AS (or instead of) the transcribed text.
+# `doc_text` is still transcribed and stored for text-only processes, the judge,
+# reports, and auditability — vision only changes the LLM prompt content, never
+# the downstream catalog/audit trail.
+# Environment variable overrides (useful for pilot sweeps without editing YAML):
+#   MAILROOM_VISION_ENABLED=true|false
+#   MAILROOM_VISION_MAX_PAGES=<int>  (0 = all pages)
+#   MAILROOM_VISION_DPI=<int>
+vision:
+  enabled: true
+  max_pages: 10          # cap the page-image budget per document (large PDFs)
+  dpi: 150               # render resolution for page images
+  models:                # model strings (substring match) that accept image input
+    - "qwen/"
+    - "gpt-4o"
+    - "gpt-4.1"
+    - "claude"
+    - "gemini"
+    - "llava"
+    - "llama-3.2"
+    - "qwen-vl"
+
+doc_classes:
+  - key: contract
+    label: "Contract / Agreement"
+    schema: ContractExtraction
+    specialist: contracts_specialist
+    description: "CUAD commercial contracts and agreements (vendor, employment, NDA, license, etc.) — not MAUD merger agreements"
+    field_types:
+      document_name: name
+      parties: entity_list:name
+      effective_date: date
+      term_length: free_text
+      governing_law: name
+      contract_value: money
+      renewal_terms: free_text
+      cuad_family: name
+      merger_consideration: name
+      cuad_clauses: entity_list:free_text
+      maud_clauses: entity_list:free_text
+
+  - key: merger_agreement
+    label: "Merger Agreement"
+    schema: ContractExtraction
+    specialist: contracts_specialist
+    description: "MAUD merger agreements (agreement and plan of merger) — a distinct class from CUAD commercial contracts. Subclass is consideration type (all_cash, all_stock, mixed, …)."
+    field_types:
+      document_name: name
+      parties: entity_list:name
+      effective_date: date
+      term_length: free_text
+      governing_law: name
+      contract_value: money
+      renewal_terms: free_text
+      cuad_family: name
+      merger_consideration: name
+      cuad_clauses: entity_list:free_text
+      maud_clauses: entity_list:free_text
+
+  - key: corporate_record
+    label: "Corporate Record"
+    schema: CorporateRecordExtraction
+    specialist: corporate_records_specialist
+    description: "Bylaws, articles/certificates of incorporation, powers of attorney, stockholder rights instruments, specimen stock (including those filed as SEC exhibits)"
+    field_types:
+      entity_name: name
+      record_type: name
+      effective_date: date
+      signatories: entity_list:name
+      jurisdiction: name
+      filing_number: id
+      intent: name
+      subject_matter: free_text
+      keywords: entity_list:name
+
+  - key: correspondence
+    label: "Correspondence"
+    schema: CorrespondenceExtraction
+    specialist: correspondence_specialist
+    description: "Letters, emails, memos, notices, demand letters, press releases, meeting requests"
+    field_types:
+      sender: name
+      recipient: name
+      additional_recipients: entity_list
+      communication_type: name
+      communication_date: date
+      demand_amount: money
+      action_items: entity_list
+      urgency: name
+      intent: name
+      subject_matter: free_text
+      keywords: entity_list:name
+
+  - key: compliance_filing
+    label: "Compliance Filing"
+    schema: ComplianceFilingExtraction
+    specialist: compliance_specialist
+    description: "SEC form body (10-K, 10-Q, 8-K, S-1, DEF 14A, 13D/G, Form 4) — not an attached charter or rights exhibit"
+    field_types:
+      filing_type: name
+      regulatory_body: name
+      filing_date: date
+      due_date: date
+      entity_name: name
+      key_requirements: entity_list:free_text
+      status: name
+      reference_number: id
+
+  - key: insurance_claim
+    label: "Insurance Claim"
+    schema: InsuranceClaimExtraction
+    specialist: insurance_claims_specialist
+    description: "Insurance claim documentation: FNOL forms, adjuster reports, demand packages, coverage determinations, denial letters, and CMS/DE-SynPUF claim tables (inpatient, outpatient, PDE, carrier)"
+    field_types:
+      claim_number: id
+      policy_number: id
+      insurer: name
+      insured_party: name
+      claim_type: name
+      date_of_loss: date
+      date_filed: date
+      claimed_amount: money
+      adjuster: name
+      damages_description: free_text
+      coverage_determination: name
+      denial_reasons: entity_list:free_text
+      supporting_documents: entity_list
+      intent: name
+      subject_matter: free_text
+      keywords: entity_list:name
+      claim_checklist: entity_list:free_text
+
+file_extensions:
+  - .txt
+  - .pdf
+  - .docx
+  - .md
+  - .jpg
+  - .jpeg
+  - .png
+  - .gif
+  - .bmp
+  - .webp
+  - .tiff
+  - .tif
+
+# === Agent → model mapping ===
+# Each agent list entry: provider, model, temperature, optional max_tokens
+# (caps output/reasoning-token generation — see agents/base.py) and optional
+# max_input_chars (input-text budget per call; defaults to 25000). Large
+# documents need a bigger window or late-page fields (termination clauses,
+# obligations) get truncated away — see docs/reports/audits/PILOT_AUDIT_REPORT.md fix #5.
+# To cut over locally: change provider to "ollama", model to e.g. "qwen3:7b"
+# Setting DEFAULT_PROVIDER env var overrides the provider globally.
+agents:
+  sorter:
+    provider: openrouter
+    model: qwen/qwen3.7-flash
+    temperature: 0.1
+    max_tokens: 2048
+    max_input_chars: 12000
+    # none: reserve the completion budget for the JSON object. Medium/high
+    # reasoning on Qwen 3.7-Flash starved structured output
+    # (LengthFinishReasonError) on the production HF pilot.
+    reasoning_effort: none
+
+  # KANBAN-062 (Lane A): independent second-opinion classification reviewer.
+  # Fires only on medium-band classifications that survive retry_classify.
+  sorter_reviewer:
+    provider: openrouter
+    model: qwen/qwen3.7-flash
+    temperature: 0.1
+    max_tokens: 2048
+    max_input_chars: 12000
+    reasoning_effort: none
+
+  # KANBAN-063 (Lane B): judgment arbitration on failed judge verdicts.
+  # Sees the specialist extraction + judge findings; bounded decisions only.
+  arbiter:
+    provider: openrouter
+    model: qwen/qwen3.7-flash
+    temperature: 0.1
+    max_tokens: 4096
+    max_input_chars: 100000
+    reasoning_effort: none
+
+  contracts_specialist:
+    provider: openrouter
+    model: qwen/qwen3.7-flash
+    temperature: 0.1
+    max_tokens: 8192
+    max_input_chars: 100000
+    reasoning_effort: none
+
+  corporate_records_specialist:
+    provider: openrouter
+    model: qwen/qwen3.7-flash
+    temperature: 0.1
+    max_tokens: 8192
+    max_input_chars: 60000
+    reasoning_effort: none
+
+  correspondence_specialist:
+    provider: openrouter
+    model: qwen/qwen3.7-flash
+    temperature: 0.1
+    max_tokens: 8192
+    max_input_chars: 40000
+    reasoning_effort: none
+
+  compliance_specialist:
+    provider: openrouter
+    model: qwen/qwen3.7-flash
+    temperature: 0.1
+    max_tokens: 8192
+    max_input_chars: 60000
+    reasoning_effort: none
+
+  insurance_claims_specialist:
+    provider: openrouter
+    model: qwen/qwen3.7-flash
+    temperature: 0.1
+    max_tokens: 8192
+    max_input_chars: 60000
+    reasoning_effort: none
+
+  # Reporter is procedural (no LLM): compile_report assembles a deterministic
+  # matter record from classification + extraction. Entry kept for cutover
+  # listings / prompt registry compatibility; get_llm("reporter") is unused.
+  reporter:
+    provider: openrouter
+    model: qwen/qwen3.7-flash
+    temperature: 0.0
+    max_tokens: 512
+    max_input_chars: 40000
+    reasoning_effort: none
+    procedural: true
+
+  boss:
+    provider: openrouter
+    model: qwen/qwen3.7-flash
+    temperature: 0.1
+    max_tokens: 8192
+    max_input_chars: 40000
+    # OpenRouter reasoning effort; "max" maps to ~95% of max_tokens as the
+    # thinking budget for Qwen thinking models.
+    reasoning_effort: max
+
+  pdf_transcriber:
+    provider: openrouter
+    model: qwen/qwen3.7-flash
+    temperature: 0.1
+    max_tokens: 8192
+    max_input_chars: 40000
+    reasoning_effort: none
+
+  # Vision-based text extraction from image-only documents (jpg/png/...).
+  image_extractor:
+    provider: openrouter
+    model: qwen/qwen3.7-flash
+    temperature: 0.1
+    max_tokens: 4096
+    max_input_chars: 20000
+    reasoning_effort: none
+
+  # Offline LLM-as-a-judge used by scripts/run_quality_judges.py.
+  judge:
+    provider: openrouter
+    model: deepseek/deepseek-v4-flash
+    temperature: 0.1
+    max_tokens: 2048
+    max_input_chars: 60000
+    reasoning_effort: none

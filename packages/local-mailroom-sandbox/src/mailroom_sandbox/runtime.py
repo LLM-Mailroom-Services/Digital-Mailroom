@@ -74,6 +74,24 @@ def resolve_mailroom_src() -> Path | None:
     return None
 
 
+def resolve_dojo_src() -> Path | None:
+    """llm-dojo-scoring import root (vendored snapshot first, DMR-057)."""
+    env = os.environ.get("DOJO_SRC")
+    candidates = []
+    if env:
+        candidates.append(Path(env))
+    candidates.extend(
+        [
+            vendor_dir() / "llm-dojo-scoring" / "src",
+            repo_root().parent / "llm-dojo-scoring" / "src",
+        ]
+    )
+    for cand in candidates:
+        if (cand / "llm_dojo_scoring" / "__init__.py").is_file():
+            return cand
+    return None
+
+
 def apply_profile_env(profile: dict, *, base_url_override: str | None = None) -> None:
     endpoints = endpoints_for(profile, base_url_override=base_url_override)
     os.environ["SANDBOX_PROFILE"] = str(profile.get("name") or "")
@@ -131,6 +149,9 @@ def activate(
     mailroom_src = resolve_mailroom_src()
     if mailroom_src is not None:
         _prepend_sys_path(mailroom_src)
+    dojo_src = resolve_dojo_src()
+    if dojo_src is not None:
+        _prepend_sys_path(dojo_src)
 
     taxonomy = build_merged_taxonomy(
         profile, model_override=model, agent_models=agent_models

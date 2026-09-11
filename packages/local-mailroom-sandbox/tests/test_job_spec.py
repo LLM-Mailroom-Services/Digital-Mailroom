@@ -52,7 +52,11 @@ def test_spec_core_is_behavioral_and_json_serializable():
 
 
 def test_vllm_range_validation():
-    VLLMSpec()  # defaults valid
+    # DMR-056 pin: the DEFAULT max_model_len is 16384 (boot-valid for L4-bf16
+    # 8B-class rows on v0.28.0 — 32768 RAISES at the KV admission check), not
+    # the pre-DMR-056 32768; AWQ/FP8 rows opt up explicitly.
+    assert VLLMSpec().max_model_len == 16384
+    VLLMSpec(max_model_len=32768)  # explicit opt-up stays valid
     with pytest.raises(ValidationError):
         VLLMSpec(gpu_memory_utilization=1.5)
     with pytest.raises(ValidationError):

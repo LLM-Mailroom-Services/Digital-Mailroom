@@ -1,6 +1,6 @@
 ---
 name: huggingface
-description: Hugging Face Hub usage for local-mailroom-sandbox — fixture schema, sandbox datasets pull, HF cache, and Modal/vLLM weight downloads. Use for Hub datasets, HF_TOKEN, docclass-merged slices, or model pulls; prefer offline data/fixtures and sandbox datasets prepare when network-free work is enough. For general Hub CLI depth, also follow the hf-cli plugin skill.
+description: Hugging Face Hub usage for local-mailroom-sandbox — fixture schema, sandbox datasets pull, HF cache, and Modal/vLLM weight downloads. Use for Hub datasets, HF_TOKEN, mailroom-corpus slices, or model pulls; prefer offline data/fixtures and sandbox datasets prepare when network-free work is enough. For general Hub CLI depth, also follow the hf-cli plugin skill.
 ---
 
 # Hugging Face (sandbox data + weights)
@@ -19,10 +19,13 @@ description: Hugging Face Hub usage for local-mailroom-sandbox — fixture schem
 
 ```bash
 sandbox datasets prepare                                    # offline cleaners
-sandbox datasets pull --dataset Lucius-Morningstar/docclass-merged --max-rows 50
+sandbox datasets pull --dataset Lucius-Morningstar/mailroom-corpus --max-rows 50
+#   pinned revision eafe1ab4c0d3… (FAMILY_HF_REVISION), ground_truth + default
+#   merged on filename, content_sha256 verified, exit 1 on any failure (DMR-056)
 ```
 
-Default Hub id in code: `Lucius-Morningstar/docclass-merged` (`mailroom_sandbox.datasets.HF_DATASET`).
+Default Hub id in code: `Lucius-Morningstar/mailroom-corpus`
+(`mailroom_sandbox.datasets.HF_DATASET` / `job.spec.HF_DEFAULT_REPO`).
 
 ## Auth + cache
 
@@ -32,7 +35,9 @@ export HF_TOKEN=hf_...
 # compose vLLM / Modal read HF_TOKEN; Modal volume sandbox-hf-cache
 ```
 
-Compose `vllm` mounts named volume `hf_cache`. Modal uses `HF_HUB_ENABLE_HF_TRANSFER=1` on the vLLM image.
+Compose `vllm` mounts named volume `hf_cache`. Modal (both apps) uses the
+huggingface_hub 1.x default Xet backend (`HF_XET_HIGH_PERFORMANCE=1`); the
+old `[hf_transfer]` extra / `HF_HUB_ENABLE_HF_TRANSFER` are dead (DMR-056).
 
 ## When to use which HF surface
 
@@ -46,7 +51,9 @@ Compose `vllm` mounts named volume `hf_cache`. Modal uses `HF_HUB_ENABLE_HF_TRAN
 
 ## Boundaries
 
-- Do not vendor multi-MB CUAD PDFs; pull from mailroom `docs/examples/samples/` after `sandbox fetch-deps` (see fixture attribution).  
+- Do not vendor multi-MB CUAD PDFs; the legalbench suite corpus stays
+  upstream (llm-mailroom `scripts/fetch_full_cuad.py`; DMR-057 vendored tree
+  carries code only, not the corpus).  
 - Synthetic `hf/docclass_mini.jsonl` matches Hub schema but is **not** Hub content.  
 - Default CI/pytest: no Hub calls.
 

@@ -20,15 +20,17 @@ sandbox health --profile vllm-local
 
 The compose service pins `vllm/vllm-openai:v0.28.0` — the same engine
 version as the Modal app — and sends the shared test-sandbox argv:
-`--host 0.0.0.0 --port 8000 --max-model-len 32768
+`--host 0.0.0.0 --port 8000 --max-model-len 16384
 --gpu-memory-utilization 0.90 --max-num-seqs 256
---no-enable-log-requests`. Compose substitution reads your shell env or
+--no-enable-log-requests` (DMR-056: 16384 is the boot-valid cap for
+L4-bf16 8B-class rows — v0.28.0 raises at boot rather than shrinking the KV
+pool; AWQ rows opt up to 32768). Compose substitution reads your shell env or
 `deploy/.env` (the compose project directory):
 
 | Env | Default | Notes |
 | --- | --- | --- |
 | `VLLM_MODEL` | `Qwen/Qwen3-8B` | HF repo id |
-| `VLLM_MAX_MODEL_LEN` | `32768` | KV-cache budget |
+| `VLLM_MAX_MODEL_LEN` | `16384` | KV-cache budget (boot-valid for bf16 8B on L4; AWQ rows set 32768) |
 | `VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | vLLM's default is `0.92`; 0.90 leaves headroom on a 24 GB L4 / shared GPU |
 | `VLLM_MAX_NUM_SEQS` | `256` | concurrency cap (matches the Modal default) |
 | `VLLM_API_KEY` | empty | when set, `/v1/*` requires the bearer (same contract as Modal) |

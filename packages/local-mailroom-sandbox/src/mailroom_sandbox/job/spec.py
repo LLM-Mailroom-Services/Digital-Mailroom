@@ -156,9 +156,15 @@ class DatasetSpec(BaseModel):
 
 
 class VLLMSpec(BaseModel):
-    """vLLM serve flags (verified for v0.28.0 in DMR-022)."""
+    """vLLM serve flags (verified for v0.28.0 in DMR-022).
 
-    max_model_len: int = 32768
+    ``max_model_len`` defaults to 16384 — the DMR-056 boot-valid cap for
+    L4-bf16 8B-class rows: v0.28.0 RAISES at boot when the KV pool cannot
+    hold one request at max_model_len (it does not shrink-and-warn). AWQ /
+    FP8 rows may set 32768 explicitly.
+    """
+
+    max_model_len: int = 16384
     gpu_memory_utilization: float = 0.90
     max_num_seqs: int = 256
     quantization: str = ""

@@ -30,7 +30,7 @@ engine:
   kind: vllm-local
   model: Qwen/Qwen3-8B
   vllm:
-    max_model_len: 32768
+    max_model_len: 16384      # DMR-056: boot-valid cap for L4-bf16 8B rows (v0.28.0 raises at 32768)
     gpu_memory_utilization: 0.90
     max_num_seqs: 256
   modal: null

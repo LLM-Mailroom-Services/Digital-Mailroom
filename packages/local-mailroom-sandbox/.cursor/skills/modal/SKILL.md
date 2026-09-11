@@ -55,7 +55,7 @@ Compose for Modal profile only starts **langfuse** (no local vLLM container).
 | --- | --- |
 | `MODAL_VLLM_MODEL` | `Qwen/Qwen3-8B` |
 | `MODAL_VLLM_GPU` | `L4` |
-| `MODAL_VLLM_MAX_MODEL_LEN` | `32768` |
+| `MODAL_VLLM_MAX_MODEL_LEN` | `16384` (DMR-056: boot-valid cap for L4-bf16 8B rows — v0.28.0 raises at 32768; AWQ/FP8 rows set 32768) |
 | `MODAL_VLLM_QUANTIZATION` | empty |
 | `MODAL_VLLM_IMAGE_TAG` | `v0.28.0` (pin; never `latest`) |
 | `MODAL_VLLM_REVISION` | empty (HF revision) |

@@ -20,7 +20,18 @@ def main(argv: list[str] | None = None) -> int:
     if not hasattr(args, "handler"):
         parser.print_help()
         return 0
-    return int(args.handler(args) or 0)
+    try:
+        return int(args.handler(args) or 0)
+    except subprocess.CalledProcessError as exc:
+        # Docker/ollama/ssh failures surface the tool's own message; don't
+        # dump a Python traceback for a missing daemon/container (DMR-058).
+        print(f"command failed ({exc.returncode}): {' '.join(exc.cmd[:3])} …", file=sys.stderr)
+        if exc.stderr:
+            print(exc.stderr.decode() if isinstance(exc.stderr, bytes) else exc.stderr, end="", file=sys.stderr)
+        return 1
+    except FileNotFoundError as exc:
+        print(f"command unavailable: {exc}", file=sys.stderr)
+        return 1
 
 
 def build_parser() -> argparse.ArgumentParser:

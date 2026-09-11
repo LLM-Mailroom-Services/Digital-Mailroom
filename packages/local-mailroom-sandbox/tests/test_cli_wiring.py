@@ -8,6 +8,7 @@ non-profile names (G34).
 
 from __future__ import annotations
 
+import subprocess
 import types
 
 import pytest
@@ -196,3 +197,25 @@ def test_matrix_rejects_family_names():
         prompts=["code-default"],
     )
     assert cells and cells[0]["provider"] == "vllm-local"
+
+
+# ── DMR-058: docker/ollama/ssh failures degrade cleanly, not as tracebacks ───
+
+
+def test_up_missing_docker_degrades_cleanly(mocker, capsys):
+    from mailroom_sandbox.cli import main as cli_main
+
+    exc = subprocess.CalledProcessError(1, ["docker", "compose", "up"], stderr=b"no daemon")
+    mocker.patch("mailroom_sandbox.compose.run_compose", side_effect=exc)
+    assert cli_main(["up"]) == 1
+    out = capsys.readouterr().err
+    assert "command failed" in out
+    assert "no daemon" in out
+
+
+def test_pull_models_missing_ollama_degrades_cleanly(mocker, capsys):
+    from mailroom_sandbox.cli import main as cli_main
+
+    mocker.patch("mailroom_sandbox.compose.pull_ollama_models", side_effect=FileNotFoundError("no ollama"))
+    assert cli_main(["pull-models"]) == 1
+    assert "command unavailable" in capsys.readouterr().err

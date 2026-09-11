@@ -612,17 +612,23 @@ def _cmd_legalbench(args: argparse.Namespace) -> int:
     name = f"sandbox_legalbench_{args.task}"
     if args.suite:
         name += f"_n{args.n or 0}_s{args.seed}"
-    result = run_legalbench_eval(
-        mock=mock,
-        sample=args.n,
-        seed=args.seed,
-        task=args.task,
-        suite=args.suite,
-        dry_run=args.dry_run,
-        experiment_name=name,
-        profile=args.profile,
-        model=args.model,
-    )
+    try:
+        result = run_legalbench_eval(
+            mock=mock,
+            sample=args.n,
+            seed=args.seed,
+            task=args.task,
+            suite=args.suite,
+            dry_run=args.dry_run,
+            experiment_name=name,
+            profile=args.profile,
+            model=args.model,
+        )
+    except ValueError as exc:
+        # Loud guard (unwired task / suite without --n / empty rows): clean
+        # one-liner, not a traceback (DMR-058).
+        print(f"error: {exc}")
+        return 1
     _print(result)
     return 0
 

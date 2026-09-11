@@ -50,6 +50,16 @@ def test_legalbench_family_classification_refused():
         runners.run_legalbench_eval(mock=True, task="family_classification")
 
 
+def test_legalbench_cli_suite_guard_degrades_cleanly(capsys):
+    # DMR-058: the loud suite-without--n guard surfaces as `error: …` + rc 1
+    # from the CLI, never a traceback.
+    from mailroom_sandbox.cli import main
+
+    assert main(["legalbench", "--task", "contract_qa", "--suite", "--dry-run"]) == 1
+    out = capsys.readouterr().out
+    assert "error:" in out and "explicit --n/--sample" in out
+
+
 def test_legalbench_suite_requires_explicit_n():
     with pytest.raises(ValueError, match="explicit --n"):
         runners.run_legalbench_eval(mock=True, suite=True)

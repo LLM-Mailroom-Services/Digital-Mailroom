@@ -2,7 +2,9 @@
 
 A single reference for setting up, configuring, and using every feature of
 `local-mailroom-sandbox`. This is the checklist; the deep-dive docs live in
-`docs/` subdirectory files linked throughout.
+`docs/` subdirectory files linked throughout. For a fast on-ramp with the
+full verified command list, start with
+[`docs/QUICKSTART.md`](QUICKSTART.md).
 
 ---
 

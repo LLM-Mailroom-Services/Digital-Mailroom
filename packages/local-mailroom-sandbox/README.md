@@ -97,6 +97,7 @@ GPU recommended for Qwen 8B.
 
 | Guide | Description |
 |:---|:---|
+| [Quickstart](docs/QUICKSTART.md) | **Start here** — install, full CLI reference, canonical workflows |
 | [Providers](docs/providers.md) | Ollama, vLLM, Modal, llama.cpp, LM Studio, OpenRouter |
 | [Evals](docs/evals.md) | Runners, matrix, scoring, experiment log |
 | [Tracing](docs/tracing.md) | Langfuse v4 data model, tags, The-Mailroom |

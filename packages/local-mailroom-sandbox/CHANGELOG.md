@@ -4,6 +4,26 @@
 
 ### Added
 
+- **DMR-058 — full CLI verification sweep + quickstart**: every `sandbox`
+  command exercised against a fresh in-repo `.venv` (offline + live Hub
+  paths); `docs/QUICKSTART.md` is the verified full command reference
+  (install, flag-placement rules, workflows, exit codes, troubleshooting).
+  New extras: `[pipeline]` (vendored langchain stack for the legalbench
+  suite / live mailroom paths), `[dev]` now carries the Hub client
+  (`huggingface_hub`, `pyarrow`); the vendored dojo runtime surface
+  (`numpy`, `pandas`, `matplotlib`, `openpyxl`) moved into BASE deps so a
+  clean `pip install .` boots the CLI. Clean degradations (no tracebacks):
+  compose/ollama/ssh failures (`up`/`down`/`pull-models`), `datasets pull`
+  without the Hub client (points at `[hf]`/`[dev]`), `legalbench` loud
+  guards (suite without `--n`, missing corpus, missing `[pipeline]`), and
+  Modal job mode without the SDK (points at `[deploy]`). `sandbox fetch-deps`
+  is now layout-aware and non-destructive (the llm-dojo-scoring clone ships
+  the package at the repo root; the old `work/name` fallback half-wiped the
+  tracked tree before crashing). `run status/resume/cancel --config`
+  resolves the embedded `run_id` (previously demanded `--run-id` even with a
+  config). `config/runs/example.yaml` fixture path is CWD-relative again.
+  ~6 new network-free tests (230 passed / 1 skipped).
+
 - **HUB-026 — remote-serving integration completeness**: `vllm-remote`
   profile with a `tunnel:` block + `mailroom_sandbox/tunnel.py`
   (network-free argv builders, pidfile lifecycle, double-forward guard) +

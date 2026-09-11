@@ -56,6 +56,8 @@ Compose for Modal profile only starts **langfuse** (no local vLLM container).
 | `MODAL_VLLM_MODEL` | `Qwen/Qwen3-8B` |
 | `MODAL_VLLM_GPU` | `L4` |
 | `MODAL_VLLM_MAX_MODEL_LEN` | `16384` (DMR-056: boot-valid cap for L4-bf16 8B rows — v0.28.0 raises at 32768; AWQ/FP8 rows set 32768) |
+| `MODAL_VLLM_ATTENTION_BACKEND` | empty (`flashinfer` for throughput runs — Modal vllm_throughput exemplar) |
+| `MODAL_VLLM_ASYNC_SCHEDULING` | empty (`1` enables the async scheduler; not all vLLM features supported under it) |
 | `MODAL_VLLM_QUANTIZATION` | empty |
 | `MODAL_VLLM_IMAGE_TAG` | `v0.28.0` (pin; never `latest`) |
 | `MODAL_VLLM_REVISION` | empty (HF revision) |
@@ -70,6 +72,17 @@ Compose for Modal profile only starts **langfuse** (no local vLLM container).
 Cost: L4 ≈ $0.80/hr while warm (rates: modal.com/pricing, verified
 2026-09-09); GPU billing stops after the scaledown window; `download_model`
 is CPU-only. Check spend with `modal billing summary`.
+
+## Throughput runs
+
+Big batch evals are a throughput workload (Modal `vllm_throughput`
+exemplar, 2026-09): deploy the published FP8 checkpoint on a single H100
+(`MODAL_VLLM_MODEL=Qwen/Qwen3-8B-FP8 MODAL_VLLM_GPU=H100
+MODAL_VLLM_MAX_MODEL_LEN=32768 MODAL_VLLM_ATTENTION_BACKEND=flashinfer
+MODAL_VLLM_ASYNC_SCHEDULING=1`), and set `concurrency: 4-16` in the run
+spec's `job:` block so the runner fills vLLM's continuous batching
+(`docs/jobs.md`). Keep async scheduling off when the run depends on
+structured outputs.
 
 ## SDK gotchas (1.5.5)
 

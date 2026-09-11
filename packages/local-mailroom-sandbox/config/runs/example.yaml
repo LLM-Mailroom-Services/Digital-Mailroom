@@ -43,6 +43,10 @@ job:
   mock: true
   max_retries: 2
   fail_fast: false
+  # Throughput (Modal vllm_throughput exemplar): 1 = serial default; set
+  # 4-16 when scoring against a vLLM endpoint so the runner fills the
+  # engine's continuous batching (docs/jobs.md).
+  concurrency: 1
 
 trace:
   sink: none                 # none | langfuse | phoenix | otlp

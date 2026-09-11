@@ -96,6 +96,8 @@ For evals: `SANDBOX_PROFILE=modal-vllm` + `DEFAULT_PROVIDER=vllm` (see
 | `MODAL_VLLM_MAX_MODEL_LEN` | `16384` | context cap (KV-cache budget). DMR-056: v0.28.0 RAISES at boot when the pool can't hold one request — L4-bf16 8B rows cap at 16384; AWQ/FP8 rows set 32768 |
 | `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | fraction of GPU memory; vLLM's default is `0.92` |
 | `MODAL_VLLM_MAX_NUM_SEQS` | `256` | concurrency cap; vLLM's own L4/OpenAI-server default |
+| `MODAL_VLLM_ATTENTION_BACKEND` | empty | `flashinfer` for throughput runs (Modal vllm_throughput exemplar); empty = vLLM engine default (parity + reproducible posture) |
+| `MODAL_VLLM_ASYNC_SCHEDULING` | empty | `1`/`true` enables the async batch scheduler (exemplar throughput knob). Not every vLLM feature is supported under it — keep off when a run depends on structured outputs |
 | `MODAL_VLLM_QUANTIZATION` | empty | `awq` / `gptq` / … |
 | `MODAL_VLLM_TP_SIZE` | from GPU suffix | tensor-parallel size; default derived from `:N` in `MODAL_VLLM_GPU` (1 for single GPU). Set explicitly for 70B-class (`A100-80GB:2` → `2`). Travels via the deploy Secret. |
 | `MODAL_VLLM_IMAGE_TAG` | `v0.28.0` | pin; tag or `@sha256:` digest |
@@ -126,6 +128,10 @@ cap, and tensor-parallel size. Rules of thumb (verified against v0.28.0,
   Hopper (H100) and Ada (L4), *weight-only Marlin* (slower) on A100 — the
   FP8 matrix rows point at the PUBLISHED `-FP8` checkpoints (auto-detected;
   no forced `--quantization`).
+- **Throughput rows** — `Qwen/Qwen3-8B-FP8` and `Qwen/Qwen3-14B-FP8` on
+  `MODAL_VLLM_GPU=H100` are the Modal `vllm_throughput` exemplar posture
+  (native W8A8, best tok/s per dollar for prefill-heavy batch evals; see the
+  Throughput runs section below).
 - **70B-class**: `MODAL_VLLM_GPU="A100-80GB:2"` +
   `MODAL_VLLM_TP_SIZE=2` with the published `RedHatAI/
   Llama-3.3-70B-Instruct-FP8-dynamic` checkpoint (~35 GB/GPU); forcing
@@ -149,6 +155,8 @@ the same `vllm serve` argv:
 | `--gpu-memory-utilization` | `0.90` (knob) | vLLM's default is `0.92`; 0.90 keeps headroom on a 24 GB L4 and on shared local GPUs |
 | `--max-num-seqs` | `256` (knob) | vLLM's own L4/OpenAI-server default, pinned so local and Modal schedule the same concurrency on any GPU |
 | `--no-enable-log-requests` | on | v0.28.0 made request logging opt-in (`--enable-log-requests`); the pre-0.28 `--disable-log-requests` flag no longer exists |
+| `--attention-backend` | off (knob) | `flashinfer` for throughput runs — the Modal vllm_throughput exemplar's attention backend; empty = engine default |
+| `--async-scheduling` | off (knob) | exemplar's async batch scheduler, opt-in — see the caveats above |
 | `--tensor-parallel-size` | `N` when `MODAL_VLLM_TP_SIZE` ≠ 1 | multi-GPU containers must pass this or vLLM uses only 1 GPU and OOMs (70B-class on `A100-80GB:2`) |
 | `--revision` / `--quantization` | optional | weight pin / quantized checkpoints (Modal knobs; compose overrides via a command override) |
 
@@ -162,8 +170,10 @@ posture:
 - **CUDA graphs / `--enforce-eager`** — graphs stay on; the
   `sandbox-vllm-cache` Volume mounts vLLM's default `VLLM_CACHE_ROOT`
   (`~/.cache/vllm`), so JIT/compile artifacts survive cold boots.
-- **`--async-scheduling`** — opt-in in v0.28.0 (default scheduler is
-  synchronous); a test sandbox values reproducibility over the latency win.
+- **`--async-scheduling`** — OFF by default (opt-in via the knob above): the
+  exemplar reports a small throughput win, but a test sandbox values
+  reproducibility, and not every vLLM feature is supported under the async
+  scheduler (structured outputs among them).
 - **`--served-model-name`** — the default served id is the HF repo id, which
   the profiles' `default_model` (and `sandbox health`) already expect.
 - **`--guided-decoding-backend`** — replaced by `--structured-outputs-config`
@@ -171,6 +181,37 @@ posture:
   "json_object"}` works unflagged.
 - **`--swap-space`** — removed with the V1 engine; CPU swap is not a
   v0.28.0 knob.
+
+### Throughput runs (Modal `vllm_throughput` exemplar, 2026-09)
+
+The exemplar is an offline batch workload (thousands of filings, no human
+waiting) — the same shape as a large `sandbox run` eval. Its recipe, mapped
+onto this app:
+
+| Exemplar practice | Where it lives here |
+| --- | --- |
+| vLLM, one GPU per replica (throughput per GPU = per dollar) | default `max_containers=1`; TP only for 70B-class |
+| FP8 checkpoint on H100 (native W8A8) | `Qwen/Qwen3-8B-FP8` / `Qwen/Qwen3-14B-FP8` rows in `config/models.yaml` (`MODAL_VLLM_GPU=H100`) |
+| `attention_backend=flashinfer` | `MODAL_VLLM_ATTENTION_BACKEND=flashinfer` |
+| `async_scheduling=True` | `MODAL_VLLM_ASYNC_SCHEDULING=1` |
+| `max_model_len` sized from the data / KV budget | `MODAL_VLLM_MAX_MODEL_LEN` (16384 default, 32768 on FP8/AWQ rows) |
+| HF + vLLM compile caches on Volumes; Xet transfers | `sandbox-hf-cache` / `sandbox-vllm-cache` + `HF_XET_HIGH_PERFORMANCE=1` (already on) |
+| batched/parallel inputs fill continuous batching | runner `concurrency` (`job:` block in the run spec; 4-16 vs a vLLM endpoint — `docs/jobs.md`) |
+
+Example throughput deploy::
+
+    export MODAL_VLLM_MODEL=Qwen/Qwen3-8B-FP8
+    export MODAL_VLLM_GPU=H100
+    export MODAL_VLLM_MAX_MODEL_LEN=32768
+    export MODAL_VLLM_ATTENTION_BACKEND=flashinfer
+    export MODAL_VLLM_ASYNC_SCHEDULING=1
+    export MODAL_VLLM_API_TOKEN="$(openssl rand -hex 24)"
+    modal deploy deploy/modal_vllm.py
+
+Caveat: the exemplar's offline `vllm.LLM` interface (no HTTP server, results
+only when the whole batch finishes) is not what the sandbox serves — evals
+drive the OpenAI-compatible `/v1` endpoint, so batching happens at the
+runner (concurrency) and the server (`--max-num-seqs`).
 
 ### Cost (verified 2026-09-09, modal.com/pricing)
 

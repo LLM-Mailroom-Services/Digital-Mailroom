@@ -216,6 +216,16 @@ def _max_retries(store: RunStore) -> int:
     return int(_task_defaults(store).get("max_retries", 2))
 
 
+# Bounded fan-out guard for the concurrent per-item loop (see JobSpec
+# concurrency): a runaway spec value is a cost accident, not a feature.
+_MAX_CONCURRENCY = 64
+
+
+def _concurrency(store: RunStore) -> int:
+    value = int(_task_defaults(store).get("concurrency", 1) or 1)
+    return max(1, min(value, _MAX_CONCURRENCY))
+
+
 def verify_dataset_lock(store: RunStore) -> None:
     """Refuse to score when dataset.jsonl drifted from the lock's sha256."""
     lock = store.read_lock() or {}
@@ -354,9 +364,6 @@ def run_job(
                 f"e.g. {missing[:3]}) — this dataset is not a legalbench subset (DMR-049 F6)"
             )
 
-    cursor = store.resume_cursor()
-    total = len(rows)
-
     # Reconstruct already-completed predictions so final scoring covers all rows.
     completed: dict[int, dict[str, Any]] = {}
     for done in store.load_items():
@@ -372,21 +379,34 @@ def run_job(
         else:
             predicted.append("")  # placeholder; refilled during the loop below
 
+    # Resume skips by completed INDEX, not a contiguous cursor: concurrent
+    # completions land out of order, so cursor == len(items) no longer implies
+    # rows [0, cursor) are done. resume_cursor() is still called to reconcile
+    # the checkpoint mirror (its drift guard is keyed on item count).
+    total = len(rows)
+    store.resume_cursor()
+    pending = [i for i in range(len(rows)) if i not in completed]
+    if max_items is not None:
+        pending = pending[:max_items]
+
     ok_count = 0
     error_count = 0
+    done_count = len(completed)
     last_error: str | None = None
-    for index, row in enumerate(rows):
-        if index < cursor:
-            continue
-        if max_items is not None and index >= cursor + max_items:
-            break
+    last_error_item: str | None = None
+    retries = _max_retries(store)
+    fail_fast = _fail_fast(store)
+
+    def _attempt(index: int) -> tuple[Any, str | None, float]:
+        """Run one row (with retries) and return (value, error, latency_ms)."""
+        row = rows[index]
         item_id = str(row.get("id") or row.get("filename") or index)
         started = time.perf_counter()
         value: Any = None
         error: str | None = None
         with job_span(tracer, "job.item", item_index=str(index), task=task):
             attempt = 0
-            while attempt < _max_retries(store) + 1:
+            while attempt < retries + 1:
                 attempt += 1
                 try:
                     value, _ = _predict_row(task, row, mock=mock, model=model, run_id=store.run_id)
@@ -394,15 +414,29 @@ def run_job(
                     break
                 except Exception as exc:  # noqa: BLE001
                     error = f"{type(exc).__name__}: {str(exc)[:512]}"
-                    if attempt <= _max_retries(store):
+                    if attempt <= retries:
                         time.sleep(0.2)
         latency_ms = round((time.perf_counter() - started) * 1000.0, 3)
+        return value, error, latency_ms
+
+    def _record(index: int, value: Any, error: str | None, latency_ms: float) -> bool:
+        """Persist one result (always from the calling thread) and return ok.
+
+        The main thread owns every RunStore write in BOTH the serial and the
+        concurrent paths — worker threads only compute, so append_item /
+        append_event / write_checkpoint / on_event never race.
+        """
+        nonlocal ok_count, error_count, done_count, last_error, last_error_item
+        row = rows[index]
+        item_id = str(row.get("id") or row.get("filename") or index)
         ok = error is None
         if ok:
             ok_count += 1
         else:
             error_count += 1
             last_error = error
+            last_error_item = item_id
+        done_count += 1
         predicted[index] = str(value) if value is not None else ""
         store.append_item(
             {
@@ -417,22 +451,86 @@ def run_job(
                 "ts": utc_now(),
             }
         )
-        store.append_event("item_" + ("done" if ok else "failed"), "info" if ok else "warn", index=index, item_id=item_id)
-        store.write_checkpoint(state="running", cursor=index + 1, total=total, remote=None)
+        store.append_event(
+            "item_" + ("done" if ok else "failed"), "info" if ok else "warn", index=index, item_id=item_id
+        )
+        store.write_checkpoint(state="running", cursor=done_count, total=total, remote=None)
         if on_event is not None:
             try:
-                on_event({"cursor": index + 1, "total": total, "ok": ok_count, "errors": error_count, "state": "running"})
+                on_event({"cursor": done_count, "total": total, "ok": ok_count, "errors": error_count, "state": "running"})
             except Exception:
                 pass
-        if _fail_fast(store) and not ok:
-            store.write_checkpoint(
-                state="failed",
-                cursor=index + 1,
-                total=total,
-                last_error={"type": "item", "message": error, "at": utc_now(), "item_id": item_id, "retryable": False},
-            )
-            store.append_event("failed", "error", cursor=index + 1, last_error=error)
-            return store.summary()
+        return ok
+
+    def _fail_fast_failed():
+        """Write the fail_fast failed checkpoint and return the summary."""
+        store.write_checkpoint(
+            state="failed",
+            cursor=done_count,
+            total=total,
+            last_error={
+                "type": "item",
+                "message": last_error,
+                "at": utc_now(),
+                "item_id": last_error_item,
+                "retryable": False,
+            },
+        )
+        store.append_event("failed", "error", cursor=done_count, last_error=last_error)
+        return store.summary()
+
+    concurrency = _concurrency(store)
+    if concurrency <= 1:
+        for index in pending:
+            value, error, latency_ms = _attempt(index)
+            _record(index, value, error, latency_ms)
+            if fail_fast and error is not None:
+                return _fail_fast_failed()
+    else:
+        # Throughput mode: bounded threads expose N concurrent docs to the
+        # engine so vLLM's continuous batching fills up (Modal vllm_throughput
+        # exemplar — offline evals are a throughput workload, not a latency
+        # one). Each task runs in a copied context so the pipeline's
+        # contextvar run limits (pipeline/limits.py) and trace state stay
+        # per-doc isolated.
+        import contextvars
+        from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+
+        stopped = False
+        it = iter(pending)
+        futures: dict[Any, int] = {}
+
+        def _submit_next() -> bool:
+            index = next(it, None)
+            if index is None:
+                return False
+            ctx = contextvars.copy_context()
+            futures[pool.submit(ctx.run, _attempt, index)] = index
+            return True
+
+        with ThreadPoolExecutor(max_workers=min(concurrency, len(pending) or 1)) as pool:
+            while not stopped and len(futures) < concurrency:
+                if not _submit_next():
+                    break
+            while futures:
+                done, _ = wait(list(futures), return_when=FIRST_COMPLETED)
+                for fut in done:
+                    index = futures.pop(fut)
+                    try:
+                        value, error, latency_ms = fut.result()
+                    except Exception as exc:  # noqa: BLE001 — never drop a row
+                        value, error, latency_ms = None, f"{type(exc).__name__}: {str(exc)[:512]}", 0.0
+                    ok = _record(index, value, error, latency_ms)
+                    if fail_fast and not ok:
+                        # Stop SCHEDULING new rows; in-flight requests still
+                        # finish and persist (their GPU work is already spent).
+                        stopped = True
+                if not stopped:
+                    while len(futures) < concurrency:
+                        if not _submit_next():
+                            break
+        if stopped:
+            return _fail_fast_failed()
 
     final_cursor = len(store.load_items())
     if final_cursor < total:

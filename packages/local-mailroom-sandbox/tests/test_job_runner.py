@@ -9,7 +9,7 @@ from mailroom_sandbox.job import runner
 from mailroom_sandbox.job.spec import DatasetSpec, RunSpec
 
 
-def _prepped_store(tmp_path, rows=4, run_id="run-r1"):
+def _prepped_store(tmp_path, rows=4, run_id="run-r1", job=None):
     path = tmp_path / "f.jsonl"
     with open(path, "w", encoding="utf-8") as fh:
         for i in range(rows):
@@ -20,7 +20,7 @@ def _prepped_store(tmp_path, rows=4, run_id="run-r1"):
         dataset=DatasetSpec(local_path=f"file://{path}", limit=rows),
         engine={"kind": "vllm-local", "modal": None},
         trace={"sink": "none"},
-        job={"mock": True},
+        job=job or {"mock": True},
     )
     report = preflight.preflight(spec, offline=True)
     assert report["status"] == "prepared", report
@@ -28,6 +28,22 @@ def _prepped_store(tmp_path, rows=4, run_id="run-r1"):
     from mailroom_sandbox.job.spec import run_dir
 
     return RunStore(run_dir(report["run_id"]))
+
+
+def _append_item(store, index, predicted, expected, ok=True, error=None):
+    store.append_item(
+        {
+            "item_id": f"d{index}",
+            "index": index,
+            "expected": expected,
+            "predicted": predicted,
+            "ok": ok,
+            "error": error,
+            "latency_ms": 1.0,
+            "trace_id": "",
+            "ts": "2026-01-01T00:00:00.000+00:00",
+        }
+    )
 
 
 def test_run_job_mock_completes(tmp_path):
@@ -51,6 +67,77 @@ def test_run_job_resumes_from_checkpoint(tmp_path):
     assert second["cursor"] == 4
     items = store.load_items()
     assert len(items) == 4  # resume never re-runs completed rows
+
+
+# ── Concurrency (Modal vLLM throughput alignment) ────────────────────────────
+
+
+def test_run_job_concurrent_completes_all_rows_once(tmp_path):
+    store = _prepped_store(tmp_path, rows=8, job={"mock": True, "concurrency": 4})
+    summary = runner.run_job(store, mock=None)
+    assert summary["state"] == "done"
+    assert summary["ok"] == 8 and summary["errors"] == 0
+    assert summary["cursor"] == 8
+    items = store.load_items()
+    assert sorted(i["index"] for i in items) == list(range(8))
+    assert summary["scores"]["exact_match"] == 1.0
+
+
+def test_run_job_concurrent_max_items_leaves_running_and_resumes(tmp_path):
+    store = _prepped_store(tmp_path, rows=6, job={"mock": True, "concurrency": 3})
+    first = runner.run_job(store, mock=None, max_items=4)
+    assert first["state"] == "running"
+    assert first["cursor"] == 4
+    assert len({i["index"] for i in store.load_items()}) == 4
+
+    second = runner.run_job(store, mock=None)
+    assert second["state"] == "done"
+    assert second["cursor"] == 6
+    items = store.load_items()
+    assert sorted(i["index"] for i in items) == list(range(6))
+
+
+def test_run_job_concurrent_resume_skips_completed_by_index(tmp_path):
+    """Resume must skip by completed INDEX, not a contiguous cursor: after a
+    concurrent pass an item with a high index can complete before lower ones,
+    so a cursor-style skip would silently drop rows (the DMR-027 regression
+    this guards against)."""
+    store = _prepped_store(tmp_path, rows=4, job={"mock": True, "concurrency": 2})
+    runner.run_job(store, mock=None, max_items=1)  # index 0 completed
+    _append_item(store, index=2, expected="contract", predicted="contract")  # index 2 done
+    store.write_checkpoint(state="running", cursor=len(store.load_items()), total=4)
+
+    summary = runner.run_job(store, mock=None)
+    assert summary["state"] == "done"
+    items = store.load_items()
+    assert sorted(i["index"] for i in items) == [0, 1, 2, 3]
+    # The seeded index-2 row must NOT have been re-run (its predicted value
+    # survives; a re-run would have produced the deterministic mock value).
+    seeded = next(i for i in items if i["index"] == 2)
+    assert seeded["predicted"] == "contract"
+    assert seeded["ok"] is True
+
+
+def test_run_job_concurrent_fail_fast_stops_scheduling(tmp_path, monkeypatch):
+    store = _prepped_store(
+        tmp_path, rows=4, job={"mock": True, "concurrency": 2, "fail_fast": True, "max_retries": 0}
+    )
+
+    def _boom_predict(task, row, *, mock, model, run_id=None):
+        if row.get("id") == "d0":
+            raise RuntimeError("boom")
+        cls = "contract" if str(row.get("id")) in {"d1", "d3"} else "insurance_claim"
+        return cls, True
+
+    monkeypatch.setattr(runner, "_predict_row", _boom_predict)
+    summary = runner.run_job(store, mock=None)
+    assert summary["state"] == "failed"
+    assert "boom" in str(summary.get("last_error") or {})
+    items = store.load_items()
+    failed = [i for i in items if i["index"] == 0]
+    assert failed and "boom" in failed[0]["error"]
+    # fail_fast stops SCHEDULING new rows: at most the two in-flight rows ran.
+    assert len(items) <= 2
 
 
 def test_run_record_lands_in_experiment_log(tmp_path):

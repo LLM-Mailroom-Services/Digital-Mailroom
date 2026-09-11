@@ -74,6 +74,15 @@ Cost posture: scale-to-zero after 900 s idle, `max_containers=1` by default
 Teardown: `modal app stop sandbox-vllm` — weights survive in the
 `sandbox-hf-cache` Volume.
 
+Throughput runs (Modal `vllm_throughput` exemplar, 2026-09): deploy the
+published FP8 checkpoint on a single H100
+(`MODAL_VLLM_MODEL=Qwen/Qwen3-8B-FP8 MODAL_VLLM_GPU=H100
+MODAL_VLLM_MAX_MODEL_LEN=32768 MODAL_VLLM_ATTENTION_BACKEND=flashinfer
+MODAL_VLLM_ASYNC_SCHEDULING=1`) and set `concurrency: 4-16` in the run
+spec's `job:` block so the eval runner fills vLLM's continuous batching
+(`deploy/README.md`, `docs/jobs.md`). The two throughput flags default OFF —
+empty is the engine default and keeps local compose <-> Modal parity.
+
 ## SSH tunnels (`vllm-remote` + `sandbox tunnel`)
 
 For a vLLM server on any machine you can SSH to. The profile's `tunnel:`

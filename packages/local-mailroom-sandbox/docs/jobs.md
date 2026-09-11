@@ -61,7 +61,14 @@ engine:
   modal: {app: sandbox-vllm, gpu: L4, image_tag: v0.28.0,
           scaledown_seconds: 900, max_containers: 1, prewarm: true}
 
-job: {mode: endpoint, mock: false, max_retries: 2, fail_fast: false}
+job:
+  mode: endpoint            # endpoint | modal
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 1            # per-item parallel rows: 1 = serial default;
+                            # 4-16 for vLLM endpoints (Modal throughput runs)
+                            # — bounded to [1, 64] at spec validation
 
 trace:
   sink: langfuse            # langfuse | phoenix | otlp | none
@@ -119,8 +126,19 @@ Exit codes: `0` done · `1` failed · `2` paused · `3` drift refused.
 - `run_job` appends one `items.jsonl` row per item (index, expected,
   predicted, ok/error, latency, ts), then writes the checkpoint.
 - Ctrl-C → `paused`; errors retry up to `max_retries`; `fail_fast` marks
-  `failed`. `resume` continues from the reconciled cursor and never re-runs
-  completed rows (indices are contiguous).
+  `failed` (with `concurrency > 1` it stops *scheduling* new rows; in-flight
+  rows finish and persist — their GPU work is already spent). `resume` never
+  re-runs completed rows: it skips by completed **index**, so concurrent
+  runs whose items completed out of order resume exactly (the old
+  contiguous-cursor skip would silently drop rows).
+- **`concurrency: N`** (job block, `[1, 64]`) runs N rows in parallel so a
+  vLLM endpoint's continuous batching fills up — offline evals are a
+  throughput workload (Modal `vllm_throughput` exemplar). Workers only
+  compute; every RunStore write and progress event happens on the main
+  thread, and each row runs in a copied context so the pipeline's
+  contextvar run limits and trace state stay per-doc isolated. Recommended:
+  4-16 against a Modal-hosted vLLM; keep 1 for CPU Ollama or per-item
+  latency-sensitive runs.
 - **Modal mode**: the run dir is pushed to the `sandbox-runs` Volume and the
   remote worker mirrors progress to the `sandbox-job-state` Dict; the CLI
   polls it. Resume re-attaches to a live `FunctionCall` or re-spawns the same

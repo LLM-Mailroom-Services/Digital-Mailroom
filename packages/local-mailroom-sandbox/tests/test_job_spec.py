@@ -72,6 +72,22 @@ def test_modal_gpu_and_pin_validation():
         RunSpec(engine={"kind": "modal-vllm", "modal": {"image_tag": "latest"}})
 
 
+def test_job_concurrency_validation():
+    # Modal vLLM throughput alignment: bounded concurrent per-item runs.
+    # Default stays 1 (serial, deterministic); validated [1, 64] so a runaway
+    # spec value is rejected at preflight, not discovered as a cost spike.
+    from mailroom_sandbox.job.spec import JobSpec
+
+    assert JobSpec().concurrency == 1
+    assert JobSpec(concurrency=16).concurrency == 16
+    with pytest.raises(ValidationError):
+        JobSpec(concurrency=0)
+    with pytest.raises(ValidationError):
+        JobSpec(concurrency=65)
+    # Behavioral knob: it must be covered by the spec hash like the others.
+    assert spec_hash(_spec(job={"concurrency": 4})) != spec_hash(_spec(job={"concurrency": 8}))
+
+
 def test_prompt_ref_invariants():
     with pytest.raises(ValidationError):
         PromptRef(source="langfuse", name="x", version=1, label="production")  # xor

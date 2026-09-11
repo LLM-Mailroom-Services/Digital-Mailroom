@@ -80,6 +80,17 @@ GPU_MEMORY_UTILIZATION = os.environ.get("MODAL_VLLM_GPU_MEMORY_UTILIZATION", "0.
 # local compose and Modal schedule the same concurrency on any GPU class.
 MAX_NUM_SEQS = os.environ.get("MODAL_VLLM_MAX_NUM_SEQS", "256")
 
+# Throughput knobs from Modal's vllm_throughput exemplar (2026-09):
+# FlashInfer attention + the async batch scheduler. BOTH default OFF/empty —
+# that is vLLM's own default posture and keeps local<->Modal argv parity and
+# the reproducible test-sandbox behavior. Set them explicitly for throughput
+# runs (e.g. `MODAL_VLLM_ATTENTION_BACKEND=flashinfer` +
+# `MODAL_VLLM_ASYNC_SCHEDULING=1` on a GPU that FlashInfer supports). vLLM
+# warns that async scheduling does not support every feature — keep it off
+# when a run depends on structured outputs / judging.
+ATTENTION_BACKEND = os.environ.get("MODAL_VLLM_ATTENTION_BACKEND", "")
+ASYNC_SCHEDULING = os.environ.get("MODAL_VLLM_ASYNC_SCHEDULING", "")
+
 # Tensor-parallel size: 1 (single GPU) by default. For a multi-GPU container
 # (e.g. MODAL_VLLM_GPU="A100-80GB:2" for 70B-class) this MUST match the `:N`
 # suffix or vLLM silently serves on 1 GPU and OOMs. Derive the default from
@@ -113,6 +124,8 @@ CONFIG_ENV_KEYS = (
     "MODAL_VLLM_GPU_MEMORY_UTILIZATION",
     "MODAL_VLLM_MAX_NUM_SEQS",
     "MODAL_VLLM_TP_SIZE",
+    "MODAL_VLLM_ATTENTION_BACKEND",
+    "MODAL_VLLM_ASYNC_SCHEDULING",
     "MODAL_VLLM_REVISION",
     "MODAL_VLLM_API_TOKEN",
     "HF_TOKEN",
@@ -189,6 +202,11 @@ def _server_env() -> dict[str, str]:
     return env
 
 
+def _truthy(value: str) -> bool:
+    """Coerce a deploy-knob env value to a bool ('' and '0' are false)."""
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def build_vllm_command(model: str) -> list[str]:
     """Assemble the `vllm serve` argv. Kept pure for unit testing.
 
@@ -220,6 +238,14 @@ def build_vllm_command(model: str) -> list[str]:
         cmd += ["--revision", REVISION]
     if QUANTIZATION:
         cmd += ["--quantization", QUANTIZATION]
+    if ATTENTION_BACKEND:
+        # FlashInfer is the throughput exemplar's attention backend; empty =
+        # vLLM's engine default (parity with the local compose service).
+        cmd += ["--attention-backend", ATTENTION_BACKEND]
+    if _truthy(ASYNC_SCHEDULING):
+        # Async batch scheduler: a small throughput win, but not every vLLM
+        # feature is supported under it — opt-in only.
+        cmd += ["--async-scheduling"]
     cmd += ["--no-enable-log-requests"]
     return cmd
 
@@ -243,6 +269,8 @@ def _masked_config() -> dict[str, str]:
         "tensor_parallel_size": TP_SIZE,
         "quantization": QUANTIZATION or "unset(bf16)",
         "revision": REVISION or "unset(tip)",
+        "attention_backend": ATTENTION_BACKEND or "unset(engine-default)",
+        "async_scheduling": "on" if _truthy(ASYNC_SCHEDULING) else "off",
         "VLLM_API_KEY": presence("MODAL_VLLM_API_TOKEN"),
         "HF_TOKEN": presence("HF_TOKEN"),
         "scaledown_seconds": str(SCALEDOWN_SECONDS),

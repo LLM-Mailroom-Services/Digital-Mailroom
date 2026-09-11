@@ -32,6 +32,8 @@ KNOB_ENV = (
     "MODAL_VLLM_GPU_MEMORY_UTILIZATION",
     "MODAL_VLLM_MAX_NUM_SEQS",
     "MODAL_VLLM_TP_SIZE",
+    "MODAL_VLLM_ATTENTION_BACKEND",
+    "MODAL_VLLM_ASYNC_SCHEDULING",
     "MODAL_VLLM_IMAGE_TAG",
     "MODAL_VLLM_REVISION",
     "MODAL_VLLM_API_TOKEN",
@@ -309,6 +311,54 @@ class TestCommandBuilder:
         for call in modal_stub.Secret.calls:
             assert call["MODAL_VLLM_TP_SIZE"] == "2"
         assert "MODAL_VLLM_TP_SIZE" in mod.CONFIG_ENV_KEYS
+
+    def test_throughput_knobs_absent_by_default(self):
+        """The Modal vLLM exemplar's throughput flags stay OFF by default —
+        empty = vLLM's engine default, preserving compose parity and the
+        reproducible test-sandbox posture."""
+        mod = _load_app_module()
+        assert mod.ATTENTION_BACKEND == ""
+        assert mod.ASYNC_SCHEDULING == ""
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B")
+        assert "--attention-backend" not in cmd
+        assert "--async-scheduling" not in cmd
+
+    def test_throughput_knobs_injected_when_configured(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_ATTENTION_BACKEND", "flashinfer")
+        monkeypatch.setenv("MODAL_VLLM_ASYNC_SCHEDULING", "1")
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B")
+        assert cmd[cmd.index("--attention-backend") + 1] == "flashinfer"
+        assert "--async-scheduling" in cmd
+
+    def test_async_scheduling_truthiness(self, monkeypatch):
+        for falsy in ("", "0", "false", "off", "no"):
+            monkeypatch.setenv("MODAL_VLLM_ASYNC_SCHEDULING", falsy)
+            mod = _load_app_module()
+            assert mod._truthy(mod.ASYNC_SCHEDULING) is False
+        for truthy in ("1", "true", "yes", "on"):
+            monkeypatch.setenv("MODAL_VLLM_ASYNC_SCHEDULING", truthy)
+            mod = _load_app_module()
+            assert mod._truthy(mod.ASYNC_SCHEDULING) is True
+
+    def test_throughput_knobs_travel_through_secret(self, modal_stub, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_ATTENTION_BACKEND", "flashinfer")
+        monkeypatch.setenv("MODAL_VLLM_ASYNC_SCHEDULING", "1")
+        mod = _load_app_module()
+        assert len(modal_stub.Secret.calls) == 2
+        for call in modal_stub.Secret.calls:
+            assert call["MODAL_VLLM_ATTENTION_BACKEND"] == "flashinfer"
+            assert call["MODAL_VLLM_ASYNC_SCHEDULING"] == "1"
+        for name in ("MODAL_VLLM_ATTENTION_BACKEND", "MODAL_VLLM_ASYNC_SCHEDULING"):
+            assert name in mod.CONFIG_ENV_KEYS
+
+    def test_masked_config_reports_throughput_knobs(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_ATTENTION_BACKEND", "flashinfer")
+        monkeypatch.setenv("MODAL_VLLM_ASYNC_SCHEDULING", "1")
+        mod = _load_app_module()
+        cfg = mod._masked_config()
+        assert cfg["attention_backend"] == "flashinfer"
+        assert cfg["async_scheduling"] == "on"
 
 
 class TestServerEnv:

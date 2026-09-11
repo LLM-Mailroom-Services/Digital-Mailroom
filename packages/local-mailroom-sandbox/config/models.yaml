@@ -84,6 +84,24 @@ modal_models:
     notes: Default workhorse (app default). ~16GB bf16 fits L4 but the KV pool
       is only ~3.4GB — 32768 RAISES at boot (v0.28.0 admission check); 16384
       is the boot-valid cap. Prefer AWQ for 32768 contexts.
+  Qwen/Qwen3-8B-FP8:
+    gpu: H100
+    quantization: ""
+    max_model_len: 32768
+    tp_size: 1
+    notes: "Throughput exemplar row (Modal vllm_throughput, 2026-09): published
+      FP8 checkpoint (auto-detected; no forced --quantization) on a single H100
+      — native W8A8, the exemplar's tok/s-per-dollar pick for prefill-heavy
+      batch evals. Prefer for big sorter/judge runs; L4 stays the test default."
+  Qwen/Qwen3-14B-FP8:
+    gpu: H100
+    quantization: ""
+    max_model_len: 32768
+    tp_size: 1
+    notes: "Same published-FP8-on-H100 posture as the 8B row, one step up in
+      quality for the same throughput per dollar (Modal throughput guide:
+      older GPUs cost less to underutilize, newer run faster — H100 is the
+      sweet spot for batch evals)."
   Qwen/Qwen3-8B-AWQ:
     gpu: L4
     quantization: awq

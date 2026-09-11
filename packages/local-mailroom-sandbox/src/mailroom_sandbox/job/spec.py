@@ -273,6 +273,12 @@ class JobSpec(BaseModel):
     checkpoint_every: int = 1
     max_retries: int = 2
     fail_fast: bool = False
+    # Modal-throughput alignment: how many rows the per-item loop runs at
+    # once, so vLLM's continuous batching sees concurrent requests (offline
+    # evals are a throughput workload). 1 preserves the serial, deterministic
+    # default; 4-16 is the documented range for a vLLM endpoint. Guarded to
+    # [1, 64] — unbounded fan-out is a cost accident.
+    concurrency: int = 1
 
     @field_validator("task")
     @classmethod
@@ -284,6 +290,13 @@ class JobSpec(BaseModel):
     def _cp(cls, v: int) -> int:
         if v < 1:
             raise ValueError("checkpoint_every must be >= 1")
+        return v
+
+    @field_validator("concurrency")
+    @classmethod
+    def _conc(cls, v: int) -> int:
+        if not 1 <= v <= 64:
+            raise ValueError("concurrency must be in [1, 64]")
         return v
 
 

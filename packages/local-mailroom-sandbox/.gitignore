@@ -18,6 +18,9 @@ data/runtime/
 data/cache/
 data/traces/
 data/pipeline/
+data/manifests/
+data/watcher.lock
+data/watcher_heartbeat
 data/mailroom.db
 data/checkpoints.db
 data/samples/

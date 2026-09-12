@@ -46,7 +46,7 @@ dataset:                    # full mailroom-corpus OR a subset
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth      # labels + doc_text joined on filename
   split: test
-  revision: fe3a6f96130d2f9612e9bd1aa5a730de965f332f     # pinned (no floating)
+  revision: a706784419c37e57930fe17fc7ca0d7ee6672f0f     # pinned (no floating)
   strata: {expected: [insurance_claim, contract]}
   limit: 50
   sample_seed: 42

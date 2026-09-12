@@ -10,7 +10,7 @@ the **centralized** helpers in
 The **current** corpus is
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
 — **3,302 rows**, pinned revision
-`fe3a6f96130d2f9612e9bd1aa5a730de965f332f`. v9 is the successor of the
+`a706784419c37e57930fe17fc7ca0d7ee6672f0f`. v9 is the successor of the
 frozen v8 baseline `mailroom-corpus` (2,000 rows, `eafe1ab4`): it carries
 the §84 hardened evaluation-contract columns (identity, provenance, matter)
 on the `ground_truth` config; configs `default` / `ground_truth` / `bundles`

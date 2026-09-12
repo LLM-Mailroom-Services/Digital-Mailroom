@@ -25,7 +25,7 @@ FULL_CORPUS_ID = f"{ORG}/mailroom-dataset"
 EXAMPLES_ID = f"{ORG}/docclass-pilot"
 # v9 tip (2026-09-12): mailroom-dataset v1 — 3,302-row hardened ground_truth
 # on top of the frozen v8 base eafe1ab4.
-FULL_CORPUS_REVISION = "fe3a6f96130d2f9612e9bd1aa5a730de965f332f"
+FULL_CORPUS_REVISION = "a706784419c37e57930fe17fc7ca0d7ee6672f0f"
 GT_CONFIG = "ground_truth"
 DEFAULT_CONFIG = "default"
 ROWS_API = "https://datasets-server.huggingface.co/rows"

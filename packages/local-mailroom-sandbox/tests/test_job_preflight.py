@@ -149,7 +149,7 @@ def test_hub_gt_absent_refuses_blind_rows(tmp_path, job_data_dir, monkeypatch):
         task="sorter",
         dataset=DatasetSpec(
             provider="huggingface",
-            repo="Lucius-Morningstar/mailroom-corpus",
+            repo="Lucius-Morningstar/mailroom-dataset",
             revision=FAMILY_HF_REVISION,
             limit=1,
         ),
@@ -232,7 +232,7 @@ def test_preflight_hub_spec_locks_pinned_revision(tmp_path, monkeypatch):
         task="sorter",
         dataset=DatasetSpec(
             provider="huggingface",
-            repo="Lucius-Morningstar/mailroom-corpus",
+            repo="Lucius-Morningstar/mailroom-dataset",
             revision=FAMILY_HF_REVISION,
             limit=1,
         ),

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Mirror Lucius-Morningstar/mailroom-corpus INTO a Langfuse dataset.
+"""Mirror Lucius-Morningstar/mailroom-dataset INTO a Langfuse dataset.
 
-Default corpus is the **corrected full** ``mailroom-corpus`` Hub set (pinned
+Default corpus is the **corrected full** ``mailroom-dataset`` Hub set (pinned
 revision via ``MAILROOM_HF_REVISION`` / ``mailroom_ui.hf_corpus``). The smaller
 ``docclass-pilot`` examples pack remains available with ``--corpus pilot``.
 
@@ -48,7 +48,7 @@ _CORPORA = {
         "dataset": FULL_CORPUS_ID,
         "langfuse": "docclass-merged",
         "description": (
-            "Corrected full corpus mirrored from Lucius-Morningstar/mailroom-corpus "
+            "Corrected full corpus mirrored from Lucius-Morningstar/mailroom-dataset "
             "(configs: default + ground_truth)."
         ),
     },
@@ -75,7 +75,7 @@ def main() -> int:
         "--corpus",
         choices=sorted(_CORPORA),
         default="merged",
-        help="Hub corpus to mirror (default: merged = corrected full mailroom-corpus).",
+        help="Hub corpus to mirror (default: merged = corrected full mailroom-dataset).",
     )
     parser.add_argument("--dry-run", action="store_true", help="Count rows without writing.")
     parser.add_argument(

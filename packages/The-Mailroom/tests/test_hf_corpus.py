@@ -26,10 +26,10 @@ def test_defaults_pin_corrected_merged(monkeypatch):
     monkeypatch.delenv("MAILROOM_HF_DATASET", raising=False)
     monkeypatch.delenv("MAILROOM_HF_REVISION", raising=False)
     monkeypatch.delenv("MAILROOM_HF_CONFIG", raising=False)
-    assert hf.corpus_id() == "Lucius-Morningstar/mailroom-corpus"
+    assert hf.corpus_id() == "Lucius-Morningstar/mailroom-dataset"
     assert hf.corpus_revision() == hf.FULL_CORPUS_REVISION
     assert hf.gt_config() == "ground_truth"
-    assert hf.FULL_CORPUS_REVISION.startswith("fc1f211c48e5")
+    assert hf.FULL_CORPUS_REVISION.startswith("fe3a6f96")
 
 
 def test_env_overrides(monkeypatch):
@@ -60,7 +60,7 @@ def test_fetch_rows_passes_revision(monkeypatch):
     assert rows == [{"filename": "a.txt", "expected": "contract"}]
     assert len(seen) == 1
     q = parse_qs(urlparse(seen[0]).query)
-    assert q["dataset"] == ["Lucius-Morningstar/mailroom-corpus"]
+    assert q["dataset"] == ["Lucius-Morningstar/mailroom-dataset"]
     assert q["config"] == ["ground_truth"]
     assert q["revision"] == ["deadbeef"]
 

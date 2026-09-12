@@ -43,7 +43,7 @@ NEOFETCH = r"""
 """
 
 NEED_NETWORK = {
-    "corpus": "reads Lucius-Morningstar/mailroom-corpus from the Hub "
+    "corpus": "reads Lucius-Morningstar/mailroom-dataset from the Hub "
               "(datasets-server; slim catalog for listing, live per-row "
               "doc_text + ground truth).",
     "repos": "lists the LLM-Mailroom constellation repos (bundled blurbs "
@@ -189,7 +189,7 @@ DESCRIPTION
     "corpus": """CORPUS(1)
 
 NAME
-    corpus - browse the mailroom-corpus Hub dataset
+    corpus - browse the mailroom-dataset Hub dataset
 
 SYNOPSIS
     corpus ls [--class X] [--split train|test] [--page N] [--limit N]
@@ -198,8 +198,7 @@ SYNOPSIS
     corpus stats
 
 DESCRIPTION
-    Views Lucius-Morningstar/mailroom-corpus (2,000 rows: 1,792
-    train / 208 test).
+    Views Lucius-Morningstar/mailroom-dataset (3,302 rows).
 
       ls       slim listing from the catalog (filename, split,
                class, subclass, sha256, chars) — instant once the

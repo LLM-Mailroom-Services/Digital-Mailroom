@@ -217,7 +217,7 @@ async function loadCorpusCatalog() {
 function hfRowUrl(config, split, index) {
   const meta = corpusCache.meta || {};
   const q = new URLSearchParams({
-    dataset: meta.dataset || 'Lucius-Morningstar/mailroom-corpus',
+    dataset: meta.dataset || 'Lucius-Morningstar/mailroom-dataset',
     config, split, offset: String(index), length: '1',
   });
   if (meta.revision) q.set('revision', meta.revision);
@@ -757,7 +757,7 @@ async function corpusLs(args) {
   print('<div class="run-story"><h1>MAILROOM-CORPUS — ' + rows.length + ' rows (page ' + page + ')</h1>'
     + '<table class="mr"><thead><tr><th>FILE</th><th>SPLIT</th><th>DOC CLASS</th><th>SUBCLASS</th><th>SHA256</th><th>CHARS</th></tr></thead>'
     + '<tbody>' + body + '</tbody></table>'
-    + '<p class="post-footer"><span class="dim">' + (corpusCache.meta.dataset || 'Lucius-Morningstar/mailroom-corpus') + ' · catalog export · '
+    + '<p class="post-footer"><span class="dim">' + (corpusCache.meta.dataset || 'Lucius-Morningstar/mailroom-dataset') + ' · catalog export · '
     + '<span class="amber">corpus show &lt;filename&gt;</span> fetches the full row live from the Hub.</span></p></div>');
 }
 async function corpusShow(filename) {
@@ -833,7 +833,7 @@ async function corpusStats() {
   const splitRows = Object.keys(splits).map(k => '<tr><td><b>' + escapeHtml(k) + '</b></td><td>' + splits[k] + '</td></tr>').join('');
   const classRows = Object.keys(classes).sort((a, b) => classes[b] - classes[a])
     .map(k => '<tr><td><b>' + escapeHtml(k.replace(/_/g, ' ')) + '</b></td><td>' + classes[k] + '</td></tr>').join('');
-  print('<div class="run-story"><h1>CORPUS STATS — ' + escapeHtml(corpusCache.meta.dataset || 'Lucius-Morningstar/mailroom-corpus') + '</h1>'
+  print('<div class="run-story"><h1>CORPUS STATS — ' + escapeHtml(corpusCache.meta.dataset || 'Lucius-Morningstar/mailroom-dataset') + '</h1>'
     + '<h2>splits</h2><table class="mr"><tbody>' + splitRows + '</tbody></table>'
     + '<h2>doc classes</h2><table class="mr"><tbody>' + classRows + '</tbody></table>'
     + '<p class="post-footer"><span class="dim">revision ' + escapeHtml(String(corpusCache.meta.revision || '').slice(0, 12)) + ' · generated ' + escapeHtml(String(corpusCache.meta.generated_at || '').slice(0, 19)) + 'Z</span></p></div>');
@@ -928,7 +928,7 @@ COMMANDS.pwd = () => print('<span class="amber">' + escapeHtml(state.cwd) + '</s
 COMMANDS.tree = async () => {
   await loadCorpusCatalog();
   const topicsN = (await topics()).length;
-  print('<pre class="tree">~/\n├── runs/          pipeline runs in the window\n├── corpus/        the mailroom-corpus dataset (' + (corpusCache.rows.length || '?') + ' rows)\n├── repos/         the LLM-Mailroom constellation (' + ((D.repos || []).length) + ' repos)\n└── topics/        doc-class tags (' + topicsN + ')\n    README.md  .about  .plan  .contact</pre>');
+  print('<pre class="tree">~/\n├── runs/          pipeline runs in the window\n├── corpus/        the mailroom-dataset corpus (' + (corpusCache.rows.length || '?') + ' rows)\n├── repos/         the LLM-Mailroom constellation (' + ((D.repos || []).length) + ' repos)\n└── topics/        doc-class tags (' + topicsN + ')\n    README.md  .about  .plan  .contact</pre>');
 };
 COMMANDS.floor = async () => { await floorListing(); };
 COMMANDS.inspect = async (args) => {
@@ -990,8 +990,8 @@ COMMANDS.neofetch = () => {
   print('<div class="neofetch">' + art
     + '<div>mailroom@floor — llm-mailroom visual engine</div>'
     + '<div>terminal edition · snapshot + live Hub corpus</div>'
-    + '<div>sources: Langfuse traces (snapshot) · mailroom-corpus (Hub)</div>'
-    + '<div>constellation: ' + (D.repos || []).length + ' repos · dataset: 2,000 rows</div></div>');
+    + '<div>sources: Langfuse traces (snapshot) · mailroom-dataset (Hub)</div>'
+    + '<div>constellation: ' + (D.repos || []).length + ' repos · dataset: 3,302 rows</div></div>');
 };
 COMMANDS.mail = (args) => {
   const addr = args[0] || 'axios337@gmail.com';
@@ -1034,7 +1034,7 @@ COMMANDS.skyline = (args) => {
 };
 COMMANDS.pixel = () => { window.open('../pixel/', '_blank', 'noopener'); print('opening the <span class="amber">pixel console</span>…'); };
 COMMANDS.observatory = () => { window.open('/', '_blank', 'noopener'); print('opening the <span class="cyan">observatory</span> (terminal root)…'); };
-COMMANDS.hub = () => { window.open('https://huggingface.co/datasets/Lucius-Morningstar/mailroom-corpus', '_blank', 'noopener'); print('opening the <span class="phosphor">mailroom-corpus</span> dataset on the Hub…'); };
+COMMANDS.hub = () => { window.open('https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset', '_blank', 'noopener'); print('opening the <span class="phosphor">mailroom-dataset</span> corpus on the Hub…'); };
 COMMANDS.tui = () => {
   print('<div class="post"><h2>mailroom-tui — the same console in your own terminal</h2>'
     + '<pre><code>pip install -e "packages/The-Mailroom[dev]"\nmailroom-tui</code></pre>'

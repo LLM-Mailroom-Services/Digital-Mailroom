@@ -1,4 +1,4 @@
-"""Export a slim catalog of Lucius-Morningstar/mailroom-corpus for the
+"""Export a slim catalog of Lucius-Morningstar/mailroom-dataset for the
 terminal GH Pages site + TUI.
 
 Pages BOTH configs (default + ground_truth) via the canonical

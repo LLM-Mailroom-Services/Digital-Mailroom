@@ -114,13 +114,13 @@ def test_datasets_pull_success_prints_rows_and_exit0(monkeypatch, capsys):
         return {
             "rows": 7,
             "sha256": "a" * 64,
-            "revision_resolved": "eafe1ab4c0d3",
+            "revision_resolved": "fe3a6f96",
             "metadata": {"source": "huggingface"},
         }
 
     monkeypatch.setattr("mailroom_sandbox.corpus.prepare_subset", fake_prepare)
     args = _args(
-        dataset="Lucius-Morningstar/mailroom-corpus",
+        dataset="Lucius-Morningstar/mailroom-dataset",
         max_rows=7,
         revision="",
         config="ground_truth",
@@ -142,7 +142,7 @@ def test_datasets_pull_failure_is_exit1(monkeypatch, capsys):
         raise RuntimeError("network down")
 
     monkeypatch.setattr("mailroom_sandbox.corpus.prepare_subset", boom)
-    args = _args(dataset="Lucius-Morningstar/mailroom-corpus", max_rows=5, revision="", config="ground_truth", split="test")
+    args = _args(dataset="Lucius-Morningstar/mailroom-dataset", max_rows=5, revision="", config="ground_truth", split="test")
     assert cli._cmd_datasets_pull(args) == 1
     assert "error: RuntimeError: network down" in capsys.readouterr().out
 
@@ -152,7 +152,7 @@ def test_datasets_pull_zero_rows_refused(monkeypatch, capsys):
         return {"rows": 0, "sha256": "", "revision_resolved": None, "metadata": {}}
 
     monkeypatch.setattr("mailroom_sandbox.corpus.prepare_subset", empty)
-    args = _args(dataset="Lucius-Morningstar/mailroom-corpus", max_rows=5, revision="", config="ground_truth", split="test")
+    args = _args(dataset="Lucius-Morningstar/mailroom-dataset", max_rows=5, revision="", config="ground_truth", split="test")
     assert cli._cmd_datasets_pull(args) == 1
     assert "refusing to write an empty dataset" in capsys.readouterr().out
 

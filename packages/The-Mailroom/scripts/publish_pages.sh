@@ -13,7 +13,7 @@
 #   docs/.nojekyll        disable Jekyll processing
 #   docs/data/*.json      snapshot exported from the trace source
 #                         (Langfuse / Phoenix / both) by export_snapshot.py
-#   docs/data/corpus.json slim catalog of Lucius-Morningstar/mailroom-corpus
+#   docs/data/corpus.json slim catalog of Lucius-Morningstar/mailroom-dataset
 #                         (export_corpus_catalog.py) — backs the terminal
 #                         site's corpus ls/search/stats
 #   docs/debug/build-info.json  provenance for agents (git sha, counts)
@@ -114,7 +114,7 @@ if [[ "$SKIP_EXPORT" -ne 1 ]]; then
     --source "$SOURCE" --out site/data \
     --since-hours "$SINCE_HOURS" --limit "$LIMIT"
 
-  echo "== exporting corpus catalog (mailroom-corpus slim rows) =="
+  echo "== exporting corpus catalog (mailroom-dataset slim rows) =="
   python scripts/export_corpus_catalog.py --out site/data
 else
   echo "== skipping export (--skip-export): reusing existing site/data =="

@@ -1,6 +1,6 @@
 ---
 name: huggingface
-description: Hugging Face Hub usage for local-mailroom-sandbox — fixture schema, sandbox datasets pull, HF cache, and Modal/vLLM weight downloads. Use for Hub datasets, HF_TOKEN, mailroom-corpus slices, or model pulls; prefer offline data/fixtures and sandbox datasets prepare when network-free work is enough. For general Hub CLI depth, also follow the hf-cli plugin skill.
+description: Hugging Face Hub usage for local-mailroom-sandbox — fixture schema, sandbox datasets pull, HF cache, and Modal/vLLM weight downloads. Use for Hub datasets, HF_TOKEN, mailroom-dataset slices, or model pulls; prefer offline data/fixtures and sandbox datasets prepare when network-free work is enough. For general Hub CLI depth, also follow the hf-cli plugin skill.
 ---
 
 # Hugging Face (sandbox data + weights)
@@ -19,12 +19,13 @@ description: Hugging Face Hub usage for local-mailroom-sandbox — fixture schem
 
 ```bash
 sandbox datasets prepare                                    # offline cleaners
-sandbox datasets pull --dataset Lucius-Morningstar/mailroom-corpus --max-rows 50
-#   pinned revision eafe1ab4c0d3… (FAMILY_HF_REVISION), ground_truth + default
+sandbox datasets pull --dataset Lucius-Morningstar/mailroom-dataset --max-rows 50
+#   pinned revision fe3a6f96… (FAMILY_HF_REVISION, v9 mailroom-dataset tip),
+#   ground_truth + default
 #   merged on filename, content_sha256 verified, exit 1 on any failure (DMR-056)
 ```
 
-Default Hub id in code: `Lucius-Morningstar/mailroom-corpus`
+Default Hub id in code: `Lucius-Morningstar/mailroom-dataset`
 (`mailroom_sandbox.datasets.HF_DATASET` / `job.spec.HF_DEFAULT_REPO`).
 
 ## Auth + cache

@@ -1,6 +1,6 @@
 """Corpus browser for the mailroom-tui REPL.
 
-Reads ``Lucius-Morningstar/mailroom-corpus`` through the canonical
+Reads ``Lucius-Morningstar/mailroom-dataset`` through the canonical
 ``mailroom_ui.hf_corpus`` paging ladder (stdlib-only, retries, no ``datasets``
 dependency).  A slim in-memory catalog (filename / split / class / subclass /
 sha / index offset) backs listing, stats, and search — instant once built;
@@ -59,7 +59,7 @@ def _extract_meta(row: dict[str, Any], split: str, index: int,
 
 
 class CorpusClient:
-    """Paged access to the mailroom-corpus Hub dataset (both configs)."""
+    """Paged access to the mailroom-dataset Hub dataset (both configs)."""
 
     def __init__(self, page_size: int = 100, max_rows: Optional[int] = None,
                  page_sleep: float = 1.0) -> None:

@@ -36,5 +36,5 @@ The board is also served live at **https://digital-mailroom-theta.vercel.app**
 | Packages | 10 (6 built + 4 virtual members) |
 | Python | 3.11+ (workspace `requires-python >= 3.11`) |
 | Family pins | llm-mailroom **v0.6.0** · llm-dojo-scoring **v0.12.2** · llm-entity-extraction **v0.20.0** |
-| HF corpus | [mailroom-corpus](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-corpus) — schema v8, 2,000 rows |
+| HF corpus | [mailroom-dataset](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset) — schema v9, 3,302 rows (frozen v8 baseline: [mailroom-corpus](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-corpus)) |
 | CI gate | `.github/workflows/board-governance.yml` — board invariants + label drift |

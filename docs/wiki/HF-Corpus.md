@@ -1,11 +1,23 @@
-# HF corpus — mailroom-corpus
+# HF corpus — mailroom-dataset (v9)
 
 The corpus family is published on the
 [Lucius-Morningstar HF org](https://huggingface.co/Lucius-Morningstar) via
 the **centralized** helpers in
 `packages/mailroom-corpus-eda/src/mailroom_eda/` — never ad-hoc upload code.
 
-## mailroom-corpus (v8 — verified 2026-09-02, HUB-028; renamed from `docclass-merged` 2026-09-02)
+## mailroom-dataset (v9 — published 2026-09-12)
+
+The **current** corpus is
+[`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
+— **3,302 rows**, pinned revision
+`fe3a6f96130d2f9612e9bd1aa5a730de965f332f`. v9 is the successor of the
+frozen v8 baseline `mailroom-corpus` (2,000 rows, `eafe1ab4`): it carries
+the §84 hardened evaluation-contract columns (identity, provenance, matter)
+on the `ground_truth` config; configs `default` / `ground_truth` / `bundles`
+/ `streams` / `fixtures` keep the v8 shape. The v8 facts below remain the
+frozen baseline/lineage documentation.
+
+## mailroom-corpus (v8 — FROZEN baseline; verified 2026-09-02, HUB-028; renamed from `docclass-merged` 2026-09-02)
 
 | Fact | Value |
 | --- | --- |

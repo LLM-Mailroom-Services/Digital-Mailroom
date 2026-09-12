@@ -57,10 +57,10 @@ trace:
 # Full mailroom corpus or a subset instead of the fixture:
 #   dataset:
 #     provider: huggingface
-#     repo: Lucius-Morningstar/mailroom-corpus
+#     repo: Lucius-Morningstar/mailroom-dataset
 #     config: ground_truth          # labels + doc_text joined on filename
 #     split: test
-#     revision: eafe1ab4c0d330d8f9c7a5fb254155e75d290828   # pinned (MAILROOM_HF_REVISION)
+#     revision: fe3a6f96130d2f9612e9bd1aa5a730de965f332f   # pinned (MAILROOM_HF_REVISION)
 #     strata:
 #       expected: [insurance_claim, contract]
 #     limit: 50

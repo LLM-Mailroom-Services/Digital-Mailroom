@@ -12,7 +12,7 @@
 
 `mailroom-tui` is a terminal console over the same display API the web UI
 serves — every trace value is Langfuse-derived, and corpus views read
-`Lucius-Morningstar/mailroom-corpus` from the Hub. AgentLab-style banners,
+`Lucius-Morningstar/mailroom-dataset` from the Hub. AgentLab-style banners,
 per-doc tables, corpus browsing, and the constellation repo browser, all
 from a `mailroom@floor:~$` prompt.
 

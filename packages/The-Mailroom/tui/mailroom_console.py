@@ -13,7 +13,7 @@ recall history, Ctrl+L clears, Ctrl+C cancels the line.  Typed commands:
     help | man <cmd> | clear | history | date | echo | uname | neofetch
     floor                          live floor desk (q / quit to leave)
     review | sessions | metrics | inspect <trace> | debug | filter ...
-    corpus ls|show|search|stats    browse Lucius-Morningstar/mailroom-corpus
+    corpus ls|show|search|stats    browse Lucius-Morningstar/mailroom-dataset
     repos ls | repos <name> | open <name>   constellation browser
 
 ``--once --view floor|review|metrics|sessions|inspect|debug|corpus|repos``

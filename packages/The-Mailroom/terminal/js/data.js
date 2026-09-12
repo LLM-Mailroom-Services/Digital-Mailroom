@@ -15,7 +15,7 @@ ___ ___ ___ ___ ___ ___ ___ ___ ___
     'agents, and archives every decision with a full audit trail.',
     '',
     "type 'help' to begin.  type 'ls' to look around.  type 'corpus ls'",
-    "to browse the 2,000-row mailroom-corpus dataset on the Hub.",
+    "to browse the 3,302-row mailroom-dataset corpus on the Hub.",
     "the floor is live; the archive is immutable; every run is traced.",
   ],
   lore: [
@@ -97,7 +97,7 @@ ___ ___ ___ ___ ___ ___ ___ ___ ___
     '',
     '**Langfuse is the sole source of truth.**  Every run, span, and score you',
     'see was traced by the pipeline; the corpus views read the Hub dataset',
-    '`Lucius-Morningstar/mailroom-corpus` (2,000 rows).',
+    '`Lucius-Morningstar/mailroom-dataset` (3,302 rows).',
     '',
     'Type `help` for the full command list, or `ls` to look around.',
   ],
@@ -122,7 +122,7 @@ ___ ___ ___ ___ ___ ___ ___ ___ ___
     '',
     '- **operator email**: `axios337@gmail.com`  (also the status-alert recipient)',
     '- **constellation**: `https://github.com/Exios66` — the repos behind the floor',
-    '- **corpus**: `https://huggingface.co/datasets/Lucius-Morningstar/mailroom-corpus`',
+    '- **corpus**: `https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset`',
     '',
     'From here, `mail` opens a composer that hands the finished message to',
     'your mail client.',
@@ -177,7 +177,7 @@ SETTINGS
 LINKS
     pixel             the pixel console (/pixel/ on this site)
     observatory       the hosted /live desk (live server only)
-    hub               the mailroom-corpus dataset on Hugging Face
+    hub               the mailroom-dataset corpus on Hugging Face
     tui               how to run mailroom-tui in your own terminal
 
 KEYBOARD
@@ -227,7 +227,7 @@ DESCRIPTION
 
     Virtual directories:
       ~/runs        pipeline runs in the window (cat one to read it)
-      ~/corpus      the mailroom-corpus dataset (cat a file for its
+      ~/corpus      the mailroom-dataset corpus (cat a file for its
                     document text + ground truth)
       ~/repos       the constellation repositories
       ~/topics      doc-class tags (cd topics/<class> filters)
@@ -317,7 +317,7 @@ EXAMPLES
     corpus: `CORPUS(1)
 
 NAME
-    corpus - browse the mailroom-corpus Hub dataset
+    corpus - browse the mailroom-dataset Hub corpus
 
 SYNOPSIS
     corpus ls [--class X] [--split train|test] [--page N] [--limit N]
@@ -326,8 +326,8 @@ SYNOPSIS
     corpus stats
 
 DESCRIPTION
-    Views Lucius-Morningstar/mailroom-corpus (2,000 rows: 1,792
-    train / 208 test) through Hugging Face's datasets-server.
+    Views Lucius-Morningstar/mailroom-dataset (3,302 rows)
+    through Hugging Face's datasets-server.
 
       ls       slim listing from the bundled catalog (instant,
                works offline)

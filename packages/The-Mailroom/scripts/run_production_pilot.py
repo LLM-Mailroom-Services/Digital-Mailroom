@@ -4,7 +4,7 @@
 1. Require sibling ``llm-mailroom`` (``MAILROOM_PIPELINE_ROOT`` or
    ``../llm-mailroom``).
 2. Run ``src/scripts/run_hf_pilot.py --real`` there (Qwen 3.7-Flash, vision
-   off, stratified ``Lucius-Morningstar/mailroom-corpus`` subset).
+   off, stratified ``Lucius-Morningstar/mailroom-dataset`` subset).
 3. Score the resulting traces with ``scripts/eval_pipeline.py``.
 
 Keys stay in gitignored ``.env`` (Langfuse + OpenRouter + HF). Never printed.

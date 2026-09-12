@@ -1,6 +1,6 @@
 """Hugging Face corpus pin for The-Mailroom eval / Langfuse dataset sync.
 
-``Lucius-Morningstar/mailroom-corpus`` (corrected GT revision) is the
+``Lucius-Morningstar/mailroom-dataset`` (v9, pinned revision) is the
 authoritative full corpus. Display still comes from Langfuse traces; this
 module only covers Hub GT / pilot intake so scripts hit one pinned revision
 via the datasets-server REST API (no ``datasets`` / ``huggingface_hub``
@@ -18,11 +18,14 @@ from typing import Any
 
 ORG = "Lucius-Morningstar"
 # Renamed 2026-09-02 (human directive): Hub repo mailroom-corpus
-# (formerly docclass-merged); old id serves a Hub redirect.
-FULL_CORPUS_ID = f"{ORG}/mailroom-corpus"
+# (formerly docclass-merged); old id serves a Hub redirect. The v9
+# successor (2026-09-12) is published as mailroom-dataset; mailroom-corpus
+# stays as the frozen v8 baseline.
+FULL_CORPUS_ID = f"{ORG}/mailroom-dataset"
 EXAMPLES_ID = f"{ORG}/docclass-pilot"
-# v7 tip (issue #5 intent hydration): data tip 1acd2600 + card-only bump.
-FULL_CORPUS_REVISION = "fc1f211c48e5f1f5a1a01c02f9e56c0e16e70a5f0"
+# v9 tip (2026-09-12): mailroom-dataset v1 — 3,302-row hardened ground_truth
+# on top of the frozen v8 base eafe1ab4.
+FULL_CORPUS_REVISION = "fe3a6f96130d2f9612e9bd1aa5a730de965f332f"
 GT_CONFIG = "ground_truth"
 DEFAULT_CONFIG = "default"
 ROWS_API = "https://datasets-server.huggingface.co/rows"

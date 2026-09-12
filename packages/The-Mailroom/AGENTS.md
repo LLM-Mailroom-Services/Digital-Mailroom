@@ -67,7 +67,7 @@ python scripts/seed_demo.py    # seed demo traces INTO Langfuse (planned, M5)
 python scripts/demo_review_tray.py --check-api  # working REVIEW tray vs fake /v1 producer
 python scripts/run_production_pilot.py --check   # HF subset + eval scorer (needs sibling llm-mailroom)
 python scripts/run_production_pilot.py --real    # live Qwen 3.7-Flash pilot → Langfuse, then eval
-python scripts/eval_pipeline.py --session pilot-hf-...   # score existing traces vs mailroom-corpus GT
+python scripts/eval_pipeline.py --session pilot-hf-...   # score existing traces vs mailroom-dataset GT
 python scripts/release.py --help     # semver release workflow (see below)
 scripts/publish_pages.sh       # build site/ + push gh-pages:/docs (NO Actions;
                                # one-time UI toggle: Pages → gh-pages → /docs)
@@ -128,7 +128,7 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
   repo browser (`tui/repos.py`), command registry + man pages
   (`tui/commands.py`), pure renderers (`tui/views.py`). `mailroom_console.py`
   re-exports the legacy render functions so old imports/tests stay valid.
-- `scripts/export_corpus_catalog.py` — slim catalog of the mailroom-corpus
+- `scripts/export_corpus_catalog.py` — slim catalog of the mailroom-dataset
   dataset (filename/class/subclass/sha/split + row-index offsets for
   on-demand doc_text fetches) → `site/data/corpus.json`; run by
   `publish_pages.sh` alongside the snapshot export. Verified end-to-end
@@ -214,7 +214,7 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
 - **M6 — terminal REPL TUI + terminal GH Pages site (HUB-054)**: DONE —
   `mailroom-tui` rebuilt as a typed-command REPL (`tui/commands.py`,
   `tui/views.py`, `tui/corpus.py`, `tui/repos.py`); corpus browser over
-  `Lucius-Morningstar/mailroom-corpus` (slim windowed listing + live
+  `Lucius-Morningstar/mailroom-dataset` (slim windowed listing + live
   per-row doc_text/GT); constellation repo browser (13 repos, manifest
   contract-tested against `packages_sync.json`); new `terminal/` owlcot-
   family site staged to `gh-pages:/docs/terminal/` with the slim corpus

@@ -43,10 +43,10 @@ prompt:                     # ALL pipeline agents: local variants + Langfuse + c
 
 dataset:                    # full mailroom-corpus OR a subset
   provider: huggingface     # or file:/…/x.jsonl (offline)
-  repo: Lucius-Morningstar/mailroom-corpus
+  repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth      # labels + doc_text joined on filename
   split: test
-  revision: eafe1ab4c0d330d8f9c7a5fb254155e75d290828     # pinned (no floating)
+  revision: fe3a6f96130d2f9612e9bd1aa5a730de965f332f     # pinned (no floating)
   strata: {expected: [insurance_claim, contract]}
   limit: 50
   sample_seed: 42

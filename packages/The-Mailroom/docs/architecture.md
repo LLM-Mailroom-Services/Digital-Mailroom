@@ -41,7 +41,7 @@ keys).
 ```
 
 **Corpus + constellation surfaces** (TUI and terminal site): the
-`mailroom-corpus` Hub dataset is read through the canonical
+`mailroom-dataset` Hub dataset is read through the canonical
 `mailroom_ui/hf_corpus.py` ladder — slim windowed listing (2 requests per
 page, instant), one-time slim catalog for search/stats, and per-row live
 `doc_text`/ground-truth fetches (LRU-capped). `tui/repos.py` +

@@ -11,7 +11,7 @@ from typing import Any
 from mailroom_sandbox.paths import fixtures_dir, repo_root
 
 MANIFEST_NAME = "manifest.csv"
-HF_DATASET = "Lucius-Morningstar/mailroom-corpus"
+HF_DATASET = "Lucius-Morningstar/mailroom-dataset"
 
 
 def manifest_path() -> Path:

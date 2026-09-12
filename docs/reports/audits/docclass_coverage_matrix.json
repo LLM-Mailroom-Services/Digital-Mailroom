@@ -1,16 +1,16 @@
 {
   "generated_from": "local snapshot @ ground_truth config (network-free)",
-  "rows_total": 2000,
+  "rows_total": 3302,
   "classes": 5,
-  "strata": 50,
+  "strata": 55,
   "class_view": {
     "contract": {
-      "rows": 509,
+      "rows": 600,
       "strata": 26,
       "source": "theatticusproject/cuad",
       "specialist": "contracts_specialist",
       "field_coverage": {
-        "cuad_clause_labels": 509
+        "cuad_clause_labels": 0
       },
       "tested": 0,
       "regression": 0,
@@ -18,14 +18,14 @@
       "multi_document": 0
     },
     "corporate_record": {
-      "rows": 39,
-      "strata": 5,
+      "rows": 450,
+      "strata": 10,
       "source": "sec_edgar",
       "specialist": "corporate_records_specialist",
       "field_coverage": {
         "intent": 0,
-        "subject_matter": 38,
-        "keywords": 38
+        "subject_matter": 0,
+        "keywords": 0
       },
       "tested": 0,
       "regression": 0,
@@ -33,16 +33,16 @@
       "multi_document": 0
     },
     "correspondence": {
-      "rows": 350,
+      "rows": 1000,
       "strata": 8,
       "source": "Lucius-Morningstar/enron-correspondence-dedup",
       "specialist": "correspondence_specialist",
       "field_coverage": {
-        "intent": 350,
-        "subject_matter": 96,
-        "keywords": 96,
-        "sentiment_label": 350,
-        "content_topic": 350
+        "intent": 0,
+        "subject_matter": 0,
+        "keywords": 0,
+        "sentiment_label": 0,
+        "content_topic": 0
       },
       "tested": 0,
       "regression": 0,
@@ -50,27 +50,27 @@
       "multi_document": 0
     },
     "insurance_claim": {
-      "rows": 950,
+      "rows": 1100,
       "strata": 6,
       "source": "cms_desynpuf (+ GNOTHEIA, BDR)",
       "specialist": "insurance_claims_specialist",
       "field_coverage": {
-        "claim_number": 950,
-        "policy_number": 950,
-        "insurer": 950,
-        "insured_party": 950,
-        "claim_type": 950,
-        "date_of_loss": 947,
-        "date_filed": 947,
-        "claimed_amount": 950,
-        "adjuster": 150,
-        "damages_description": 950,
-        "coverage_determination": 950,
-        "denial_reasons": 950,
-        "supporting_documents": 950,
-        "intent": 950,
-        "subject_matter": 950,
-        "keywords": 950
+        "claim_number": 0,
+        "policy_number": 0,
+        "insurer": 0,
+        "insured_party": 0,
+        "claim_type": 0,
+        "date_of_loss": 0,
+        "date_filed": 0,
+        "claimed_amount": 0,
+        "adjuster": 0,
+        "damages_description": 0,
+        "coverage_determination": 0,
+        "denial_reasons": 0,
+        "supporting_documents": 0,
+        "intent": 0,
+        "subject_matter": 0,
+        "keywords": 0
       },
       "tested": 0,
       "regression": 0,
@@ -83,7 +83,7 @@
       "source": "maud",
       "specialist": "contracts_specialist",
       "field_coverage": {
-        "maud_clause_labels": 152
+        "maud_clause_labels": 0
       },
       "tested": 0,
       "regression": 0,
@@ -95,7 +95,7 @@
     {
       "class": "contract",
       "subclass": "Affiliate_Agreements",
-      "rows": 10
+      "rows": 11
     },
     {
       "class": "contract",
@@ -115,7 +115,7 @@
     {
       "class": "contract",
       "subclass": "Consulting Agreements",
-      "rows": 11
+      "rows": 38
     },
     {
       "class": "contract",
@@ -145,7 +145,7 @@
     {
       "class": "contract",
       "subclass": "IP",
-      "rows": 17
+      "rows": 35
     },
     {
       "class": "contract",
@@ -160,7 +160,7 @@
     {
       "class": "contract",
       "subclass": "License_Agreements",
-      "rows": 33
+      "rows": 43
     },
     {
       "class": "contract",
@@ -200,7 +200,7 @@
     {
       "class": "contract",
       "subclass": "Service",
-      "rows": 28
+      "rows": 34
     },
     {
       "class": "contract",
@@ -215,7 +215,7 @@
     {
       "class": "contract",
       "subclass": "Supply",
-      "rows": 18
+      "rows": 47
     },
     {
       "class": "contract",
@@ -225,27 +225,52 @@
     {
       "class": "corporate_record",
       "subclass": "articles_of_incorporation",
-      "rows": 20
+      "rows": 62
+    },
+    {
+      "class": "corporate_record",
+      "subclass": "board_resolution",
+      "rows": 32
     },
     {
       "class": "corporate_record",
       "subclass": "bylaws",
-      "rows": 2
+      "rows": 28
+    },
+    {
+      "class": "corporate_record",
+      "subclass": "charter_amendment",
+      "rows": 80
+    },
+    {
+      "class": "corporate_record",
+      "subclass": "indenture",
+      "rows": 57
+    },
+    {
+      "class": "corporate_record",
+      "subclass": "officer_certificate",
+      "rows": 61
     },
     {
       "class": "corporate_record",
       "subclass": "other",
-      "rows": 1
+      "rows": 3
     },
     {
       "class": "corporate_record",
       "subclass": "powers_of_attorney",
-      "rows": 2
+      "rows": 28
     },
     {
       "class": "corporate_record",
       "subclass": "rights_instrument",
-      "rows": 14
+      "rows": 46
+    },
+    {
+      "class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "rows": 53
     },
     {
       "class": "correspondence",
@@ -255,42 +280,42 @@
     {
       "class": "correspondence",
       "subclass": "demand",
-      "rows": 51
+      "rows": 66
     },
     {
       "class": "correspondence",
       "subclass": "email",
-      "rows": 50
+      "rows": 557
     },
     {
       "class": "correspondence",
       "subclass": "letter",
-      "rows": 49
+      "rows": 79
     },
     {
       "class": "correspondence",
       "subclass": "meeting_request",
-      "rows": 49
+      "rows": 53
     },
     {
       "class": "correspondence",
       "subclass": "memo",
-      "rows": 49
+      "rows": 83
     },
     {
       "class": "correspondence",
       "subclass": "notice",
-      "rows": 50
+      "rows": 81
     },
     {
       "class": "correspondence",
       "subclass": "press_release",
-      "rows": 49
+      "rows": 78
     },
     {
       "class": "insurance_claim",
       "subclass": "auto",
-      "rows": 150
+      "rows": 300
     },
     {
       "class": "insurance_claim",

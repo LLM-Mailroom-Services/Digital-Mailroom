@@ -45,9 +45,9 @@ prompt:
 
 dataset:
   provider: huggingface       # or file:/path/to/data.jsonl
-  repo: Lucius-Morningstar/mailroom-corpus
+  repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
-  revision: <pinned-sha>
+  revision: fe3a6f96130d2f9612e9bd1aa5a730de965f332f   # pinned (v9 mailroom-dataset tip)
   strata: {expected: [insurance_claim, contract]}
   limit: 50
   sample_seed: 42

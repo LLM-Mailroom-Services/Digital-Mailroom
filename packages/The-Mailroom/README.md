@@ -20,7 +20,7 @@ Four surfaces share one display API (`/api/*` + `/ws`):
 | Terminal site | `…/terminal/` on GH Pages | owlcot-style TTY: `ls`/`cat`/`cd`, `corpus ls|show`, `repos` |
 
 The terminal site and the TUI both add a **dataset viewer** (`corpus …`
-commands over `Lucius-Morningstar/mailroom-corpus` — slim windowed
+commands over `Lucius-Morningstar/mailroom-dataset` — slim windowed
 listing, live per-row `doc_text` + ground truth) and a **constellation
 repo browser** (`repos …` — every mirror package plus the hub copies and
 derived graph sites).

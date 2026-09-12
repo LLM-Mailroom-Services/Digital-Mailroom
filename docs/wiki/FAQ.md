@@ -37,8 +37,9 @@ experiment identity — never mutate a prompt that has run; derive a new
 version key (see the llm-entity-extraction AGENTS.md).
 
 **Q: Which HF dataset is canonical?**
-[mailroom-corpus](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-corpus)
-schema v8, 2,000 rows ([[HF-Corpus]]). Uploads go through the centralized
+[mailroom-dataset](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
+schema v9, 3,302 rows — the successor of the frozen v8 baseline
+`mailroom-corpus` ([[HF-Corpus]]). Uploads go through the centralized
 `mailroom_eda` helpers only.
 
 **Q: A card is missing from the served board at digital-mailroom-theta.vercel.app.**

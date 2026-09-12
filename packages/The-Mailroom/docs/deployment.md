@@ -78,7 +78,7 @@ Optional Hub/eval knobs on this service (same as the producer side):
 |---|---|
 | `MAILROOM_TRACE_LIMIT` | `100` (keeps floor polls snappy) |
 | `HF_TOKEN` | Hub token (eval / sync / Space publish) |
-| `MAILROOM_HF_DATASET` | `Lucius-Morningstar/mailroom-corpus` |
+| `MAILROOM_HF_DATASET` | `Lucius-Morningstar/mailroom-dataset` |
 | `MAILROOM_HF_REVISION` | corrected GT tip (see `mailroom_ui/hf_corpus.py`) |
 | `MAILROOM_HF_CONFIG` | `ground_truth` |
 

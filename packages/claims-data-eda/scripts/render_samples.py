@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Render real corpus documents (insurance_claim) as PDF samples.
 
-Reads rows from a mailroom-corpus ground-truth JSONL (the publish surface of
+Reads rows from a mailroom-dataset ground-truth JSONL (the publish surface of
 this package's pipeline dump; see AGENTS.md "First-Time Setup"), deterministically
 samples insurance_claim documents across the health strata this corpus produces
 (carrier / inpatient / outpatient / pde), and renders each document's verbatim
@@ -153,7 +153,7 @@ def write_sample(row: dict, examples_dir: Path, source_file: str) -> dict:
     safe_id = re.sub(r"[^A-Za-z0-9_.-]", "_", rid)
     pdf_name = f"sample_{safe_id}.pdf"
     header = (
-        f"mailroom-corpus | insurance_claim | {sub} | {rid} | "
+        f"mailroom-dataset | insurance_claim | {sub} | {rid} | "
         f"rev {row.get('source_revision', '?')}"
     )
     pdf = text_to_pdf(row.get("doc_text") or "(empty document)", header)
@@ -176,8 +176,8 @@ def write_sample(row: dict, examples_dir: Path, source_file: str) -> dict:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--input", required=True,
-                   help="mailroom-corpus ground-truth JSONL (download: https://huggingface.co/datasets/"
-                        "Lucius-Morningstar/mailroom-corpus/resolve/main/ground_truth_hardened.jsonl)")
+                   help="mailroom-dataset ground-truth JSONL (download: https://huggingface.co/datasets/"
+                        "Lucius-Morningstar/mailroom-dataset/resolve/main/ground_truth_hardened.jsonl)")
     p.add_argument("--n-per-stratum", type=int, default=2)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--strata", default=",".join(HEALTH_STRATA))
@@ -211,7 +211,7 @@ def main(argv: list[str] | None = None) -> int:
     samples = [write_sample(r, examples_dir, args.input) for r in picked]
     manifest = {
         "title": "Real insurance-claim corpus documents rendered as PDF samples",
-        "dataset": "Lucius-Morningstar/mailroom-corpus",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
         "source_file": "ground_truth_hardened.jsonl",
         "sample_count": len(samples),
         "strata": sorted({s["subclass"] for s in samples}),

@@ -7,52 +7,52 @@ is high-priority when it attacks a zero-coverage GT field or an all-zero
 scenario axis for a load-bearing class.
 
 
-Corpus: 2000 rows; median class size 350 rows. Priorities: high 4, medium 2, low 3.
+Corpus: 3302 rows; median class size 600 rows. Priorities: high 8, medium 0, low 1.
 
 ## [HIGH] Adversarial/ambiguous cases (§89; §30, §68)
 
 challenge is zero for every class and the §68/§70/§72A fixture builders (fixtures.py) are scaffold-only until populated with real adversarial documents — the sorter's 'know when not to guess' behavior (§67) is currently untested against reality.
 
+## [HIGH] Contract subclasses (§89: contract subclasses)
+
+509 rows across 26 strata is the deepest subclass spread in the corpus; growth here is refinement, not gap-closing — valuable for routing confusion matrices, not blocking.
+
+Evidence: zero-coverage fields: contract.cuad_clause_labels — zero scenario axes: contract.tested, contract.regression, contract.challenge, contract.multi_document.
+
 ## [HIGH] Corporate records (§89: corporate records)
 
 Smallest live class (39 rows vs 2,000 corpus-wide) carrying the sharpest field gap (intent 0%) — too few rows for stratified eval noise to average out; expansion is load-bearing for the corporate_records_specialist route.
 
-Evidence: zero-coverage fields: corporate_record.intent — partial fields: corporate_record.subject_matter 38/39, corporate_record.keywords 38/39 — zero scenario axes: corporate_record.tested, corporate_record.regression, corporate_record.challenge, corporate_record.multi_document — scarcity: corporate_record rows=39 (median 350).
+Evidence: zero-coverage fields: corporate_record.intent, corporate_record.subject_matter, corporate_record.keywords — zero scenario axes: corporate_record.tested, corporate_record.regression, corporate_record.challenge, corporate_record.multi_document.
+
+## [HIGH] Correspondence contexts (§89: correspondence contexts)
+
+intent is 100% (v7 hydration) but subject_matter/keywords sit at 27% — the purpose-GT axis the correspondence_specialist is evaluated on is two-thirds dark; contexts (notices, demands, threads) target exactly that.
+
+Evidence: zero-coverage fields: correspondence.intent, correspondence.subject_matter, correspondence.keywords — zero scenario axes: correspondence.tested, correspondence.regression, correspondence.challenge, correspondence.multi_document.
 
 ## [HIGH] Grouping scenarios (§89: grouping scenarios; §14)
 
 multi_document is zero for every class. §14A verified the honest source-field baseline (19/350 subject-thread rows; header threads structurally absent) — real multi-document behavior is only reachable via the synthetic bundle scaffold (bundles.py) or family-sampled expansion. Highest-leverage axis in the corpus.
 
+## [HIGH] Insurance workflow documents (§89: insurance workflow)
+
+Largest class (600 rows) with adjuster at 0% and partial coverage on denial_reasons/supporting_documents — the workflow fields that distinguish a claim decision from a claim intake.
+
+Evidence: zero-coverage fields: insurance_claim.claim_number, insurance_claim.policy_number, insurance_claim.insurer, insurance_claim.insured_party, insurance_claim.claim_type, insurance_claim.date_of_loss, insurance_claim.date_filed, insurance_claim.claimed_amount, insurance_claim.adjuster, insurance_claim.damages_description, insurance_claim.coverage_determination, insurance_claim.denial_reasons, insurance_claim.supporting_documents, insurance_claim.intent, insurance_claim.subject_matter, insurance_claim.keywords — zero scenario axes: insurance_claim.tested, insurance_claim.regression, insurance_claim.challenge, insurance_claim.multi_document.
+
+## [HIGH] Legal document families (§89: legal document families)
+
+Clause coverage is at 100% (cuad labels) and contract rows are not scarce — the family axis (contract+amendment+exhibit) is owned by grouping_scenarios, where the bundle scaffold must be paired with family-sampled anchors; growth here refines anchor diversity for those grouping evals, it closes no field gap.
+
+Evidence: zero-coverage fields: contract.cuad_clause_labels — zero scenario axes: contract.tested, contract.regression, contract.challenge, contract.multi_document.
+
 ## [HIGH] Merger documents (§89: merger documents)
 
 Second-smallest class (152 rows vs a 350-row median class) and single-source (MAUD): the objective scarcity rule drives the priority — the merger route of contracts_specialist needs statistical depth, and format diversity within the class is the natural way to add it.
 
-Evidence: zero scenario axes: merger_agreement.tested, merger_agreement.regression, merger_agreement.challenge, merger_agreement.multi_document — scarcity: merger_agreement rows=152 (median 350).
-
-## [MEDIUM] Correspondence contexts (§89: correspondence contexts)
-
-intent is 100% (v7 hydration) but subject_matter/keywords sit at 27% — the purpose-GT axis the correspondence_specialist is evaluated on is two-thirds dark; contexts (notices, demands, threads) target exactly that.
-
-Evidence: partial fields: correspondence.subject_matter 96/350, correspondence.keywords 96/350 — zero scenario axes: correspondence.tested, correspondence.regression, correspondence.challenge, correspondence.multi_document.
-
-## [MEDIUM] Insurance workflow documents (§89: insurance workflow)
-
-Largest class (600 rows) with adjuster at 0% and partial coverage on denial_reasons/supporting_documents — the workflow fields that distinguish a claim decision from a claim intake.
-
-Evidence: partial fields: insurance_claim.date_of_loss 947/950, insurance_claim.date_filed 947/950, insurance_claim.adjuster 150/950 — zero scenario axes: insurance_claim.tested, insurance_claim.regression, insurance_claim.challenge, insurance_claim.multi_document.
-
-## [LOW] Contract subclasses (§89: contract subclasses)
-
-509 rows across 26 strata is the deepest subclass spread in the corpus; growth here is refinement, not gap-closing — valuable for routing confusion matrices, not blocking.
-
-Evidence: zero scenario axes: contract.tested, contract.regression, contract.challenge, contract.multi_document.
+Evidence: zero-coverage fields: merger_agreement.maud_clause_labels — zero scenario axes: merger_agreement.tested, merger_agreement.regression, merger_agreement.challenge, merger_agreement.multi_document — scarcity: merger_agreement rows=152 (median 600).
 
 ## [LOW] Format diversity (§89: format diversity; §58 ingestion)
 
 The P3 ingestion failure stage needs genuinely unreadable/non-text sources (scans, broken encodings) that the current text-native corpus cannot supply; valuable once P3 fixtures graduate to the published suite — sequencing, not a corpus-gap judgment (explicit override, the only one in this backlog).
-
-## [LOW] Legal document families (§89: legal document families)
-
-Clause coverage is at 100% (cuad labels) and contract rows are not scarce — the family axis (contract+amendment+exhibit) is owned by grouping_scenarios, where the bundle scaffold must be paired with family-sampled anchors; growth here refines anchor diversity for those grouping evals, it closes no field gap.
-
-Evidence: zero scenario axes: contract.tested, contract.regression, contract.challenge, contract.multi_document.

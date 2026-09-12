@@ -1,8 +1,8 @@
 {
   "generated_from": "docs/reports/audits/docclass_coverage_matrix.json",
   "discipline": "do not optimize for raw row count (\u00a789) \u2014 priority is evaluation value",
-  "rows_total": 2000,
-  "median_class_rows": 350,
+  "rows_total": 3302,
+  "median_class_rows": 600,
   "items": [
     {
       "family": "adversarial_ambiguous",
@@ -18,6 +18,28 @@
       "scarcity": []
     },
     {
+      "family": "contract_subclasses",
+      "title": "Contract subclasses (\u00a789: contract subclasses)",
+      "priority": "high",
+      "rationale": "509 rows across 26 strata is the deepest subclass spread in the corpus; growth here is refinement, not gap-closing \u2014 valuable for routing confusion matrices, not blocking.",
+      "classes": [
+        "contract"
+      ],
+      "field_gaps": {
+        "zero": [
+          "contract.cuad_clause_labels"
+        ],
+        "partial": []
+      },
+      "scenario_zero": [
+        "contract.tested",
+        "contract.regression",
+        "contract.challenge",
+        "contract.multi_document"
+      ],
+      "scarcity": []
+    },
+    {
       "family": "corporate_records",
       "title": "Corporate records (\u00a789: corporate records)",
       "priority": "high",
@@ -27,12 +49,11 @@
       ],
       "field_gaps": {
         "zero": [
-          "corporate_record.intent"
+          "corporate_record.intent",
+          "corporate_record.subject_matter",
+          "corporate_record.keywords"
         ],
-        "partial": [
-          "corporate_record.subject_matter 38/39",
-          "corporate_record.keywords 38/39"
-        ]
+        "partial": []
       },
       "scenario_zero": [
         "corporate_record.tested",
@@ -40,9 +61,31 @@
         "corporate_record.challenge",
         "corporate_record.multi_document"
       ],
-      "scarcity": [
-        "corporate_record rows=39 (median 350)"
-      ]
+      "scarcity": []
+    },
+    {
+      "family": "correspondence_contexts",
+      "title": "Correspondence contexts (\u00a789: correspondence contexts)",
+      "priority": "high",
+      "rationale": "intent is 100% (v7 hydration) but subject_matter/keywords sit at 27% \u2014 the purpose-GT axis the correspondence_specialist is evaluated on is two-thirds dark; contexts (notices, demands, threads) target exactly that.",
+      "classes": [
+        "correspondence"
+      ],
+      "field_gaps": {
+        "zero": [
+          "correspondence.intent",
+          "correspondence.subject_matter",
+          "correspondence.keywords"
+        ],
+        "partial": []
+      },
+      "scenario_zero": [
+        "correspondence.tested",
+        "correspondence.regression",
+        "correspondence.challenge",
+        "correspondence.multi_document"
+      ],
+      "scarcity": []
     },
     {
       "family": "grouping_scenarios",
@@ -58,65 +101,33 @@
       "scarcity": []
     },
     {
-      "family": "merger_documents",
-      "title": "Merger documents (\u00a789: merger documents)",
-      "priority": "high",
-      "rationale": "Second-smallest class (152 rows vs a 350-row median class) and single-source (MAUD): the objective scarcity rule drives the priority \u2014 the merger route of contracts_specialist needs statistical depth, and format diversity within the class is the natural way to add it.",
-      "classes": [
-        "merger_agreement"
-      ],
-      "field_gaps": {
-        "zero": [],
-        "partial": []
-      },
-      "scenario_zero": [
-        "merger_agreement.tested",
-        "merger_agreement.regression",
-        "merger_agreement.challenge",
-        "merger_agreement.multi_document"
-      ],
-      "scarcity": [
-        "merger_agreement rows=152 (median 350)"
-      ]
-    },
-    {
-      "family": "correspondence_contexts",
-      "title": "Correspondence contexts (\u00a789: correspondence contexts)",
-      "priority": "medium",
-      "rationale": "intent is 100% (v7 hydration) but subject_matter/keywords sit at 27% \u2014 the purpose-GT axis the correspondence_specialist is evaluated on is two-thirds dark; contexts (notices, demands, threads) target exactly that.",
-      "classes": [
-        "correspondence"
-      ],
-      "field_gaps": {
-        "zero": [],
-        "partial": [
-          "correspondence.subject_matter 96/350",
-          "correspondence.keywords 96/350"
-        ]
-      },
-      "scenario_zero": [
-        "correspondence.tested",
-        "correspondence.regression",
-        "correspondence.challenge",
-        "correspondence.multi_document"
-      ],
-      "scarcity": []
-    },
-    {
       "family": "insurance_workflow",
       "title": "Insurance workflow documents (\u00a789: insurance workflow)",
-      "priority": "medium",
+      "priority": "high",
       "rationale": "Largest class (600 rows) with adjuster at 0% and partial coverage on denial_reasons/supporting_documents \u2014 the workflow fields that distinguish a claim decision from a claim intake.",
       "classes": [
         "insurance_claim"
       ],
       "field_gaps": {
-        "zero": [],
-        "partial": [
-          "insurance_claim.date_of_loss 947/950",
-          "insurance_claim.date_filed 947/950",
-          "insurance_claim.adjuster 150/950"
-        ]
+        "zero": [
+          "insurance_claim.claim_number",
+          "insurance_claim.policy_number",
+          "insurance_claim.insurer",
+          "insurance_claim.insured_party",
+          "insurance_claim.claim_type",
+          "insurance_claim.date_of_loss",
+          "insurance_claim.date_filed",
+          "insurance_claim.claimed_amount",
+          "insurance_claim.adjuster",
+          "insurance_claim.damages_description",
+          "insurance_claim.coverage_determination",
+          "insurance_claim.denial_reasons",
+          "insurance_claim.supporting_documents",
+          "insurance_claim.intent",
+          "insurance_claim.subject_matter",
+          "insurance_claim.keywords"
+        ],
+        "partial": []
       },
       "scenario_zero": [
         "insurance_claim.tested",
@@ -127,15 +138,17 @@
       "scarcity": []
     },
     {
-      "family": "contract_subclasses",
-      "title": "Contract subclasses (\u00a789: contract subclasses)",
-      "priority": "low",
-      "rationale": "509 rows across 26 strata is the deepest subclass spread in the corpus; growth here is refinement, not gap-closing \u2014 valuable for routing confusion matrices, not blocking.",
+      "family": "legal_document_families",
+      "title": "Legal document families (\u00a789: legal document families)",
+      "priority": "high",
+      "rationale": "Clause coverage is at 100% (cuad labels) and contract rows are not scarce \u2014 the family axis (contract+amendment+exhibit) is owned by grouping_scenarios, where the bundle scaffold must be paired with family-sampled anchors; growth here refines anchor diversity for those grouping evals, it closes no field gap.",
       "classes": [
         "contract"
       ],
       "field_gaps": {
-        "zero": [],
+        "zero": [
+          "contract.cuad_clause_labels"
+        ],
         "partial": []
       },
       "scenario_zero": [
@@ -145,6 +158,30 @@
         "contract.multi_document"
       ],
       "scarcity": []
+    },
+    {
+      "family": "merger_documents",
+      "title": "Merger documents (\u00a789: merger documents)",
+      "priority": "high",
+      "rationale": "Second-smallest class (152 rows vs a 350-row median class) and single-source (MAUD): the objective scarcity rule drives the priority \u2014 the merger route of contracts_specialist needs statistical depth, and format diversity within the class is the natural way to add it.",
+      "classes": [
+        "merger_agreement"
+      ],
+      "field_gaps": {
+        "zero": [
+          "merger_agreement.maud_clause_labels"
+        ],
+        "partial": []
+      },
+      "scenario_zero": [
+        "merger_agreement.tested",
+        "merger_agreement.regression",
+        "merger_agreement.challenge",
+        "merger_agreement.multi_document"
+      ],
+      "scarcity": [
+        "merger_agreement rows=152 (median 600)"
+      ]
     },
     {
       "family": "format_diversity",
@@ -157,26 +194,6 @@
         "partial": []
       },
       "scenario_zero": [],
-      "scarcity": []
-    },
-    {
-      "family": "legal_document_families",
-      "title": "Legal document families (\u00a789: legal document families)",
-      "priority": "low",
-      "rationale": "Clause coverage is at 100% (cuad labels) and contract rows are not scarce \u2014 the family axis (contract+amendment+exhibit) is owned by grouping_scenarios, where the bundle scaffold must be paired with family-sampled anchors; growth here refines anchor diversity for those grouping evals, it closes no field gap.",
-      "classes": [
-        "contract"
-      ],
-      "field_gaps": {
-        "zero": [],
-        "partial": []
-      },
-      "scenario_zero": [
-        "contract.tested",
-        "contract.regression",
-        "contract.challenge",
-        "contract.multi_document"
-      ],
       "scarcity": []
     }
   ]

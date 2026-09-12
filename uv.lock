@@ -3570,8 +3570,11 @@ version = "0.1.0"
 source = { editable = "packages/local-mailroom-sandbox" }
 dependencies = [
     { name = "httpx" },
-    { name = "llm-dojo-scoring" },
+    { name = "matplotlib" },
+    { name = "numpy" },
     { name = "openai" },
+    { name = "openpyxl" },
+    { name = "pandas" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
@@ -3583,8 +3586,10 @@ all = [
     { name = "huggingface-hub" },
     { name = "ipykernel" },
     { name = "jupyterlab" },
+    { name = "langchain-core" },
+    { name = "langchain-openai" },
     { name = "langfuse" },
-    { name = "llm-entity-extraction" },
+    { name = "langgraph" },
     { name = "matplotlib" },
     { name = "modal" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
@@ -3593,19 +3598,17 @@ all = [
     { name = "pyarrow" },
     { name = "pytest" },
     { name = "pytest-mock" },
+    { name = "requests" },
+    { name = "watchdog" },
 ]
 deploy = [
     { name = "modal" },
 ]
 dev = [
+    { name = "huggingface-hub" },
+    { name = "pyarrow" },
     { name = "pytest" },
     { name = "pytest-mock" },
-]
-evals = [
-    { name = "llm-entity-extraction" },
-]
-gpu = [
-    { name = "modal" },
 ]
 hf = [
     { name = "huggingface-hub" },
@@ -3623,36 +3626,47 @@ observability = [
     { name = "opentelemetry-sdk" },
 ]
 pipeline = [
-    { name = "mailroom" },
+    { name = "langchain-core" },
+    { name = "langchain-openai" },
+    { name = "langgraph" },
+    { name = "requests" },
+    { name = "watchdog" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
+    { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=0.24" },
     { name = "huggingface-hub", marker = "extra == 'hf'", specifier = ">=0.24" },
     { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=6.29" },
     { name = "jupyterlab", marker = "extra == 'notebooks'", specifier = ">=4.2" },
+    { name = "langchain-core", marker = "extra == 'pipeline'", specifier = ">=0.3" },
+    { name = "langchain-openai", marker = "extra == 'pipeline'", specifier = ">=0.2" },
     { name = "langfuse", marker = "extra == 'observability'", specifier = ">=4.0,<5" },
-    { name = "llm-dojo-scoring", editable = "packages/llm-dojo-scoring" },
-    { name = "llm-entity-extraction", marker = "extra == 'evals'", editable = "packages/llm-entity-extraction" },
-    { name = "mailroom", marker = "extra == 'pipeline'", editable = "packages/llm-mailroom" },
-    { name = "mailroom-sandbox", extras = ["deploy"], marker = "extra == 'gpu'", editable = "packages/local-mailroom-sandbox" },
-    { name = "mailroom-sandbox", extras = ["dev", "deploy", "evals", "hf", "observability", "notebooks"], marker = "extra == 'all'", editable = "packages/local-mailroom-sandbox" },
+    { name = "langgraph", marker = "extra == 'pipeline'", specifier = ">=0.2" },
+    { name = "mailroom-sandbox", extras = ["dev", "deploy", "hf", "observability", "notebooks", "pipeline"], marker = "extra == 'all'", editable = "packages/local-mailroom-sandbox" },
+    { name = "matplotlib", specifier = ">=3.8" },
     { name = "matplotlib", marker = "extra == 'notebooks'", specifier = ">=3.8" },
     { name = "modal", marker = "extra == 'deploy'", specifier = "==1.5.5" },
+    { name = "numpy", specifier = ">=1.26" },
     { name = "openai", specifier = ">=1.30" },
+    { name = "openpyxl", specifier = ">=3.1" },
     { name = "opentelemetry-exporter-otlp-proto-http", marker = "extra == 'observability'", specifier = ">=1.25" },
     { name = "opentelemetry-sdk", marker = "extra == 'observability'", specifier = ">=1.25" },
+    { name = "pandas", specifier = ">=2.0" },
     { name = "pandas", marker = "extra == 'notebooks'", specifier = ">=2.2" },
+    { name = "pyarrow", marker = "extra == 'dev'", specifier = ">=15.0" },
     { name = "pyarrow", marker = "extra == 'hf'", specifier = ">=15.0" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.12" },
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "requests", marker = "extra == 'pipeline'", specifier = ">=2.31" },
     { name = "structlog", specifier = ">=24.0" },
+    { name = "watchdog", marker = "extra == 'pipeline'", specifier = ">=4.0" },
 ]
-provides-extras = ["dev", "notebooks", "observability", "hf", "deploy", "pipeline", "evals", "gpu", "all"]
+provides-extras = ["dev", "pipeline", "notebooks", "observability", "hf", "deploy", "all"]
 
 [[package]]
 name = "mako"

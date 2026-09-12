@@ -55,7 +55,7 @@ All ten packages live in `packages/` as git subtrees and mirror independent `Exi
 
 <div align="center">
 
-| Layer | Repository | GitHub Pages |
+| Layer | Repository | GitHub/Vercel Pages |
 |:---|:---|:---|
 | **Hub** (central truth) | [`LLM-Mailroom-Services/Digital-Mailroom`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) | — |
 | **Corpus feed** | [`Exios66/Enron-Evaluation-Environment`](https://github.com/Exios66/Enron-Evaluation-Environment) | [exios66.github.io/Enron-Evaluation-Environment](https://exios66.github.io/Enron-Evaluation-Environment/) |

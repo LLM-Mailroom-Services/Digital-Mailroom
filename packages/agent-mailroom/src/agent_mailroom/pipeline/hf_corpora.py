@@ -10,8 +10,9 @@ import json
 from typing import Any
 
 ORG = "Lucius-Morningstar"
-# Renamed 2026-09-02 (human directive): Hub repo was docclass-merged,
-# now mailroom-corpus. Internal slug stays docclass-merged (trace-tag
+# Renamed 2026-09-02 (human directive): Hub repo was docclass-merged, then
+# mailroom-corpus (frozen v8); the v9 successor (2026-09-12) is published as
+# mailroom-dataset. Internal slug stays docclass-merged (trace-tag
 # immutability: historical traces carry source-docclass-merged).
 FULL_CORPUS_ID = f"{ORG}/mailroom-dataset"
 EXAMPLES_ID = f"{ORG}/docclass-pilot"

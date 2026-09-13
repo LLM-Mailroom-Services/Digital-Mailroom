@@ -463,7 +463,7 @@ tui/           rich console — the pipeline in a terminal (mailroom-tui)
 scripts/       seed_demo (demo runs INTO Langfuse) · demo_pilot_run
                (staggered floor recording) · run_production_pilot
                (live Qwen 3.7-Flash HF subset) · eval_pipeline
-               (Langfuse traces vs docclass-merged GT) · export_snapshot (Pages
+               (Langfuse traces vs mailroom-dataset GT) · export_snapshot (Pages
                data) · publish_pages (gh-pages push, no Actions) · release
                · render_tui_shots (README TUI SVGs)
 docs/ + wiki/  mirrored documentation (wiki/sync-wiki.sh publishes the wiki)

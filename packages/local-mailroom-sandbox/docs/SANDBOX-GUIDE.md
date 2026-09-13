@@ -513,7 +513,7 @@ sandbox datasets prepare                  # writes to data/runtime/prepared/
 ### HF fixtures
 
 `data/fixtures/hf/docclass_mini.jsonl` — all 5 doc types with full
-mailroom-corpus ground-truth targets (`expected_subclass` + `expected_fields`
+mailroom-dataset ground-truth targets (`expected_subclass` + `expected_fields`
 from the 27-key GT schema).
 
 ### Fetch vendored deps

@@ -39,8 +39,8 @@ verify with `opencode agent list`).
 
 | # | Specialty | `subagent_type` | Call it for | Example invocations |
 |---|---|---|---|---|
-| 1 | **Data & databases** | `athena-database-agent` | Dataset selection & integration (HF/Kaggle/Braintrust), schema design, ingestion/transformation pipelines, data QA, ML data preparation, SQL/NoSQL optimization | "We need the Enron correspondence dataset loaded into a SQLite schema for the eval loop — design the schema and write the ingestion script." / "The claims-data-eda CSV has 140k rows with inconsistent date formats — build a transformation pipeline that normalizes dates and deduplicates." / "Run a data QA pass on the mailroom-corpus parquet files: check for missing fields, type violations, and duplicate row hashes." |
-| 2 | **HuggingFace & data science** | `lucius` | HF downloads/uploads/edits, `datasets`/`transformers` pipelines, EDA, statistical analysis, model training/eval, database upkeep | "Download the `Lucius-Morningstar/mailroom-corpus` dataset v8 split and run an EDA: field coverage, class imbalance, doc-length distribution." / "Upload the new `docclass-merged` v9 dataset to HF Hub using the centralized helpers in mailroom-corpus-eda." / "Train a lightweight classifier on the docclass labels and report per-class F1 — use the braintrust experiment logger." |
+| 1 | **Data & databases** | `athena-database-agent` | Dataset selection & integration (HF/Kaggle/Braintrust), schema design, ingestion/transformation pipelines, data QA, ML data preparation, SQL/NoSQL optimization | "We need the Enron correspondence dataset loaded into a SQLite schema for the eval loop — design the schema and write the ingestion script." / "The claims-data-eda CSV has 140k rows with inconsistent date formats — build a transformation pipeline that normalizes dates and deduplicates." / "Run a data QA pass on the mailroom-dataset parquet files: check for missing fields, type violations, and duplicate row hashes." |
+| 2 | **HuggingFace & data science** | `lucius` | HF downloads/uploads/edits, `datasets`/`transformers` pipelines, EDA, statistical analysis, model training/eval, database upkeep | "Download the `Lucius-Morningstar/mailroom-dataset` dataset v9 split and run an EDA: field coverage, class imbalance, doc-length distribution." / "Upload the new `mailroom-dataset` v9 dataset to HF Hub using the centralized helpers in mailroom-corpus-eda." / "Train a lightweight classifier on the docclass labels and report per-class F1 — use the braintrust experiment logger." |
 | 3 | **Prompt engineering** | `prompt-engineer` (project, `.opencode/agents/prompt-engineer.md`) | Run-failure diagnosis, GEPA mutations, prompt A/Bs across the llm-entity-extraction + llm-mailroom surfaces; master diagnostic evaluator and prompt engineer | "v24 left a `term_length` containment dip — diagnose it and produce v25." / "We're stuck at 0.93 on the sorter — what should the next rule be?" / "Candidate v31 didn't beat v30 by much — check the delta against the noise floor and decide if it's plateau territory." / "The contracts specialist is hallucinating on `change_of_control` clauses — reflect on the failure traces and engineer a surgical fix." |
 | 4 | **Docs & board** | `atom` | READMEs/wikis/changelogs, doc-drift detection, Kanban board upkeep, inter-agent coordination, repo restructuring | "The llm-mailroom README references a `deploy/` dir that no longer exists — fix the drift." / "Update the governance/TASKS.md board to reflect DMR-029 through DMR-037." / "The docs wiki page `Served-Board.md` is out of sync with the actual board-site API — reconcile and push." |
 | 5 | **Software & UI** | `hazel-ui-software-master` | UI/UX, fullstack, HTML/JS/CSS, bug fixes, local network testing, app architecture | "The board-site index.html drag-and-drop broke on Safari — debug and patch." / "Build a local-network test harness for the visualizer so agents can preview pages before deploy." / "Redesign the mailroom-dispatch-board.html filter panel for mobile viewports." |
@@ -125,9 +125,13 @@ python scripts/release_notes.py X.Y.Z           # render the GitHub Release body
 
 ## HF Hub uploads
 
-The `mailroom-corpus` dataset family (renamed from `docclass-merged`,
-2026-09-02 — "docclass" was a placeholder) is published through the CENTRALIZED
-helpers in `packages/mailroom-corpus-eda/src/mailroom_eda/` (`hf_interface`,
+The `mailroom-dataset` dataset family (canonical id
+`Lucius-Morningstar/mailroom-dataset`, "Mailroom Dataset v1", v9, 3,302 rows,
+pinned tip a7067844, published 2026-09-12) is the current corpus. Its frozen
+v8 baseline remains `Lucius-Morningstar/mailroom-corpus` (2,000 rows, pinned
+eafe1ab4) — itself renamed from `docclass-merged` on 2026-09-02 ("docclass"
+was a placeholder). Both are published through the CENTRALIZED helpers in
+`packages/mailroom-corpus-eda/src/mailroom_eda/` (`hf_interface`,
 `dataset_export`, `docclass_uploader`, `intent_backfill`) — never ad-hoc
 upload code. See `packages/mailroom-corpus-eda/AGENTS.md` and the
 `huggingface` opencode skill for the full workflow (cast-safe metadata,

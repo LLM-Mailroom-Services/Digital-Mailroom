@@ -1,4 +1,4 @@
-"""docclass-merged corpus alignment — schemas, subclasses, differentiators.
+"""mailroom-dataset corpus alignment — schemas, subclasses, differentiators.
 
 Grounded in the published Hugging Face dataset
 ``Lucius-Morningstar/mailroom-dataset`` (default + ``ground_truth`` configs;

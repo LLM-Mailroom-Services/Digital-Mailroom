@@ -80,7 +80,7 @@ CONSTELLATION: dict[str, dict[str, str]] = {
         "role": "corpus",
         "dist": "claims-data-eda",
         "blurb": "Exploratory data analysis of real insurance-claim samples "
-                 "from the mailroom-corpus (carrier / inpatient / outpatient / "
+                 "from the mailroom-dataset (carrier / inpatient / outpatient / "
                  "PDE strata).",
         "homepage": "",
     },
@@ -99,7 +99,7 @@ CONSTELLATION: dict[str, dict[str, str]] = {
         "repo": "Mailroom-Corpus-EDA",
         "blurb": "Dedicated repository for the full HF LLM-Mailroom corpus "
                  "exploratory data analysis + the centralized Hub upload "
-                 "helpers (mailroom-corpus dataset family).",
+                 "helpers (mailroom-dataset dataset family).",
         "homepage": "",
     },
     "mailroom-dev": {

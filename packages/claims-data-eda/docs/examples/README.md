@@ -1,7 +1,7 @@
 # Real insurance-claim sample documents (PDF)
 
 Eight real documents from the published `insurance_claim` corpus of
-[`Lucius-Morningstar/mailroom-corpus`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-corpus)
+[`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
 (two per health stratum this package produces: carrier, inpatient,
 outpatient, pde), rendered as faithful A4 PDFs.
 

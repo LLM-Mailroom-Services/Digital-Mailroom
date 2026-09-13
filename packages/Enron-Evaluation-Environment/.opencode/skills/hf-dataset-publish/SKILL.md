@@ -77,7 +77,7 @@ What it does, in sequence:
 
 1. **Split rule is family-wide**: `int(md5(filename.strip()), 16) % 10 == 0 → test`
    (~10%). Never invent a different split — every dataset in the family
-   (docclass-merged, enron-correspondence) must recompute identical splits.
+   (mailroom-dataset, enron-correspondence) must recompute identical splits.
 2. **One taxonomy source**: labels come from
    `scripts/correspondence_subclasses.label_correspondence` only. If this
    repo's enum changes, the sibling publisher picks it up automatically here;

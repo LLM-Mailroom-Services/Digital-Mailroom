@@ -890,7 +890,7 @@ def hf_rows_as_manifest() -> list[dict[str, str]]:
                 "subdir": "hf",
                 "filename": str(item.get("filename") or f"{item.get('doc_type')}.txt"),
                 "expected_doc_class": str(item.get("doc_type") or item.get("expected_hf_class") or "unknown"),
-                # mailroom-corpus ground-truth alignment: subclass + entity
+                # mailroom-dataset ground-truth alignment: subclass + entity
                 # targets ride through so specialist/judge/reporter evals
                 # score against the corpus GT schema, not ad-hoc keys.
                 "expected_subclass": str(item.get("expected_subclass") or ""),

@@ -345,7 +345,7 @@ def status_header(connected: bool, count: int, api_base: str = "",
 # Corpus renderers
 # ---------------------------------------------------------------------------
 
-def corpus_table(rows: list[SlimRow], title: str = "MAILROOM-CORPUS") -> Table:
+def corpus_table(rows: list[SlimRow], title: str = "MAILROOM-DATASET") -> Table:
     table = Table(title=title, box=None, pad_edge=False, expand=True)
     table.add_column("FILE", style="bold white", no_wrap=True, max_width=40)
     table.add_column("SPLIT", style="dim", no_wrap=True)

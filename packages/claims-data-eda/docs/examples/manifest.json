@@ -1,6 +1,6 @@
 {
  "title": "Real insurance-claim corpus documents rendered as PDF samples",
- "dataset": "Lucius-Morningstar/mailroom-corpus",
+ "dataset": "Lucius-Morningstar/mailroom-dataset",
  "source_file": "ground_truth_hardened.jsonl",
  "sample_count": 8,
  "strata": [

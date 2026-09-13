@@ -46,7 +46,7 @@ from mailroom_ui.hf_corpus import (  # noqa: E402
 _CORPORA = {
     "merged": {
         "dataset": FULL_CORPUS_ID,
-        "langfuse": "docclass-merged",
+        "langfuse": "mailroom-dataset",
         "description": (
             "Corrected full corpus mirrored from Lucius-Morningstar/mailroom-dataset "
             "(configs: default + ground_truth)."

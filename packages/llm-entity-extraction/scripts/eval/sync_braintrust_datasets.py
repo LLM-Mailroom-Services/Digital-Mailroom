@@ -19,7 +19,7 @@ Usage:
     python scripts/eval/sync_braintrust_datasets.py --docclass --enron --cuad
 
 ``--all`` syncs the default eval bundle: hearsay train, CUAD text-only (510
-rows), HF docclass-merged, and a **stratified-200** Enron correspondence
+rows), HF mailroom-dataset, and a **stratified-200** Enron correspondence
 sample (seed 42; pass ``--enron-full`` with ``--enron`` for the ~247k corpus).
 
 Prerequisites: ``pip install -r requirements/datasets.txt`` (and evals batch
@@ -282,7 +282,7 @@ def main_with_args(argv: list[str]) -> int:
     parser.add_argument("--cuad", action="store_true",
                         help=f"Sync CUAD text corpus -> {CUAD_DATASET}")
     parser.add_argument("--docclass", action="store_true",
-                        help=f"Export HF docclass-merged -> {DOCCLASS_DATASET}")
+                        help=f"Export HF mailroom-dataset -> {DOCCLASS_DATASET}")
     parser.add_argument("--enron", action="store_true",
                         help=f"Sync Enron correspondence eval sample -> {ENRON_DATASET} "
                              f"(default: stratified 200, seed 42)")

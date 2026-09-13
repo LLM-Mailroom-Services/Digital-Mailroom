@@ -16701,12 +16701,12 @@
     },
     {
       "id": "src_pipeline_hf_corpora_rationale_196",
-      "label": "Normalize a Hub row into the docclass-merged shape parse_hf_row expects.",
+      "label": "Normalize a Hub row into the mailroom-dataset shape parse_hf_row expects.",
       "_origin": "ast",
       "community": 29,
       "community_name": "Community 29",
       "file_type": "rationale",
-      "norm_label": "normalize a hub row into the docclass-merged shape parse_hf_row expects.",
+      "norm_label": "normalize a hub row into the mailroom-dataset shape parse_hf_row expects.",
       "source_file": "src/pipeline/hf_corpora.py",
       "source_location": "L196"
     },
@@ -18945,12 +18945,12 @@
     },
     {
       "id": "src_observability_local_eval_packs_rationale_1",
-      "label": "Local eval packs that close honesty gaps Hub cannot. Hub `docclass-merged`\u2026",
+      "label": "Local eval packs that close honesty gaps Hub cannot. Hub `mailroom-dataset`\u2026",
       "_origin": "ast",
       "community": 48,
       "community_name": "Community 48",
       "file_type": "rationale",
-      "norm_label": "local eval packs that close honesty gaps hub cannot. hub `docclass-merged`...",
+      "norm_label": "local eval packs that close honesty gaps hub cannot. hub `mailroom-dataset`...",
       "source_file": "src/observability/local_eval_packs.py",
       "source_location": "L1"
     },

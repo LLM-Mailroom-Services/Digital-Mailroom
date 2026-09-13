@@ -1,7 +1,7 @@
 # Jobs (DMR-027) — spec-driven, locked, resumable runs
 
 The `sandbox run` system runs **pipeline evals as locked jobs**: every input —
-prompt version(s) for any pipeline agent, the HF dataset (full mailroom-corpus
+prompt version(s) for any pipeline agent, the HF dataset (full mailroom-dataset
 or a subset), the vLLM/Modal engine spec, and the OTEL trace sink — is
 resolved, validated, prepared, and pinned at **preflight**; the job then runs
 per item with crash-safe checkpoints, resumes after pause/failure, and can be
@@ -41,7 +41,7 @@ prompt:                     # ALL pipeline agents: local variants + Langfuse + c
     judge: {source: local, file: judge_local_v0}
     sorter: {source: langfuse, name: mailroom-sorter, version: 9}   # integer pin
 
-dataset:                    # full mailroom-corpus OR a subset
+dataset:                    # full mailroom-dataset OR a subset
   provider: huggingface     # or file:/…/x.jsonl (offline)
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth      # labels + doc_text joined on filename

@@ -18,7 +18,7 @@ Strict surfaces (must equal the canonical five):
   ``_specialist_extractor_map`` must resolve every live class's specialist)
 - ``docs/v7-taxonomy.md`` stated live + v7-represented class blocks
 - dojo HF-corpus class universe (``corpus.py`` ``CORPUS_DOC_TYPES`` — pinned
-  to ``Lucius-Morningstar/mailroom-corpus``)
+  to ``Lucius-Morningstar/mailroom-dataset``)
 - entity-repo pilot class universe (``PILOT_CLASS_KEYS`` — the docclass GT
   surface)
 - sandbox docclass fixture (``docclass_mini.jsonl`` ``doc_type`` values)

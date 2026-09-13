@@ -251,7 +251,7 @@ def main_with_args(argv: list[str]) -> int:
         "subclass_counts": dict(sub_counts),
         "split_coverage": {"train": train_n, "test": test_n,
                            "rule": "md5(filename) % 10 == 0 -> test (10%); "
-                                   "same family rule as docclass-merged"},
+                                   "same family rule as mailroom-dataset"},
         "local_sha256": local_sha,
         "labeler": "Enron-Evaluation-Environment scripts/correspondence_subclasses.py "
                    "(shared 10-key taxonomy, first-match-wins)",

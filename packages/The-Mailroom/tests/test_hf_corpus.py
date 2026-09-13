@@ -1,4 +1,4 @@
-"""Unit tests for the pinned Hub docclass-merged corpus helper."""
+"""Unit tests for the pinned Hub mailroom-dataset corpus helper."""
 
 from __future__ import annotations
 

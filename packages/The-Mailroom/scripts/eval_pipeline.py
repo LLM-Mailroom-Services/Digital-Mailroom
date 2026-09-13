@@ -355,7 +355,7 @@ def enrich_intake(rows: list[dict]) -> list[dict]:
 
 
 def attach_hf_labels(rows: list[dict], split: str = "train") -> list[dict]:
-    """Fill missing ``expected`` from pinned docclass-merged GT, joined on filename."""
+    """Fill missing ``expected`` from pinned mailroom-dataset GT, joined on filename."""
     need = [r for r in rows if r.get("filename") and not r.get("expected")]
     if not need:
         return rows

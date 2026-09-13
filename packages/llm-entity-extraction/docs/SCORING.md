@@ -336,8 +336,8 @@ The hierarchical sorter task scores BOTH the primary `doc_type` and the
 second-level `doc_subclass` dimension (consideration type for merger
 agreements — MAUD expert GT; record type for corporate records —
 content-detected; communication type for correspondence; claim-document type
-for insurance_claim). The **extended** merged surface is the schema v5
-`mailroom-corpus` corpus — **1,210 rows / 8 primary classes**
+for insurance_claim). The **extended** merged surface is the
+`mailroom-dataset` corpus — **3,302 rows / 8 primary classes**
 (`data/datasets/docclass_merged.jsonl`, `DOCCLASS_SCHEMA`). The **pilot**
 surface is the 5-class docclass-pilot subset (138 stratified rows,
 `DOCCLASS_PILOT_SCHEMA`) with four second-level dimensions taught by

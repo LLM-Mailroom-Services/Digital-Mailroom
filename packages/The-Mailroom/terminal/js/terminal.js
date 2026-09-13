@@ -754,7 +754,7 @@ async function corpusLs(args) {
     + '<td>' + escapeHtml((r.doc_subclass || '-').replace(/_/g, ' ')) + '</td>'
     + '<td>' + escapeHtml(String(r.sha256 || '-').slice(0, 12)) + '</td>'
     + '<td>' + (r.chars || '-') + '</td></tr>').join('');
-  print('<div class="run-story"><h1>MAILROOM-CORPUS — ' + rows.length + ' rows (page ' + page + ')</h1>'
+  print('<div class="run-story"><h1>MAILROOM-DATASET — ' + rows.length + ' rows (page ' + page + ')</h1>'
     + '<table class="mr"><thead><tr><th>FILE</th><th>SPLIT</th><th>DOC CLASS</th><th>SUBCLASS</th><th>SHA256</th><th>CHARS</th></tr></thead>'
     + '<tbody>' + body + '</tbody></table>'
     + '<p class="post-footer"><span class="dim">' + (corpusCache.meta.dataset || 'Lucius-Morningstar/mailroom-dataset') + ' · catalog export · '

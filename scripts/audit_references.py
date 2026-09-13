@@ -55,6 +55,9 @@ ALLOWLIST = {
         "scripts/apply_hub064_board.py",
         "scripts/audit_references.py",
         "docs/reports/audits/org_migration_audit.*",
+        # board-evidence-auditor live audit state: must document predecessor
+        # (HUB-era) lineage as evidence; not a stale-link defect (hub#33).
+        ".opencode/agents/STATE.md",
     ],
     "old-hub-board": [
         "packages/*",
@@ -66,6 +69,8 @@ ALLOWLIST = {
         "docs/wiki/Served-Board.md",
         "scripts/audit_references.py",
         "docs/reports/audits/org_migration_audit.*",
+        # same rationale as above: STATE.md names the predecessor board URL.
+        ".opencode/agents/STATE.md",
     ],
 }
 

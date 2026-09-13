@@ -7,8 +7,8 @@ checkout is available:
 
     pip install -e ".[pipeline]"
 
-Pin: ``git+https://github.com/Exios66/llm-mailroom.git@3cf9fb9`` (package
-version 0.6.0 — tag ``v0.6.0``, pared LLM load). Bump
+Pin: ``git+https://github.com/Exios66/llm-mailroom.git@6f93b675fb57`` (package
+version 0.7.0 — tag ``v0.7.0``, mailroom-dataset v9 corpus migration). Bump
 ``MAILROOM_GIT_SHA`` and the extra together.
 
 In the mailroom-hub monorepo the workspace ``[pipeline]`` extra resolves
@@ -30,8 +30,8 @@ import sys
 from pathlib import Path
 from typing import Any, Optional
 
-# v0.6.0 tag 3cf9fb9 — "Release v0.6.0: pared LLM load + streamlined pipeline"
-MAILROOM_GIT_SHA = "3cf9fb9"
+# v0.7.0 tag 6f93b675fb57 — "mailroom-dataset (v9) corpus migration"
+MAILROOM_GIT_SHA = "6f93b675fb57"
 MAILROOM_GIT_URL = "https://github.com/Exios66/llm-mailroom.git"
 MAILROOM_DIST_NAME = "mailroom"
 MAILROOM_DIST_VERSION = "0.6.0"

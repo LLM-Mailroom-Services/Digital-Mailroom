@@ -11,7 +11,8 @@ standalone successor of the frozen v8 `mailroom-corpus` baseline (2,000 rows,
 Mirror of the standalone `Exios66/Mailroom-Corpus-EDA` repo; in the monorepo
 it lives at `packages/mailroom-corpus-eda` as a virtual uv member (no build).
 Never edit it from both places in one session — develop here, sync via
-`scripts/sync_packages.py` in mailroom-dev.
+`scripts/sync_packages.py` in the org monorepo
+(`LLM-Mailroom-Services/Digital-Mailroom`).
 
 ## Layout
 

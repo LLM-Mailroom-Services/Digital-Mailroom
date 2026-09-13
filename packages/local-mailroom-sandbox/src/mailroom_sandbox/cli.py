@@ -387,8 +387,8 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 
 # (vendor name, pinned tag, upstream url) — the tracked snapshot pins.
 _VENDOR_PINS: tuple[tuple[str, str, str], ...] = (
-    ("llm-mailroom", "v0.6.0", "https://github.com/Exios66/llm-mailroom.git"),
-    ("llm-dojo-scoring", "v0.12.2", "https://github.com/Exios66/llm-dojo-scoring.git"),
+    ("llm-mailroom", "v0.7.0", "https://github.com/Exios66/llm-mailroom.git"),
+    ("llm-dojo-scoring", "v0.14.0", "https://github.com/Exios66/llm-dojo-scoring.git"),
 )
 
 

@@ -1,5 +1,6 @@
 import os
 import signal
+import socket
 import time
 import threading
 import structlog
@@ -22,7 +23,7 @@ logger = structlog.get_logger(__name__)
 
 # O-1: kick the score-config warm-up off the document path at startup.
 from observability.scores import warmup_score_configs
-from observability.tracing import install_on_dropped
+from observability.tracing import install_on_dropped, pipeline_trace
 
 install_on_dropped()  # O-3: dropped trace events log a warning, never vanish
 
@@ -46,7 +47,15 @@ from .bins import (
 )
 from graph.build_graph import build_graph, run_pipeline
 
-def _finalize_claimed_on_error(claimed: Path | None, matter_id: str, reason: str) -> None:
+logger = structlog.get_logger(__name__)
+
+
+def _finalize_claimed_on_error(
+    claimed: Path | None,
+    matter_id: str,
+    reason: str,
+    intake_meta: dict | None = None,
+) -> None:
     """Move a claimed file to failed/ if run_pipeline raised outside the graph.
 
     The graph's ``_finalize_aborted`` already handles crashes inside
@@ -63,6 +72,7 @@ def _finalize_claimed_on_error(claimed: Path | None, matter_id: str, reason: str
                 "file_path": str(claimed),
                 "original_filename": claimed.name,
                 "matter_id": matter_id or "DEFAULT",
+                **({"intake_meta": dict(intake_meta)} if intake_meta else {}),
             },
             reason,
         )
@@ -88,10 +98,165 @@ WATCHER_LOCK_NAME = "watcher.lock"
 # tick. Override with WATCHER_POLL_INTERVAL_SECONDS.
 DEFAULT_POLL_INTERVAL_SECONDS = 1.0
 
+# SIGTERM drain: wait up to this many seconds for in-flight documents to
+# finish before aborting.  Override with WATCHER_DRAIN_TIMEOUT_SECONDS.
+DRAIN_TIMEOUT_SECONDS = int(os.environ.get("WATCHER_DRAIN_TIMEOUT_SECONDS", "30"))
+
 # In-process guard: flock is per-fd, so the same process can take the lock
 # twice. The API lifespan and a nested start() must not double-run.
 _watcher_owned = False
 _watcher_owned_lock = threading.Lock()
+
+# ---------------------------------------------------------------------------
+# Manifest index cache (HUB-043 / performance fix): O(1) lookup per inbox
+# file instead of iterating every ``*.json`` in the manifests directory.
+# Rebuilt at startup and periodically in the rescan loop.  The index maps
+# ``{filename: {delivery_key: stage}}`` so ``_is_already_processed`` can do
+# a dict lookup + membership test instead of N JSON parses.
+# ---------------------------------------------------------------------------
+_MANIFEST_INDEX: dict[str, dict[str, str]] = {}
+_MANIFEST_INDEX_BUILT_AT: float = 0.0
+_MANIFEST_INDEX_REBUILD_SECONDS = 300.0  # rebuild every 5 minutes
+
+
+def _build_manifest_index() -> dict[str, dict[str, str]]:
+    """Build ``{filename: {delivery_key: stage}}`` from all terminal manifests.
+
+    A single pass over the manifests directory replaces the per-file O(n)
+    scan that ran for every inbox file on every rescan cycle.
+    """
+    import json as _json
+    from pipeline.bins import manifests_dir
+
+    index: dict[str, dict[str, str]] = {}
+    mdir = manifests_dir()
+    if not mdir.exists():
+        return index
+    for mf in mdir.glob("*.json"):
+        try:
+            data = _json.loads(mf.read_text())
+        except Exception:
+            continue
+        if data.get("stage") not in TERMINAL_STAGES:
+            continue
+        fname = data.get("original_filename") or ""
+        if not fname:
+            continue
+        intake = data.get("intake") or {}
+        delivery_key = intake.get("message_id") or intake.get("upload_id") or ""
+        index.setdefault(fname, {})[delivery_key] = data.get("stage", "")
+    return index
+
+
+def _get_manifest_index() -> dict[str, dict[str, str]]:
+    """Return the cached manifest index, rebuilding if stale."""
+    global _MANIFEST_INDEX, _MANIFEST_INDEX_BUILT_AT
+    now = time.time()
+    if not _MANIFEST_INDEX or (now - _MANIFEST_INDEX_BUILT_AT) > _MANIFEST_INDEX_REBUILD_SECONDS:
+        _MANIFEST_INDEX = _build_manifest_index()
+        _MANIFEST_INDEX_BUILT_AT = now
+    return _MANIFEST_INDEX
+
+# Watcher status channel (HUB-050): the 🟢 startup/relaunch confirmation and
+# the enriched heartbeat (pid/host/started_at/sha) that the external watchdog
+# (`python -m pipeline.watchdog`) turns into 🔴 down alerts. A dead process
+# cannot email anyone — the watchdog is the outside pair of eyes.
+_STATUS_STARTED_AT: str | None = None
+_STATUS_SHA: str | None = None
+
+
+def _code_sha() -> str | None:
+    """Short HEAD sha (once, fail-soft) so status emails name the running code."""
+    global _STATUS_SHA
+    if _STATUS_SHA is not None:
+        return _STATUS_SHA
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=Path(__file__).resolve().parent,
+        )
+        _STATUS_SHA = out.stdout.strip() or None
+    except Exception:
+        _STATUS_SHA = None
+    return _STATUS_SHA
+
+
+def _status_detail() -> dict:
+    """Operator-readable heartbeat payload (readers depend only on `ts`)."""
+    from datetime import datetime, timezone
+
+    detail: dict = {
+        "pid": os.getpid(),
+        "host": socket.gethostname(),
+        "interval": float(
+            os.environ.get("WATCHER_POLL_INTERVAL_SECONDS", DEFAULT_POLL_INTERVAL_SECONDS)
+        ),
+    }
+    if _STATUS_STARTED_AT:
+        detail["started_at"] = _STATUS_STARTED_AT
+    sha = _code_sha()
+    if sha:
+        detail["sha"] = sha
+    return detail
+
+
+def _gmail_intake_line() -> str:
+    from .gmail_intake import load_config
+
+    try:
+        cfg = load_config()
+        enabled = os.environ.get("MAILROOM_GMAIL_ENABLED", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+        return (
+            f"enabled · poll {cfg['poll_seconds']:.0f}s"
+            if enabled
+            else "disabled"
+        )
+    except Exception:
+        return "unknown"
+
+
+def _send_startup_notice() -> None:
+    """🟢 relaunch confirmation (daemon thread): concise stylized email to the
+    human's status inbox. Never blocks startup; every failure is logged only."""
+    import time as _time
+
+    from .bins import HEARTBEAT_FILE_NAME, get_base_dir
+    from .status_notify import send_status_email, status_enabled
+
+    _time.sleep(2.0)  # let the poller/relations embeds settle for accurate rows
+    if not status_enabled():
+        return
+    detail = _status_detail()
+    rows = [
+        ("Host", str(detail.get("host", "?"))),
+        ("PID", str(detail.get("pid", "?"))),
+        ("Started at", _STATUS_STARTED_AT or "?"),
+        ("Code", f"git {detail.get('sha')}" if detail.get("sha") else "unknown"),
+        ("Inbox", str(inbox_dir())),
+        ("Gmail intake", _gmail_intake_line()),
+        ("Heartbeat", str(get_base_dir() / HEARTBEAT_FILE_NAME)),
+    ]
+    sent = send_status_email(
+        "running",
+        "watcher is running — inbox drain is live",
+        rows,
+        note=(
+            "You will get a 🔴 alert here if this process stops beating, and "
+            "this 🟢 confirmation again at every relaunch."
+        ),
+    )
+    if sent:
+        logger.info("watcher_startup_notice_sent", pid=detail.get("pid"))
 
 
 class WatcherLockHeld(RuntimeError):
@@ -195,26 +360,581 @@ def _is_already_processed(path: Path) -> bool:
     file was handled and must not be claimed again (pilot: watcher re-claimed
     files after crashes, producing 2-3 full pipeline runs per document and
     10-20x inflated trace latencies).
+
+    INTAKE-PROVENANCE-AWARE (HUB-043): the match is on the delivery identity,
+    not just the filename. A file's `/upload` sidecar carries its provenance
+    (Gmail `message_id` / upload `upload_id`); a terminal manifest counts as
+    "already processed" only when its intake provenance matches. A RE-SENT
+    email or a fresh upload with an already-seen filename is a NEW document
+    and must process — the filename-only rule silently dropped it forever
+    (the watcher skipped it every rescan; the sender never got a reaction or
+    an echo). No sidecar ⇒ legacy filename behavior (plain inbox drops).
+
+    Uses the pre-built manifest index for O(1) lookup instead of iterating
+    all manifest files per inbox file (HUB-043 / performance fix).
     """
     try:
-        import json as _json
-        from pipeline.bins import manifests_dir
+        delivery_key = None
+        try:
+            _matter, intake_meta = _intake_context(path)
+            delivery_key = intake_meta.get("message_id") or intake_meta.get("upload_id")
+        except Exception:
+            delivery_key = None
 
-        mdir = manifests_dir()
-        if not mdir.exists():
+        index = _get_manifest_index()
+        stages_by_key = index.get(path.name)
+        if stages_by_key is None:
             return False
-        for mf in mdir.glob("*.json"):
-            try:
-                data = _json.loads(mf.read_text())
-            except Exception:
-                continue
-            if data.get("original_filename") != path.name:
-                continue
-            if data.get("stage") in TERMINAL_STAGES:
-                return True
+        if delivery_key is None:
+            # No sidecar ⇒ legacy behavior: any terminal manifest for this
+            # filename counts as already processed.
+            return bool(stages_by_key)
+        # Provenance-aware: only count a match when the delivery key exists
+        # in the index for this filename.
+        return delivery_key in stages_by_key
     except Exception:
         logger.exception("manifest_scan_failed", file=str(path))
     return False
+
+
+# ---------------------------------------------------------------------------
+# Intake provenance (HUB-037) — shared by BOTH handler classes.
+#
+# `_infer_matter_id` is module-level on purpose: `Watcher._process_existing`
+# calls it too, and historically only `InboxHandler` carried the method (a
+# latent bug — any inbox file found by the startup scan / periodic rescan
+# instead of a watchdog event crashed into `existing_file_failed`).
+# ---------------------------------------------------------------------------
+
+_MATTER_ID_SUFFIX_MAX = 10
+
+
+def _infer_matter_id(path: Path) -> str:
+    """Matter id for an inbox file: meta sidecar > parent folder > name suffix.
+
+    Upload metadata wins: `/upload` (and the Gmail poller) write a
+    `<file>.meta` sidecar carrying the submitted matter_id, so the document is
+    filed under the matter the caller chose instead of a filename heuristic.
+    The sidecar is read while the file is still in the inbox (before claim
+    moves it).
+    """
+    meta = read_inbox_meta(path)
+    if meta and meta.get("matter_id"):
+        return str(meta["matter_id"])
+    parent_matter = path.parent.name
+    if parent_matter and parent_matter != inbox_dir().name:
+        return parent_matter
+    stem = path.stem
+    parts = stem.rsplit("_", 1)
+    if (
+        len(parts) == 2
+        and parts[1].upper() == parts[1]
+        and len(parts[1]) <= _MATTER_ID_SUFFIX_MAX
+    ):
+        return parts[1]
+    return "DEFAULT"
+
+
+# Intake-provenance keys copied from the inbox `<file>.meta` sidecar into the
+# document manifest (`DocumentManifest.intake`). A whitelist — never the raw
+# sidecar. A sidecar without a `source` key is the API `/upload` route;
+# Gmail sidecars carry `source: gmail`.
+_INTAKE_META_KEYS = (
+    "source",
+    "sender",
+    "subject",
+    "message_id",
+    "received_at",
+    "route",
+    "upload_id",
+    "uploaded_at",
+    "original_filename",
+)
+
+
+def _intake_meta_from_sidecar(meta: dict | None) -> dict:
+    if not meta:
+        return {}
+    intake = {k: meta[k] for k in _INTAKE_META_KEYS if meta.get(k) is not None}
+    if "source" not in intake:
+        intake["source"] = "upload"
+    return intake
+
+
+def _intake_context(path: Path) -> tuple[str, dict]:
+    """(matter_id, intake_meta) for an inbox file, read BEFORE claim_file moves it."""
+    return _infer_matter_id(path), _intake_meta_from_sidecar(read_inbox_meta(path))
+
+
+def _notify_intake_reaction(intake_meta: dict, *, async_mode: bool = True) -> None:
+    """React to the source email with a check emoji once it is claimed.
+
+    Fires ONLY for Gmail-channel documents (``source: gmail`` in the intake
+    sidecar) at the moment the watcher picks the attachment up for
+    processing. Best-effort and asynchronous (daemon thread): a reaction can
+    never delay or fail a claim. Disable with MAILROOM_GMAIL_REACTIONS=0.
+    """
+    if not intake_meta or intake_meta.get("source") != "gmail":
+        return
+    message_id = intake_meta.get("message_id")
+    if not message_id:
+        return
+    try:
+        from .gmail_intake import reactions_enabled, react_to_message
+
+        if not reactions_enabled():
+            return
+        if async_mode:
+            threading.Thread(
+                target=react_to_message,
+                args=(str(message_id),),
+                name="gmail-reaction",
+                daemon=True,
+            ).start()
+        else:
+            react_to_message(str(message_id))
+    except Exception:
+        logger.exception("gmail_reaction_dispatch_failed", message_id=str(message_id))
+
+
+def _is_triage_route(file_path: Path, intake_meta: dict) -> bool:
+    """Whether this claimed file takes the single-document free-triage lane.
+
+    Only ``route: triage`` (one accepted attachment per Gmail email, stamped
+    by the poller) qualifies — multi-document emails and every other intake
+    route run the full paid pipeline. Disabled triage (``MAILROOM_GMAIL_TRIAGE=0``)
+    or a gate error falls back to the full pipeline: never a crash.
+
+    The capability pre-check runs BEFORE the lane: a single-document upload
+    that exceeds the free triage team's capabilities (image-only input,
+    scanned PDF, or a document longer than the free agent's input budget —
+    e.g. merger agreements are typically far beyond it) is HONESTLY handed
+    off to the full paid pipeline instead of starting a doomed run. The
+    handoff reason rides ``intake_meta["triage_handoff"]`` into the terminal
+    manifest.
+    """
+    if not intake_meta or intake_meta.get("route") != "triage":
+        return False
+    try:
+        from .gmail_intake import triage_enabled
+
+        if not triage_enabled():
+            return False
+    except Exception:
+        logger.exception("triage_gate_failed")
+        return False
+    try:
+        ok, reason = _triage_capability_check(file_path)
+    except Exception:
+        logger.exception("triage_capability_check_failed")
+        return False  # conservative: a failed check hands off to the pipeline
+    if not ok:
+        logger.info("triage_handoff", file=str(file_path), reason=reason)
+        intake_meta["triage_handoff"] = reason
+        return False
+    return True
+
+
+def _direct_pdf_text(file_path: Path) -> tuple[str, bool]:
+    """Deterministic PDF text extraction (pdfplumber → pypdf fallback).
+
+    NEVER invokes the LLM transcriber — the capability pre-check must stay
+    free. Scanned PDFs yield no direct text and are handed off to the full
+    pipeline (whose paid transcriber handles them).
+    """
+    try:
+        import pdfplumber
+
+        with pdfplumber.open(str(file_path)) as pdf:
+            text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+            return text, bool(text.strip())
+    except Exception:
+        pass
+    try:
+        import pypdf
+
+        reader = pypdf.PdfReader(str(file_path))
+        text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        return text, bool(text.strip())
+    except Exception:
+        return "", False
+
+
+def _triage_capability_check(file_path: Path) -> tuple[bool, str | None]:
+    """Deterministic, LLM-free pre-check: can the free triage team handle this document?
+
+    Returns ``(ok, reason)``. A document is handed off to the full paid
+    pipeline (``reason`` non-None) when it is beyond the free agent's
+    capabilities: image-only inputs (vision required), scanned PDFs (paid
+    transcription required), unreadable inputs, or a deterministic text
+    length above the ``gmail_triage`` ``max_input_chars`` budget — merger
+    agreements are typically excessively long and go far beyond what the
+    free models can appropriately classify. The check runs BEFORE the lane,
+    so a document beyond the free team's reach never starts a failed run.
+    """
+    from graph.build_graph import IMAGE_EXTENSIONS
+
+    ext = file_path.suffix.lower()
+    if ext in IMAGE_EXTENSIONS:
+        return False, "image_requires_vision"
+    try:
+        if ext == ".pdf":
+            text, ok = _direct_pdf_text(file_path)
+            if not ok:
+                return False, "scanned_pdf_requires_transcription"
+        elif ext == ".docx":
+            from graph.build_graph import _extract_text_from_docx
+
+            text, ok = _extract_text_from_docx(file_path)
+        else:
+            text = file_path.read_text(errors="replace")
+            ok = bool(text.strip())
+    except Exception:
+        return False, "unreadable"
+    if not ok:
+        return False, "no_extractable_text"
+    try:
+        from pipeline.config import get_agent_config
+
+        budget = int(get_agent_config("gmail_triage").get("max_input_chars", 12000))
+    except Exception:
+        budget = 12000
+    if len(text) > budget:
+        return False, f"exceeds_free_budget:{len(text)}>{budget}"
+    return True, None
+
+
+def _file_sha256(path: Path) -> str:
+    """Best-effort sha256 of a file (audit A-7, triage lane)."""
+    import hashlib
+
+    try:
+        h = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except Exception:
+        logger.warning("triage_sha256_failed", file=str(path))
+        return ""
+
+
+def _triage_catalog_upsert(
+    manifest,
+    terminal_path: Path | None = None,
+    extraction: dict | None = None,
+    file_sha256: str | None = None,
+) -> None:
+    """Triage-lane catalog write (HUB-051) — the durable conveyor row the
+    relations clerk, /ops/status, and the echo's audit read depend on.
+
+    The free lane reaches its terminal manifest OUTSIDE the graph, so the
+    catalog row the paid pipeline writes via ``_catalog_upsert`` is written
+    here. Without it ``scan_document`` skips every triage document as
+    ``not_in_catalog`` and the relations layer stays a production no-op
+    (65 live sweeps, zero edges — HUB-051 audit). Best-effort, never raises.
+    """
+    try:
+        import asyncio
+
+        from schemas.matter import Matter
+        from storage.catalog import (
+            write_document_record as _write_doc,
+            write_matter_record as _write_matter,
+        )
+
+        matter_id = manifest.matter_id or "DEFAULT"
+        intake = manifest.intake or {}
+        triage = intake.get("triage") or {}
+        doc_record = {
+            "doc_id": manifest.doc_id,
+            "matter_id": matter_id,
+            "original_filename": manifest.original_filename,
+            "doc_type": manifest.doc_type or "unknown",
+            "doc_subclass": manifest.doc_subclass,
+            "stage": manifest.stage.value if hasattr(manifest.stage, "value") else str(manifest.stage),
+            "classification_confidence": manifest.classification_confidence,
+            "extracted_data": extraction or triage.get("extraction"),
+            "escalation_reason": manifest.escalation_reason,
+            "file_sha256": file_sha256 or (triage.get("file_sha256") or ""),
+        }
+
+        async def _runner():
+            matter = Matter(
+                matter_id=matter_id,
+                name=matter_id,
+                client_name="auto-created",
+                practice_area="transactional",
+            )
+            await _write_matter(matter)
+            await _write_doc(doc_record)
+
+        asyncio.run(_runner())
+        logger.debug("triage_catalog_upserted", doc_id=manifest.doc_id, stage=doc_record["stage"])
+    except Exception:
+        logger.exception("triage_catalog_upsert_failed")
+
+
+def _run_triage_lane(claimed: Path, matter_id: str, intake_meta: dict) -> dict:
+    """Single-document Gmail intake → the free-triage lane (HUB-037).
+
+    The free OpenRouter triage team handles single-document Gmail uploads
+    (`route: triage`) and performs the CORE steps of the full pipeline —
+    deterministic preparation (text read + intake normalization, never an
+    LLM), the triage classification read (advisory, free model), the
+    auditable-hash archive with a terminal manifest, and the completion
+    echo — WITHOUT the paid pipeline agents. Multi-document emails
+    (`route: pipeline`) never reach this lane.
+
+    Advisory by design: the triage read never overrules the pipeline agents.
+    Audit entries live in their OWN section (`triage_ingested` /
+    `triage_classified` / `triage_archived` — never the pipeline's
+    `ingested/classified/extracted/archived` vocabulary) so the stored
+    audits are never conflated. Fail-soft, two tiers (HUB-049): a transient
+    triage-read failure (free-team 429s, timeouts) parks the document in
+    `review/` with `triage_llm_unavailable` — never the failed bin — while
+    any later unexpected error still parks to `failed/` via the watcher's
+    abort path; the intake must never crash either way.
+    """
+    from schemas.audit import build_audit_entry
+    from schemas.manifest import DocumentManifest, PipelineStage
+    from agents.gmail_triage import GmailTriageAgent
+    from agents.intake import apply_intake
+    from graph.build_graph import _read_file_text, _latest_audit_hash, _write_audit_log
+    from pipeline.bins import archive_dir, move_to_archive, move_to_review, save_manifest
+
+    doc_text, _ = _read_file_text(claimed)
+    raw_text = doc_text
+    doc_text, intake_stats = apply_intake(doc_text, filename=claimed.name)
+
+    agent = GmailTriageAgent()
+    try:
+        triage = agent.triage(doc_text, filename=claimed.name)
+    except Exception as exc:
+        # HUB-049 lane hardening: a transient free-team failure (upstream 429
+        # rate limits, timeouts, parse failures beyond the retry contract) is
+        # NOT a document defect — the failed bin is for real handling errors.
+        # The unclassified document parks in REVIEW with the escalation
+        # reason, so the completion echo shows an actionable ⏸ instead of a
+        # misleading ❌ and the document can be reprocessed when the free
+        # team is reachable again.
+        reason = f"triage_llm_unavailable: {type(exc).__name__}: {str(exc)[:200]}"
+        manifest = DocumentManifest(
+            matter_id=matter_id,
+            original_filename=claimed.name,
+            stage=PipelineStage.REVIEW,
+            doc_type="unknown",
+            classification_confidence=None,
+            classification_attempts=1,
+            escalation_reason=reason,
+            intake=dict(intake_meta),
+        )
+        manifest.touch()
+        manifest_path = save_manifest(manifest)
+        prev = _latest_audit_hash(manifest.doc_id)
+        entry = build_audit_entry(
+            manifest.doc_id,
+            matter_id,
+            "triage_ingested",
+            "triage",
+            {
+                "file_sha256": _file_sha256(claimed),
+                "chars": len(doc_text),
+                "original_filename": claimed.name,
+            },
+            prev_hash=prev,
+        )
+        _write_audit_log(entry)
+        prev = entry.entry_hash
+        review_path = move_to_review(claimed, manifest)
+        entry = build_audit_entry(
+            manifest.doc_id,
+            matter_id,
+            "triage_reviewed",
+            "archivist",
+            {
+                "manifest_path": str(manifest_path),
+                "review_path": str(review_path),
+                "escalation_reason": reason,
+                "route": "triage",
+            },
+            prev_hash=prev,
+        )
+        _write_audit_log(entry)
+        logger.warning(
+            "triage_lane_llm_unavailable",
+            doc_id=manifest.doc_id,
+            file=str(review_path),
+            matter_id=matter_id,
+            error=reason,
+        )
+        # Catalog row + relations dispatch (HUB-051): the review park is a
+        # terminal manifest — the relations clerk must see it and the
+        # conveyor position must be real.
+        _triage_catalog_upsert(manifest, terminal_path=review_path, file_sha256=_file_sha256(claimed))
+        from .relations import dispatch_relations_scan
+
+        dispatch_relations_scan(manifest.model_dump(mode="json"))
+        from .gmail_intake import dispatch_intake_echo
+
+        dispatch_intake_echo(manifest.model_dump(mode="json"))
+        return {"doc_id": manifest.doc_id, "stage": "review"}
+    intake_meta = dict(intake_meta)
+    intake_meta["triage"] = triage
+
+    # HUB-confidence gate: the free lane has NO retry loop and no reviewer, so
+    # a triage the taxonomy would not trust must go to HUMAN REVIEW instead of
+    # being archived under a possibly-wrong class. Two routes to review:
+    #   * primary class clamps to `unknown` (the free model could not pin it),
+    #   * confidence < the taxonomy's `low` threshold for the doc class.
+    # Review-parked manifests keep the best-effort extracted entities (HUB-049
+    # fallback) so the reviewer sees what the team found.
+    from pipeline.config import get_confidence_thresholds
+
+    doc_class = triage.get("primary_doc_class") or "unknown"
+    conf = triage.get("confidence")
+    review_low = float(get_confidence_thresholds(doc_class).get("low", 0.88))
+    if doc_class == "unknown":
+        terminal_stage = PipelineStage.REVIEW
+        escalation_reason = (
+            "triage_unknown_class — the free triage team could not pin a "
+            "document class; parked for human review"
+        )
+    elif conf is None or conf < review_low:
+        terminal_stage = PipelineStage.REVIEW
+        escalation_reason = (
+            f"triage_low_confidence {conf} < {review_low} — the free triage "
+            "team was not certain enough; parked for human review"
+        )
+    else:
+        terminal_stage = PipelineStage.ARCHIVED
+        escalation_reason = None
+
+    manifest = DocumentManifest(
+        matter_id=matter_id,
+        original_filename=claimed.name,
+        stage=terminal_stage,
+        doc_type=doc_class,
+        doc_subclass=triage.get("doc_subclass"),
+        classification_confidence=conf,
+        classification_attempts=1,
+        escalation_reason=escalation_reason,
+        intake=intake_meta,
+    )
+    manifest.touch()
+
+    # Own audit section (HUB-037): the triage lane's hash-chained entries use
+    # the `triage_*` event vocabulary so they are never conflated with the
+    # paid pipeline's stage events.
+    prev = _latest_audit_hash(manifest.doc_id)
+    events = [
+        (
+            "triage_ingested",
+            "triage",
+            {
+                "file_sha256": _file_sha256(claimed),
+                "chars": len(doc_text),
+                "intake_changed": intake_stats.get("changed"),
+                "intake_messy": intake_stats.get("messy"),
+                "original_filename": claimed.name,
+            },
+        ),
+        (
+            "triage_classified",
+            "gmail_triage",
+            {
+                "doc_type": triage.get("primary_doc_class"),
+                "doc_subclass": triage.get("doc_subclass"),
+                "confidence": triage.get("confidence"),
+                "gist": triage.get("gist"),
+                "keywords": triage.get("keywords"),
+            },
+        ),
+    ]
+    for event, actor, detail in events:
+        entry = build_audit_entry(
+            manifest.doc_id, matter_id, event, actor, detail, prev_hash=prev
+        )
+        _write_audit_log(entry)
+        prev = entry.entry_hash
+
+    manifest_path = save_manifest(manifest)
+    if terminal_stage == PipelineStage.REVIEW:
+        terminal_path = move_to_review(claimed, manifest)
+        terminal_event = "triage_reviewed"
+        terminal_detail = {
+            "manifest_path": str(manifest_path),
+            "review_path": str(terminal_path),
+            "doc_type": manifest.doc_type,
+            "escalation_reason": escalation_reason,
+            "confidence": conf,
+            "route": "triage",
+        }
+    else:
+        terminal_path = move_to_archive(
+            claimed, matter_id, manifest.doc_type or "unknown", doc_id=manifest.doc_id
+        )
+        terminal_event = "triage_archived"
+        sidecar = None
+        try:
+            sidecar = archive_dir(matter_id, manifest.doc_type or "unknown") / f"{terminal_path.stem}.json"
+            sidecar.write_text(manifest.model_dump_json(indent=2))
+        except Exception:
+            logger.warning("triage_archive_sidecar_failed", doc_id=manifest.doc_id)
+        terminal_detail = {
+            "archive_path": str(terminal_path),
+            "manifest_path": str(manifest_path),
+            "archive_sidecar": str(sidecar) if sidecar else None,
+            "doc_type": manifest.doc_type,
+            "file_sha256": _file_sha256(terminal_path),
+            "confidence": conf,
+            "route": "triage",
+        }
+
+    terminal_entry = build_audit_entry(
+        manifest.doc_id,
+        matter_id,
+        terminal_event,
+        "archivist",
+        terminal_detail,
+        prev_hash=prev,
+    )
+    _write_audit_log(terminal_entry)
+
+    # Catalog row (HUB-051): the triage lane reaches its terminal manifest
+    # OUTSIDE the graph, so the durable conveyor row is written here —
+    # without it the relations clerk skips the document (not_in_catalog)
+    # and /ops/status never sees the archive.
+    _triage_catalog_upsert(
+        manifest,
+        terminal_path=terminal_path,
+        extraction=triage.get("extraction"),
+        file_sha256=terminal_detail.get("file_sha256"),
+    )
+
+    logger.info(
+        "triage_lane_complete",
+        doc_id=manifest.doc_id,
+        stage=terminal_stage.value,
+        file=str(terminal_path),
+        matter_id=matter_id,
+        doc_class=triage.get("primary_doc_class"),
+        confidence=triage.get("confidence"),
+        escalation_reason=escalation_reason,
+    )
+
+    # Completion echo on the source thread (same contract as the pipeline).
+    from .gmail_intake import dispatch_intake_echo
+
+    dispatch_intake_echo(manifest.model_dump(mode="json"))
+
+    # Relations clerk (HUB-040/043): the triage lane reaches a terminal
+    # manifest OUTSIDE the graph, so the post-archive association pass fires
+    # here too — daemon thread, fail-soft.
+    from .relations import dispatch_relations_scan
+
+    dispatch_relations_scan(manifest.model_dump(mode="json"))
+    return {"doc_id": manifest.doc_id, "stage": "archived"}
 
 
 class InboxHandler(FileSystemEventHandler):
@@ -278,12 +998,16 @@ class InboxHandler(FileSystemEventHandler):
         dest = getattr(event, "dest_path", None) or event.src_path
         self._schedule(Path(dest))
 
+    # Intake provenance is resolved by the module-level `_intake_context`
+    # (shared with Watcher._process_existing — see its comment above).
+
     def _process(self, path: Path):
         if not _mark_active(path.name):
             logger.info("file_already_processing", file=str(path))
             return
         claimed = None
         matter_id = "DEFAULT"
+        intake_meta: dict = {}
         try:
             if is_ingestion_paused():
                 # Leave the file in the inbox (never claim it). The periodic
@@ -298,32 +1022,49 @@ class InboxHandler(FileSystemEventHandler):
                 logger.info("file_skipped_already_processed", file=str(path))
                 return
             claimed = claim_file(path, self.worker_id)
-            matter_id = self._infer_matter_id(path)
-            logger.info("file_claimed", file=str(claimed), matter_id=matter_id)
-            result = run_pipeline(claimed, matter_id)
-            logger.info("pipeline_complete", doc_id=result.get("doc_id"), matter_id=matter_id)
+            matter_id, intake_meta = _intake_context(path)
+            _notify_intake_reaction(intake_meta)
+            if _is_triage_route(claimed, intake_meta):
+                logger.info(
+                    "file_claimed_triage",
+                    file=str(claimed),
+                    matter_id=matter_id,
+                    intake_source=intake_meta.get("source"),
+                )
+                with pipeline_trace(
+                    seed=claimed.name,
+                    session_id=matter_id,
+                    name="gmail-triage",
+                    tags=["source-gmail", "route-triage"],
+                    metadata=intake_meta or {},
+                    environment="live",
+                ) as _triage_trace:
+                    _run_triage_lane(claimed, matter_id, intake_meta)
+            else:
+                logger.info(
+                    "file_claimed",
+                    file=str(claimed),
+                    matter_id=matter_id,
+                    intake_source=intake_meta.get("source"),
+                )
+                result = run_pipeline(
+                    claimed,
+                    matter_id,
+                    source=intake_meta.get("source"),
+                    intake_meta=intake_meta or None,
+                )
+                logger.info("pipeline_complete", doc_id=result.get("doc_id"), matter_id=matter_id)
         except Exception:
             logger.exception("pipeline_failed", file=str(path))
-            _finalize_claimed_on_error(claimed, matter_id, "watcher pipeline exception")
+            _finalize_claimed_on_error(
+                claimed, matter_id, "watcher pipeline exception", intake_meta=intake_meta or None
+            )
         finally:
             _unmark_active(path.name)
 
     def _infer_matter_id(self, path: Path) -> str:
-        # Upload metadata wins: `/upload` writes a `<file>.meta` sidecar
-        # carrying the submitted matter_id, so the document is filed under the
-        # matter the caller chose instead of a filename heuristic. The sidecar
-        # is read while the file is still in the inbox (before claim moves it).
-        meta = read_inbox_meta(path)
-        if meta and meta.get("matter_id"):
-            return str(meta["matter_id"])
-        parent_matter = path.parent.name
-        if parent_matter and parent_matter != inbox_dir().name:
-            return parent_matter
-        stem = path.stem
-        parts = stem.rsplit("_", 1)
-        if len(parts) == 2 and parts[1].upper() == parts[1] and len(parts[1]) <= 10:
-            return parts[1]
-        return "DEFAULT"
+        # Delegate to the module-level implementation (shared with Watcher).
+        return _infer_matter_id(path)
 
 
 class Watcher:
@@ -332,11 +1073,16 @@ class Watcher:
         self.observer = Observer()
         self._running = False
         self._lock: _WatcherLock | None = None
+        self._gmail_poller = None
+        self._relations_sweeper = None
 
     def start(self):
-        global _watcher_owned
+        global _watcher_owned, _STATUS_STARTED_AT
+        from datetime import datetime, timezone
+
         inbox = inbox_dir()
         ensure_dirs(inbox)
+        _STATUS_STARTED_AT = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
         logger.info("watcher_starting", inbox=str(inbox), worker_id=self.worker_id)
 
         with _watcher_owned_lock:
@@ -354,6 +1100,10 @@ class Watcher:
         try:
             self._reconcile_stale_claims()
 
+            # Pre-build the manifest index so the startup inbox scan uses
+            # O(1) lookups instead of O(n) per file.
+            _build_manifest_index()
+
             for f in list_inbox_files():
                 logger.info("existing_inbox_file", file=str(f))
                 threading.Thread(
@@ -364,7 +1114,7 @@ class Watcher:
             self.observer.schedule(handler, str(inbox), recursive=False)
             self.observer.start()
             self._running = True
-            touch_watcher_heartbeat()  # immediate liveness beacon before the first rescan
+            touch_watcher_heartbeat(extra=_status_detail())  # immediate enriched liveness beacon
             logger.info("watcher_running", inbox=str(inbox))
 
             # Periodic inbox rescan: catches files skipped while ingestion was
@@ -372,6 +1122,27 @@ class Watcher:
             # appeared between watchdog events. Cheap and idempotent — already-
             # processed files are skipped by `_is_already_processed`.
             threading.Thread(target=self._rescan_loop, daemon=True).start()
+
+            # Gmail intake channel (HUB-037): when MAILROOM_GMAIL_ENABLED=1,
+            # the mailbox poller runs INSIDE this watcher process so the
+            # watcher.lock holder remains the single intake authority. The
+            # poller only drops attachments into the inbox — the drain path
+            # below (watchdog events + rescan) is unchanged.
+            from .gmail_intake import start_embedded_poller
+
+            self._gmail_poller = start_embedded_poller()
+
+            # Relations sweeper (HUB-040): the regular archive association
+            # sweep — same embedded pattern, watermark-incremental, fail-soft.
+            from .relations import start_embedded_relations_scanner
+
+            self._relations_sweeper = start_embedded_relations_scanner()
+
+            # Watcher status channel (HUB-050): 🟢 startup/relaunch
+            # confirmation to the human's status inbox. Fire-and-forget
+            # daemon — never blocks or crashes startup; MAILROOM_WATCHER_STATUS=0
+            # (and hermetic tests) keep it silent.
+            threading.Thread(target=_send_startup_notice, daemon=True).start()
         except Exception:
             self.stop()
             raise
@@ -401,9 +1172,14 @@ class Watcher:
         poll = float(os.environ.get("WATCHER_POLL_INTERVAL_SECONDS", str(DEFAULT_POLL_INTERVAL_SECONDS)))
         while self._running:
             _time.sleep(poll)
-            # Liveness beacon for /health: proves the watcher is alive and
-            # draining the inbox (uploads only move once this process runs).
-            touch_watcher_heartbeat()
+            # Liveness beacon for /health + the HUB-050 watchdog: proves the
+            # watcher is alive and draining the inbox (uploads only move once
+            # this process runs). Enriched with pid/host/started_at so the
+            # external watchdog can fast-path on pid death.
+            touch_watcher_heartbeat(extra=_status_detail())
+            # Refresh the manifest index periodically so newly-created
+            # manifests from other processes (e.g. the API) are picked up.
+            _get_manifest_index()
             if is_ingestion_paused():
                 continue
             for f in list_inbox_files():
@@ -413,13 +1189,35 @@ class Watcher:
                     target=self._process_existing, args=(f,), daemon=True
                 ).start()
 
-    def stop(self):
+    def stop(self, drain_timeout: float | None = None):
         global _watcher_owned
+        from .gmail_intake import stop_embedded_poller
+        from .relations import stop_embedded_relations_scanner
+
+        stop_embedded_poller(self._gmail_poller)
+        self._gmail_poller = None
+        stop_embedded_relations_scanner(getattr(self, "_relations_sweeper", None))
+        self._relations_sweeper = None
         if self._running:
             self.observer.stop()
             self.observer.join(timeout=5)
             self._running = False
             logger.info("watcher_stopped")
+        # Drain: wait for in-flight documents to finish (SIGTERM hardening).
+        timeout = drain_timeout if drain_timeout is not None else DRAIN_TIMEOUT_SECONDS
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            with _active_lock:
+                remaining = len(_active_files)
+            if remaining == 0:
+                break
+            logger.info("watcher_draining", active_files=remaining, seconds_left=round(deadline - time.time(), 1))
+            time.sleep(0.5)
+        else:
+            with _active_lock:
+                remaining = len(_active_files)
+            if remaining > 0:
+                logger.warning("watcher_drain_timeout", active_files=remaining, timeout=timeout)
         if self._lock is not None:
             self._lock.release()
             self._lock = None
@@ -432,6 +1230,7 @@ class Watcher:
             return
         claimed = None
         matter_id = "DEFAULT"
+        intake_meta: dict = {}
         try:
             if is_ingestion_paused():
                 logger.info("ingestion_paused_by_ops_monitor", file=str(path))
@@ -443,12 +1242,42 @@ class Watcher:
                 logger.info("file_skipped_already_processed", file=str(path))
                 return
             claimed = claim_file(path, self.worker_id)
-            matter_id = self._infer_matter_id(path)
-            logger.info("existing_file_claimed", file=str(claimed), matter_id=matter_id)
-            run_pipeline(claimed, matter_id)
+            matter_id, intake_meta = _intake_context(path)
+            _notify_intake_reaction(intake_meta)
+            if _is_triage_route(claimed, intake_meta):
+                logger.info(
+                    "existing_file_claimed_triage",
+                    file=str(claimed),
+                    matter_id=matter_id,
+                    intake_source=intake_meta.get("source"),
+                )
+                with pipeline_trace(
+                    seed=claimed.name,
+                    session_id=matter_id,
+                    name="gmail-triage",
+                    tags=["source-gmail", "route-triage"],
+                    metadata=intake_meta or {},
+                    environment="live",
+                ) as _triage_trace:
+                    _run_triage_lane(claimed, matter_id, intake_meta)
+            else:
+                logger.info(
+                    "existing_file_claimed",
+                    file=str(claimed),
+                    matter_id=matter_id,
+                    intake_source=intake_meta.get("source"),
+                )
+                run_pipeline(
+                    claimed,
+                    matter_id,
+                    source=intake_meta.get("source"),
+                    intake_meta=intake_meta or None,
+                )
         except Exception:
             logger.exception("existing_file_failed", file=str(path))
-            _finalize_claimed_on_error(claimed, matter_id, "watcher existing-file exception")
+            _finalize_claimed_on_error(
+                claimed, matter_id, "watcher existing-file exception", intake_meta=intake_meta or None
+            )
         finally:
             _unmark_active(path.name)
 
@@ -462,6 +1291,11 @@ if __name__ == "__main__":
     def _signal_handler(signum, frame):
         logger.info("watcher_signal_received", signal=signum)
         _shutdown.set()
+        # Force-kill after drain timeout if the main loop hasn't exited yet.
+        threading.Thread(
+            target=lambda: (time.sleep(DRAIN_TIMEOUT_SECONDS + 5), os._exit(1)),
+            daemon=True,
+        ).start()
 
     signal.signal(signal.SIGTERM, _signal_handler)
     signal.signal(signal.SIGINT, _signal_handler)
@@ -477,7 +1311,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         pass
     finally:
-        watcher.stop()
+        watcher.stop(drain_timeout=DRAIN_TIMEOUT_SECONDS)
         from observability.tracing import flush
 
         flush()

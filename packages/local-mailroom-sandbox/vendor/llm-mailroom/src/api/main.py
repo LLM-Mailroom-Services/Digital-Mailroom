@@ -6,6 +6,7 @@ import structlog
 from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Form, Request, Depends
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from contextlib import asynccontextmanager
 
 from pipeline.env import load_env
@@ -200,6 +201,9 @@ async def health():
     tracing_health = flush_health()
     heartbeat_age = watcher_heartbeat_age()
     lamp = watcher_lamp(heartbeat_age)
+    from pipeline.gmail_intake import status as gmail_intake_status
+
+    gmail = gmail_intake_status()
     overall = "ok" if (llm["status"] == "ok" and db["status"] == "ok") else "degraded"
     if paused or not tracing_health["healthy"]:
         overall = "degraded"
@@ -223,8 +227,43 @@ async def health():
             "inbox_pending": count_inbox_pending(),
             "watcher_heartbeat_seconds_ago": heartbeat_age,
             "observability": tracing_health,
+            "gmail_intake": gmail,
         },
     }
+
+
+@app.get("/api/relations/mode", dependencies=[Depends(_require_token)])
+async def get_relations_mode():
+    """Relations clerk mode readout (HUB-052) — the effective live/pilot
+    posture plus every knob that can block or shape it."""
+    from pipeline.relations_mode import mode_status
+
+    return mode_status()
+
+
+class RelationsModeRequest(BaseModel):
+    mode: str
+    model: str | None = None
+
+
+@app.post("/api/relations/mode", dependencies=[Depends(_require_token)])
+async def post_relations_mode(req: RelationsModeRequest):
+    """Flip the relations clerk mode (HUB-052) — pilot (deterministic-only)
+    or live (LLM judgment on). Edits taxonomy + clears the in-process config
+    caches, so the embedded watcher honors the flip with NO restart."""
+    from pipeline.relations_mode import set_mode
+
+    try:
+        result = set_mode(req.mode, req.model)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    result["restart_required"] = False
+    result["note"] = (
+        "applied in-process — the embedded watcher shares this process and "
+        "picks the flip up immediately; standalone watchers read it on their "
+        "next restart (python -m pipeline.relations_mode live --restart-watcher)"
+    )
+    return result
 
 
 @app.post("/upload", dependencies=[Depends(_require_token)])
@@ -1206,23 +1245,54 @@ def _mount_v1_aliases() -> None:
 _mount_v1_aliases()
 
 
+def listen_host() -> str:
+    """Bind host for ``python -m api.main`` (default loopback)."""
+    return (os.environ.get("MAILROOM_API_HOST") or "127.0.0.1").strip() or "127.0.0.1"
+
+
+def listen_port() -> int:
+    """Listen port for ``python -m api.main``.
+
+    Platform-injected ``PORT`` (Railway / Fly / Render / Heroku, and many
+    Spaces runtimes) **wins** over image defaults such as
+    ``MAILROOM_API_PORT=7860``. Listening on the baked-in Space port while the
+    edge proxy dials ``$PORT`` is the usual “crashed on Railway” failure mode.
+    """
+    platform = (os.environ.get("PORT") or "").strip()
+    if platform:
+        return int(platform)
+    configured = (os.environ.get("MAILROOM_API_PORT") or "8000").strip() or "8000"
+    return int(configured)
+
+
+def _platform_hint() -> str:
+    if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_PROJECT_ID"):
+        return "Railway"
+    if os.environ.get("SPACE_ID") or os.environ.get("HF_SPACE_ID"):
+        return "Hugging Face Spaces"
+    return "a non-loopback host"
+
+
+def assert_bind_allowed(host: str | None = None) -> None:
+    """Refuse off-loopback binds without a live bearer token (audit L-2)."""
+    host = listen_host() if host is None else host
+    if host in ("127.0.0.1", "localhost", "::1"):
+        return
+    if active_api_tokens():
+        return
+    raise SystemExit(
+        f"Refusing to bind to {host} without MAILROOM_API_TOKEN or "
+        f"MAILROOM_API_TOKENS (audit L-2: unauthenticated API exposure on "
+        f"{_platform_hint()}). Set MAILROOM_API_TOKEN in the service variables."
+    )
+
+
 if __name__ == "__main__":
-    import signal
     import uvicorn
     from observability.tracing import ensure_process_tracing
 
-    # Audit L-2: bind loopback by default; allow explicit MAILROOM_API_HOST
-    # override. When binding non-loopback, a bearer token is mandatory.
-    host = os.environ.get("MAILROOM_API_HOST", "127.0.0.1")
-    port = int(
-        os.environ.get("MAILROOM_API_PORT")
-        or os.environ.get("PORT")
-        or "8000"
-    )
-    if host not in ("127.0.0.1", "localhost", "::1") and not active_api_tokens():
-        raise SystemExit(
-            "Refusing to bind to a non-loopback address without MAILROOM_API_TOKEN "
-            "or MAILROOM_API_TOKENS (audit L-2: unauthenticated API exposure)."
-        )
+    host = listen_host()
+    port = listen_port()
+    assert_bind_allowed(host)
     ensure_process_tracing()  # O-7: drop-warnings + flush/shutdown on exit
     uvicorn.run(app, host=host, port=port)

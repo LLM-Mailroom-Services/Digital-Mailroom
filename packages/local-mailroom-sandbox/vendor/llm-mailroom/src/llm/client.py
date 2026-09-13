@@ -1,23 +1,103 @@
+import os
+
 from openai import OpenAI
 from .providers import resolve_provider
-from pipeline.config import get_agent_config
+from pipeline.config import get_agent_config, load_config
 from pipeline.env import load_env
 
 load_env()
 
 
+def free_only_enabled() -> bool:
+    """Whether the free-only LLM guardrail is on (``MAILROOM_LLM_FREE_ONLY``).
+
+    Opt-in and reversible (HUB-039): on during the Gmail triage pilot so the
+    OpenRouter key can ONLY resolve free models; unset/``0`` in full
+    production, where paid agents handle multi-document uploads.
+    """
+    return str(os.environ.get("MAILROOM_LLM_FREE_ONLY", "")).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def is_free_model(model: str) -> bool:
+    """The free-model predicate (shared by the guardrail and the failover
+    swarm): a model is free when its taxonomy ``cost_models`` prices are both
+    0.0 (the registry is the pricing source of truth) or, unregistered, when
+    it carries OpenRouter's ``:free`` suffix convention.
+    """
+    cost = (load_config().get("cost_models", {}) or {}).get(model) or {}
+    try:
+        free = float(cost.get("input_per_million", -1)) == 0.0 and float(
+            cost.get("output_per_million", -1)
+        ) == 0.0
+    except (TypeError, ValueError):
+        free = False
+    return free or str(model).endswith(":free")
+
+
+def assert_free_model(model: str) -> None:
+    """Raise when ``MAILROOM_LLM_FREE_ONLY`` is on and ``model`` is not free.
+
+    No-op when the flag is off. Uses the shared :func:`is_free_model`
+    predicate; anything else is refused BEFORE any client (and therefore any
+    request) can exist — callers fail soft per their own error paths,
+    documents park, nothing spends.
+    """
+    if not free_only_enabled():
+        return
+    if not is_free_model(model):
+        raise RuntimeError(
+            f"MAILROOM_LLM_FREE_ONLY is on: model '{model}' is not free "
+            "(cost_models prices non-zero, or unregistered without a ':free' "
+            "suffix) — refusing to resolve an LLM client for it. Unset "
+            "MAILROOM_LLM_FREE_ONLY for full production."
+        )
+
+
 def get_llm(agent_name: str) -> tuple[OpenAI, str]:
     agent_cfg = get_agent_config(agent_name)
     provider, model = resolve_provider(agent_cfg)
+    if provider.name == "vllm":
+        # DMR-052: the served model id is the HF id (e.g. Qwen/Qwen3-8B), not
+        # the taxonomy's OpenRouter champion slug — remap before the client
+        # exists so a vLLM serve never 404s on the champion id.
+        model = _self_hosted_model(model)
+    # The free-only guardrail bounds OpenRouter spend; self-hosted providers
+    # (vLLM/ollama/generic) have no per-token price and are exempt (DMR-052).
+    if provider.name not in {"vllm", "ollama", "generic"}:
+        assert_free_model(model)
+        if (
+            free_only_enabled()
+            and provider.api_key_env
+            and provider.api_key_env != "OPENROUTER_API_KEY"
+        ):
+            raise RuntimeError(
+                f"MAILROOM_LLM_FREE_ONLY is on: agent '{agent_name}' resolves "
+                f"provider credential '{provider.api_key_env}' outside the "
+                "OpenRouter free tier — refusing."
+            )
     kwargs = {"base_url": provider.base_url, "api_key": "not-needed"}
     if provider.api_key_env:
-        import os
         key = os.environ.get(provider.api_key_env)
         if key:
             kwargs["api_key"] = key
     client = OpenAI(**kwargs)
     client = instrument_client(client)
     return client, model
+
+
+def _self_hosted_model(model: str) -> str:
+    """Remap an OpenRouter champion id to the served id for self-hosted vLLM.
+
+    The map lives in ``taxonomy.yaml: vllm_model_map`` (single source of
+    truth); a champion without an entry passes through untouched (DMR-052).
+    """
+    mapping = load_config().get("vllm_model_map") or {}
+    return str(mapping.get(model) or model)
 
 
 def instrument_client(client) -> OpenAI:

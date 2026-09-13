@@ -22,6 +22,40 @@ llm_retry:
   rate_limit_base_delay: 8.0
   max_delay: 60.0
   jitter: 0.3
+  # Modal scale-to-zero cold start (DMR-052): a 503 from a *.modal.run
+  # endpoint means the container is warming, not overloaded — back off in
+  # minutes, not seconds, so the ladder survives a cold boot.
+  modal_cold_start_delay: 90.0
+  modal_cold_start_max_delay: 240.0
+
+# Self-hosted model-id remap (DMR-052): when DEFAULT_PROVIDER=vllm the agents'
+# taxonomy models are OpenRouter champion slugs; a vLLM serve exposes the HF id
+# (e.g. Qwen/Qwen3-8B). This map rewrites the champion to the served id before
+# any client exists. Keep it in sync with config/models.yaml (sandbox).
+vllm_model_map:
+  qwen/qwen3.7-flash: Qwen/Qwen3-8B
+  deepseek/deepseek-v4-flash: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+  deepseek/deepseek-v4-pro: deepseek-ai/DeepSeek-R1-Distill-Qwen-14B
+  z-ai/glm-5.2:free: Qwen/Qwen3-8B
+
+# Free-model swarm (Gmail triage pilot, live-verified 2026-09-04): ordered
+# fallback chain for FREE models. When a free model's upstream pool
+# rate-limits (OpenRouter's shared :free tier saturates for minutes at a
+# time), the retry ladder rotates to the next entry instead of burning every
+# attempt on one saturated pool — a request only parks when the WHOLE swarm
+# is rate-limited. Every entry must satisfy the free predicate (0/0
+# cost_models pricing or the :free suffix); paid models never rotate.
+# Order is priority: glm-5.2 is the strongest triage read (ling parsed 14/24
+# Enron samples in verification, the small models are last-resort).
+free_model_swarm:
+  - inclusionai/ling-3.0-flash-fin:free
+  - nvidia/nemotron-3.5-lightning:free
+  - thinkingmachines/inkling:free
+  - thinkingmachines/inkling-small:free
+  - dots-studio/dots-3-note-preview:free
+  - poolside/laguna-s-2.1:free
+  - poolside/laguna-xs-2.1:free
+  - liquid/lfm-2.5-2.6b:free
 
 run_limits:
   # Hard wall-clock cutoff per document run (abort past this).
@@ -50,6 +84,13 @@ chunking:
 # synced to the Langfuse model registry via scripts/sync_models.py.
 # Update from the OpenRouter model page; unknown models estimate cost as 0.
 cost_models:
+  # HUB-037 Gmail triage lane: free-tier OpenRouter model ($0 — account key
+  # still required; rate-limited). Runs ONLY the single-document Gmail triage
+  # lane (never the paid pipeline); multi-document emails drop the triage
+  # approach and run the FULL paid pipeline instead.
+  z-ai/glm-5.2:free:
+    input_per_million: 0.0
+    output_per_million: 0.0
   qwen/qwen3.7-flash:
     input_per_million: 0.03
     output_per_million: 0.13
@@ -247,7 +288,15 @@ doc_classes:
       subject_matter: free_text
       keywords: entity_list:name
 
+  # RETIRED 2026-09-01 (docs/v7-taxonomy.md): removed from the canonical
+  # five-class surface (Hub corpus, sorter fallback table, pipeline diagram).
+  # This entry is RETAINED MACHINERY — the config path still resolves and
+  # dispatches it (zero Hub rows; local eval packs only). `status: retired`
+  # is the machine-readable marker the taxonomy-parity gate honors: do not
+  # treat this as a live corpus class, and do not remove the entry without a
+  # release decision (local packs + specialist dispatch still reference it).
   - key: compliance_filing
+    status: retired
     label: "Compliance Filing"
     schema: ComplianceFilingExtraction
     specialist: compliance_specialist
@@ -266,7 +315,7 @@ doc_classes:
     label: "Insurance Claim"
     schema: InsuranceClaimExtraction
     specialist: insurance_claims_specialist
-    description: "Insurance claim documentation: FNOL forms, adjuster reports, demand packages, coverage determinations, denial letters, and CMS/DE-SynPUF claim tables (inpatient, outpatient, PDE, carrier)"
+    description: "Insurance claim documentation: FNOL forms, adjuster reports, demand packages, coverage determinations, denial letters, CMS/DE-SynPUF claim tables (inpatient, outpatient, PDE, carrier), and the v8 synthetic LOB lines — property FNOL bundles, auto decision letters"
     field_types:
       claim_number: id
       policy_number: id
@@ -308,7 +357,56 @@ file_extensions:
 # obligations) get truncated away — see docs/reports/audits/PILOT_AUDIT_REPORT.md fix #5.
 # To cut over locally: change provider to "ollama", model to e.g. "qwen3:7b"
 # Setting DEFAULT_PROVIDER env var overrides the provider globally.
+# HUB-040 relations layer — the mailroom's research clerk: deterministic
+# association scanning over the archive (same-matter / keyword Jaccard /
+# party overlap / embedding cosine via field_scoring's model), an own
+# hash-chained relations ledger, knowledge-graph exports, and an advisory
+# RELATED context block injected into the sorter/specialists + the echo.
+# `llm: false` keeps the pilot deterministic-only; flip true in production.
+relations:
+  enabled: true
+  llm: false
+  context_injection: true
+  graphs: true
+  similarity_threshold: 0.62
+  keyword_jaccard_threshold: 0.25
+  max_edges_per_doc: 50
+  same_matter_cap: 25
+  top_k_llm_candidates: 5
+  scan_batch_size: 25
+  context_limit: 6
+  embedding_text_chars: 8000
+
 agents:
+  # HUB-037: specialized Gmail triage agent — the free OpenRouter triage team.
+  # Dispatched ONLY on single-document Gmail inbox instances (one accepted
+  # attachment per email): it performs the CORE steps of the full pipeline —
+  # deterministic prep + triage classification (primary doc class + subclass
+  # + gist) → auditable-hash archive → completion echo — WITHOUT the paid
+  # agents. Multi-document emails (2+ attachments) drop the triage approach
+  # entirely and run the FULL paid pipeline. Advisory: the triage read never
+  # overrules the pipeline agents, and its audit entries live in their own
+  # `triage_*` section so the stored audits are never conflated.
+  gmail_triage:
+    provider: openrouter
+    model: inclusionai/ling-3.0-flash-fin:free
+    temperature: 0.1
+    max_tokens: 700
+    max_input_chars: 12000
+    reasoning_effort: none
+
+  # HUB-040 relations judgment pass — the OPTIONAL LLM layer over the
+  # deterministic scanner's candidate pairs. OFF in the pilot
+  # (relations.llm: false below); flips on in production with a paid model.
+  # The free model keeps the pilot inside the MAILROOM_LLM_FREE_ONLY guardrail.
+  relations:
+    provider: openrouter
+    model: inclusionai/ling-3.0-flash-fin:free
+    temperature: 0.1
+    max_tokens: 900
+    max_input_chars: 12000
+    reasoning_effort: none
+
   sorter:
     provider: openrouter
     model: qwen/qwen3.7-flash
@@ -318,6 +416,19 @@ agents:
     # none: reserve the completion budget for the JSON object. Medium/high
     # reasoning on Qwen 3.7-Flash starved structured output
     # (LengthFinishReasonError) on the production HF pilot.
+    reasoning_effort: none
+
+  # HUB-038: LLM-assisted intake agent — triage + clean + prepare for the
+  # full pipeline. Fires ONLY when gated (messy text, or a document longer
+  # than the sorter's input budget); over-budget documents are processed in
+  # sliding windows — NEVER truncated. One fused call per window; cheapest
+  # paid model (the free tier stays the Gmail triage lane's privilege).
+  intake:
+    provider: openrouter
+    model: qwen/qwen3.7-flash
+    temperature: 0.1
+    max_tokens: 2048
+    max_input_chars: 25000
     reasoning_effort: none
 
   # KANBAN-062 (Lane A): independent second-opinion classification reviewer.
@@ -422,7 +533,7 @@ agents:
   # Offline LLM-as-a-judge used by scripts/run_quality_judges.py.
   judge:
     provider: openrouter
-    model: deepseek/deepseek-v4-flash
+    model: qwen/qwen3.7-flash
     temperature: 0.1
     max_tokens: 2048
     max_input_chars: 60000

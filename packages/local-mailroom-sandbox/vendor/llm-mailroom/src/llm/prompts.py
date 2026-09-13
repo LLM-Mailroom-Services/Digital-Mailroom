@@ -117,7 +117,9 @@ def _bound_prompt_versions() -> dict[str, str]:
     return {
         "sorter": "sorter_v14",
         "sorter_reviewer": "production",
-        "contracts_specialist": "contracts_specialist_v32",
+        # Must match prompt_templates() below — the sync source uses v33
+        # (DMR-052: the catalog previously claimed v32 while v33 shipped).
+        "contracts_specialist": "contracts_specialist_v33",
         "corporate_records_specialist": "production",
         "correspondence_specialist": "production",
         "compliance_specialist": "production",
@@ -130,6 +132,9 @@ def _bound_prompt_versions() -> dict[str, str]:
         "judge-classification": "production",
         "judge-correctness": "production",
         "arbiter": "production",
+        "gmail_triage": "production",
+        "intake": "production",
+        "relations": "production",
     }
 
 
@@ -146,10 +151,13 @@ def prompt_templates() -> dict[str, str]:
         contracts_specialist,
         corporate_records_specialist,
         correspondence_specialist,
+        gmail_triage,
         insurance_claims_specialist,
         image_extractor,
+        intake,
         judge,
         pdf_transcriber,
+        relations,
         reporter,
         sorter,
         sorter_reviewer,
@@ -159,7 +167,7 @@ def prompt_templates() -> dict[str, str]:
         # The sorter/contracts specialist are the vendored LangChain agents
         # (llm-entity-extraction); their local templates are the eval-validated
         # lineage plus the mailroom production mutation (sorter_v14 /
-        # contracts_specialist_v32). Lane A/B + insurance were previously
+        # contracts_specialist_v33). Lane A/B + insurance were previously
         # missing from this registry and so never synced to Langfuse.
         "sorter": _langchain_prompt("sorter_v14"),
         "sorter_reviewer": sorter_reviewer.REVIEWER_SYSTEM_PROMPT,
@@ -176,4 +184,7 @@ def prompt_templates() -> dict[str, str]:
         "judge-classification": judge.CLASSIFICATION_SYSTEM_PROMPT,
         "judge-correctness": judge.CORRECTNESS_SYSTEM_PROMPT,
         "arbiter": arbiter.ARBITER_SYSTEM_PROMPT,
+        "gmail_triage": gmail_triage.TRIAGE_SYSTEM_PROMPT,
+        "intake": intake.INTAKE_SYSTEM_PROMPT,
+        "relations": relations.RELATIONS_SYSTEM_PROMPT,
     }

@@ -7,7 +7,7 @@ This is the **engine room**. Mailroom is built on **LangGraph**: for every docum
 The journey of a document:
 
 ```
-ingest → classify → (extract | retry_classify | human_review) → extract → compile_report
+intake → classify → (extract | retry_classify | human_review) → extract → compile_report
       → catalog_write → archive
 ```
 
@@ -17,7 +17,7 @@ At a few points a *conditional edge* (in `routing.py`) looks at the LLM's **conf
 
 | Node | What it does |
 |---|---|
-| `ingest` | Reads the file, deterministic `normalize-intake`, creates the manifest, moves file to `processing/` |
+| `intake` | Reads the file, deterministic `normalize-intake`, gated LLM triage/clean/prepare, creates the manifest, moves file to `processing/` |
 | `classify` | Sorter LLM decides `doc_type` + confidence |
 | `retry_classify` | Re-classify with a "re-evaluate" prompt when confidence was low |
 | `extract` | Routes to the right specialist LLM, stores `extracted_data` |
@@ -36,7 +36,7 @@ At a few points a *conditional edge* (in `routing.py`) looks at the LLM's **conf
 - `build_graph.py` also handles:
   - Text extraction for images/PDFs (`_read_file_text` → `agents/image_extractor.py`, `agents/pdf_transcriber.py`).
   - Deterministic intake normalize (`agents/intake.py` → `llm_dojo_scoring.intake`) after transcription; nested span `normalize-intake` (The-Mailroom maps it to INGEST). Scored via `get_suite("intake")`.
-  - Specialist dispatch via `_build_specialist_dispatch()` — **config-driven**: it walks `doc_classes` in `config/taxonomy.yaml` and maps each `specialist:` name to its extraction function (6 live classes / 5 specialists: contracts also covers MAUD `merger_agreement`, plus corporate records, correspondence, compliance, insurance claims). Graph construction asserts dispatch keys equal taxonomy keys; a missing arm fails fast instead of silently stub-extracting. `unknown` is a sorter routing token, not a dispatch key. Adding an agent means adding a taxonomy entry + dispatch case.
+  - Specialist dispatch via `_build_specialist_dispatch()` — **config-driven**: it walks `doc_classes` in `config/taxonomy.yaml` and maps each `specialist:` name to its extraction function (6 configured classes — the canonical five plus the `status: retired` `compliance_filing` remnant — / 5 specialists: contracts also covers MAUD `merger_agreement`, plus corporate records, correspondence, compliance, insurance claims). Graph construction asserts dispatch keys equal taxonomy keys; a missing arm fails fast instead of silently stub-extracting. `unknown` is a sorter routing token, not a dispatch key. Adding an agent means adding a taxonomy entry + dispatch case.
   - The **checkpointer** (`_build_checkpointer`): **MemorySaver by default**, held on a process-level compiled graph (`get_compiled_graph`) so `interrupt()` HITL can resume in-process. Filesystem `review/` is the durable park; `resume_from_review` uses `Command(resume=...)` when a checkpoint exists, else re-invokes from extract. `MAILROOM_CHECKPOINTER=sqlite` opts into on-disk `SqliteSaver` at `data/checkpoints.db`.
   - **Chunked extraction** (`_run_chunked_extraction`): every live specialist (contracts, corporate records, correspondence, compliance, insurance). Window size is capped at the agent's `max_input_chars`.
   - `run_pipeline(file_path, matter_id)` — convenience entrypoint that reuses the process-level graph and runs one document.

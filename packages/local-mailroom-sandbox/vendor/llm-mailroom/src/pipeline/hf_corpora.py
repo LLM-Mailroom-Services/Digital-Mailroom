@@ -3,18 +3,21 @@
 ``Lucius-Morningstar/mailroom-dataset`` (v1, canonically **v9**) is the
 targeted full corpus (3,302 documents: CUAD contracts + SEC EDGAR EX-10,
 MAUD merger agreements, SEC EDGAR S-1/8-K corporate records, Enron
-correspondence sample, CMS insurance claims). v9 builds on the frozen v8
-base (2,000 rows, ``mailroom-corpus``) with the §84 hardened
-evaluation-contract columns (identity, provenance, matter) on the
-`ground_truth` config. The five-class live taxonomy is unchanged
-(docs/v7-taxonomy.md).
+correspondence sample, CMS insurance claims + the v8 synthetic LOB
+expansion — GNOTHEIA property, BDR auto — + INSURBIAS auto narratives).
+v9 builds on the v8 base (2,000 rows, frozen as ``mailroom-corpus``) with
+the §84 hardened evaluation-contract columns (identity, provenance, matter)
+on the `ground_truth` config.
+The five-class live taxonomy is unchanged (docs/v7-taxonomy.md).
 
 Class × subclass examples come from ``docclass-pilot`` (a deterministic
-stratified slice of that v5 parent — every type and every subtype stratum).
+stratified slice of that parent — every type and every subtype stratum).
 Other published Lucius-Morningstar datasets are first-class pipeline inputs
 too, including the 247k-row Enron correspondence corpus.
 
-``compliance_filing`` has zero Hub rows (honest gap). Court/DD are retired.
+``compliance_filing`` is retired from the canonical five-class surface (zero
+Hub rows; retained in ``taxonomy.yaml`` as ``status: retired`` machinery).
+Court/DD are retired.
 """
 
 from __future__ import annotations
@@ -33,15 +36,17 @@ FULL_CORPUS_SCHEMA = "v9"
 # (historical traces carry the immutable `source-docclass-merged` tag;
 # slug/aliases are plumbing, not identity).
 FULL_CORPUS_ID = f"{ORG}/mailroom-dataset"
-# v9 tip a7067844 (2026-09-12: mailroom-dataset v1 — 3,302-row hardened
+# v9 tip abdf27b0 (2026-09-12: mailroom-dataset v1 — 3,302-row hardened
 # ground_truth on top of the frozen v8 base eafe1ab4; configs default /
-# ground_truth / bundles / streams / fixtures). Never evaluate against
-# unpinned main.
+# ground_truth / bundles / streams / fixtures).
+# Pinned per the corpus plan §44 — never evaluate against unpinned main.
 FULL_CORPUS_REVISION = "a706784419c37e57930fe17fc7ca0d7ee6672f0f"
 EXAMPLES_ID = f"{ORG}/docclass-pilot"
 
 # Hub HF classes present in mailroom-dataset (v9) — identical to the canonical
-# five-class live taxonomy. compliance_filing is retired (zero Hub rows).
+# five-class live taxonomy (docs/v7-taxonomy.md). taxonomy.yaml carries a
+# sixth configured entry (compliance_filing, marked status: retired):
+# retained machinery with zero Hub rows, not a corpus class.
 HUB_CLASSES: tuple[str, ...] = (
     "contract",
     "merger_agreement",
@@ -165,8 +170,16 @@ CORPORA: dict[str, dict[str, Any]] = {
 
 _ALIASES = {
     "v5": "docclass-merged",
+    "v7": "docclass-merged",
+    "v8": "docclass-merged",
     "full": "docclass-merged",
     "merged": "docclass-merged",
+    # renamed 2026-09-02: Hub repo mailroom-corpus (formerly docclass-merged);
+    # 2026-09-12 the v9 successor is published as mailroom-dataset (same shape)
+    "corpus": "docclass-merged",
+    "mailroom-corpus": "docclass-merged",
+    "mailroom-dataset": "docclass-merged",
+    "v9": "docclass-merged",
     "examples": "docclass-pilot",
     "pilot": "docclass-pilot",
     "enron": "enron-correspondence-dedup",
@@ -208,7 +221,7 @@ def active_corpus() -> dict[str, Any]:
 
 
 def adapt_hub_row(row: dict[str, Any], corpus: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Normalize a Hub row into the docclass-merged shape parse_hf_row expects."""
+    """Normalize a Hub row into the mailroom-dataset shape parse_hf_row expects."""
     corp = corpus or active_corpus()
     shape = corp.get("row_shape") or "docclass"
     data = dict(row or {})

@@ -50,6 +50,16 @@ def resolve_provider_name() -> str:
     if os.environ.get("PHOENIX_TRACING", "enabled").strip().lower() in (
         "1", "true", "enabled", "yes", "on"
     ):
+        # Railway (and similar) has no local `phoenix serve`. Defaulting auto →
+        # phoenix there only burns memory against localhost:6006; skip unless
+        # the operator pointed PHOENIX_ENDPOINT at a real collector.
+        on_railway = bool(
+            os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_PROJECT_ID")
+        )
+        endpoint = os.environ.get("PHOENIX_ENDPOINT", "http://localhost:6006/v1/traces")
+        local_only = ("localhost" in endpoint) or ("127.0.0.1" in endpoint)
+        if on_railway and local_only:
+            return "none"
         return "phoenix"
     return "none"
 
@@ -84,28 +94,43 @@ def pipeline_trace(*args, **kwargs):
     """Root chain observation for one document run (one trace per document).
 
     See `observability/langfuse_setup.pipeline_trace` for parameters. No-ops
-    (yields None) unless Langfuse is the active backend. Default ``as_type``
-    is ``chain``.
+    (yields None) unless Langfuse or Braintrust is the active backend.
+    Default ``as_type`` is ``chain``.
     """
-    if resolve_provider_name() != "langfuse":
+    provider = resolve_provider_name()
+    if provider == "langfuse":
+        from .langfuse_setup import pipeline_trace as _langfuse_pipeline_trace
+
+        with _langfuse_pipeline_trace(*args, **kwargs) as root:
+            yield root
+    elif provider == "braintrust":
+        from .braintrust_setup import braintrust_pipeline_trace as _braintrust_pipeline_trace
+
+        with _braintrust_pipeline_trace(*args, **kwargs) as root:
+            yield root
+    else:
         yield None
         return
-    from .langfuse_setup import pipeline_trace as _langfuse_pipeline_trace
-
-    with _langfuse_pipeline_trace(*args, **kwargs) as root:
-        yield root
 
 
 @contextmanager
 def observation(name, **kwargs):
-    """Child observation under the active span. No-ops when Langfuse is inactive."""
-    if resolve_provider_name() != "langfuse":
+    """Child observation under the active span. No-ops when Langfuse or
+    Braintrust is inactive."""
+    provider = resolve_provider_name()
+    if provider == "langfuse":
+        from .langfuse_setup import observation as _langfuse_observation
+
+        with _langfuse_observation(name, **kwargs) as span:
+            yield span
+    elif provider == "braintrust":
+        from .braintrust_setup import braintrust_observation as _braintrust_observation
+
+        with _braintrust_observation(name, **kwargs) as span:
+            yield span
+    else:
         yield None
         return
-    from .langfuse_setup import observation as _langfuse_observation
-
-    with _langfuse_observation(name, **kwargs) as span:
-        yield span
 
 
 def _state_summary(state: dict) -> dict:
@@ -154,7 +179,7 @@ def _result_summary(result: dict, state: dict | None = None):
 # chain = the pipeline as a whole; span = remaining units of work.
 NODE_OBSERVATION_TYPES = {
     "document-pipeline": "chain",
-    "ingest-document": "span",
+    "intake-document": "span",
     "normalize-intake": "span",
     "extract-image-text": "retriever",
     "transcribe-pdf": "retriever",

@@ -2,8 +2,8 @@
 
 Grounded in the published Hugging Face dataset
 ``Lucius-Morningstar/mailroom-dataset`` (default + ``ground_truth`` configs;
-1,210 rows: 1,081 train / 129 test as of the v0.8.1 alignment pass — the v9
-successor of the frozen v8 ``mailroom-corpus`` baseline).
+1,210 rows: 1,081 train / 129 test as of the v0.8.1 alignment pass —
+the v9 successor of the frozen v8 ``mailroom-corpus`` baseline).
 
 This module is the single source mapping each mailroom document class to:
 
@@ -107,13 +107,18 @@ DOC_TYPE_SUBCLASSES: dict[str, tuple[str, ...]] = {
         "meeting_request",
         "press_release",
     ),
-    # CMS DE-SynPUF *source table* subclass. Mailroom ``claim_type`` now
-    # also accepts these Hub tokens plus legacy FNOL product lines.
+    # Insurance claim-document subclass: CMS DE-SynPUF *source table* tokens
+    # (carrier/inpatient/outpatient/pde) PLUS the v8 synthetic LOB lines
+    # (property = GNOTHEIA FNOL bundles, auto = BDR motor decision letters;
+    # HUB-028/HUB-041). Mailroom ``claim_type`` also accepts these Hub tokens
+    # plus legacy FNOL product lines.
     "insurance_claim": (
         "carrier",
         "inpatient",
         "outpatient",
         "pde",
+        "property",
+        "auto",
     ),
     "due_diligence": (),
     "compliance_filing": (
@@ -132,7 +137,7 @@ DOC_TYPE_SUBCLASSES: dict[str, tuple[str, ...]] = {
     "court_opinion": (),
 }
 
-#: Observed subclass *surfaces* in docclass-merged ``ground_truth.expected_subclass``.
+#: Observed subclass *surfaces* in mailroom-dataset ``ground_truth.expected_subclass``.
 #: Used by tests to pin corpus coverage; normalizers must resolve every value
 #: to a key in :data:`DOC_TYPE_SUBCLASSES` (or ``other`` only when the
 #: surface is the canonical other-bucket).
@@ -190,10 +195,12 @@ CORPUS_SUBCLASS_SURFACES: dict[str, tuple[str, ...]] = {
         "press_release",
     ),
     "insurance_claim": (
+        "auto",
         "carrier",
         "inpatient",
         "outpatient",
         "pde",
+        "property",
     ),
 }
 
@@ -232,18 +239,16 @@ CORPUS_DIFFERENTIATORS: dict[str, tuple[str, ...]] = {
 }
 
 #: Extraction-schema fields each specialist suite must score, aligned to
-#: mailroom ``EXTRACTION_SCHEMAS`` + entity-extraction ``field_types``.
-#: ``document_name`` is on the contracts / merger schema (CUAD Document Name)
-#: even though mailroom taxonomy.yaml omitted it.
+#: mailroom v0.6.0 ``EXTRACTION_SCHEMAS`` + taxonomy ``field_types`` (pared
+#: checklists + semantic trio; no open-ended key_obligations dumps).
+#: ``document_name`` is on the contracts / merger schema (CUAD Document Name).
 CORPUS_EXTRACTION_FIELDS: dict[str, tuple[str, ...]] = {
     "contract": (
         "document_name",
         "parties",
         "effective_date",
         "term_length",
-        "termination_clauses",
         "governing_law",
-        "key_obligations",
         "contract_value",
         "renewal_terms",
         "cuad_family",
@@ -256,9 +261,7 @@ CORPUS_EXTRACTION_FIELDS: dict[str, tuple[str, ...]] = {
         "parties",
         "effective_date",
         "term_length",
-        "termination_clauses",
         "governing_law",
-        "key_obligations",
         "contract_value",
         "renewal_terms",
         "cuad_family",
@@ -270,10 +273,12 @@ CORPUS_EXTRACTION_FIELDS: dict[str, tuple[str, ...]] = {
         "entity_name",
         "record_type",
         "effective_date",
-        "key_provisions",
         "signatories",
         "jurisdiction",
         "filing_number",
+        "intent",
+        "subject_matter",
+        "keywords",
     ),
     "due_diligence": (
         "target_entity",
@@ -290,11 +295,12 @@ CORPUS_EXTRACTION_FIELDS: dict[str, tuple[str, ...]] = {
         "additional_recipients",
         "communication_type",
         "communication_date",
-        "key_points",
         "demand_amount",
         "action_items",
         "urgency",
-        "referenced_communications",
+        "intent",
+        "subject_matter",
+        "keywords",
     ),
     "compliance_filing": (
         "filing_type",
@@ -333,6 +339,10 @@ CORPUS_EXTRACTION_FIELDS: dict[str, tuple[str, ...]] = {
         "coverage_determination",
         "denial_reasons",
         "supporting_documents",
+        "intent",
+        "subject_matter",
+        "keywords",
+        "claim_checklist",
     ),
 }
 

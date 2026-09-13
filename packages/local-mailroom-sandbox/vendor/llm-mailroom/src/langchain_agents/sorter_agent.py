@@ -29,13 +29,18 @@ from langchain_agents.prompts import get_prompt
 
 logger = structlog.get_logger(__name__)
 
+# MAILROOM PATCH: canonical live production taxonomy — the five-class
+# fallback table the taxonomy-parity gate checks. Retired classes are not
+# sorter outputs here; they resolve to ``unknown`` and route to review. The
+# live label set prefers taxonomy.yaml via ``get_sorter_label_set()``; that
+# config still carries the retired ``compliance_filing`` entry as a
+# ``status: retired`` remnant — see docs/v7-taxonomy.md §4.
 DOC_CLASSES = [
     {"key": "contract", "label": "Contract / Agreement", "description": "CUAD commercial contracts and agreements (vendor, employment, NDA, license, etc.) — not MAUD merger agreements"},
     {"key": "merger_agreement", "label": "Merger Agreement", "description": "MAUD merger agreements (agreement and plan of merger) — a distinct class from CUAD commercial contracts. Subclass is consideration type (all_cash, all_stock, mixed, …)."},
     {"key": "corporate_record", "label": "Corporate Record", "description": "Bylaws, articles/certificates of incorporation, powers of attorney, stockholder rights instruments, specimen stock (including those filed as SEC exhibits)"},
     {"key": "correspondence", "label": "Correspondence", "description": "Letters, emails, memos, notices, demand letters, press releases, meeting requests"},
-    {"key": "compliance_filing", "label": "Compliance Filing", "description": "SEC form body (10-K, 10-Q, 8-K, S-1, DEF 14A, 13D/G, Form 4) — not an attached charter or rights exhibit"},
-    {"key": "insurance_claim", "label": "Insurance Claim", "description": "Insurance claim documentation: FNOL forms, adjuster reports, demand packages, coverage determinations, denial letters, and CMS/DE-SynPUF claim tables (inpatient, outpatient, PDE, carrier)"},
+    {"key": "insurance_claim", "label": "Insurance Claim", "description": "Insurance claim documentation: FNOL forms, adjuster reports, demand packages, coverage determinations, denial letters, CMS/DE-SynPUF claim tables (inpatient, outpatient, PDE, carrier), and the v8 synthetic LOB lines — property FNOL bundles, auto decision letters"},
 ]
 
 DOC_CLASS_KEYS = [d["key"] for d in DOC_CLASSES]

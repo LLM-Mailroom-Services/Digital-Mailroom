@@ -1,7 +1,7 @@
-"""Field scoring — compatibility shim over ``llm-dojo-scoring`` v0.12.1.
+"""Field scoring — compatibility shim over ``llm-dojo-scoring`` v0.14.0.
 
-Pinned to the same release as llm-mailroom v0.6.0
-(``llm-dojo-scoring @ git+…@v0.12.1``). Core scoring lives in the package;
+Pinned to the same release as llm-mailroom v0.7.0
+(``llm-dojo-scoring @ git+…@v0.14.0``). Core scoring lives in the package;
 this module keeps Agent Mailroom glue:
 
 - taxonomy → ``configure()`` wiring
@@ -120,6 +120,18 @@ except ImportError:  # pragma: no cover - exercised only when extra missing
     _heuristic_field_type = None  # type: ignore[assignment]
 
 
+def _dojo_version() -> str:
+    """Installed llm-dojo-scoring version for telemetry (hub#34)."""
+    if not DOJO_AVAILABLE:
+        return "missing"
+    try:
+        from importlib.metadata import version
+
+        return version("llm-dojo-scoring")
+    except Exception:  # pragma: no cover - metadata always present when importable
+        return "0.14.0"
+
+
 def get_type_bands() -> dict[str, Any]:
     """Per-field-type ambiguous-band overrides from ``field_scoring.type_bands``."""
     cfg = taxonomy().get("field_scoring") or {}
@@ -158,7 +170,7 @@ def score_field(
     if not DOJO_AVAILABLE:
         warnings.warn(
             "llm-dojo-scoring is not installed; install the package pin "
-            "(llm-dojo-scoring @ v0.12.1) for production scoring",
+            "(llm-dojo-scoring @ v0.14.0) for production scoring",
             RuntimeWarning,
             stacklevel=2,
         )
@@ -241,7 +253,7 @@ def score_extraction(
     field_types: dict[str, str] | None = None,
     doc_text: str | None = None,
 ) -> dict[str, Any]:
-    """Score an extraction against gold using llm-dojo-scoring v0.12.1."""
+    """Score an extraction against gold using llm-dojo-scoring v0.14.0."""
     predicted = predicted or {}
     expected = expected or {}
     keys = sorted(
@@ -283,7 +295,7 @@ def score_extraction(
             "fields": fields,
             "ambiguous_fields": list(result.ambiguous_fields or []),
             "doc_class": result.doc_class,
-            "engine": "llm-dojo-scoring==0.12.1",
+            "engine": f"llm-dojo-scoring=={_dojo_version()}",
         }
     else:
         fields = [
@@ -369,5 +381,5 @@ def metrics_summary() -> dict[str, Any]:
     return {
         "scored_fields": int(row["n"] or 0),
         "average_score": round(float(row["avg"] or 0.0), 4),
-        "engine": "llm-dojo-scoring==0.12.1" if DOJO_AVAILABLE else "missing",
+        "engine": f"llm-dojo-scoring=={_dojo_version()}" if DOJO_AVAILABLE else "missing",
     }

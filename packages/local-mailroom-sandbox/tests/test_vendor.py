@@ -1,7 +1,7 @@
 """DMR-057 self-containment regression tests.
 
 The sandbox must be fully operational from a fresh checkout: the pipeline
-(llm-mailroom@v0.7.0) and scoring engine (llm-dojo-scoring@v0.14.0) ship as
+(llm-mailroom@v0.7.1) and scoring engine (llm-dojo-scoring@v0.14.0) ship as
 TRACKED snapshots under ``vendor/`` and are put on ``sys.path`` at package
 import. No pip git pins, no ``sandbox fetch-deps`` step, no env tricks.
 """
@@ -16,8 +16,8 @@ import pytest
 from mailroom_sandbox.paths import repo_root, vendored_dojo_src, vendored_mailroom_src
 from mailroom_sandbox.runtime import resolve_dojo_src, resolve_mailroom_src
 
-MAILROOM_PIN = "v0.7.0"
-MAILROOM_COMMIT = "6f93b675fb570481db68d2473a47091a74aedaa1"
+MAILROOM_PIN = "v0.7.1"
+MAILROOM_COMMIT = "2a212e76a62b98f6eba451ff6f3c5bc96039ae37"
 DOJO_PIN = "v0.14.0"
 DOJO_COMMIT = "5298d7036652c04467be4150028453edbbcd4a38"
 
@@ -56,10 +56,10 @@ def test_agent_prompt_names_merge_vendor_templates_and_static_roster():
     from mailroom_sandbox.prompt_registry import agent_prompt_names
 
     names = agent_prompt_names()
-    # Vendored template keys (v0.7.0 surface)…
+    # Vendored template keys (v0.7.1 surface)…
     assert "sorter_reviewer" in names
     assert "judge-classification" in names
-    # …and the sandbox-only static roster entries v0.7.0 does not template.
+    # …and the sandbox-only static roster entries v0.7.1 does not template.
     assert "relations" in names
     assert "gmail_triage" in names
     assert "intake" in names

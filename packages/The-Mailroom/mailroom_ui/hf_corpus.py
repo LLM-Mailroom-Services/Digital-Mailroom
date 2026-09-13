@@ -23,9 +23,10 @@ ORG = "Lucius-Morningstar"
 # stays as the frozen v8 baseline.
 FULL_CORPUS_ID = f"{ORG}/mailroom-dataset"
 EXAMPLES_ID = f"{ORG}/docclass-pilot"
-# v9 tip (2026-09-12): mailroom-dataset v1 — 3,302-row hardened ground_truth
-# on top of the frozen v8 base eafe1ab4.
-FULL_CORPUS_REVISION = "a706784419c37e57930fe17fc7ca0d7ee6672f0f"
+# v9 tip (2026-09-13): mailroom-dataset v1 GT-closure revision — 3,302-row
+# hardened ground_truth; supporting_documents closed on the INSURBIAS auto
+# rows, EX-10 cuad dated exception (epic #27).
+FULL_CORPUS_REVISION = "46a4d3c240a36671cde0182fff4960f6b8b73aca"
 GT_CONFIG = "ground_truth"
 DEFAULT_CONFIG = "default"
 ROWS_API = "https://datasets-server.huggingface.co/rows"

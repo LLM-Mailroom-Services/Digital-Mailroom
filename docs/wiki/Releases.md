@@ -92,7 +92,7 @@ change what every release carries, never hand-type a release body.
 
 | Package | Pin | Consumed by |
 | --- | --- | --- |
-| llm-mailroom | v0.7.0 | sandbox `fetch-deps` / `[pipeline]` extra |
+| llm-mailroom | v0.7.1 | sandbox `fetch-deps` / `[pipeline]` extra |
 | llm-dojo-scoring | v0.14.0 | llm-mailroom, llm-entity-extraction, sandbox |
 | llm-entity-extraction | v0.20.0 | sandbox `[evals]` extra |
 

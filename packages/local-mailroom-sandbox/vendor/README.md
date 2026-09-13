@@ -6,7 +6,7 @@ the sandbox prepends these trees to `sys.path` on import.**
 
 | Tree | Pin | Content |
 | --- | --- | --- |
-| `llm-mailroom/` | `v0.7.0` (commit `6f93b675`) | `src/` (minus tests) — `pipeline.*`, `graph.*`, `agents.*`, `llm.*`, `legalbench.*`, `observability.*`, `langchain_agents.*`, `scripts.*` |
+| `llm-mailroom/` | `v0.7.1` (commit `2a212e76`) | `src/` (minus tests) — `pipeline.*`, `graph.*`, `agents.*`, `llm.*`, `legalbench.*`, `observability.*`, `langchain_agents.*`, `scripts.*` |
 | `llm-dojo-scoring/` | `v0.14.0` (commit `5298d703`) | `src/llm_dojo_scoring/` — scoring engine (`serving`, `experiment`, `extraction_metrics`, …) |
 
 Provenance + refresh details live in each tree's `VENDOR.md`. `sandbox fetch-deps`

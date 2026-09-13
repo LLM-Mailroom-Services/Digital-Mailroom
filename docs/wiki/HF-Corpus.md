@@ -5,14 +5,17 @@ The corpus family is published on the
 the **centralized** helpers in
 `packages/mailroom-corpus-eda/src/mailroom_eda/` — never ad-hoc upload code.
 
-## mailroom-dataset (v9 — published 2026-09-12)
+## mailroom-dataset (v9 — published 2026-09-12, GT-closure revision 2026-09-13)
 
 The **current** corpus is
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
 — **3,302 rows**, pinned revision
-`a706784419c37e57930fe17fc7ca0d7ee6672f0f`. v9 is the successor of the
-frozen v8 baseline `mailroom-corpus` (2,000 rows, `eafe1ab4`): it carries
-the §84 hardened evaluation-contract columns (identity, provenance, matter)
+`46a4d3c240a36671cde0182fff4960f6b8b73aca` (GT-closure revision closing the
+v9 audit-sweep gaps: `supporting_documents` on the INSURBIAS auto rows,
+EX-10 `cuad_clause_labels` dated exception — epic #27). v9 is the successor
+of the frozen v8 baseline `mailroom-corpus` (2,000 rows, `eafe1ab4`): it
+carries the §84 hardened evaluation-contract columns (identity, provenance,
+matter)
 on the `ground_truth` config; configs `default` / `ground_truth` / `bundles`
 / `streams` / `fixtures` keep the v8 shape. The v8 facts below remain the
 frozen baseline/lineage documentation.

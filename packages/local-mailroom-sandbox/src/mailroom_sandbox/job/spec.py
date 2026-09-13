@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from mailroom_sandbox.paths import data_dir
 
-FAMILY_HF_REVISION = "a706784419c37e57930fe17fc7ca0d7ee6672f0f"  # v9 mailroom-dataset tip
+FAMILY_HF_REVISION = "46a4d3c240a36671cde0182fff4960f6b8b73aca"  # v9 mailroom-dataset tip (GT-closure revision, epic #27)
 HF_DEFAULT_REPO = "Lucius-Morningstar/mailroom-dataset"
 
 KNOWN_GPUS = (

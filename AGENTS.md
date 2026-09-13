@@ -127,7 +127,8 @@ python scripts/release_notes.py X.Y.Z           # render the GitHub Release body
 
 The `mailroom-dataset` dataset family (canonical id
 `Lucius-Morningstar/mailroom-dataset`, "Mailroom Dataset v1", v9, 3,302 rows,
-pinned tip a7067844, published 2026-09-12) is the current corpus. Its frozen
+pinned tip 46a4d3c2, GT-closure revision 2026-09-13) is the current corpus.
+Its frozen
 v8 baseline remains `Lucius-Morningstar/mailroom-corpus` (2,000 rows, pinned
 eafe1ab4) — itself renamed from `docclass-merged` on 2026-09-02 ("docclass"
 was a placeholder). Both are published through the CENTRALIZED helpers in

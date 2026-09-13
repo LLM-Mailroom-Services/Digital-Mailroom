@@ -19,14 +19,14 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "httpx>=0.27", "bcrypt", "PyJWT", "watchdog"]
-# Pinned llm-mailroom (PyPI / dist name: mailroom) @ v0.7.0 / 6f93b675
-# (package 0.7.0 — mailroom-dataset v9 corpus migration). Pulls langgraph,
+# Pinned llm-mailroom (PyPI / dist name: mailroom) @ v0.7.1 / 2a212e76
+# (package 0.7.1 — corpus re-pin to the GT-closure revision 46a4d3c2). Pulls langgraph,
 # Phoenix, and llm-dojo-scoring — the visualizer display path never imports
 # those. Contract helpers live in mailroom_ui/producer.py
 # (pipeline.review_resolve, schemas.manifest). Install with:
 #   pip install -e ".[pipeline]"
 pipeline = [
-    "mailroom @ git+https://github.com/Exios66/llm-mailroom.git@6f93b675fb57",
+    "mailroom @ git+https://github.com/Exios66/llm-mailroom.git@2a212e76a62b",
     "structlog>=24.0",
     "pyyaml>=6.0",
 ]

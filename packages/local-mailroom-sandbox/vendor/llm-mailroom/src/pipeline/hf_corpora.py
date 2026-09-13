@@ -1,8 +1,13 @@
 """Lucius-Morningstar Hugging Face corpora the mailroom pipeline can ingest.
 
-``Lucius-Morningstar/docclass-merged`` schema **v5** is the targeted full
-corpus (1,210 documents: CUAD contracts, MAUD merger agreements, S-1
-corporate records, Enron correspondence sample, CMS insurance claims).
+``Lucius-Morningstar/mailroom-dataset`` (v1, canonically **v9**) is the
+targeted full corpus (3,302 documents: CUAD contracts + SEC EDGAR EX-10,
+MAUD merger agreements, SEC EDGAR S-1/8-K corporate records, Enron
+correspondence sample, CMS insurance claims). v9 builds on the frozen v8
+base (2,000 rows, ``mailroom-corpus``) with the §84 hardened
+evaluation-contract columns (identity, provenance, matter) on the
+`ground_truth` config. The five-class live taxonomy is unchanged
+(docs/v7-taxonomy.md).
 
 Class × subclass examples come from ``docclass-pilot`` (a deterministic
 stratified slice of that v5 parent — every type and every subtype stratum).
@@ -20,13 +25,23 @@ from pathlib import Path
 from typing import Any
 
 ORG = "Lucius-Morningstar"
-FULL_CORPUS_SCHEMA = "v5"
-FULL_CORPUS_ID = f"{ORG}/docclass-merged"
-FULL_CORPUS_REVISION = "d2c96ecb7c2fe0137bd3baf8e0a677a7864eb5a9"
+FULL_CORPUS_SCHEMA = "v9"
+# Renamed 2026-09-02 per human directive: the Hub repo was `docclass-merged`
+# ("docclass" was always a placeholder) — then `mailroom-corpus` (v8, frozen
+# baseline). The v9 build (2026-09-12) publishes the standalone successor
+# `mailroom-dataset`; the internal corpus SLUG below stays `docclass-merged`
+# (historical traces carry the immutable `source-docclass-merged` tag;
+# slug/aliases are plumbing, not identity).
+FULL_CORPUS_ID = f"{ORG}/mailroom-dataset"
+# v9 tip a7067844 (2026-09-12: mailroom-dataset v1 — 3,302-row hardened
+# ground_truth on top of the frozen v8 base eafe1ab4; configs default /
+# ground_truth / bundles / streams / fixtures). Never evaluate against
+# unpinned main.
+FULL_CORPUS_REVISION = "a706784419c37e57930fe17fc7ca0d7ee6672f0f"
 EXAMPLES_ID = f"{ORG}/docclass-pilot"
 
-# Hub HF classes present in docclass-merged v5. Not the same as the six live
-# taxonomy keys: compliance_filing is live in the pipeline but absent on Hub.
+# Hub HF classes present in mailroom-dataset (v9) — identical to the canonical
+# five-class live taxonomy. compliance_filing is retired (zero Hub rows).
 HUB_CLASSES: tuple[str, ...] = (
     "contract",
     "merger_agreement",
@@ -48,7 +63,7 @@ CORPORA: dict[str, dict[str, Any]] = {
         "schema": FULL_CORPUS_SCHEMA,
         "role": "full_corpus",
         "pipeline": True,
-        "n_docs": 1210,
+        "n_docs": 3302,
         "classes": HUB_CLASSES,
         "gt_config": "ground_truth",
         "row_shape": "docclass",

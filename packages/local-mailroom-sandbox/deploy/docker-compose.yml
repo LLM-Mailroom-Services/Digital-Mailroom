@@ -156,7 +156,10 @@ services:
               capabilities: [gpu]
 
   llamacpp:
-    image: ghcr.io/ggerganov/llama.cpp:server
+    # hub#55: pinned to a concrete GHCR build (the old `server` tag is a
+    # mutable channel — a rebuild silently pulled a different engine). The
+    # `full-<sha>` images are the immutable full build incl. llama-server.
+    image: ghcr.io/ggerganov/llama.cpp:full-e95b6554b493e71a0275764342e09bd5784a7026
     container_name: sandbox-llamacpp
     profiles: ["llamacpp"]
     ports:

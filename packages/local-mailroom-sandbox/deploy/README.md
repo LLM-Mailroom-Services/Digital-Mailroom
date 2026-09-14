@@ -25,7 +25,7 @@ vLLM needs an NVIDIA GPU on the host. Ollama runs on CPU for smoke models
 
 ## Offline Dockerfile + Jupyter notebooks
 
-[`Dockerfile`](Dockerfile) builds `mailroom-sandbox:offline` (Python 3.11 + sandbox +
+[`Dockerfile`](Dockerfile) builds `mailroom-sandbox:offline` (Python 3.13 + sandbox +
 Jupyter Lab). Full walkthrough: [`docs/docker-offline.md`](../docs/docker-offline.md).
 
 ```bash

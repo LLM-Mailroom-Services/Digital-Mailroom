@@ -7,9 +7,10 @@
 # This image does NOT reimplement the mailroom graph. It installs the sandbox
 # harness and notebook extras so you can prepare fixtures and activate profiles
 # without a cloud LLM. The [hf] extra (huggingface_hub + pyarrow) lets
-# `sandbox run preflight` prepare Hub-spec datasets; the [pipeline]/[deploy]
-# extras are intentionally NOT baked (the graph is fetched via `sandbox
-# fetch-deps`, and Modal deploys run from the host).
+# `sandbox run preflight` prepare Hub-spec datasets. The vendored family
+# (vendor/llm-mailroom + vendor/llm-dojo-scoring) IS copied and the [pipeline]
+# extra is installed, so vendored evals (`sandbox eval ... --local`) run
+# in-image; Modal deploys run from the host.
 
 FROM python:3.13-slim-bookworm
 
@@ -36,8 +37,13 @@ COPY config ./config
 COPY data/fixtures ./data/fixtures
 COPY notebooks ./notebooks
 COPY deploy/README.md ./deploy/README.md
+# hub#55: the vendored family ships in the image — without vendor/ the
+# sandbox __init__ hard-deps would silently degrade and `--local` evals
+# would raise "mailroom pipeline is not importable" in a read-only image
+# where `sandbox fetch-deps` cannot persist anything.
+COPY vendor ./vendor
 
-RUN pip install --no-cache-dir -e ".[dev,notebooks,hf]" \
+RUN pip install --no-cache-dir -e ".[dev,notebooks,hf,pipeline]" \
     && mkdir -p /workspace/data/runtime /workspace/data/cache /workspace/reports \
     && useradd --create-home --uid 1000 --shell /bin/bash sandbox \
     && chown -R sandbox:sandbox /workspace

@@ -17,7 +17,10 @@ data/traces
 data/pipeline
 data/*.db
 data/*.log
-vendor/*
+# hub#55: vendor/ is copied into the offline image (vendored evals run
+# in-image); only its __pycache__/build artifacts are excluded.
+vendor/**/__pycache__
+vendor/**/*.pyc
 !vendor/README.md
 reports/scores
 reports/experiment_log.jsonl

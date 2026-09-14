@@ -31,6 +31,9 @@ def test_compose_file_parses():
     assert "langfuse" in services["langfuse-web"]["profiles"]
     assert services["langfuse-web"]["image"].endswith(":3")
     assert services["langfuse-worker"]["image"].endswith("langfuse-worker:3")
+    # hub#55: every engine image is version-pinned — no mutable channel tags.
+    assert not services["llamacpp"]["image"].endswith(":server")
+    assert services["llamacpp"]["image"].startswith("ghcr.io/ggerganov/llama.cpp:full-")
     # Default ollama has no GPU reservation (CPU-capable smoke).
     assert "deploy" not in services["ollama"]
     # Healthchecks must not pass credentials as CLI flags (secret scanners).

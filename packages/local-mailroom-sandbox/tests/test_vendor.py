@@ -164,3 +164,35 @@ def test_docs_claim_current_vendored_pins():
                 continue
             stale.append(str(rel))
     assert not stale, f"stale vendored-pin claims: {stale}"
+
+
+def test_offline_image_bundles_vendor_and_readmes_match_surface():
+    """hub#55: the offline Dockerfile must COPY vendor/ (vendored evals run
+    in-image; a read-only image cannot fetch-deps), .dockerignore must not
+    exclude it, and the boilerplate READMEs must reference the real module
+    surface so following them cannot yield ImportError/FileNotFoundError."""
+    root = repo_root()
+
+    dockerfile = (root / "deploy" / "Dockerfile").read_text()
+    assert "COPY vendor ./vendor" in dockerfile
+    assert ".[dev,notebooks,hf,pipeline]" in dockerfile  # pipeline extra baked
+
+    dockerignore = (root / ".dockerignore").read_text()
+    assert "vendor/*" not in dockerignore.splitlines()
+
+    src_readme = (root / "src" / "README.md").read_text()
+    assert "SandboxPipeline" not in src_readme
+    assert "mailroom_sandbox.activate()" in src_readme
+
+    eval_readme = (root / "src" / "mailroom_sandbox" / "eval" / "README.md").read_text()
+    assert "from mailroom_sandbox.eval import run_evaluation" not in eval_readme
+    assert "runners.run_isolated_eval" in eval_readme
+
+    config_readme = (root / "config" / "README.md").read_text()
+    assert "taxonomy.yaml" not in config_readme.split("##")[0] or "mailroom.taxonomy.base.yaml" in config_readme
+    assert "SANDBOX_PROFILE" in config_readme
+
+    profiles_readme = (root / "config" / "profiles" / "README.md").read_text()
+    assert "MAILROOM_ENV" not in profiles_readme
+    assert "SANDBOX_PROFILE" in profiles_readme
+    assert "ollama.yaml" in profiles_readme and "vllm-remote.yaml" in profiles_readme

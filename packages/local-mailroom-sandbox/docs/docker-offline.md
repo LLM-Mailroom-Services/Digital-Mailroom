@@ -31,7 +31,8 @@ Image hardening (HUB-015): the sandbox image runs as a **non-root user**
 (`sandbox`, uid 1000) and carries a **HEALTHCHECK** (`curl /lab`). On hosts
 whose first user is not uid 1000, pass `--user "$(id -u):$(id -g)"`. All
 compose images are **version-pinned** (ollama `0.33.2`, vllm `v0.28.0`,
-phoenix `version-20.4.0`, minio `RELEASE.2025-09-07…`, langfuse `3`,
+phoenix `version-20.4.0`, llama.cpp `full-e95b6554b493e71a0275764342e09bd5784a7026`,
+minio `RELEASE.2025-09-07…`, langfuse `3`,
 redis `7`, clickhouse `24-alpine`, pgvector `pg16`) for offline
 reproducibility — bump pins deliberately.
 

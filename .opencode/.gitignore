@@ -1,0 +1,5 @@
+# Generated tooling workspace (kept out of git; regenerate via `opencode` setup)
+node_modules
+package.json
+package-lock.json
+bun.lock

@@ -1,13 +1,22 @@
 .env
+.venv/
+venv/
 __pycache__/
-*.pyc
-.pytest_cache/
+*.py[cod]
 *.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.log
+.ipynb_checkpoints/
 dist/
 build/
 data/
 site/
 .DS_Store
+Thumbs.db
 node_modules/
 ui/dist/
 

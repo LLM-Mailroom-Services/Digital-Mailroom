@@ -52,9 +52,12 @@ reports/experiment_log.md
 
 # Test
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 *.log
+.ipynb_checkpoints/
 
 # Docker
 docker/volumes/

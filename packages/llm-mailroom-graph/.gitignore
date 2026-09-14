@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Tests / tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Build outputs / logs
+graphify-out/
+*.log
+dist/
+build/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.ipynb_checkpoints/

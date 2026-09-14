@@ -4,12 +4,12 @@
 
 **Interactive knowledge graph of [llm-mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) — the 13-node LangGraph pipeline with Gmail triage and relations clerk auxiliary flows, visualized as a walkable architecture map.**
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Extractor](https://img.shields.io/badge/extractor-graphify%200.9.53-orange)](https://github.com/nicholasgasior/graphify)
-[![Live Site](https://img.shields.io/badge/live-site-blue)](https://LLM-Mailroom-Services.github.io/llm-mailroom-graph/)
+[![Live Site](https://img.shields.io/badge/live-site-blue)](https://exios66.github.io/llm-mailroom-graph/)
 [![Contributor](https://img.shields.io/badge/contributor-Exios66-blue)](https://github.com/Exios66)
 
-**Live site:** [llm-mailroom-graph](https://LLM-Mailroom-Services.github.io/llm-mailroom-graph/)
+**Live site:** [llm-mailroom-graph](https://exios66.github.io/llm-mailroom-graph/)
 
 </div>
 

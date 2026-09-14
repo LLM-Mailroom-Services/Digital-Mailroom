@@ -10,20 +10,29 @@ source-dir label.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
-OLD_GRAPH = Path("/tmp/opencode/llm-mailroom-graph/graph.json")
-NEW_GRAPH = Path(sys.argv[1] if len(sys.argv) > 1 else "/tmp/opencode/llm-mailroom/graphify-out/graph.json")
-INDEX_OLD = Path("/tmp/opencode/llm-mailroom-graph/index.html")
-REPORT_OLD = Path("/tmp/opencode/llm-mailroom-graph/report.html")
-OUT = Path(sys.argv[2] if len(sys.argv) > 2 else "/tmp/opencode/llm-mailroom-graph")
+# hub#45: derive the artifact paths from THIS script's own location so the
+# recipe runs from any checkout — the old hardcoded /tmp/opencode/... paths
+# crashed with FileNotFoundError on every other machine. argv overrides stay:
+#   python3 scripts/regenerate_graph_site.py [NEW_GRAPH.json] [OUT_DIR]
+HERE = Path(__file__).resolve().parent.parent
+OLD_GRAPH = HERE / "graph.json"  # committed graph: community-name carryover
+NEW_GRAPH = Path(sys.argv[1] if len(sys.argv) > 1 else HERE / "graph.json")
+INDEX_OLD = HERE / "index.html"
+REPORT_OLD = HERE / "report.html"
+OUT = Path(sys.argv[2] if len(sys.argv) > 2 else HERE)
 
 BUILT = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-COMMIT = "d93894a"
+# The graph's source commit: llm-mailroom pinned tip (v0.7.1, the corpus
+# re-pin to GT-closure revision 46a4d3c2). Override with GRAPH_COMMIT when
+# rebuilding from a different checkout.
+COMMIT = os.environ.get("GRAPH_COMMIT", "2a212e76a62b")
 GRAPHIFY_VER = "0.9.53"
 
 old = json.loads(OLD_GRAPH.read_text())
@@ -147,8 +156,8 @@ out = re.sub(r"const RELS = .*?;\n", lambda m: "const RELS = " + json.dumps(rels
 out = re.sub(r"const PIPELINE = .*?;\n", lambda m: "const PIPELINE = " + json.dumps(pipeline, separators=(",", ":")) + ";\n", out, count=1, flags=re.S)
 out = re.sub(r"graph · 7dc57874 · 2026-08-28", f"graph · {COMMIT} · {BUILT}", out)
 out = re.sub(r"llm-mailroom@7dc57874", f"llm-mailroom@{COMMIT}", out)
-out = re.sub(r"7dc57874cd4206fa6470a887c38b566f2168daf8", "d93894a6600470bed67e5a2a4f403368577b0f5b", out)
-out = re.sub(r"commit/7dc57874", "commit/d93894a", out)
+out = re.sub(r"7dc57874cd4206fa6470a887c38b566f2168daf8", "2a212e76a62b98f6eba451ff6f3c5bc96039ae37", out)
+out = re.sub(r"commit/7dc57874", f"commit/{COMMIT}", out)
 (OUT / "index.html").write_text(out)
 print(f"index.html: {len(nodes_out)} nodes, {len(edges_out)} edges, {len(labels_out)} communities, {len(gods)} gods")
 
@@ -195,11 +204,12 @@ wc_arrow = chr(0x2192)
 what_changed = (
     '<section id="fresh">\n<h2>What changed</h2>\n<div class="panel note">\n'
     '<p>Rebuilt from <a href="https://github.com/Exios66/llm-mailroom/commit/'
-    'd93894a6600470bed67e5a2a4f403368577b0f5b"><code>d93894a</code></a> '
-    '(mailroom v0.6.0 + railway-ready deploy + HF corpus v5 + ground truth: '
-    'pared LLM load, 13-node layered-state pipeline, review-resolve tray, '
-    'judge/arbiter lanes, deterministic field scoring, and the mailroom-dev '
-    'monorepo docs alignment).</p>'
+    '2a212e76a62b98f6eba451ff6f3c5bc96039ae37"><code>2a212e76</code></a> '
+    '(mailroom v0.7.1 + mailroom-dataset v9 corpus, GT-closure revision '
+    '46a4d3c2 + ground truth: pared LLM load, 13-node layered-state pipeline, '
+    'Gmail triage + relations clerk auxiliary flows, review-resolve tray, '
+    'judge/arbiter lanes, deterministic field scoring, and the '
+    'Digital-Mailroom monorepo docs alignment).</p>'
     '<p style="margin-top:.7rem">This build indexes <b>production '
     '<code>src/</code> only</b> (' + str(n_files) + ' files) so the map follows the live '
     'architecture: <code>review_resolve.py</code>, <code>posthoc_gt.py</code>, '

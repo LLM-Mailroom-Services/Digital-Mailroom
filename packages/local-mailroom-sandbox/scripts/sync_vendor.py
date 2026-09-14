@@ -45,12 +45,18 @@ _SNAPSHOTS = [
 
 _EXCLUDE_DIRS = {"__pycache__"}
 _EXCLUDE_REL = {"tests", "test"}  # llm-mailroom vendored src minus tests/
+# Runtime-generated report artifacts: the workspace copies are gitignored
+# (llm-mailroom .gitignore src/legalbench/reports/) and drift every run, so
+# they must not be pinned into a tracked snapshot.
+_EXCLUDE_SUFFIXES = {"legalbench/reports"}
 
 
 def _excluded(rel: Path) -> bool:
-    return any(
-        part in _EXCLUDE_DIRS or part.endswith(".egg-info") for part in rel.parts
-    ) or rel.parts[0] in _EXCLUDE_REL
+    if any(part in _EXCLUDE_DIRS or part.endswith(".egg-info") for part in rel.parts):
+        return True
+    if rel.parts[0] in _EXCLUDE_REL:
+        return True
+    return any("/".join(rel.parts).startswith(s) for s in _EXCLUDE_SUFFIXES)
 
 
 def _refresh(name: str, dest: Path, source: Path) -> int:

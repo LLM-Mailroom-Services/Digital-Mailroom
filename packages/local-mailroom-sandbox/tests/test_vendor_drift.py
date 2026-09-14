@@ -45,6 +45,10 @@ _SNAPSHOTS = [
 # Files allowed to differ between vendor and workspace (sandbox-local glue).
 _EXCLUDE_NAMES = {"__pycache__"}
 _EXCLUDE_SUFFIXES = {".pyc"}
+# Runtime-generated report artifacts (llm-mailroom src/legalbench/reports/ is
+# gitignored in the workspace and regenerated every run — it is neither vendored
+# nor drift-checked; sync_vendor.py excludes the same path).
+_EXCLUDE_REL_PREFIXES = {"legalbench/reports"}
 # llm-mailroom vendored src excludes the tests/ subtree (VENDOR.md: "upstream
 # src/ minus src/tests/") — test-only files are never imported by vendored
 # modules, so they legitimately don't appear in the snapshot.
@@ -74,6 +78,8 @@ def _files(root: Path) -> dict[str, str]:
         if any(part.endswith(_EGG_INFO_SUFFIX) for part in rel.parts):
             continue
         if path.suffix in _EXCLUDE_SUFFIXES:
+            continue
+        if any("/".join(rel.parts).startswith(p) for p in _EXCLUDE_REL_PREFIXES):
             continue
         out[str(rel)] = _sha256(path)
     return out

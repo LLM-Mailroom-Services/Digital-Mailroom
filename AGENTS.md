@@ -172,7 +172,15 @@ or team to claim) → `assigned` (claimed, nothing underway) → `in_progress`
   targeted paths only (`git add <explicit paths>` — never `git add .`/`-A`
   or a bare directory). Shared checkout: re-check `git status --porcelain`
   before every commit and unstage files you don't own (HUB-024/HUB-027
-  sweep incidents). **Detailed messages (human directive 2026-09-04):** every
+  sweep incidents). **DMR prefix is the law for board commits (mailroom-issues
+  directive 2026-09-14):** any commit that touches the board — `governance/
+  TASKS.md`, `scripts/board_state.py` + board tooling, `.github/` templates/
+  workflows that govern the board, `board-site/` — MUST lead with the `DMR-0NN:`
+  card it affects (or `DMR-0NN claimed/reopened`). `HUB-0NN` prefixes belonged
+  to the original `Exios66/mailroom-dev` board and are never used for NEW board
+  work here (DMR-001 lineage law); HUB references may appear only as historical
+  notes inside message bodies, never as the commit's routing prefix. **Detailed
+  messages (human directive 2026-09-04):** every
   commit carries a fully detailed, explanatory message — subject line plus
   a body that names each file changed and describes what/why (reference the
   card, note test evidence and gates). A terse "Update X" without a body is

@@ -99,7 +99,13 @@ push this file's truth into the issues.
 - **No silent completion.** A card without its closing Evidence is, to every
   other agent, still in flight.
 - **Commit discipline.** Reference cards in commits: `DMR-00N: <summary>` or
-  `DMR-00N claimed/reopened` in the message body. **Stage targeted paths
+  `DMR-00N claimed/reopened` in the message body. **DMR prefix is the law
+  (mailroom-issues directive 2026-09-14):** any commit touching the board —
+  this file, `scripts/board_state.py` + board tooling, `.github/` board
+  templates/workflows, `board-site/` — MUST lead with the `DMR-0NN:` card it
+  affects. `HUB-0NN` prefixes belong to the predecessor `Exios66/mailroom-dev`
+  board and are never used for NEW board work (DMR-001 lineage law); they may
+  appear only as historical notes in message bodies. **Stage targeted paths
   only:** `git add <explicit paths>` for exactly your card's files — never
   `git add .` / `-A` / a bare directory. This is a shared checkout: before
   every commit, `git status --porcelain` and unstage anything you don't own.

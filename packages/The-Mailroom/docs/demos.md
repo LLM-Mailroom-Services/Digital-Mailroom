@@ -136,7 +136,7 @@ PYTHONPATH=. python scripts/demo_pilot_run.py --port 8005 --delay 8
 
 TUI SVGs (re-renderable): `tui-console.svg`, `tui-review.svg`,
 `tui-sessions.svg`, `tui-metrics.svg` in the same folder.
-`MAILROOM_API_URL=http://127.0.0.1:8001 python scripts/render_tui_shots.py`
+`MAILROOM_API_URL=http://127.0.0.1:8001 python scripts/archive/render_tui_shots.py`
 
 ## Seed traces into Langfuse
 

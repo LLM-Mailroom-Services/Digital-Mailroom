@@ -60,6 +60,10 @@ ALLOWLIST = {
         # board-evidence-auditor live audit state: must document predecessor
         # (HUB-era) lineage as evidence; not a stale-link defect (hub#33).
         ".opencode/agents/STATE.md",
+        # TESTING.md documents the gate command itself; the only mention is the
+        # self-referential usage comment "# no stale Exios66/mailroom-dev
+        # references" — not a stale-link defect.
+        "docs/TESTING.md",
     ],
     "old-hub-board": [
         "packages/*",

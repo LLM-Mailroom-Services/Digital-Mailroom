@@ -17,9 +17,9 @@
 | | `gen_edge_cases.py` | Edge-case suite generator — the durability matrix (writes `data/gt/edge_suites/`) |
 | | `gt_workbench.py` | GT validation for hand-labeled extraction ground truth |
 | | `smoke_vllm_endpoint.py` | Smoke-test a vLLM / OpenAI-compatible endpoint (KANBAN-096) |
+| | `sync_edge_suites.py` | Sync generated edge suites into The-Mailroom's Langfuse env as datasets |
 | | `durability_gate.sh` | Production-readiness scoreboard over the full agent roster (report-only) |
 | | `release.py` | Semver release workflow for the package |
-| | `archive/sync_edge_suites.py` | **Archived (frozen)** — Langfuse dataset sync for edge suites; see `archive/README.md` |
 | **datasets/** | `build_*.py` / `publish_*.py` / `stream_*.py` / `export_*.py` | Dataset acquisition, building, streaming, and Hub publishing (v5/v6 lineage + v9 mirrors) |
 | **deploy/** | `deploy_phoenix.sh` | Apache Phoenix deployment for local observability |
 | **eda/** | `explore_cuad.py` / `explore_pipeline_sources.py` | CUAD + pipeline-source exploration |

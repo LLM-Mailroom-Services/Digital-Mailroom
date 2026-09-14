@@ -110,7 +110,7 @@ agreement peels to REVIEW, a corporate record fails).
 | [tui-metrics.png](https://github.com/Exios66/The-Mailroom/blob/main/docs/screenshots/tui-metrics.png) | Metrics |
 
 TUI SVGs (re-renderable) sit next to the PNGs.
-`MAILROOM_API_URL=http://127.0.0.1:8001 python scripts/archive/render_tui_shots.py`
+`MAILROOM_API_URL=http://127.0.0.1:8001 python scripts/render_tui_shots.py`
 
 ## Seed traces into Langfuse
 

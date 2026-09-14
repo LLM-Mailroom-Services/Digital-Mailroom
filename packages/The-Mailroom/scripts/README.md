@@ -26,7 +26,7 @@
 | | `sync_prompts.py` | Push the vendored agent prompts into Langfuse Prompt Management |
 | **Release / ops** | `release.py` | Semver release workflow |
 | | `setup_operator.sh` | One-time operator-desk setup (bins + migrate, no npm) |
-| **Archived** | `archive/render_tui_shots.py` | One-off TUI frame renderer for README screenshots (frozen, see `archive/README.md`) |
+| | `render_tui_shots.py` | Render TUI frames against a running Mailroom API for README screenshots |
 
 ## Usage notes
 

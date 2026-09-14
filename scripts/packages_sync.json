@@ -27,8 +27,8 @@
     },
     "llm-dojo-scoring": {
       "branch": "main",
-      "synced_at": "2026-09-13T19:14:56Z",
-      "synced_sha": "5298d7036652c04467be4150028453edbbcd4a38",
+      "synced_at": "2026-09-14T14:03:27Z",
+      "synced_sha": "ef8f236d66f91b8c57af71a40acdd7fcf7ea9529",
       "url": "https://github.com/Exios66/llm-dojo-scoring.git"
     },
     "llm-entity-extraction": {

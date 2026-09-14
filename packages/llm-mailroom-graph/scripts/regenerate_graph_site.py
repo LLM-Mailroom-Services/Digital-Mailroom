@@ -154,10 +154,14 @@ out = re.sub(r"const GODS = .*?;\n", lambda m: "const GODS = " + json.dumps(gods
 out = re.sub(r"const LAYERS = .*?;\n", lambda m: "const LAYERS = " + json.dumps(layers, separators=(",", ":")) + ";\n", out, count=1, flags=re.S)
 out = re.sub(r"const RELS = .*?;\n", lambda m: "const RELS = " + json.dumps(rels, separators=(",", ":")) + ";\n", out, count=1, flags=re.S)
 out = re.sub(r"const PIPELINE = .*?;\n", lambda m: "const PIPELINE = " + json.dumps(pipeline, separators=(",", ":")) + ";\n", out, count=1, flags=re.S)
-out = re.sub(r"graph · 7dc57874 · 2026-08-28", f"graph · {COMMIT} · {BUILT}", out)
-out = re.sub(r"llm-mailroom@7dc57874", f"llm-mailroom@{COMMIT}", out)
-out = re.sub(r"7dc57874cd4206fa6470a887c38b566f2168daf8", "2a212e76a62b98f6eba451ff6f3c5bc96039ae37", out)
-out = re.sub(r"commit/7dc57874", f"commit/{COMMIT}", out)
+# hub#45: stamps are commit-agnostic — the previous literal patterns (built
+# from an older build's sha/date) silently no-op'd on every newer page, which
+# is how the d93894a stamps survived a "successful" regeneration. Rebuilds
+# stamp whatever COMMIT says, never depend on the old page's sha.
+out = re.sub(r"graph · [0-9a-f]{7,40} · \d{4}-\d{2}-\d{2}", f"graph · {COMMIT} · {BUILT}", out)
+out = re.sub(r"llm-mailroom@[0-9a-f]{7,40}", f"llm-mailroom@{COMMIT}", out)
+out = re.sub(r"llm-mailroom/commit/[0-9a-f]{7,40}", f"llm-mailroom/commit/{COMMIT}", out)
+OUT.mkdir(parents=True, exist_ok=True)
 (OUT / "index.html").write_text(out)
 print(f"index.html: {len(nodes_out)} nodes, {len(edges_out)} edges, {len(labels_out)} communities, {len(gods)} gods")
 
@@ -167,14 +171,27 @@ n_nodes, n_edges = len(new["nodes"]), len(new["links"])
 n_comm = len(set(n.get("community") for n in new["nodes"] if n.get("community") is not None))
 n_files = len(set(n.get("source_file") for n in new["nodes"] if n.get("source_file")))
 
-rep = rep.replace("built <b>2026-08-28</b>", f"built <b>{BUILT}</b>")
-rep = rep.replace("commit <b>7dc57874</b>", f"commit <b>{COMMIT}</b>")
-rep = rep.replace("graphify <b>0.9.50</b>", f"graphify <b>{GRAPHIFY_VER}</b>")
-rep = rep.replace('data-count="1730"', f'data-count="{n_nodes}"')
-rep = rep.replace('data-count="4181"', f'data-count="{n_edges}"')
-rep = rep.replace('data-count="102"', f'data-count="{n_comm}"')
-rep = rep.replace('data-count="121"', f'data-count="{n_files}"')
-rep = rep.replace("74 shown · 28 thin omitted", f"{min(n_comm, 74)} shown · {max(n_comm - 74, 0)} thin omitted")
+# hub#45: same commit-agnostic rule for the report pills, and the stat tiles
+# are rewritten from the graph being built — the old literals (1730/4181/…)
+# were the older build's numbers and no-op'd, leaving stale tile counts.
+rep = re.sub(r"built <b>\d{4}-\d{2}-\d{2}</b>", f"built <b>{BUILT}</b>", rep, count=1)
+rep = re.sub(r"commit <b>[0-9a-f]{7,40}</b>", f"commit <b>{COMMIT}</b>", rep, count=1)
+rep = re.sub(r"graphify <b>[0-9.]+</b>", f"graphify <b>{GRAPHIFY_VER}</b>", rep, count=1)
+rep = re.sub(
+    r'data-count="\d+">0</span></div><div class="tile-l">nodes</div>',
+    f'data-count="{n_nodes}">0</span></div><div class="tile-l">nodes</div>', rep, count=1)
+rep = re.sub(
+    r'data-count="\d+">0</span></div><div class="tile-l">edges</div>',
+    f'data-count="{n_edges}">0</span></div><div class="tile-l">edges</div>', rep, count=1)
+rep = re.sub(
+    r'data-count="\d+">0</span></div><div class="tile-l">communities</div>',
+    f'data-count="{n_comm}">0</span></div><div class="tile-l">communities</div>', rep, count=1)
+rep = re.sub(
+    r'data-count="\d+">0</span></div><div class="tile-l">source files</div>',
+    f'data-count="{n_files}">0</span></div><div class="tile-l">source files</div>', rep, count=1)
+rep = re.sub(
+    r"\d+ shown · \d+ thin omitted",
+    f"{min(n_comm, 74)} shown · {max(n_comm - 74, 0)} thin omitted", rep, count=1)
 
 # god rows
 god_rows = "".join(
@@ -204,7 +221,7 @@ wc_arrow = chr(0x2192)
 what_changed = (
     '<section id="fresh">\n<h2>What changed</h2>\n<div class="panel note">\n'
     '<p>Rebuilt from <a href="https://github.com/Exios66/llm-mailroom/commit/'
-    '2a212e76a62b98f6eba451ff6f3c5bc96039ae37"><code>2a212e76</code></a> '
+    + COMMIT + '"><code>' + COMMIT[:8] + '</code></a> '
     '(mailroom v0.7.1 + mailroom-dataset v9 corpus, GT-closure revision '
     '46a4d3c2 + ground truth: pared LLM load, 13-node layered-state pipeline, '
     'Gmail triage + relations clerk auxiliary flows, review-resolve tray, '
@@ -232,3 +249,21 @@ rep = re.sub(
     rep, count=1)
 (OUT / "report.html").write_text(rep)
 print("report.html regenerated")
+
+# ---- GRAPH_REPORT.md provenance note ----
+# hub#45: graphify stamps its own checkout HEAD (the monorepo sha), which says
+# nothing about which llm-mailroom revision the extraction represents. A
+# source-provenance note is stamped under the title so the markdown report
+# names the pinned pipeline revision it was built from (idempotent — refreshed
+# on every run, never duplicated).
+report_md = HERE / "GRAPH_REPORT.md"
+if report_md.exists():
+    md = report_md.read_text()
+    note = (
+        "> Source: llm-mailroom @ `" + COMMIT + "` (v0.7.1, mailroom-dataset "
+        "v9 corpus pin 46a4d3c2) — extracted from the Digital-Mailroom "
+        "monorepo checkout.\n"
+    )
+    md = re.sub(r"(^# .*\n\n)(?:> Source: .*\n)?", lambda m: m.group(1) + note, md, count=1)
+    report_md.write_text(md)
+    print("GRAPH_REPORT.md provenance stamped")

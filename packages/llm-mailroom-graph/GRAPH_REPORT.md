@@ -1,5 +1,6 @@
 # Graph Report - llm-mailroom  (2026-09-13)
 
+> Source: llm-mailroom @ `2a212e76a62b` (v0.7.1, mailroom-dataset v9 corpus pin 46a4d3c2) — extracted from the Digital-Mailroom monorepo checkout.
 ## Corpus Check
 - cluster-only mode — file stats not available
 

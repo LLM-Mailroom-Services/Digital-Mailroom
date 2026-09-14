@@ -2483,6 +2483,15 @@
                         showToast(`✨ ${fresh ? fresh.id : cardData.id} created on GitHub`, 'success');
                     }).catch((err) => {
                         console.error('create failed', err);
+                        // hub#48: roll back the optimistic temp card — a
+                        // failed create must not leave a draggable phantom
+                        // that PATCHes a non-existent issue.
+                        const idx = state.cards.findIndex((c) => c.id === tmp);
+                        if (idx >= 0) state.cards.splice(idx, 1);
+                        renderBoard();
+                        renderArchive();
+                        updateStats();
+                        updateTabTitle();
                         showToast(`❌ create failed: ${err.message}`, 'error');
                     });
                 }

@@ -51,6 +51,11 @@ module.exports = async function handler(req, res) {
       want.agents = Array.isArray(body.agents) ? body.agents.map((a) => String(a).trim()).filter(Boolean) : [];
     }
     if (Object.keys(want).length === 0) return sendJson(res, 400, { error: "empty patch" });
+    // hub#48: agent-facing contract — validate priority against the known
+    // labels so a bad value returns a helpful 400 instead of a GitHub 422.
+    if (want.priority !== undefined && !ghx.PRI_LABELS.includes(`priority/${want.priority}`)) {
+      return sendJson(res, 400, { error: "invalid priority" });
+    }
 
     const actor = ghx.actor(req);
     const me = new Date().toISOString().slice(0, 10);
@@ -61,17 +66,23 @@ module.exports = async function handler(req, res) {
     //      current issue once and patch a single time.
     const currentLabelNames = (issue.labels || []).map((l) => l.name);
     const targetLane = want.lane ? ghx.LANES.find((l) => l.id === want.lane) : null;
+    // Source lane mirrors laneFromIssue(): stage label wins; closed = done;
+    // open with no stage label falls to unassigned/assigned by assignees.
     const sourceLaneId =
       currentLabelNames.map((n) => (ghx.STAGE_LABELS.includes(n) ? n.replace("stage/", "") : null)).find(Boolean) ||
-      (issue.state === "closed" ? "done" : "assigned");
+      (issue.state === "closed" ? "done" : (issue.assignees || []).length > 0 ? "assigned" : "unassigned");
     const sourceLane = ghx.LANES.find((l) => l.id === sourceLaneId);
 
     // Keep every non-stage/non-priority label; then merge in whichever of
     // stage / priority the patch touches (or already present, untouched).
+    // hub#48: a non-lane PATCH must NEVER change the card's lane — carry the
+    // issue's existing stage/* labels through unchanged. Only an explicit
+    // `lane` in the patch swaps to the target lane label.
     const nextLabels = currentLabelNames.filter(
       (n) => !ghx.STAGE_LABELS.includes(n) && !n.startsWith("priority/"),
     );
-    nextLabels.push(targetLane ? targetLane.label : `stage/${sourceLaneId}`);
+    if (targetLane) nextLabels.push(targetLane.label);
+    else nextLabels.push(...currentLabelNames.filter((n) => ghx.STAGE_LABELS.includes(n)));
     if (want.priority) nextLabels.push(`priority/${want.priority}`);
     else for (const p of ghx.PRI_LABELS) if (currentLabelNames.includes(p)) nextLabels.push(p);
 

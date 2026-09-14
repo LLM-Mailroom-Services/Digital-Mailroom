@@ -205,7 +205,7 @@ function toCard(issue) {
   return {
     id: cardIdFromIssue(issue),
     issueNumber: issue.number,
-    title: (issue.title || "").replace(/^HUB-\d{3,}\s*:\s*/i, ""),
+    title: (issue.title || "").replace(/^(?:DMR|HUB)-\d{3,}\s*:\s*/i, ""),
     desc: bodySection(issue.body, "Task"),
     lane: laneFromIssue(issue),
     priority: priorityFromIssue(issue),

@@ -41,6 +41,11 @@ module.exports = async function handler(req, res) {
       const priority = (body.priority || "medium").trim();
       const agents = Array.isArray(body.agents) ? body.agents.map((a) => String(a).trim()).filter(Boolean) : [];
       if (!title) return sendJson(res, 400, { error: "title is required" });
+      // hub#48: agent-facing contract — validate priority against the known
+      // labels so a bad value returns a helpful 400 instead of a GitHub 422.
+      if (!ghx.PRI_LABELS.includes(`priority/${priority}`)) {
+        return sendJson(res, 400, { error: "invalid priority" });
+      }
 
       // Route: cards with NO agents → unassigned; cards WITH agents → assigned
       const effectiveLane = agents.length === 0 ? "unassigned" : lane;

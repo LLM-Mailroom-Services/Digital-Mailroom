@@ -659,7 +659,8 @@ def main_with_args(argv: list[str]) -> int:
                              comment="subclass exact OR defensible equivalent family")
             handle.score("exact_match", 1.0 if exact else 0.0,
                          comment="doc_type AND subclass exact")
-            handle.score("confidence", confidence, comment="model-reported confidence")
+            # calibration, not correctness — no 0.5-threshold verdict (hub#63)
+            handle.score("confidence", confidence, comment="model-reported confidence", label=None)
 
             if manifest:
                 manifest.append({"filename": filename, "status": "completed", "tag": "OK",

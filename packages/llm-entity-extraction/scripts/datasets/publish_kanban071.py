@@ -29,6 +29,7 @@ import hashlib
 import json
 import os
 import sys
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -442,8 +443,13 @@ def main() -> int:
     if out.exists():
         try:
             merged.update(json.loads(out.read_text()))
-        except Exception:
-            pass
+        except (OSError, json.JSONDecodeError) as exc:
+            # hub#63: a corrupted/unreadable prior summary must not be silently
+            # swallowed then overwritten — that would destroy verified-publish
+            # evidence. Warn loudly, back it up, then write via temp+rename.
+            print(f"WARNING: prior publish summary unreadable ({exc}); backing it up", file=sys.stderr)
+            backup = out.with_suffix(".json.corrupt")
+            backup.write_text(out.read_bytes())
     merged.update(results)
     out.write_text(json.dumps(merged, indent=2))
     print(f"\nsummary -> {out}")

@@ -391,7 +391,10 @@ def board_findings(state: BoardState, refs: dict[str, list[tuple[str, str]]],
                     findings.append(Finding("warning", "stale-in-progress", card.id,
                                             f"latest referencing commit {latest_sha} is older than {stale_days} days"))
             except ValueError:
-                pass
+                # hub#63: a commit date we cannot parse is board-structure
+                # evidence the checker should surface, not hide.
+                findings.append(Finding("warning", "commit-date-unparseable", card.id,
+                                        f"cannot parse commit date {result.stdout.strip()!r} for {latest_sha}"))
 
     return findings
 

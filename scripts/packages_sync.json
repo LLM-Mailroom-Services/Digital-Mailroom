@@ -3,61 +3,55 @@
   "packages": {
     "Enron-Evaluation-Environment": {
       "branch": "main",
-      "synced_at": "2026-09-14T14:13:20Z",
-      "synced_sha": "ace7d84ece57866e7e8928f7c2d02fcc4f0c9182",
+      "synced_at": "2026-09-14T17:54:13Z",
+      "synced_sha": "68f23c70de66ed0578d06addb38e9e6dbd9b56e1",
       "url": "https://github.com/Exios66/Enron-Evaluation-Environment.git"
     },
     "The-Mailroom": {
       "branch": "main",
-      "synced_at": "2026-09-14T14:13:05Z",
-      "synced_sha": "7ab68308688be11333b19c806b2ed86bc482ef34",
+      "synced_at": "2026-09-14T17:54:13Z",
+      "synced_sha": "3b1de229cc6f56c0be674c346acf0a9715b350b4",
       "url": "https://github.com/Exios66/The-Mailroom.git"
     },
     "agent-mailroom": {
       "branch": "main",
-      "synced_at": "2026-09-14T14:12:48Z",
+      "synced_at": "2026-09-14T17:54:13Z",
       "synced_sha": "6b0e255cd3feee45ab1670c292b453b03151327e",
       "url": "https://github.com/Exios66/agent-mailroom.git"
     },
     "claims-data-eda": {
       "branch": "main",
-      "synced_at": "2026-09-14T17:52:44Z",
+      "synced_at": "2026-09-14T17:54:13Z",
       "synced_sha": "d134d126a35d872070e1454e350db81b4d35dcca",
       "url": "https://github.com/Exios66/claims-data-eda.git"
     },
     "llm-dojo-scoring": {
       "branch": "main",
-      "synced_at": "2026-09-14T14:03:27Z",
+      "synced_at": "2026-09-14T17:54:13Z",
       "synced_sha": "ef8f236d66f91b8c57af71a40acdd7fcf7ea9529",
       "url": "https://github.com/Exios66/llm-dojo-scoring.git"
     },
     "llm-entity-extraction": {
       "branch": "main",
-      "synced_at": "2026-09-14T14:04:32Z",
-      "synced_sha": "aa48315371dae3e0e9cec25bba9379fc1f4657ad",
+      "synced_at": "2026-09-14T17:54:13Z",
+      "synced_sha": "f6e4de8902861e080e1912212ed76cf2cda52f50",
       "url": "https://github.com/Exios66/llm-entity-extraction.git"
     },
     "llm-mailroom": {
       "branch": "main",
-      "synced_at": "2026-09-14T14:17:01Z",
+      "synced_at": "2026-09-14T17:54:13Z",
       "synced_sha": "463e9a94cc386f73a88f7a68e813bda029167f63",
       "url": "https://github.com/Exios66/llm-mailroom.git"
     },
     "llm-mailroom-graph": {
       "branch": "main",
-      "synced_at": "2026-09-14T14:13:24Z",
+      "synced_at": "2026-09-14T17:54:13Z",
       "synced_sha": "ee3e7188d9c0dbb666acaa400608269102549e6b",
       "url": "https://github.com/Exios66/llm-mailroom-graph.git"
     },
-    "local-mailroom-sandbox": {
-      "branch": "main",
-      "synced_at": "2026-09-14T14:17:44Z",
-      "synced_sha": "5ce2b3954b6bed7a6dc947a1c9a8cd34e8bc51b2",
-      "url": "https://github.com/Exios66/local-mailroom-sandbox.git"
-    },
     "mailroom-corpus-eda": {
       "branch": "main",
-      "synced_at": "2026-09-14T14:13:12Z",
+      "synced_at": "2026-09-14T17:54:13Z",
       "synced_sha": "9e670838fa7237557e4b1151f0a5193a9e5e22e0",
       "url": "https://github.com/Exios66/Mailroom-Corpus-EDA.git"
     }

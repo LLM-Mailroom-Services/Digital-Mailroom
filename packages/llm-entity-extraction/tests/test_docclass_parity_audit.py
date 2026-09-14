@@ -141,7 +141,7 @@ def test_scoring_md_documents_docclass_metric_names():
     section = text.split("## 7. Docclass hierarchical metrics")[1].split("## 8.")[0]
     for name in DOCCLASS_HEADLINE_METRICS:
         assert name in section, f"SCORING.md §7 missing {name!r}"
-    assert "1,210 rows" in section
+    assert "3,302 rows" in section
     assert "8 primary classes" in section or "8-class" in section
 
 

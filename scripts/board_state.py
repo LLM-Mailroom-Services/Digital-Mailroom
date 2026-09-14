@@ -410,7 +410,12 @@ def board_findings(state: BoardState, refs: dict[str, list[tuple[str, str]]],
         result = run(["git", "show", "-s", "--format=%cI", latest_sha])
         if result.returncode == 0:
             try:
-                committed = datetime.fromisoformat(result.stdout.strip()).astimezone(timezone.utc)
+                raw = result.stdout.strip()
+                # git's strict ISO date may carry a 'Z' suffix which the
+                # system python3 (3.9, CommandLineTools) fromisoformat rejects
+                # — normalize to the offset form before parsing (DMR-061).
+                normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
+                committed = datetime.fromisoformat(normalized).astimezone(timezone.utc)
                 if committed < cutoff:
                     findings.append(Finding("warning", "stale-in-progress", card.id,
                                             f"latest referencing commit {latest_sha} is older than {stale_days} days"))

@@ -12,11 +12,16 @@ import otel lazily so the runtime venv stays lean unless the feature is used.
 from __future__ import annotations
 
 import base64
+import logging
 import os
 from contextlib import contextmanager
 from typing import Any, Iterator
 
 from pydantic import BaseModel
+
+_log = logging.getLogger("mailroom_sandbox.job.otel")
+
+_OTEL_WARNED = False
 
 
 class SinkConfig(BaseModel):
@@ -108,7 +113,17 @@ def configure_tracing(sink_cfg: SinkConfig) -> Any:
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
-    except Exception:
+    except Exception as exc:
+        global _OTEL_WARNED
+        if not _OTEL_WARNED:
+            _OTEL_WARNED = True
+            _log.warning(
+                "opentelemetry deps are NOT installed — the configured %r OTLP "
+                "sink (%s) receives NO traces; install [dev]/[pipeline] extras",
+                sink_cfg.kind,
+                sink_cfg.endpoint,
+                exc_info=exc,
+            )
         return None
 
     headers = {k: v for k, v in sink_cfg.headers.items() if v != ""}
@@ -129,8 +144,13 @@ def flush_tracer(tracer: Any) -> None:
         try:
             provider.force_flush()
             provider.shutdown()
-        except Exception:
-            pass
+        except Exception as exc:
+            _log.error(
+                "OTLP provider force_flush/shutdown FAILED — buffered spans may "
+                "be lost at the %r sink",
+                getattr(tracer, "sandbox_provider", None),
+                exc_info=exc,
+            )
 
 
 @contextmanager

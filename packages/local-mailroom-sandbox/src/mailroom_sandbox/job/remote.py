@@ -78,16 +78,25 @@ def _remote_lock_hash(run_id: str) -> str | None:
                 capture_output=True,
                 text=True,
             )
-        except OSError:
+        except OSError as exc:
+            logger.warning("modal volume get for %s could not start: %s", run_id, exc)
             return None
         if proc.returncode != 0:
+            logger.warning(
+                "remote lock hash for %s unreadable (rc=%d): %s",
+                run_id,
+                proc.returncode,
+                (proc.stderr.strip() or proc.stdout.strip())[:400],
+            )
             return None
         matches = list(Path(tmp).rglob("spec.lock.json"))
         if not matches:
+            logger.warning("remote lock file for %s not found under the volume fetch", run_id)
             return None
         try:
             payload = json.loads(matches[0].read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("remote lock for %s is corrupt/unreadable: %s", run_id, exc)
             return None
         return str(payload.get("spec_hash") or "") or None
 
@@ -180,8 +189,18 @@ def read_progress(store: RunStore) -> dict | None:
         value = state_dict.get(store.run_id, None)
         if isinstance(value, dict):
             return value
-    except Exception:
-        pass
+        logger.warning(
+            "job-state Dict has no live entry for run %s — falling back to the "
+            "local checkpoint (progress shown may be stale)",
+            store.run_id,
+        )
+    except Exception as exc:
+        logger.warning(
+            "job-state Dict could not be read for run %s — falling back to the "
+            "local checkpoint (progress shown may be stale): %s",
+            store.run_id,
+            exc,
+        )
     return store.read_checkpoint()
 
 
@@ -236,8 +255,14 @@ def ensure_running(store: RunStore) -> dict:
         if fired_at:
             try:
                 age = (datetime.now(timezone.utc) - datetime.fromisoformat(fired_at)).total_seconds()
-            except ValueError:
-                age = None
+            except ValueError as exc:
+                raise RuntimeError(
+                    f"remote call {remote['call_id']} carries a MALFORMED fired_at "
+                    f"({fired_at!r}) — the hub#41 re-fire cooldown cannot be "
+                    f"verified, and a possibly-live worker must not be doubled. "
+                    f"Refusing to re-fire; inspect the checkpoint's remote section: "
+                    f"{remote!r}"
+                ) from exc
         if age is not None and age < REMOTE_REFIRE_COOLDOWN_SECONDS:
             raise RuntimeError(
                 f"remote call {remote['call_id']} is not alive but was fired "

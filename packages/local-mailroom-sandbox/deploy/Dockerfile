@@ -55,7 +55,7 @@ USER sandbox
 EXPOSE 8888
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD curl -fsS http://127.0.0.1:8888/lab >/dev/null || exit 1
+    CMD curl -fsS http://127.0.0.1:8888/lab || exit 1
 
 # Tokenless Lab on the compose network; bind only to localhost from the host.
 CMD ["jupyter", "lab", \

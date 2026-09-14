@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from dataclasses import dataclass, field
@@ -18,6 +19,8 @@ from mailroom_sandbox.overlay import (
 )
 from mailroom_sandbox.paths import repo_root, runtime_dir, vendor_dir
 from mailroom_sandbox.providers import endpoints_for
+
+_log = logging.getLogger("mailroom_sandbox.runtime")
 
 
 @dataclass
@@ -156,9 +159,24 @@ def activate(
     mailroom_src = resolve_mailroom_src()
     if mailroom_src is not None:
         _prepend_sys_path(mailroom_src)
+    else:
+        _log.warning(
+            "no mailroom source resolvable (vendored snapshot under %s, sibling "
+            "repo, or MAILROOM_SRC) — activation proceeds, but the first family "
+            "import will fail. Run `sandbox fetch-deps` to restore the vendored "
+            "snapshot.",
+            vendor_dir() / "llm-mailroom",
+        )
     dojo_src = resolve_dojo_src()
     if dojo_src is not None:
         _prepend_sys_path(dojo_src)
+    else:
+        _log.warning(
+            "no llm-dojo-scoring source resolvable (vendored snapshot under %s, "
+            "sibling repo, or DOJO_SRC) — scoring will fail on import. Run "
+            "`sandbox fetch-deps` to restore the vendored snapshot.",
+            vendor_dir() / "llm-dojo-scoring",
+        )
 
     taxonomy = build_merged_taxonomy(
         profile, model_override=model, agent_models=agent_models

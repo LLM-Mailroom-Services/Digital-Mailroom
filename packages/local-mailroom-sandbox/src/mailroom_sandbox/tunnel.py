@@ -154,8 +154,12 @@ def terminate(spec: TunnelSpec) -> int | None:
     pid = read_pid(spec.profile)
     if pid is None:
         return None
-    try:
-        subprocess.run(["kill", str(pid)], check=False, capture_output=True)
-    finally:
-        pidfile(spec.profile).unlink(missing_ok=True)
+    proc = subprocess.run(["kill", str(pid)], check=False, capture_output=True)
+    if proc.returncode != 0:
+        raise TunnelError(
+            f"kill {pid} failed (rc={proc.returncode}): "
+            f"{(proc.stderr.strip() or proc.stdout.strip())[:300]} — the tunnel "
+            "process may still be alive; pidfile kept so `tunnel status` can see it"
+        )
+    pidfile(spec.profile).unlink(missing_ok=True)
     return pid

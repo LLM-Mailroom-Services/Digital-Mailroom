@@ -104,6 +104,9 @@ on_exit() {
     local rc=$?
     if [ "$rc" -ne 0 ]; then
         dump_diagnostics
+        # DMR-061: the failing rc lands IN the run.log too, not only in the
+        # HTCondor job status — the transferred results tell the story alone.
+        echo "[$(date -u +%FT%TZ)] run FAILED rc=$rc" >> "$RUN_LOG" 2>&1 || true
     else
         {
             echo "[$(date -u +%FT%TZ)] run finished rc=0"
@@ -190,6 +193,7 @@ CURL_AUTH=()
 if [ -n "$VLLM_API_KEY" ]; then
     CURL_AUTH=(-H "Authorization: Bearer $VLLM_API_KEY")
 fi
+HEALTHY=0
 for i in $(seq 1 120); do
     if curl -sf --max-time 5 "${CURL_AUTH[@]}" "http://localhost:${PORT}/v1/models" > /dev/null; then
         echo "vLLM healthy"
@@ -207,7 +211,7 @@ done
 if [ "$HEALTHY" -ne 1 ]; then
     fail "/v1/models not healthy after 20m"
 fi
-log "vLLM healthy after ~$((i * 10))s"
+log "vLLM healthy after ~$(((i - 1) * 10))s"
 
 export SANDBOX_PROFILE=vllm-local
 export DEFAULT_PROVIDER=vllm

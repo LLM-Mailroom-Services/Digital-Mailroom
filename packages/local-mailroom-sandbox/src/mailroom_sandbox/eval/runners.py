@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from contextlib import ExitStack
 from pathlib import Path
@@ -13,7 +14,6 @@ from mailroom_sandbox.datasets import (
     LEGALBENCH_TASKS,
     dataset_fingerprint,
     fixture_file,
-    load_hf_fixtures,
     load_legalbench_fixtures,
     load_legalbench_suite_rows,
     load_manifest,
@@ -24,9 +24,17 @@ from mailroom_sandbox.eval.scoring import emit
 from mailroom_sandbox.mock_llm import fake_client, fake_structured_payload
 from mailroom_sandbox.runtime import activate, resolve_mailroom_src
 
+_log = logging.getLogger("mailroom_sandbox.eval.runners")
+
 try:
     from llm_dojo_scoring.emitter import ScoreRecord
-except Exception:  # pragma: no cover
+except Exception as exc:  # pragma: no cover
+    _log.warning(
+        "llm_dojo_scoring.emitter.ScoreRecord unavailable — every eval-run score "
+        "emission is SKIPPED (runs still record locally, but the dojo sink "
+        "never sees them). Defect in the vendored dojo snapshot.",
+        exc_info=exc,
+    )
     ScoreRecord = None  # type: ignore
 
 
@@ -223,7 +231,15 @@ def run_sorter_eval(
         if mock:
             predicted.append(_classify_mock(row))
         else:
-            predicted.append(_run_pipeline_doc(row, mock=False).get("doc_type") or "unknown")
+            result = _run_pipeline_doc(row, mock=False)
+            doc_type = result.get("doc_type")
+            if not doc_type:
+                raise RuntimeError(
+                    f"live pipeline returned no doc_type for row "
+                    f"{row.get('id') or row.get('filename') or '?'} — refusing to "
+                    f"score a dead live path as 'unknown' (ok=True would lie)"
+                )
+            predicted.append(doc_type)
 
     scores = scoring.score_classification(expected, predicted)
     if ScoreRecord is not None:
@@ -325,12 +341,18 @@ def run_chained_eval(**kwargs: Any) -> dict[str, Any]:
     sorter = run_sorter_eval(**kwargs)
     extract_kwargs = {k: v for k, v in kwargs.items() if k != "experiment_name"}
     extract = run_extract_eval(**extract_kwargs)
-    composite = 0.25 * float(sorter.get("scores", {}).get("exact_match") or 0) + 0.75 * float(
-        extract.get("scores", {}).get("overall_extraction_score") or 0
-    )
+    sorter_exact = sorter.get("scores", {}).get("exact_match")
+    extract_overall = extract.get("scores", {}).get("overall_extraction_score")
+    if sorter_exact is None or extract_overall is None:
+        raise RuntimeError(
+            "chained eval: composite score cannot be derived — sorter "
+            f"exact_match={sorter_exact!r}, extractor overall={extract_overall!r}; "
+            "a 0-sentinel composite would silently hide the failed half"
+        )
+    composite = 0.25 * float(sorter_exact) + 0.75 * float(extract_overall)
     scores = {
-        "sorter_exact": sorter.get("scores", {}).get("exact_match"),
-        "extractor_overall": extract.get("scores", {}).get("overall_extraction_score"),
+        "sorter_exact": sorter_exact,
+        "extractor_overall": extract_overall,
         "chained_composite": composite,
     }
     return {"task": "chained", "scores": scores, "sorter": sorter, "extract": extract}
@@ -610,7 +632,16 @@ def run_pipeline_eval(
     for row in rows:
         results.append(_run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name))
     expected = [r["expected_doc_class"] for r in rows]
-    predicted = [r.get("doc_type") or "unknown" for r in results]
+    predicted: list[str] = []
+    for row, result in zip(rows, results):
+        doc_type = result.get("doc_type")
+        if not mock and not doc_type:
+            raise RuntimeError(
+                f"live pipeline returned no doc_type for row "
+                f"{row.get('id') or row.get('filename') or '?'} — refusing to "
+                f"score a dead live path as 'unknown'"
+            )
+        predicted.append(doc_type or "unknown")
     class_scores = scoring.score_classification(expected, predicted)
     stage_expected = [str(r.get("expected_stage") or "archived") for r in rows]
     stage_predicted = [str(r.get("stage") or "unknown") for r in results]
@@ -688,7 +719,13 @@ def _langchain_mock_patches(expect: dict[str, Any]) -> list:
     try:
         import langchain_agents.base_agent as lc_base
         from langchain_agents.mock import FakeLangChainLLM, user_text_from_messages
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "langchain_agents mock surface unavailable — a --mock run against the "
+            "vendored langchain stack may proceed WITHOUT its LLM patches (the "
+            "agent would attempt a real provider call)",
+            exc_info=exc,
+        )
         return []
 
     class _SandboxFakeLLM(FakeLangChainLLM):
@@ -882,24 +919,3 @@ def _live_legalbench_answer(row: dict[str, Any], *, model: str | None) -> str:
         return str(json.loads(raw).get("answer") or raw).strip()
     except json.JSONDecodeError:
         return raw.strip()
-
-
-def hf_rows_as_manifest() -> list[dict[str, str]]:
-    rows = []
-    for item in load_hf_fixtures():
-        rows.append(
-            {
-                "id": str(item.get("id") or item.get("filename") or item.get("doc_type")),
-                "subdir": "hf",
-                "filename": str(item.get("filename") or f"{item.get('doc_type')}.txt"),
-                "expected_doc_class": str(item.get("doc_type") or item.get("expected_hf_class") or "unknown"),
-                # mailroom-dataset ground-truth alignment: subclass + entity
-                # targets ride through so specialist/judge/reporter evals
-                # score against the corpus GT schema, not ad-hoc keys.
-                "expected_subclass": str(item.get("expected_subclass") or ""),
-                "expected_fields": item.get("expected_fields") or {},
-                "expected_stage": "archived",
-                "text": str(item.get("text") or ""),
-            }
-        )
-    return rows

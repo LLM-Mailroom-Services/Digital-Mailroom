@@ -17,6 +17,12 @@ log = logs/eval_$(Cluster)_$(Process).log
 output = logs/eval_$(Cluster)_$(Process).out
 error = logs/eval_$(Cluster)_$(Process).err
 
+# DMR-061: HTCondor defaults to notification = Never — a held/failed job was
+# only visible by polling condor_q. Opt into error mail (delivered to the
+# submitting account's system mail; adapt the mail-forwarding hook per site —
+# without mail the .log still records the failure loudly).
+notification = Error
+
 executable = run_batch_eval.sh
 transfer_input_files = mailroom-sandbox.tar.gz, env-mailroom-sandbox.tar.gz
 # results/ carries the experiment log + scorecards back to the access point

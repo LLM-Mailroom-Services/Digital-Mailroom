@@ -11,6 +11,7 @@ and nest the one relevant observation so a partial conveyor is plottable.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -18,6 +19,28 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from mailroom_sandbox.paths import data_dir
+
+_log = logging.getLogger("mailroom_sandbox.tracing")
+
+_TRACING_WARNED: set[str] = set()
+_SCORE_EMIT_FAILURES = 0
+_FLUSH_FAILURES = 0
+_VENDOR_DEGRADED = False
+
+
+def _warn_once(key: str, message: str, exc: BaseException | None = None) -> None:
+    if key not in _TRACING_WARNED:
+        _TRACING_WARNED.add(key)
+        _log.warning("%s", message, exc_info=exc)
+
+
+def tracing_failure_counts() -> dict[str, int]:
+    """Live-or-loud seam: tests assert no tracing degradation went silent."""
+    return {
+        "score_emit_failures": _SCORE_EMIT_FAILURES,
+        "flush_failures": _FLUSH_FAILURES,
+        "vendor_degraded": 1 if _VENDOR_DEGRADED else 0,
+    }
 
 try:
     from llm_dojo_scoring.mailroom import (
@@ -28,7 +51,14 @@ try:
         langfuse_score_name,
         observation_type_for,
     )
-except Exception:  # pragma: no cover — dojo pin always ships this module
+except Exception as exc:  # pragma: no cover — dojo pin always ships this module
+    _VENDOR_DEGRADED = True
+    _warn_once(
+        "dojo-constants-fallback",
+        "llm-dojo-scoring tracing constants unavailable — using local constants; "
+        "scores may be aliased differently than the pinned v0.15.0 surface",
+        exc,
+    )
     PIPELINE_TRACE = "document-pipeline"
     GROUND_TRUTH_KEYS = (
         "expected_hf_class",
@@ -155,7 +185,13 @@ def _mailroom_setup():
         from observability import langfuse_setup  # type: ignore
 
         return langfuse_setup
-    except Exception:
+    except Exception as exc:
+        _warn_once(
+            "mailroom-setup-unavailable",
+            "mailroom observability.langfuse_setup unavailable — tracing degrades "
+            "to the SDK/no-op path",
+            exc,
+        )
         return None
 
 
@@ -168,7 +204,13 @@ def _sdk_client():
         from langfuse import Langfuse
 
         return Langfuse()
-    except Exception:
+    except Exception as exc:
+        _warn_once(
+            "langfuse-sdk-unavailable",
+            "Langfuse SDK unavailable — tracing is a silent no-op for this run "
+            "(OBSERVABILITY_PROVIDER is not none, so a sink was expected)",
+            exc,
+        )
         return None
 
 
@@ -216,15 +258,25 @@ def document_pipeline_trace(
         return
     try:
         from langfuse import propagate_attributes
-    except Exception:
+    except Exception as exc:
+        _warn_once(
+            "propagate-attributes-unavailable",
+            "langfuse.propagate_attributes unavailable — trace attributes "
+            "(session/tags/env) will NOT propagate; run traces without them",
+            exc,
+        )
         yield _NoopSpan()
         return
     trace_context = None
     if seed:
         try:
             trace_context = {"trace_id": client.create_trace_id(seed=str(seed))}
-        except Exception:
-            trace_context = None
+        except Exception as exc:
+            _warn_once(
+                "seed-trace-context-failed",
+                "seed trace_context could not be created — trace_id seeding skipped",
+                exc,
+            )
     attrs = {
         "session_id": session_id,
         "trace_name": name,
@@ -282,6 +334,7 @@ def emit_langfuse_score(
     data_type: str | None = None,
 ) -> None:
     """Attach a SCORE_CONFIGS-compatible score to the current trace."""
+    global _SCORE_EMIT_FAILURES
     wire = langfuse_score_name(name)
     setup = _mailroom_setup()
     if setup is not None:
@@ -290,8 +343,12 @@ def emit_langfuse_score(
 
             mailroom_scores.score(wire, value, comment=comment, data_type=data_type)
             return
-        except Exception:
-            pass
+        except Exception as exc:
+            _warn_once(
+                "mailroom-score-path-failed",
+                "mailroom score path failed for %r — falling back to Langfuse SDK",
+                exc,
+            )
     client = _sdk_client()
     if client is None:
         return
@@ -305,23 +362,40 @@ def emit_langfuse_score(
     except Exception:
         try:
             client.create_score(name=wire, value=value)
-        except Exception:
-            return
+        except Exception as exc:
+            global _SCORE_EMIT_FAILURES
+            _SCORE_EMIT_FAILURES += 1
+            _log.error(
+                "Langfuse score %r=%r could not be emitted (SDK path AND "
+                "create_score fallback both failed) — score is LOST",
+                wire,
+                value,
+                exc_info=exc,
+            )
 
 
 def flush_traces() -> None:
+    global _FLUSH_FAILURES
     setup = _mailroom_setup()
     if setup is not None and hasattr(setup, "flush_langfuse"):
         try:
             setup.flush_langfuse()
-        except Exception:
-            pass
+        except Exception as exc:
+            _FLUSH_FAILURES += 1
+            _log.error(
+                "mailroom flush_langfuse failed — buffered traces may be lost",
+                exc_info=exc,
+            )
     client = _sdk_client()
     if client is not None:
         try:
             client.flush()
-        except Exception:
-            pass
+        except Exception as exc:
+            _FLUSH_FAILURES += 1
+            _log.error(
+                "Langfuse SDK flush failed — buffered traces may be lost",
+                exc_info=exc,
+            )
 
 
 def export_traces(dest: Path | None = None) -> Path:

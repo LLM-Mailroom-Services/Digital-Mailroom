@@ -387,7 +387,19 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
     if getattr(args, "visualizer", False):
         dest = vendor_dir() / "The-Mailroom"
         if dest.is_dir() and (dest / ".git").exists():
-            subprocess.run(["git", "-C", str(dest), "pull", "--ff-only"], check=False)
+            pull = subprocess.run(
+                ["git", "-C", str(dest), "pull", "--ff-only"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if pull.returncode != 0:
+                print(
+                    f"!! visualizer refresh (git pull --ff-only) failed: "
+                    f"{pull.stderr.strip() or pull.stdout.strip()}",
+                    file=sys.stderr,
+                )
+                rc = rc or 1
         else:
             rc = rc or subprocess.run(
                 ["git", "clone", "--depth", "1", "https://github.com/Exios66/The-Mailroom.git", str(dest)]
@@ -463,12 +475,21 @@ def _refresh_vendor(name: str, tag: str, url: str) -> int:
     # package at the clone root and gets normalized under src/ (DMR-058).
     dest_src = dest / "src" / package_src.name if package_src.name != "src" else dest / "src"
     shutil.copytree(package_src, dest_src, ignore=shutil.ignore_patterns("tests", "__pycache__", "*.pyc"))
-    head = subprocess.run(
+    head_proc = subprocess.run(
         ["git", "-C", str(work), "rev-parse", "HEAD"],
         capture_output=True,
         text=True,
         check=False,
-    ).stdout.strip()
+    )
+    if head_proc.returncode != 0:
+        head = "unknown"
+        print(
+            f"!! could not read the refreshed {name} commit: "
+            f"{head_proc.stderr.strip() or head_proc.stdout.strip()}",
+            file=sys.stderr,
+        )
+    else:
+        head = head_proc.stdout.strip()
     shutil.rmtree(work, ignore_errors=True)
     print(f"== refreshed vendor/{name} @ {tag} (commit {head[:12]}) — commit the diff")
     return 0
@@ -1157,6 +1178,14 @@ def _cmd_metrics_compare(args) -> int:
             raise SystemExit("metrics compare needs --runs a,b,c")
         for run_id in run_ids:
             store = RunStore(run_dir(run_id))
+            if not store.lock_path.is_file():
+                print(
+                    f"error: run {run_id!r} has no lock file at {store.lock_path} — "
+                    f"nothing was preflighted for it; refusing to compare a "
+                    f"garbage '?' record",
+                    file=sys.stderr,
+                )
+                return 1
             lock = store.read_lock() or {}
             items = store.load_items()
             rec = metrics.record_from_run(

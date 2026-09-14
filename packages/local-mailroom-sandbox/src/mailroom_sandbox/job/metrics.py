@@ -8,10 +8,15 @@ throughput, tokens, cost efficiency, and total cost. Reuses
 
 from __future__ import annotations
 
+import logging
 import statistics
 from typing import Any, Mapping, Sequence
 
 from llm_dojo_scoring.serving import compare_serving, estimate_cost
+
+_log = logging.getLogger("mailroom_sandbox.job.metrics")
+
+_COST_WARNED = False
 
 MODAL_PROFILES = ("modal-vllm",)
 LOCAL_PROFILES = ("ollama", "vllm-local", "vllm-remote", "llamacpp", "lmstudio")
@@ -40,8 +45,17 @@ def _estimate_cost(
         cost = estimate_cost(prompt_tokens, completion_tokens, model)
         if cost is not None:
             return float(cost)
-    except Exception:
-        pass
+    except Exception as exc:
+        global _COST_WARNED
+        if not _COST_WARNED:
+            _COST_WARNED = True
+            _log.warning(
+                "dojo estimate_cost raised for model %r — fell back to the "
+                "sandbox champion-price table; a broken dojo cost fn would "
+                "otherwise look like 'no price known'",
+                model,
+                exc_info=exc,
+            )
     if not model:
         return None
     prices = SANDBOX_MODEL_PRICES.get(model)
@@ -132,8 +146,13 @@ def record_from_run(
         cost = _estimate_cost(prompt_tokens, completion_tokens, model)
         if cost is not None:
             rec["estimated_cost_usd"] = float(cost)
-    except Exception:
-        pass
+    except Exception as exc:
+        _log.warning(
+            "cost estimation for run %r failed outright (inner function "
+            "covered) — estimated_cost_usd will be ABSENT from the record: %s",
+            run_id,
+            exc,
+        )
     return {k: v for k, v in rec.items() if v is not None}
 
 

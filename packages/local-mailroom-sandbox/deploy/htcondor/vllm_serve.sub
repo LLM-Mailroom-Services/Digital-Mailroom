@@ -16,6 +16,11 @@ log = logs/serve_$(Cluster).log
 output = logs/serve_$(Cluster).out
 error = logs/serve_$(Cluster).err
 
+# DMR-061: HTCondor defaults to notification = Never — a held/failed job was
+# only visible by polling condor_q. Opt into error mail (delivered to the
+# submitting account's system mail; adapt the mail-forwarding hook per site).
+notification = Error
+
 executable = serve_vllm.sh
 should_transfer_files = YES
 when_to_transfer_output = ON_EXIT_OR_GRACEFUL_REMOVAL

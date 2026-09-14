@@ -2,7 +2,7 @@
 
 install:
 	pip install -e ".[dev,notebooks]"
-	cp -n config/.env.example .env || true
+	@if [ ! -f .env ]; then cp config/.env.example .env; else echo "(.env already exists — left untouched)"; fi
 
 test:
 	pytest -v

@@ -5,10 +5,13 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 from mailroom_sandbox.paths import fixtures_dir, repo_root
+
+_log = logging.getLogger("mailroom_sandbox.datasets")
 
 MANIFEST_NAME = "manifest.csv"
 HF_DATASET = "Lucius-Morningstar/mailroom-dataset"
@@ -36,9 +39,16 @@ def parse_expected_fields(row: dict[str, str]) -> dict | None:
     if not raw:
         return None
     try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        return None
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        # Corrupt GT must never be scored as empty expectations (the `.or {}`
+        # callers would silently turn it into a 0-field match).
+        raise ValueError(
+            f"row {row.get('id') or row.get('filename') or '?'} has malformed "
+            f"expected_fields JSON: {raw[:120]!r} — refusing to score corrupt "
+            "ground truth as empty"
+        ) from exc
+    return parsed if isinstance(parsed, dict) else None
 
 
 def dataset_fingerprint(rows: list[dict[str, str]]) -> str:
@@ -68,6 +78,12 @@ def load_hf_fixtures() -> list[dict[str, Any]]:
     path = fixtures_dir() / "hf" / "docclass_mini.jsonl"
     rows = []
     if not path.is_file():
+        _log.warning(
+            "HF fixture file missing: %s — eval rows will be EMPTY; the CLI "
+            "refuses empty pulls, but runner callers do not. Restore the file "
+            "or run with the corpus path.",
+            path,
+        )
         return rows
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.strip():
@@ -182,6 +198,11 @@ def load_serving_fixtures() -> dict[str, Any]:
     """Synthetic local vs API serving records (no live LLM, no API key)."""
     path = serving_fixture_path()
     if not path.is_file():
+        _log.warning(
+            "serving fixture missing: %s — local_vs_api will compare EMPTY "
+            "records and print a headline scorecard that means nothing",
+            path,
+        )
         return {}
     payload = json.loads(path.read_text(encoding="utf-8"))
     return payload if isinstance(payload, dict) else {}

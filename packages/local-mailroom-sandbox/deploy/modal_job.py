@@ -243,12 +243,19 @@ def run_job(payload: dict) -> dict:
         try:
             state_dict.put(run_id, failed)
             runs_volume.commit()
-        except Exception as exc:  # noqa: BLE001 — hub#41: loud, never silent
+        except Exception as exc:  # noqa: BLE001 — hub#41: a terminal state the CLI can never see
             logger.error(
                 "terminal state write failed (worker exit will not be observed by the CLI): %s",
                 exc,
                 exc_info=True,
             )
+            flush_tracer(tracer)
+            raise RuntimeError(
+                f"terminal FAILURE state for run {run_id} could not be published "
+                f"to the {STATE_DICT} Dict — `sandbox run watch/status` would "
+                f"stall forever. Underlying failure: "
+                f"{type(exc).__name__}: {str(exc)[:256]}"
+            ) from exc
         flush_tracer(tracer)
         return failed
 
@@ -284,4 +291,4 @@ def main(debug: bool = False) -> None:
         print(f"  sandbox root: {SANDBOX_ROOT} (config/ + data/fixtures bundled)")
         print(f"  secret keys: {list(_DEPLOY_ENV_KEYS)}")
         print(f"  volume commit cadence: every {COMMIT_EVERY_EVENTS} progress events")
-        print("  vendored family: vendor/llm-mailroom@v0.7.1 + vendor/llm-dojo-scoring@v0.14.0 (bundled, DMR-057)")
+        print("  vendored family: vendor/llm-mailroom@v0.7.1 + vendor/llm-dojo-scoring@v0.15.0 (bundled, DMR-057)")

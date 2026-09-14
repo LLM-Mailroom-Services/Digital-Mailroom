@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import subprocess
@@ -9,6 +10,8 @@ from pathlib import Path
 
 from mailroom_sandbox.overlay import load_profile
 from mailroom_sandbox.paths import deploy_dir, repo_root
+
+_log = logging.getLogger("mailroom_sandbox.compose")
 
 COMPOSE_FILE = "docker-compose.yml"
 VALID_PROFILES = ("phoenix", "ollama", "vllm", "llamacpp", "langfuse", "jupyter")
@@ -62,6 +65,7 @@ def pull_ollama_models(models: list[str]) -> int:
             [docker, "inspect", "-f", "{{.State.Running}}", "sandbox-ollama"],
             capture_output=True,
             text=True,
+            check=False,
         )
         if inspect.returncode == 0 and inspect.stdout.strip() == "true":
             rc = 0
@@ -69,6 +73,15 @@ def pull_ollama_models(models: list[str]) -> int:
                 result = subprocess.run([docker, "exec", "sandbox-ollama", "ollama", "pull", model])
                 rc = rc or result.returncode
             return rc
+        _log.warning(
+            "docker inspect on sandbox-ollama failed (rc=%d, stderr=%s) or the "
+            "container is not running (stdout=%r) — falling back to host "
+            "`ollama`, which may serve a DIFFERENT model set than the compose "
+            "stack",
+            inspect.returncode,
+            inspect.stderr.strip()[:200],
+            inspect.stdout.strip(),
+        )
     ollama = shutil.which("ollama")
     if not ollama:
         raise FileNotFoundError("Neither sandbox-ollama container nor host `ollama` is available.")

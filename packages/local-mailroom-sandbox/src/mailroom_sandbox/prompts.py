@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from mailroom_sandbox.paths import prompts_dir
+
+_log = logging.getLogger("mailroom_sandbox.prompts")
 
 
 def list_variants() -> list[str]:
@@ -27,7 +30,13 @@ def patch_managed_prompt(variant: str) -> bool:
     text = load_variant(variant)
     try:
         import llm.prompts as prompts  # type: ignore
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "prompt variant %r: llm.prompts could not be imported — the "
+            "variant will NOT apply and runs silently use code-default prompts",
+            variant,
+            exc_info=exc,
+        )
         return False
 
     original = prompts.get_managed_prompt

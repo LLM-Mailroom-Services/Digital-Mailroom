@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -26,6 +27,16 @@ from llm_dojo_scoring.extraction_metrics import extraction_binary_metrics
 from llm_dojo_scoring.serving import CANONICAL_SERVING_KEYS, pair_comparable_runs
 
 from mailroom_sandbox.paths import reports_dir
+
+_log = logging.getLogger("mailroom_sandbox.eval.scoring")
+
+_SCORING_WARNED: set[str] = set()
+
+
+def _warn_once(key: str, message: str, exc: BaseException | None = None) -> None:
+    if key not in _SCORING_WARNED:
+        _SCORING_WARNED.add(key)
+        _log.warning("%s", message, exc_info=exc)
 
 # Sorter T0 stays accuracy + f1_macro; serving T0 is local_vs_api only.
 _CLASS_MACRO_KEYS = ("f1_macro", "precision_macro", "recall_macro", "f2_macro")
@@ -54,7 +65,15 @@ def score_classification(expected: list[str], predicted: list[str]) -> dict[str,
     matches = [exact_match(p, e) for p, e in zip(predicted, expected)]
     ci = bootstrap_ci(matches) if matches else {}
     task = get_suite("sorter").score(expected, predicted)
+    task_source = "sorter-suite"
     if not isinstance(task, dict):
+        task_source = "score_task-docclass"
+        _warn_once(
+            "sorter-suite-non-dict",
+            "get_suite('sorter').score returned a non-dict — fell back to "
+            "score_task('docclass'); macro fields (f1/recall/precision) may be "
+            "absent from the payload for this run",
+        )
         task = score_task("docclass", expected, predicted)
     payload: dict[str, Any] = {
         "exact_match": acc,
@@ -62,6 +81,7 @@ def score_classification(expected: list[str], predicted: list[str]) -> dict[str,
         "exact_match_ci": ci,
         "n": len(expected),
         "task": task,
+        "task_source": task_source,
     }
     for key in _CLASS_MACRO_KEYS:
         if key in task:
@@ -75,10 +95,19 @@ def score_extraction_row(
     expected: dict,
     doc_text: str | None = None,
 ) -> dict[str, Any]:
+    scoring_method = "suite"
     try:
         suite = suite_for_doc_type(doc_type)
         field_types = getattr(suite, "field_types", None) or {}
-    except Exception:
+    except Exception as exc:
+        scoring_method = "generic"
+        _warn_once(
+            f"suite-unavailable-{doc_type}",
+            f"suite_for_doc_type({doc_type!r}) failed — scoring switched to the "
+            "GENERIC extraction path; a suite-side defect would hide as a "
+            "different score on this doc type",
+            exc,
+        )
         field_types = {}
         suite = None
     predicted = predicted or {}
@@ -86,7 +115,15 @@ def score_extraction_row(
     if suite is not None:
         try:
             result = suite.score(expected, predicted, doc_text=doc_text)
-        except Exception:
+        except Exception as exc:
+            scoring_method = "suite-fallback-generic"
+            _warn_once(
+                f"suite-score-failed-{doc_type}",
+                f"suite.score({doc_type!r}) RAISED — fell back to generic "
+                "score_extraction; record carries scoring_method="
+                "'suite-fallback-generic' so the methodology swap is visible",
+                exc,
+            )
             result = score_extraction(
                 doc_type, field_types, predicted, expected, doc_text=doc_text
             )
@@ -99,7 +136,11 @@ def score_extraction_row(
         overall = result.get("overall_score")
         if overall is None:
             overall = result.get("extraction_overall_score")
-    payload: dict[str, Any] = {"overall_extraction_score": overall, "doc_type": doc_type}
+    payload: dict[str, Any] = {
+        "overall_extraction_score": overall,
+        "doc_type": doc_type,
+        "scoring_method": scoring_method,
+    }
     if hasattr(result, "__dict__"):
         payload["fields"] = {
             k: v for k, v in vars(result).items() if k != "field_scores" and not k.startswith("_")
@@ -113,7 +154,13 @@ def score_extraction_row(
                 result=result,
                 doc_text=doc_text,
             )
-        except Exception:
+        except Exception as exc:
+            _warn_once(
+                f"prf-failed-{doc_type}",
+                f"extraction_binary_metrics({doc_type!r}) failed — extraction "
+                "PRF fields are DROPPED from the payload for this row",
+                exc,
+            )
             prf = {}
         for key in _EXTRACT_PRF_KEYS:
             if key in prf and prf[key] is not None:

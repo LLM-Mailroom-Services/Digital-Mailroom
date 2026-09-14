@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 from datetime import datetime, timezone
@@ -14,6 +15,8 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from mailroom_sandbox.paths import data_dir
+
+_log = logging.getLogger("mailroom_sandbox.job.spec")
 
 FAMILY_HF_REVISION = "46a4d3c240a36671cde0182fff4960f6b8b73aca"  # v9 mailroom-dataset tip (GT-closure revision, epic #27)
 HF_DEFAULT_REPO = "Lucius-Morningstar/mailroom-dataset"
@@ -254,7 +257,12 @@ def known_tasks() -> tuple[str, ...]:
         from mailroom_sandbox.eval.agents import SPECS
 
         agents = tuple(n for n in SPECS if n not in ("sorter", "legalbench"))
-    except Exception:  # pragma: no cover — defensive for partial tooling imports
+    except Exception as exc:  # pragma: no cover — defensive for partial tooling imports
+        _log.warning(
+            "eval.agents.SPECS unavailable — agent-registered tasks are NOT in the "
+            "known-task list; 'unknown task' errors below would misattribute this",
+            exc_info=exc,
+        )
         agents = ()
     return base + agents
 
@@ -423,27 +431,44 @@ def engine_probe_base(profile: str) -> str | None:
 
     try:
         prof = load_profile(profile)
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "engine probe: profile %r could not be loaded — probing against "
+            "the localhost default instead of raising",
+            profile,
+            exc_info=exc,
+        )
         return None
     return prof.get("base_url") or None
 
 
 def engine_base_url(spec: RunSpec, *, profile: str | None = None) -> str:
-    """Resolve the engine base_url: VLLM_BASE_URL, profile default, or profile gateway."""
+    """Resolve the engine base_url: VLLM_BASE_URL, profile default, or profile gateway.
+
+    A profile name that cannot be loaded is a config error and RAISES
+    (load_profile names the profile + available list) — a typo'd profile must
+    never silently resolve to localhost.
+    """
     env_base = os.environ.get("VLLM_BASE_URL", "").strip().rstrip("/")
     if env_base:
         return env_base
     prof = profile or spec.profile
     from mailroom_sandbox.overlay import load_profile
 
-    try:
-        base = load_profile(prof).get("base_url") or ""
-    except Exception:
-        base = ""
+    profile_data = load_profile(prof)  # raises FileNotFoundError naming profile + available
+    base = profile_data.get("base_url") or ""
     if base:
         return str(base).rstrip("/")
     if spec.engine.kind == "modal-vllm":
-        return f"https://{os.environ.get('MODAL_WORKSPACE', '<workspace>')}--{spec.engine.modal.app}-serve.modal.run"
+        workspace = os.environ.get("MODAL_WORKSPACE")
+        if not workspace:
+            raise ValueError(
+                "MODAL_WORKSPACE is not set but the engine kind is 'modal-vllm' — "
+                "cannot resolve the Modal gateway URL without it. Set "
+                "MODAL_WORKSPACE=<your-workspace> or VLLM_BASE_URL, or fix the "
+                "run spec's engine.kind."
+            )
+        return f"https://{workspace}--{spec.engine.modal.app}-serve.modal.run"
     return "http://localhost:8000"
 
 

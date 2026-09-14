@@ -7,6 +7,7 @@ The 13-node graph is not duplicated here.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -21,6 +22,8 @@ from mailroom_sandbox.datasets import (
 from mailroom_sandbox.eval import scoring
 from mailroom_sandbox.eval.tracing import observation_type_for
 from mailroom_sandbox.paths import fixtures_dir
+
+_log = logging.getLogger("mailroom_sandbox.eval.agents")
 
 SPECIALIST_CLASS = {
     "contracts_specialist": "contract",
@@ -68,7 +71,9 @@ def _doc_text(row: dict[str, Any]) -> str:
             return str(value)
     try:
         path = fixture_file(row)
-    except Exception:
+    except KeyError:
+        # Prepared corpus rows have no subdir/filename keys — the loud raise
+        # below carries the honest cause instead of a KeyError.
         path = None
     if path is not None and path.is_file():
         return path.read_text(encoding="utf-8")
@@ -244,11 +249,21 @@ def _live_intake(row: dict[str, Any]) -> dict[str, Any]:
 
         cleaned, stats = apply_intake(str(row.get("text") or ""), filename=str(row.get("id")))
         return {"text": cleaned, **(stats or {})}
-    except Exception:
+    except Exception as exc:
+        # A live intake failure must never masquerade as a real prediction:
+        # fall back to the deterministic normalizer, but label the row so
+        # provenance is honest (offline_fallback=True) and say so out loud.
+        _log.warning(
+            "agents.intake.apply_intake failed for row %r — falling back to "
+            "llm_dojo_scoring.intake.deterministic_normalize (row marked "
+            "offline_fallback=True)",
+            row.get("id"),
+            exc_info=exc,
+        )
         from llm_dojo_scoring.intake import deterministic_normalize
 
         cleaned, stats = deterministic_normalize(str(row.get("text") or ""))
-        return {"text": cleaned, **(stats or {})}
+        return {"text": cleaned, **(stats or {}), "offline_fallback": True}
 
 
 def _score_class(row: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:

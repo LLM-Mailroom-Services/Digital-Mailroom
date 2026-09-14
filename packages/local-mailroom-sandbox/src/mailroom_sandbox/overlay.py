@@ -8,6 +8,7 @@ provider/model for the active profile, writes the result under
 
 from __future__ import annotations
 
+import logging
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,10 @@ from typing import Any
 import yaml
 
 from mailroom_sandbox.paths import config_dir, profiles_dir, runtime_dir
+
+_log = logging.getLogger("mailroom_sandbox.overlay")
+
+_MAP_WARNED: set[str] = set()
 
 
 def deep_merge(base: Any, overlay: Any) -> Any:
@@ -66,8 +71,13 @@ def mailroom_taxonomy_path() -> Path:
         packaged = Path(cfg.CONFIG_PATH)
         if packaged.is_file():
             return packaged
-    except Exception:
-        pass
+    except Exception as exc:
+        _log.warning(
+            "installed mailroom pipeline.config could not be read — falling back "
+            "to the vendored base taxonomy (an install-broken family import would "
+            "otherwise silently change what this run uses)",
+            exc_info=exc,
+        )
     vendored = config_dir() / "mailroom.taxonomy.base.yaml"
     if vendored.is_file():
         return vendored
@@ -86,6 +96,16 @@ def map_model(openrouter_id: str, serving: str, model_map: dict | None = None) -
     defaults = model_map.get("defaults") or {}
     if serving in defaults:
         return str(defaults[serving])
+    key = f"{openrouter_id}/{serving}"
+    if key not in _MAP_WARNED:
+        _MAP_WARNED.add(key)
+        _log.warning(
+            "model id %r has no models.yaml map entry for serving family %r — "
+            "passing the id through unchanged; a foreign id will 404 at the "
+            "provider (add a row to config/models.yaml)",
+            openrouter_id,
+            serving,
+        )
     return openrouter_id
 
 
@@ -217,7 +237,14 @@ def patch_mailroom_config(taxonomy_path: Path) -> bool:
     """Point mailroom's cached config loader at the sandbox runtime YAML."""
     try:
         import pipeline.config as cfg  # type: ignore
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "mailroom pipeline.config could not be imported — the runtime "
+            "taxonomy at %s will NOT be patched; mailroom may run its own "
+            "hardcoded taxonomy. This is a vendoring/install defect.",
+            taxonomy_path,
+            exc_info=exc,
+        )
         return False
     cfg.CONFIG_PATH = Path(taxonomy_path)
     cache_clear = getattr(cfg.load_config, "cache_clear", None)

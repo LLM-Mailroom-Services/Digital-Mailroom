@@ -9,6 +9,7 @@ existing public eval runner at whole-run granularity.
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any, Callable
 
@@ -17,6 +18,8 @@ from mailroom_sandbox.eval import runners as eval_runners  # noqa: F401
 from mailroom_sandbox.job.checkpoint import RunStore, utc_now
 from mailroom_sandbox.job.metrics import record_from_run
 from mailroom_sandbox.job.otel import job_span
+
+_log = logging.getLogger("mailroom_sandbox.job.runner")
 
 PER_ITEM_TASKS = ("sorter", "legalbench")
 _WHOLE_RUN_TASKS = ("pipeline", "extract", "chained", "local_vs_api", "isolated")
@@ -32,7 +35,13 @@ try:
     from mailroom_sandbox.eval.agents import SPECS as _AGENT_SPECS
 
     ISOLATED_AGENT_TASKS = tuple(name for name in _AGENT_SPECS if name not in PER_ITEM_TASKS)
-except Exception:  # pragma: no cover — import fallback for isolated tooling
+except Exception as exc:  # pragma: no cover — import fallback for isolated tooling
+    _log.warning(
+        "eval.agents.SPECS unavailable — agent-registered whole-run tasks are "
+        "NOT runnable this session; 'unknown task' errors below would "
+        "misattribute the root cause",
+        exc_info=exc,
+    )
     ISOLATED_AGENT_TASKS = ()
 
 RUNNABLE_TASKS = PER_ITEM_TASKS + _WHOLE_RUN_TASKS + ISOLATED_AGENT_TASKS
@@ -69,7 +78,14 @@ def _predict_row(
         if mock:
             return eval_runners._classify_mock(row), True
         result = eval_runners._run_pipeline_doc(row, mock=False, run_id=run_id)
-        return (result.get("doc_type") or "unknown"), True
+        doc_type = result.get("doc_type")
+        if not doc_type:
+            raise RuntimeError(
+                f"live pipeline returned no doc_type for row "
+                f"{row.get('id') or row.get('filename') or '?'} — refusing to "
+                f"score a dead live path as 'unknown' (recorded ok=True would lie)"
+            )
+        return doc_type, True
     if task == "legalbench":
         if mock:
             return eval_runners._mock_legalbench_answer(row), True
@@ -151,7 +167,16 @@ def _run_whole_run(
     # DMR-056: whole-run tasks score the LOCKED live dataset when the run spec
     # prepared one (Hub/local); an empty lock falls back to the runners'
     # fixture defaults (serving-only specs like local_vs_api stay fixture-based).
-    locked_rows = store.dataset_rows() or None
+    # A lock whose dataset.jsonl EXISTS but holds 0 rows is a prep defect —
+    # refuse instead of silently scoring fixtures under the locked-dataset claim.
+    locked_rows = store.dataset_rows()
+    if not locked_rows and store.dataset_path.is_file():
+        raise RuntimeError(
+            f"locked dataset {store.dataset_path} exists but holds 0 rows — "
+            f"refusing to score fixture rows while claiming the locked dataset; "
+            f"re-run `sandbox datasets pull/prepare` with a nonzero limit"
+        )
+    locked_rows = locked_rows or None
     try:
         if task == "pipeline":
             result = eval_runners.run_pipeline_eval(connected=True, rows=locked_rows, **kwargs)
@@ -474,8 +499,12 @@ def run_job(
         if on_event is not None:
             try:
                 on_event({"cursor": done_count, "total": total, "ok": ok_count, "errors": error_count, "state": "running"})
-            except Exception:
-                pass
+            except Exception as exc:
+                _log.warning(
+                    "on_event callback raised — a `--watch` consumer may silently "
+                    "stop updating while the run continues: %s",
+                    exc,
+                )
         return ok
 
     def _fail_fast_failed():

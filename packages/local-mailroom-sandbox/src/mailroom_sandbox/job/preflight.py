@@ -93,8 +93,14 @@ def _probe_engine(spec: RunSpec) -> dict[str, Any]:
         return {"ok": False, "reason": f"HTTP {resp.status_code} from /v1/models", **detail}
     try:
         ids = [str(m.get("id")) for m in (resp.json().get("data") or []) if isinstance(m, dict)]
-    except Exception:
-        ids = []
+    except Exception as exc:
+        return {
+            "ok": False,
+            "reason": f"/v1/models returned unparseable JSON (not a models payload): "
+            f"{type(exc).__name__}: {str(resp.text)[:160]!r} — the endpoint may be "
+            f"answering the wrong API",
+            **detail,
+        }
     detail["served_models"] = ids
     if spec.engine.model not in ids:
         return {"ok": False, "reason": f"served {sorted(ids)} lacks spec.model={spec.engine.model}", **detail}

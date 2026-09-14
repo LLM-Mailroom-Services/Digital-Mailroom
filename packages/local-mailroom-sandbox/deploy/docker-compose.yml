@@ -143,6 +143,26 @@ services:
       - --tensor-parallel-size
       - ${VLLM_TP_SIZE:-1}
       - --no-enable-log-requests
+    # DMR-061: `docker compose ps` reports unhealthy instead of relying on the
+    # CLI probe alone. Python-stdlib bearer-aware /v1/models check (the vllm
+    # image carries python; urllib needs no curl). Start period allows the
+    # cold-start weight download + CUDA-graph build.
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - >-
+          import os, urllib.request;
+          req = urllib.request.Request(
+          "http://127.0.0.1:8000/v1/models",
+          headers={"Authorization": "Bearer " + os.environ["VLLM_API_KEY"]}
+          if os.environ.get("VLLM_API_KEY") else {});
+          raise SystemExit(0 if urllib.request.urlopen(req, timeout=5).status == 200 else 1)
+      interval: 30s
+      timeout: 10s
+      start_period: 180s
+      retries: 6
     ipc: host
     # vLLM needs a real GPU. Requires the NVIDIA container toolkit on the host
     # (Docker Desktop with GPU support / Linux with nvidia-container-runtime).

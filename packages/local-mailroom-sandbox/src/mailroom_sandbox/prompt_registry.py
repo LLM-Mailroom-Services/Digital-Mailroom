@@ -71,8 +71,12 @@ def agent_prompt_names() -> list[str]:
         import llm.prompts as prompts  # type: ignore
 
         names.update(prompts.prompt_templates())
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001 — live-or-loud (hub#40)
+        logger.warning(
+            "vendored llm.prompts not importable; agent surface degraded to "
+            "the static roster (%s agents): %s",
+            len(names), exc,
+        )
     return sorted(names)
 
 
@@ -228,8 +232,11 @@ def apply_runtime_overrides(resolved_texts: dict[str, str]) -> list[str]:
                 patched.append(agent)
         for agent in patched:
             remainder.pop(agent, None)
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001 — live-or-loud (hub#40)
+        logger.warning(
+            "prompt overrides not applied for %s (family B import failed): %s",
+            sorted(remainder), exc,
+        )
 
     if remainder:
         try:
@@ -250,6 +257,9 @@ def apply_runtime_overrides(resolved_texts: dict[str, str]) -> list[str]:
 
             prompts.get_managed_prompt = _lookup  # type: ignore[assignment]
             patched.extend(sorted(remainder))
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 — live-or-loud (hub#40)
+            logger.warning(
+                "prompt overrides not applied for %s (family A import failed): %s",
+                sorted(remainder), exc,
+            )
     return patched

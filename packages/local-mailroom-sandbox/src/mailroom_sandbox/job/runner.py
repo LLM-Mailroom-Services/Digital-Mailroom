@@ -280,10 +280,26 @@ def _apply_prompt_overrides(store: RunStore) -> None:
 
     prompt_lock = store.read_prompt_lock() or {}
     texts = {}
+    must_apply = {}
     for agent, ref in (prompt_lock.get("agents") or {}).items():
         if isinstance(ref, dict) and ref.get("text"):
             texts[agent] = ref["text"]
-    apply_runtime_overrides(texts)
+            if ref.get("source") not in (None, "code-default"):
+                must_apply[agent] = ref.get("source")
+    if not texts:
+        return
+    patched = apply_runtime_overrides(texts)
+    missing = [a for a in must_apply if a not in patched]
+    if missing:
+        # Live-or-loud (hub#40, DMR-049 class): the lock pins local/langfuse
+        # text that the run cannot apply — failing loud beats a lock that
+        # claims a prompt text that never executed.
+        raise RuntimeError(
+            "prompt overrides not applied for %s (pinned %s) — the run would "
+            "execute code-default prompts; install the [pipeline] extra or "
+            "restore the vendored llm-mailroom tree"
+            % (sorted(missing), {a: must_apply[a] for a in sorted(missing)})
+        )
 
 
 def _build_record(

@@ -9,7 +9,7 @@ langfuse.env (different project).
 
 Usage:
     python3 scripts/sync_edge_suites.py \
-        --env-file /Users/luciusjmorningstar/Downloads/The-Mailroom/.env
+        --env-file /path/to/The-Mailroom/.env
     python3 scripts/sync_edge_suites.py --env-file ... --dataset edge-contracts-specialist
 """
 

@@ -65,7 +65,7 @@ def test_field_scoring():
 
 
 def test_dojo_scoring_pin():
-    """Agent Mailroom tracks llm-mailroom v0.7.0 → llm-dojo-scoring v0.14.0.
+    """Agent Mailroom tracks llm-mailroom v0.7.1 → llm-dojo-scoring v0.15.0.
 
     Release contract = the git pin in pyproject.toml. Monorepo dev resolves
     the pin to the workspace member via [tool.uv.sources], so the installed
@@ -81,7 +81,7 @@ def test_dojo_scoring_pin():
     pin = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(
         encoding="utf-8"
     )
-    assert "llm-dojo-scoring.git@v0.14.0" in pin
+    assert "llm-dojo-scoring.git@v0.15.0" in pin
     version = re.match(r"(\d+)\.(\d+)", llm_dojo_scoring.__version__)
     assert version is not None
     # floor kept at (0, 12): the installed workspace __version__ is fixed by

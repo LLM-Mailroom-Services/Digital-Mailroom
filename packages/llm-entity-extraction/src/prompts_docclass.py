@@ -116,8 +116,8 @@ _DOCCONTEXT_V1 = (
     "articles_of_incorporation, certificate_of_formation, charter_amendment, "
     "powers_of_attorney, subsidiary_list, rights_instrument, indenture, "
     "board_resolution, officer_certificate, other); correspondence -> "
-    "communication type (demand, attorney_demand, meeting_request, press_release, "
-    "memo, email, letter, notice); insurance_claim -> claim-document type "
+    "communication type (demand, attorney_demand, meeting_request, voicemail, "
+    "press_release, memo, email, letter, notice, other); insurance_claim -> claim-document type "
     "(carrier, pde, outpatient, inpatient).\n"
 )
 
@@ -504,7 +504,7 @@ _CORPORATE_V1_EXTRA = (
 
 _CORRESPONDENCE_V1_EXTRA = (
     "5. Hub communication_type: emit exactly one of email, letter, memo, notice, "
-    "demand, attorney_demand, press_release, meeting_request. Enron-style "
+    "demand, attorney_demand, press_release, meeting_request, voicemail. Enron-style "
     "inbox messages are email; internal memoranda are memo; calendar/meeting "
     "invites are meeting_request; news wires are press_release. Readable "
     "correspondence is never `other` (the doc_subclass fallback key; `unknown` is not a valid token).\n"
@@ -601,7 +601,7 @@ INSURANCE_CLAIMS_SPECIALIST_DOCCLASS_PROMPT_V1 = (
 # Support agents — v1 upgrades (extended discriminators + exhibit-vs-form)
 _REVIEWER_V1_EXTRA = (
     "- correspondence: the COMMUNICATION'S FUNCTION — demand, attorney_demand, "
-    "meeting_request, press_release, memo, email, letter, or notice.\n"
+    "meeting_request, voicemail, press_release, memo, email, letter, notice, or other.\n"
     "- insurance_claim: the CLAIM-DOCUMENT TYPE — carrier, pde, outpatient, "
     "or inpatient (CMS setting in the document's own heading outranks generic "
     "family).\n"
@@ -852,8 +852,8 @@ _PILOT_CONTEXT = (
     "certificate_of_formation, charter_amendment, powers_of_attorney, "
     "subsidiary_list, rights_instrument, indenture, board_resolution, "
     "officer_certificate, other); correspondence -> communication type "
-    "(demand, attorney_demand, meeting_request, press_release, memo, email, "
-    "letter, notice); insurance_claim -> claim-document type (carrier, pde, "
+    "(demand, attorney_demand, meeting_request, voicemail, press_release, memo, email, "
+    "letter, notice, other); insurance_claim -> claim-document type (carrier, pde, "
     "outpatient, inpatient).\n"
 )
 
@@ -883,7 +883,7 @@ SORTER_DOCCLASS_PILOT_PROMPT_V0 = SORTER_DOCCLASS_PROMPT_V3.replace(
 
 38. INSURANCE CLAIM CLASS: claim documentation — FNOL forms, adjuster reports and estimates, demand packages, coverage determinations ("APPROVED"/"DENIED"/"PARTIAL"), reservation-of-rights letters, denial letters, EOB/Explanation-of-Benefits statements, Medicare Summary Notices, pharmacy benefit statements — is insurance_claim, NOT contract or correspondence, whatever wrapper it arrives in.
 
-39. CORRESPONDENCE SUBCLASS: when doc_type is correspondence, doc_subclass is the COMMUNICATION'S FUNCTION — demand (a party demands payment/performance), attorney_demand (demand issued by counsel on a law-firm letterhead), meeting_request, press_release, memo (internal memorandum, TO/FROM/RE header), email (informal message thread), letter (general business/legal letter), or notice (formal notice: annual-meeting, regulatory, default/termination).
+39. CORRESPONDENCE SUBCLASS: when doc_type is correspondence, doc_subclass is the COMMUNICATION'S FUNCTION — demand (a party demands payment/performance), attorney_demand (demand issued by counsel on a law-firm letterhead), meeting_request, voicemail (voicemail/VM transcription markers), press_release, memo (internal memorandum, TO/FROM/RE header), email (informal message thread), letter (general business/legal letter), notice (formal notice: annual-meeting, regulatory, default/termination), or other (no matching form — fallback bucket).
 
 40. INSURANCE CLAIM SUBCLASS: when doc_type is insurance_claim, doc_subclass is the CLAIM-DOCUMENT TYPE by issuer and setting — carrier (issued by the insurer/payer: coverage determinations, denials, reservation-of-rights, adjuster reports, Medicare Summary Notices, EOB adjudication summaries), pde (Prescription Drug Event records: Medicare Part D pharmacy statements/drug cost listings), outpatient (outpatient facility/provider claims), or inpatient (inpatient facility claims). A Medicare Summary Notice adjudicating physician/supplier services is carrier; a Medicare Part D pharmacy statement is pde.
 
@@ -911,7 +911,7 @@ merger_agreement. Never invent a class.""",
 ).replace(
     """- every other doc_type: null.""",
     """- correspondence: the COMMUNICATION'S FUNCTION — demand, attorney_demand, \
-meeting_request, press_release, memo, email, letter, or notice. Classify by \
+meeting_request, voicemail, press_release, memo, email, letter, notice, or other. Classify by \
 what the communication DOES, not its delivery format: an email carrying a \
 formal notice subclasses as notice, not email.
 - insurance_claim: the CLAIM-DOCUMENT TYPE by issuer and setting — carrier \

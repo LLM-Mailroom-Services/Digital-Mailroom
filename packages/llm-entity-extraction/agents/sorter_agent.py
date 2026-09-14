@@ -119,6 +119,10 @@ CORRESPONDENCE_SUBCLASSES = [
     {"key": "notice", "label": "Notice",
      "description": "Formal notice: annual-meeting notices, regulatory notices, "
                     "default/termination notices when not demanding payment"},
+    {"key": "voicemail", "label": "Voicemail",
+     "description": "Voicemail transcription markers (voicemail/VM subject or body)"},
+    {"key": "other", "label": "Other",
+     "description": "Unparseable / no matching form (fallback bucket)"},
 ]
 INSURANCE_CLAIM_SUBCLASSES = [
     {"key": "carrier", "label": "Carrier Document",
@@ -319,11 +323,11 @@ DOCCLASS_SCHEMA = build_structured_schema(
         "doc_subclass": {
             "type": ["string", "null"],
             "enum": DOC_SUBCLASS_KEYS,
-            "description": "The second-level class: consideration type when doc_type is "
+"description": "The second-level class: consideration type when doc_type is "
                            "merger_agreement, record type when doc_type is corporate_record, "
                            "correspondence type when doc_type is correspondence (demand, "
-                           "attorney_demand, meeting_request, press_release, memo, email, "
-                           "letter, notice), claim-document type when doc_type is "
+                           "attorney_demand, meeting_request, voicemail, press_release, memo, email, "
+                           "letter, notice, other), claim-document type when doc_type is "
                            "insurance_claim (carrier, pde, outpatient, inpatient, "
                            "property, auto), "
                            "null otherwise. See the subclass list in the prompt.",
@@ -549,8 +553,8 @@ class SorterAgent(BaseAgent):
                 "This document IS correspondence (all documents in this task "
                 "are correspondence). Assign doc_type as \"correspondence\", "
                 "the communication-function doc_subclass (demand, "
-                "attorney_demand, meeting_request, press_release, memo, email, "
-                "letter, or notice — classify by what the communication DOES, "
+                "attorney_demand, meeting_request, voicemail, press_release, memo, email, "
+                "letter, notice, or other — classify by what the communication DOES, "
                 "not its delivery format), and a sentiment_score / "
                 "sentiment_label for the content.\n\n"
                 f"Correspondence text:\n\n{truncated}"

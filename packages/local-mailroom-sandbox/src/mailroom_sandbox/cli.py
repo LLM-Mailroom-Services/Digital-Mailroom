@@ -313,7 +313,11 @@ def _cmd_health(args: argparse.Namespace) -> int:
     # — without it the probe reports on localhost (DMR-048).
     load_env_file()
     result = health_check(args.profile)
-    host = os.environ.get("LANGFUSE_HOST") or "http://localhost:3000"
+    host = (
+        os.environ.get("LANGFUSE_HOST")
+        or os.environ.get("LANGFUSE_BASE_URL")
+        or "http://localhost:3000"
+    )
     langfuse = probe_models(
         {
             "name": "langfuse",

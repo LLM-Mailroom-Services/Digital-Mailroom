@@ -47,7 +47,7 @@ def _client():
     client = Langfuse(
         public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
         secret_key=os.environ["LANGFUSE_SECRET_KEY"],
-        host=os.environ.get("LANGFUSE_HOST", "https://us.cloud.langfuse.com"),
+        host=(os.environ.get("LANGFUSE_HOST") or os.environ.get("LANGFUSE_BASE_URL") or "https://us.cloud.langfuse.com"),
     )
     try:
         client.auth_check()
@@ -122,7 +122,7 @@ def main() -> int:
     if not args.dry_run:
         client.flush()
     print(f"\n{len(templates)} prompts checked, {changed} {'would change' if args.dry_run else 'synced'}.")
-    host = os.environ.get("LANGFUSE_HOST", "https://us.cloud.langfuse.com").rstrip("/")
+    host = (os.environ.get("LANGFUSE_HOST") or os.environ.get("LANGFUSE_BASE_URL") or "https://us.cloud.langfuse.com").rstrip("/")
     prefix = "version keys" if args.docclass else "name prefix: mailroom-"
     print(f"Prompts live at {host} ({prefix}, label: production).")
     return 0

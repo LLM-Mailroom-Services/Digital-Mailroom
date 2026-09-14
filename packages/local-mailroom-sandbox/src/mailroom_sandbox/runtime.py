@@ -112,7 +112,14 @@ def apply_profile_env(profile: dict, *, base_url_override: str | None = None) ->
         os.environ.setdefault("OBSERVABILITY_PROVIDER", "langfuse")
     else:
         os.environ.setdefault("OBSERVABILITY_PROVIDER", "phoenix")
-    os.environ.setdefault("LANGFUSE_HOST", "http://localhost:3000")
+    # hub#62: honor LANGFUSE_BASE_URL as the cloud-alias — don't force LANGFUSE_HOST
+    # to localhost when an operator exported only LANGFUSE_BASE_URL (production).
+    # Every HOST-first consumer (health probe, export_traces, vendored llm-mailroom
+    # _resolve_host) would otherwise resolve to the wrong sink.
+    os.environ.setdefault(
+        "LANGFUSE_HOST",
+        os.environ.get("LANGFUSE_BASE_URL") or "http://localhost:3000",
+    )
     mode = (os.environ.get("SANDBOX_RUN_MODE") or "").lower()
     if mode == "mock":
         os.environ["OBSERVABILITY_ENVIRONMENT"] = "mock"

@@ -565,7 +565,7 @@ def make_langfuse_client():
     client = Langfuse(
         public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
         secret_key=os.environ["LANGFUSE_SECRET_KEY"],
-        host=os.environ.get("LANGFUSE_HOST", "https://us.cloud.langfuse.com"),
+        host=(os.environ.get("LANGFUSE_HOST") or os.environ.get("LANGFUSE_BASE_URL") or "https://us.cloud.langfuse.com"),
     )
     # Verify credentials before doing any work: a revoked/placeholder key
     # would otherwise surface as hundreds of confusing failures.
@@ -987,7 +987,7 @@ def main():
     print(f"seeded + readback-verified: {verified}/{len(specs)} run(s)")
     for spec in specs:
         tid = f"demo-{spec['slug']}"
-        host = os.environ.get("LANGFUSE_HOST", "https://us.cloud.langfuse.com").rstrip("/")
+        host = (os.environ.get("LANGFUSE_HOST") or os.environ.get("LANGFUSE_BASE_URL") or "https://us.cloud.langfuse.com").rstrip("/")
         print(f"  {spec['slug']:24} {host}/trace/{tid}")
     client.shutdown()
 

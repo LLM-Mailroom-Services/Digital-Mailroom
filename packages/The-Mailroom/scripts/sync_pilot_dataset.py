@@ -132,7 +132,7 @@ def main() -> int:
     client = Langfuse(
         public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
         secret_key=os.environ["LANGFUSE_SECRET_KEY"],
-        host=os.environ.get("LANGFUSE_HOST", "https://us.cloud.langfuse.com"),
+        host=(os.environ.get("LANGFUSE_HOST") or os.environ.get("LANGFUSE_BASE_URL") or "https://us.cloud.langfuse.com"),
     )
     try:
         client.auth_check()
@@ -200,7 +200,7 @@ def main() -> int:
         f"dataset '{lf_name}' ({dataset_obj.id}): "
         f"{created} items added, {skipped} already present"
     )
-    host = os.environ.get("LANGFUSE_HOST", "https://us.cloud.langfuse.com").rstrip("/")
+    host = (os.environ.get("LANGFUSE_HOST") or os.environ.get("LANGFUSE_BASE_URL") or "https://us.cloud.langfuse.com").rstrip("/")
     print(f"Dataset live at {host}/datasets/{lf_name}")
     client.shutdown()
     return 0

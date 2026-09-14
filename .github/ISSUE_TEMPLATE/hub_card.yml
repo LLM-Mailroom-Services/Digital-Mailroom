@@ -33,7 +33,7 @@ body:
   - type: dropdown
     id: lane
     attributes:
-      label: Lane (board status)
+      label: Lane
       description: The card's lane on the board at the time this issue is opened
       options:
         - unassigned

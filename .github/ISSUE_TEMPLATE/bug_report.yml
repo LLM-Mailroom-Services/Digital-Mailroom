@@ -83,5 +83,5 @@ body:
     id: related
     attributes:
       label: Related card
-      description: "Existing/new HUB-0NN card this bug belongs to (open one via the 'Board card' template if this is card-worthy)"
-      placeholder: "HUB-012"
+      description: "Existing/new DMR-0NN card this bug belongs to (open one via the 'Board card' template if this is card-worthy)"
+      placeholder: "DMR-012"

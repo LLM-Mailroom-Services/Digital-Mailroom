@@ -11,7 +11,7 @@ body:
 
         Use this for **small, single-session, low-risk** items. Work that is
         critical, cross-package, or externally verifiable belongs on
-        `governance/TASKS.md` as a card (with a "Board card (HUB-0NN)" issue
+        `governance/TASKS.md` as a card (with a "Board card (DMR-0NN)" issue
         if synced) — not as a loose TODO.
   - type: dropdown
     id: domain
@@ -52,4 +52,4 @@ body:
     id: related
     attributes:
       label: Related card / issue
-      description: "HUB-0NN or #NNN if this item extends existing work (update, don't duplicate)"
+      description: "DMR-0NN or #NNN if this item extends existing work (update, don't duplicate)"

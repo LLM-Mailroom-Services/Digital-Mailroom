@@ -11,8 +11,8 @@ body:
         - **Board first**: the card for this work exists on
           `governance/TASKS.md`, was labeled before the code (never after),
           and its status/Evidence are current.
-        - **Commit discipline**: commits reference cards — `HUB-0NN: <summary>`
-          (or `HUB-0NN claimed/reopened` in the message body).
+        - **Commit discipline**: commits reference cards — `DMR-0NN: <summary>`
+          (or `DMR-0NN claimed/reopened` in the message body).
         - **Docs currency**: when a change alters behavior described by
           `README.md`, `AGENTS.md`, or `governance/TASKS.md`, those files are
           updated in the same commit.
@@ -20,8 +20,8 @@ body:
     id: card
     attributes:
       label: Board card
-      description: The HUB-0NN card this PR lands work for (one PR = one card scope; unrelated changes get their own PR)
-      placeholder: "HUB-014"
+      description: The DMR-0NN card this PR lands work for (one PR = one card scope; unrelated changes get their own PR)
+      placeholder: "DMR-014"
     validations:
       required: true
   - type: textarea
@@ -42,7 +42,7 @@ body:
       label: Board discipline
       options:
         - label: "Card was claimed/labeled BEFORE the code (status + Evidence current on governance/TASKS.md)"
-        - label: "Commits follow `HUB-0NN: <summary>`"
+        - label: "Commits follow `DMR-0NN: <summary>`"
         - label: "Anything discovered but not delivered spawned its own card BEFORE this one closes"
         - label: "git status clean for the card's scope"
   - type: checkboxes

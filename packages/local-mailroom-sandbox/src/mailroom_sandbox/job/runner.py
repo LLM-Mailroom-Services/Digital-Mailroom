@@ -547,6 +547,32 @@ def run_job(
             "last_error": last_error,
         }
     ok_by_index = {int(d["index"]): bool(d.get("ok", False)) for d in store.load_items()}
+    if rows and not any(ok_by_index.get(i, False) for i in range(len(rows))):
+        # Live-or-loud (DMR-044/049 doctrine, hub#39): a run where EVERY item
+        # errored (this invocation AND resumed rows) is a failed job — a
+        # "done" checkpoint + log record would silently claim success over a
+        # dead engine. Mirrors the run_isolated_eval all-rows guard
+        # (eval/runners.py).
+        first_error = {
+            "type": "item",
+            "message": last_error,
+            "at": utc_now(),
+            "item_id": last_error_item,
+            "retryable": False,
+        }
+        store.write_checkpoint(
+            state="failed", cursor=final_cursor, total=total, remote=None, last_error=first_error
+        )
+        store.append_event("failed", "error", cursor=final_cursor, last_error=last_error)
+        return {
+            "state": "failed",
+            "task": task,
+            "cursor": final_cursor,
+            "total": total,
+            "ok": 0,
+            "errors": error_count,
+            "last_error": first_error,
+        }
     # Score only completed, ok rows — a failed row must never count as a wrong
     # prediction, and the error count is reported explicitly (DMR-049 F4).
     scored_pairs = [

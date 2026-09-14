@@ -56,6 +56,50 @@ def test_run_job_mock_completes(tmp_path):
     assert summary["scores"]["exact_match"] == 1.0
 
 
+def test_run_job_all_items_failed_writes_failed_not_done(tmp_path, monkeypatch):
+    """hub#39: a run where EVERY item errored must write state=failed with a
+    last_error, exit 1 (CLI maps state != done), and never append a 'done'
+    record — a dead engine is loud, not silent."""
+    store = _prepped_store(tmp_path, rows=3, job={"mock": False, "max_retries": 0})
+
+    def _dead_engine(task, row, *, mock, model, run_id=None):
+        raise ConnectionError("engine unreachable")
+
+    monkeypatch.setattr(runner, "_predict_row", _dead_engine)
+    summary = runner.run_job(store, mock=None)
+    assert summary["state"] == "failed"
+    assert summary["ok"] == 0 and summary["errors"] == 3
+    assert "engine unreachable" in str(summary.get("last_error") or {})
+    cp = store.read_checkpoint() or {}
+    assert cp["state"] == "failed"
+    assert "engine unreachable" in str(cp.get("last_error") or {})
+    events = store.events()
+    assert not any(e["event"] == "done" for e in events)
+    assert any(e["event"] == "failed" for e in events)
+    items = store.load_items()
+    assert len(items) == 3 and all(i["ok"] is False for i in items)
+
+
+def test_run_job_resume_all_failed_stays_failed(tmp_path, monkeypatch):
+    """hub#39: resumed rows where earlier rows already failed must also land
+    in state=failed (the guard reads per-row ok truth, not this invocation's
+    error counter)."""
+    store = _prepped_store(tmp_path, rows=3, job={"mock": False, "max_retries": 0})
+    _append_item(store, index=0, predicted="", expected="contract", ok=False, error="boom")
+    store.write_checkpoint(state="running", cursor=1, total=3)
+
+    def _dead_engine(task, row, *, mock, model, run_id=None):
+        raise ConnectionError("engine unreachable")
+
+    monkeypatch.setattr(runner, "_predict_row", _dead_engine)
+    summary = runner.run_job(store, mock=None)
+    assert summary["state"] == "failed"
+    cp = store.read_checkpoint() or {}
+    assert cp["state"] == "failed"
+    events = store.events()
+    assert not any(e["event"] == "done" for e in events)
+
+
 def test_run_job_resumes_from_checkpoint(tmp_path):
     store = _prepped_store(tmp_path, rows=4)
     first = runner.run_job(store, mock=None, max_items=2)

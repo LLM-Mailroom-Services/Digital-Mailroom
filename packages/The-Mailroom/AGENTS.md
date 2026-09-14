@@ -32,8 +32,8 @@ open exactly one specialty skill. Companion to
 
 - **Expected location**: a sibling of this repo, i.e. `../llm-mailroom` from this checkout (e.g. `/Users/luciusjmorningstar/Downloads/llm-mailroom`). It is **not currently present on this machine** — clone it before relying on `MAILROOM_TAXONOMY`.
 - **Import pin**: optional extra `[pipeline]` installs dist `mailroom` from
-  `git+https://github.com/Exios66/llm-mailroom.git@3cf9fb9` (package 0.6.0,
-  tag `v0.6.0`).
+  `git+https://github.com/Exios66/llm-mailroom.git@2a212e76a62b` (package 0.7.1,
+  tag `v0.7.1`).
   `mailroom_ui/producer.py` is the only import adapter — `pipeline.review_resolve`
   + `schemas.manifest` for REVIEW dispositions / `serialize_document`. Default
   `pip install -e ".[dev]"` stays light; missing extra falls back to the same
@@ -41,7 +41,7 @@ open exactly one specialty skill. Companion to
   `llm_dojo_scoring`. Bump `MAILROOM_GIT_SHA` and the extra together.
 - It is the **upstream**: The-Mailroom reads *its* Langfuse project (US cloud, project `llm-mailroom`). Its `AGENTS.md` is authoritative for pipeline internals; consult it whenever the pipeline's tracing contract is in doubt.
 - **What we mirror from it, and must keep in sync (the #1 maintenance duty)** — when the pipeline changes, update all of these in one change:
-  - `mailroom_ui/pipeline_schema.py` — mirrors `src/graph/routing.py` + `src/config/taxonomy.yaml` + `src/observability/tracing.py` + `src/pipeline/failures.py`: node/span names (`SPAN_STAGE_MAP` incl. `normalize-intake`), **`NODE_OBSERVATION_TYPES`** (chain/agent/evaluator/retriever/generation/span), stage→phase map, node order, agent roster (incl. `intake`, `sorter_reviewer`, `arbiter`, `judge`, `compliance_specialist`, `insurance_claims_specialist`; reporter is procedural in v0.6.0), live `DOC_CLASSES` (6 extract classes incl. live `merger_agreement` MAUD + `unknown` routing token; retired `court_opinion` / `due_diligence` stay off the roster), Hub `DOC_SUBCLASS_BY_CLASS` + CUAD `CONTRACT_SUBTYPE_KEYS`, Langfuse score aliases (`extraction_verified_precision`), `SUITE_EXTRA_SCORES` (Enron/MAUD), `SPECIALIST_BY_DOC_CLASS`, confidence thresholds (+ `judge_band_high` 0.95, severity `by_class`), **`FAILURE_CLASSES`** + pared `EXTRACTION_FIELD_KEYS_BY_CLASS` / `validate_operator_extraction` (llm-mailroom v0.6.0).
+  - `mailroom_ui/pipeline_schema.py` — mirrors `src/graph/routing.py` + `src/config/taxonomy.yaml` + `src/observability/tracing.py` + `src/pipeline/failures.py`: node/span names (`SPAN_STAGE_MAP` incl. `normalize-intake`), **`NODE_OBSERVATION_TYPES`** (chain/agent/evaluator/retriever/generation/span), stage→phase map, node order, agent roster (incl. `intake`, `sorter_reviewer`, `arbiter`, `judge`, `compliance_specialist`, `insurance_claims_specialist`; reporter is procedural in v0.7.1), live `DOC_CLASSES` (6 extract classes incl. live `merger_agreement` MAUD + `unknown` routing token; retired `court_opinion` / `due_diligence` stay off the roster), Hub `DOC_SUBCLASS_BY_CLASS` + CUAD `CONTRACT_SUBTYPE_KEYS`, Langfuse score aliases (`extraction_verified_precision`), `SUITE_EXTRA_SCORES` (Enron/MAUD), `SPECIALIST_BY_DOC_CLASS`, confidence thresholds (+ `judge_band_high` 0.95, severity `by_class`), **`FAILURE_CLASSES`** + pared `EXTRACTION_FIELD_KEYS_BY_CLASS` / `validate_operator_extraction` (llm-mailroom v0.6.0).
   - `mailroom_ui/trace_interpreter.py` — maps its span names, Langfuse observation types (`type` / v4 `observationType`), trace metadata/input/output fields (`user_id`, `release`, `doc_subclass` / `contract_subtype`, `expected_hf_class` / `expected_subclass`, `normalize-intake` stats, `failure_class` / tagged `run aborted [<class>]:`), and score names (`JUDGE_VERDICT_SCORES` = `mailroom-pipeline-judge`, `JUDGE_QUALITY_SCORES` = `mailroom-pipeline-quality`, plus suite extras and the verified-precision alias).
   - Tests — `tests/fake_langfuse.py` fixtures mirror the trace contract (v2/v3 `type` and v4 `observationType`).
   - CHANGELOG entry for the sync (see Release process).
@@ -52,7 +52,7 @@ open exactly one specialty skill. Companion to
 
 ```bash
 pip install -e ".[dev]"        # install (deps NOT vendored; no venv in repo)
-pip install -e ".[pipeline]"   # pin llm-mailroom @ 3cf9fb9 (v0.6.0) (optional import)
+pip install -e ".[pipeline]"   # pin llm-mailroom @ 2a212e76a62b (v0.7.1) (optional import)
 python -m pytest tests/ -q     # whole suite (never hits real Langfuse)
 python -m server.main          # FastAPI web server on :8001 (also: mailroom-web)
 mailroom-hosted                # Observatory on 0.0.0.0 (public /live UI)
@@ -90,7 +90,7 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
   - `langfuse_source.py` — Langfuse SDK adapter: `client.api.trace.list/get`, `client.api.observations.get_many`, `client.api.scores.get_many`, `client.api.sessions.list/get`; `TTLCache`; `LangfuseUnavailable`. `list_recent_runs()` uses trace-list responses only (cheap "light" runs for the floor); `get_run()` fetches observations+scores for drill-down.
   - `trace_interpreter.py` — `interpret_trace(trace, observations?, scores?)` → `PipelineRun`. Accepts **both v2/v3 snake_case and v4 camelCase** observation shapes (see SDK tolerance). Light runs (no observations arg) have empty span/generation detail. Re-run clustering: deterministic trace ids are reused by pilot/attempt re-runs, so a trace can carry several full runs — observations are clustered by time gaps (`RUN_GAP_S`) and only the latest cluster is kept.
   - `pipeline_schema.py` — topology mirror (see sister-repo section).
-  - `producer.py` — pinned llm-mailroom import adapter (`[pipeline]` extra @ `3cf9fb9` / v0.6.0).
+  - `producer.py` — pinned llm-mailroom import adapter (`[pipeline]` extra @ `2a212e76a62b` / v0.7.1).
   - `models.py` — pydantic: `PipelineRun` (`doc_id`, `review_causes`, `needs_reconsideration`, `needs_human` includes archived objective misses, `failure_class` / `run_aborted`), `NodeSpan`, `Generation`, `Score`, `SessionSummary`, `Metrics`, `Stage`, `Phase`.
   - `reconsideration.py` — objective review causes (GT miss, judge MISS/PARTIAL, extraction score floor, schema/guardrail/parse, incomplete reporting). Never uses self-reported confidence.
   - `pipeline_ops.py` — producer watcher/inbox liveness (`MAILROOM_PIPELINE_URL`).
@@ -150,7 +150,7 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
 ## Trace structure we interpret (the contract with llm-mailroom)
 
 - One `document-pipeline` **CHAIN** per document; **deterministic trace id seeded from the filename**; re-runs reuse it (hence the cluster logic above). Optional `user_id` (`MAILROOM_TRACE_USER_ID`) and `release` (`LANGFUSE_RELEASE`) copy onto the trace.
-- Verb-first child observations with the **most specific Langfuse type** (`NODE_OBSERVATION_TYPES`): intake/catalog/archive/`normalize-intake`/`route-for-review` = SPAN; `transcribe-pdf`/`extract-image-text` = RETRIEVER; classify/extract/arbiter/boss/report = AGENT; `judge-verify` = EVALUATOR; `pipeline-result` / LegalBench `answer-question` = GENERATION. Graph nodes: `intake-document`, `classify-document` (classify / retry_classify / review_classify), `judge-verify`, `arbitrate-verdict`, `extract-fields` (extract / retry_extract), `route-for-review`, `adjudicate-conflict`, `compile-report` (procedural assemble in v0.6.0), `write-catalog`, `archive-document`. The KANBAN-063 quality gate: `judge_verify` fires on the ambiguous extraction band (`judge_band_high`, default 0.95) and a partial verdict detours through the arbiter before reporting.
+- Verb-first child observations with the **most specific Langfuse type** (`NODE_OBSERVATION_TYPES`): intake/catalog/archive/`normalize-intake`/`route-for-review` = SPAN; `transcribe-pdf`/`extract-image-text` = RETRIEVER; classify/extract/arbiter/boss/report = AGENT; `judge-verify` = EVALUATOR; `pipeline-result` / LegalBench `answer-question` = GENERATION. Graph nodes: `intake-document`, `classify-document` (classify / retry_classify / review_classify), `judge-verify`, `arbitrate-verdict`, `extract-fields` (extract / retry_extract), `route-for-review`, `adjudicate-conflict`, `compile-report` (procedural assemble in v0.7.1), `write-catalog`, `archive-document`. The KANBAN-063 quality gate: `judge_verify` fires on the ambiguous extraction band (`judge_band_high`, default 0.95) and a partial verdict detours through the arbiter before reporting.
 - The pipeline batches Langfuse events (`LANGFUSE_FLUSH_AT` / `LANGFUSE_FLUSH_INTERVAL`, SDK defaults 512 / 5s) and `flush()` then `shutdown()` on process exit. This viewer never writes or flushes.
 - `session_id = matter_id` (pilot runs use run-scoped sessions); tags `[mailroom, <env>, run-<n>, source-<corpus>?]`; metadata `{attempt, run_id, run_deadline}`; curated `input` (file metadata) / `output` (stage, doc_type, confidences, error).
 - Scores: confidences (`classification_confidence`, `extraction_confidence`), run metrics (`estimated_cost_usd`, `total_tokens`, `stage_completed`, ...), judge verdict (`mailroom-pipeline-judge` = CORRECT/PARTIAL/MISS), quality (`mailroom-pipeline-quality` = 0–1). Grounded pilot runs also carry deterministic field scores (`extraction_field_score`, `extraction_overall_score`, `extraction_needs_judge_review`, `entity_list_precision/recall`).

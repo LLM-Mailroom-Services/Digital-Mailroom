@@ -1,7 +1,7 @@
 # Releases
 
-**Current:** [v0.3.0](https://github.com/Exios66/The-Mailroom/releases/tag/v0.3.0)
-(2026-08-28) — review resolve, live floor, skills, and reconsideration.
+**Current:** [v0.4.0](https://github.com/Exios66/The-Mailroom/releases/tag/v0.4.0)
+(2026-09-04) — terminal TUI + terminal GH Pages site.
 Demos: [`docs/demos.md`](demos.md).
 
 The-Mailroom follows **Semantic Versioning** (`MAJOR.MINOR.PATCH`) with the

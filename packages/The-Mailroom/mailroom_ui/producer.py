@@ -35,7 +35,7 @@ from typing import Any, Optional
 MAILROOM_GIT_SHA = "2a212e76a62b"
 MAILROOM_GIT_URL = "https://github.com/Exios66/llm-mailroom.git"
 MAILROOM_DIST_NAME = "mailroom"
-MAILROOM_DIST_VERSION = "0.6.0"
+MAILROOM_DIST_VERSION = "0.7.1"
 MAILROOM_PEP508 = (
     f"{MAILROOM_DIST_NAME} @ git+{MAILROOM_GIT_URL}@{MAILROOM_GIT_SHA}"
 )

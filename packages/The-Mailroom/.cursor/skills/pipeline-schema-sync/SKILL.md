@@ -34,7 +34,7 @@ Do **not** import `llm-dojo-scoring` at runtime; catalogs stay copied constants
 (pin documented `@v0.11.0`).
 
 Producer **code** pin (separate from the topology mirror): extra `[pipeline]`
-installs dist `mailroom` `@3cf9fb9` (v0.6.0). Import only through
+installs dist `mailroom` `@2a212e76a62b` (v0.7.1). Import only through
 `mailroom_ui/producer.py` (`pipeline.review_resolve`, `schemas.manifest`).
 Never import `api.main`. Bump `MAILROOM_GIT_SHA` and `pyproject.toml` together.
 

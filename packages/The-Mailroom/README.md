@@ -1,7 +1,7 @@
 # The-Mailroom
 
 ![version](https://img.shields.io/badge/version-0.3.0-blue)
-[![release](https://img.shields.io/badge/release-v0.3.0-blue)](https://github.com/Exios66/The-Mailroom/releases/tag/v0.3.0)
+[![release](https://img.shields.io/badge/release-v0.4.0-blue)](https://github.com/Exios66/The-Mailroom/releases/tag/v0.4.0)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![data source](https://img.shields.io/badge/data%20source-Langfuse%20only-6C5CE7)
 
@@ -52,7 +52,7 @@ board, one discussion log, and one trace contract:
 
 | Repository | Role | Relationship to The-Mailroom |
 |---|---|---|
-| [llm-mailroom](https://github.com/Exios66/llm-mailroom) | LangGraph state machine processing legal documents through specialist LLM agents (classify → extract → report → archive); pin `@3cf9fb9` / **v0.6.0** (package `mailroom` 0.6.0) | **Upstream** — its Langfuse project is this visualizer's sole data source; optional `pip install -e ".[pipeline]"` imports `pipeline.review_resolve` |
+| [llm-mailroom](https://github.com/Exios66/llm-mailroom) | LangGraph state machine processing legal documents through specialist LLM agents (classify → extract → report → archive); pin `@2a212e76a62b` / **v0.7.1** (package `mailroom` 0.7.1) | **Upstream** — its Langfuse project is this visualizer's sole data source; optional `pip install -e ".[pipeline]"` imports `pipeline.review_resolve` |
 | [llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction) | Prompt-experiment loop (prompt versions × models, paired-bootstrap ablations) | Breeds the pipeline's sorter/specialist prompts; hosts the shared kanban board + governance log for the whole chain |
 | [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Deterministic, field-type-aware scoring engine (`@v0.11.0`) | Upstream governed dependency of both pipeline repos |
 | [Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment) | EDA + pipeline-ready correspondence dataset (CMU Enron corpus) | Corpus feed for the pipeline's `correspondence` doc class |
@@ -68,7 +68,7 @@ Full relationship map: [`llm-mailroom/docs/sister-repos.md`](https://github.com/
 
 ```bash
 pip install -e ".[dev]"
-pip install -e ".[pipeline]"  # optional: import llm-mailroom @ 3cf9fb9 (v0.6.0)
+pip install -e ".[pipeline]"  # optional: import llm-mailroom @ 2a212e76a62b (v0.7.1)
 cp .env.example .env      # add LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY
 mailroom-web              # → http://127.0.0.1:8001  (pixel-art console)
                           #    Observatory is also at /live on the same server
@@ -270,7 +270,7 @@ envelopes are opt-in (`?demo=1`) and only when the trace source is down.
 - The sister pipeline repo `../llm-mailroom` (optional — `MAILROOM_TAXONOMY`
   live override, production-pilot scripts, or `mailroom_ui/producer.py`
   checkout import). Prefer `pip install -e ".[pipeline]"` to pin dist
-  `mailroom` @ `3cf9fb9` (v0.6.0) when you want to import `pipeline.review_resolve`.
+  `mailroom` @ `2a212e76a62b` (v0.7.1) when you want to import `pipeline.review_resolve`.
 - `arize-phoenix-client` (optional — only for the Phoenix trace source)
 
 </details>

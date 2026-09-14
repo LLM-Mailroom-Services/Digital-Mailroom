@@ -13,7 +13,7 @@ source; **[llm-entity-extraction](https://github.com/Exios66/llm-entity-extracti
 is the prompt-experiment loop that breeds its sorter/specialist prompts (and
 hosts the shared governance board); **[llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring)**
 is the pinned scoring engine behind both (`@v0.11.0`); **llm-mailroom** itself
-is pinned here as dist `mailroom` `@3cf9fb9` / **v0.6.0** (optional extra `[pipeline]`); **[Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment)**
+is pinned here as dist `mailroom` `@2a212e76a62b` / **v0.7.1** (optional extra `[pipeline]`); **[Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment)**
 and **[claims-data-eda](https://github.com/Exios66/claims-data-eda)** feed its
 corpus classes; **[atticus-investigation](https://github.com/Exios66/atticus-investigation)**
 is the LegalBench eval sibling. Full map:

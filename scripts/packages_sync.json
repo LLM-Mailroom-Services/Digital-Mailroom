@@ -15,8 +15,8 @@
     },
     "agent-mailroom": {
       "branch": "main",
-      "synced_at": "2026-09-13T23:27:00Z",
-      "synced_sha": "a012fdeabe320a9bbdba961a835437eee3bdc25b",
+      "synced_at": "2026-09-14T14:12:48Z",
+      "synced_sha": "6b0e255cd3feee45ab1670c292b453b03151327e",
       "url": "https://github.com/Exios66/agent-mailroom.git"
     },
     "claims-data-eda": {

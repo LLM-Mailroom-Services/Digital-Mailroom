@@ -49,6 +49,8 @@ _EXCLUDE_SUFFIXES = {".pyc"}
 # src/ minus src/tests/") — test-only files are never imported by vendored
 # modules, so they legitimately don't appear in the snapshot.
 _EXCLUDE_TOP_LEVEL_DIRS = {"tests"}
+# Build detritus in the workspace src/ (mailroom.egg-info) is never vendored.
+_EGG_INFO_SUFFIX = ".egg-info"
 
 
 def _sha256(path: Path) -> str:
@@ -68,6 +70,8 @@ def _files(root: Path) -> dict[str, str]:
         if any(part in _EXCLUDE_NAMES for part in rel.parts):
             continue
         if rel.parts[0] in _EXCLUDE_TOP_LEVEL_DIRS:
+            continue
+        if any(part.endswith(_EGG_INFO_SUFFIX) for part in rel.parts):
             continue
         if path.suffix in _EXCLUDE_SUFFIXES:
             continue

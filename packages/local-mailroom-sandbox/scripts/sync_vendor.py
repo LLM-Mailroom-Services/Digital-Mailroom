@@ -47,6 +47,12 @@ _EXCLUDE_DIRS = {"__pycache__"}
 _EXCLUDE_REL = {"tests", "test"}  # llm-mailroom vendored src minus tests/
 
 
+def _excluded(rel: Path) -> bool:
+    return any(
+        part in _EXCLUDE_DIRS or part.endswith(".egg-info") for part in rel.parts
+    ) or rel.parts[0] in _EXCLUDE_REL
+
+
 def _refresh(name: str, dest: Path, source: Path) -> int:
     if not source.is_dir():
         print(f"error: workspace source missing: {source}", file=sys.stderr)
@@ -58,9 +64,7 @@ def _refresh(name: str, dest: Path, source: Path) -> int:
     copied = 0
     for path in source.rglob("*"):
         rel = path.relative_to(source)
-        if any(part in _EXCLUDE_DIRS for part in rel.parts):
-            continue
-        if rel.parts[0] in _EXCLUDE_REL:
+        if _excluded(rel):
             continue
         target = dest / rel
         if path.is_dir():

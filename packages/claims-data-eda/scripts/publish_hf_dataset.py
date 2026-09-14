@@ -26,6 +26,9 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "scripts"))
+# hub#58: the centralized family upload helpers live in the sibling
+# mailroom-corpus-eda package (a virtual member like this one — no build).
+sys.path.insert(0, str(REPO.parent / "mailroom-corpus-eda" / "src"))
 
 DUMP = REPO / "data" / "cms" / "pipeline.jsonl"
 STAGE = REPO / "data" / "hf_export"
@@ -167,27 +170,32 @@ def main() -> int:
         print("\nDRY RUN: staged into data/hf_export/ -- nothing uploaded")
         return 0
 
-    # ---- upload ----------------------------------------------------------
+    # ---- upload (centralized helpers, hub#58) ---------------------------
+    # The corpus family is published through the CENTRALIZED mailroom_eda
+    # helpers (root AGENTS.md: 'never ad-hoc upload code'). claims-data-eda is
+    # a non-installable virtual member, so the sibling src is added to the
+    # path at import time below (same mechanism as the other scripts that
+    # reach into the family).
     token = load_token()
     if not token:
         print("!! HF_TOKEN missing (env or .env)", file=sys.stderr)
         return 3
-    from huggingface_hub import HfApi, hf_hub_download
+    from mailroom_eda import hf_interface
 
-    api = HfApi(token=token)
-    api.create_repo(repo_id=HF_REPO, repo_type="dataset", private=False, exist_ok=True)
+    api = hf_interface.get_hf_api(token)
+    hf_interface.create_dataset_repo(api, HF_REPO)
     api.upload_file(path_or_fileobj=str(card), path_in_repo="README.md",
                     repo_id=HF_REPO, repo_type="dataset")
-    api.upload_folder(folder_path=str(STAGE), repo_id=HF_REPO, repo_type="dataset",
-                      allow_patterns=["*.jsonl", "manifest.json"])
+    hf_interface.upload_folder(api, STAGE, HF_REPO,
+                               commit_message="claims publish",
+                               allow_patterns=["*.jsonl", "manifest.json"])
 
     # ---- VERIFY: GREEN ---------------------------------------------------
     ok = True
     for name, p in paths.items():
         local = sha256_file(p)
-        dl = hf_hub_download(repo_id=HF_REPO, filename=f"{name}.jsonl", repo_type="dataset", token=token)
-        remote = sha256_file(Path(dl))
-        status = "GREEN" if local == remote else "RED"
+        result = hf_interface.verify_hub_sha256(api, HF_REPO, f"{name}.jsonl", local)
+        status = "GREEN" if result["verified"] is True else "RED"
         ok &= status == "GREEN"
         print(f"VERIFY [{name}]: {status}  ({p.stat().st_size:,} bytes)")
     print("\nPUBLISH COMPLETE" if ok else "\nPUBLISH FAILED VERIFICATION")

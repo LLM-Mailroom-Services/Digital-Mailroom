@@ -27,6 +27,7 @@ import gzip
 import json
 import random
 import sys
+import zlib
 from collections import defaultdict
 from pathlib import Path
 
@@ -129,7 +130,7 @@ def main() -> int:
             key = (t, e.get("year") or 0, band_of(cost_of(e), cuts[t]))
             r = pools.get(key)
             if r is None:
-                r = pools[key] = Reservoir(k=250, seed=args.seed + hash(key) % 10000)
+                r = pools[key] = Reservoir(k=250, seed=args.seed + zlib.crc32(str(key).encode()) % 10000)
             r.add(e)
 
     print(f"{len(pools)} non-empty strata:")

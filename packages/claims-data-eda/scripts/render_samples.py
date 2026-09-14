@@ -147,14 +147,38 @@ def pick_samples(rows: list[dict], n_per_stratum: int, seed: int, strata: tuple[
     return picked
 
 
-def write_sample(row: dict, examples_dir: Path, source_file: str) -> dict:
+def _source_revision(row: dict) -> str:
+    """Resolve the source revision from the v9 `_published` metadata or the
+    row's own source_revision, falling back to '?' (hub#58: the rendered
+    header + manifest previously carried an empty revision)."""
+    published = row.get("_published") or {}
+    if isinstance(published, dict):
+        rev = published.get("source_revision")
+        if rev:
+            return str(rev)
+    if isinstance(published, str):
+        import json as _json
+
+        try:
+            parsed = _json.loads(published)
+            rev = parsed.get("source_revision")
+            if rev:
+                return str(rev)
+        except ValueError:
+            pass
+    rev = row.get("source_revision")
+    return str(rev) if rev else "?"
+
+
+def write_sample(row: dict, examples_dir: Path) -> dict:
     rid = (row.get("filename") or row.get("document_id") or "row").replace(".txt", "")
     sub = row.get("expected_subclass") or "unknown"
     safe_id = re.sub(r"[^A-Za-z0-9_.-]", "_", rid)
     pdf_name = f"sample_{safe_id}.pdf"
+    revision = _source_revision(row)
     header = (
         f"mailroom-dataset | insurance_claim | {sub} | {rid} | "
-        f"rev {row.get('source_revision', '?')}"
+        f"rev {revision}"
     )
     pdf = text_to_pdf(row.get("doc_text") or "(empty document)", header)
     out = examples_dir / pdf_name
@@ -165,7 +189,7 @@ def write_sample(row: dict, examples_dir: Path, source_file: str) -> dict:
         "subclass": sub,
         "claim_number": row.get("claim_number"),
         "document_id": row.get("document_id"),
-        "source_revision": row.get("source_revision"),
+        "source_revision": revision,
         "split": row.get("split"),
         "doc_text_chars": len(row.get("doc_text") or ""),
         "pdf_sha256": hashlib.sha256(pdf).hexdigest(),
@@ -208,7 +232,7 @@ def main(argv: list[str] | None = None) -> int:
         picked = pick_samples(rows, args.n_per_stratum, args.seed, strata)
         print("sampled: " + ", ".join(r.get("expected_subclass", "?") for r in picked))
 
-    samples = [write_sample(r, examples_dir, args.input) for r in picked]
+    samples = [write_sample(r, examples_dir) for r in picked]
     manifest = {
         "title": "Real insurance-claim corpus documents rendered as PDF samples",
         "dataset": "Lucius-Morningstar/mailroom-dataset",

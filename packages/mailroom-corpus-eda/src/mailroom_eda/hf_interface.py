@@ -34,10 +34,11 @@ def create_dataset_repo(api: HfApi, repo_id: str, private: bool = False) -> dict
 
 def upload_folder(
     api: HfApi,
-    folder_path: Path,
+    folder_path: Path | str,
     repo_id: str,
     commit_message: str,
     path_in_repo: str | None = None,
+    allow_patterns: list[str] | None = None,
 ) -> dict:
     """Upload a local folder to HF dataset repo."""
     api.upload_folder(
@@ -46,6 +47,7 @@ def upload_folder(
         repo_type="dataset",
         path_in_repo=path_in_repo,
         commit_message=commit_message,
+        allow_patterns=allow_patterns,
     )
     return {"status": "uploaded", "repo": f"https://huggingface.co/datasets/{repo_id}"}
 

@@ -21,6 +21,8 @@ outpatient, pde), rendered as faithful A4 PDFs.
 | outpatient | `sample_outpatient_542332281132315_1.pdf`, `sample_outpatient_542452281547033_1.pdf` |
 | pde | `sample_pde_233204489280799.pdf`, `sample_pde_233444490300134.pdf` |
 
-Source rows: `ground_truth_hardened.jsonl` (2000-row merged corpus, all
-insurance_claim strata incl. property/auto; samples here cover the four
-health strata native to this package's SynPUF pipeline dump).
+Source rows: `ground_truth_hardened.jsonl` — the **v9 corpus**
+(`Lucius-Morningstar/mailroom-dataset`, 3,302 rows; the frozen v8
+`mailroom-corpus` 2,000-row baseline is its lineage parent). Samples here
+cover the four health strata native to this package's SynPUF pipeline dump
+(property/auto also ship in the corpus).

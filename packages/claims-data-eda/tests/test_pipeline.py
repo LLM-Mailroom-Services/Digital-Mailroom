@@ -112,6 +112,14 @@ class TestNormalizers:
         assert iso_date("20090402") == "2009-04-02"
         assert iso_date("") is None
         assert iso_date(None) is None
+        # hub#58: month/day ranges validated; garbage and non-ISO pass-through
+        # return None instead of reaching downstream int() and raising.
+        assert iso_date("20101332") is None   # month 13
+        assert iso_date("20100431") is None   # day 31 invalid for April (range check)
+        assert iso_date("N/A") is None
+        assert iso_date("1/1/2010") is None
+        assert iso_date("2010-04-02") == "2010-04-02"  # already-ISO tolerated
+        assert iso_date("2010040") is None   # malformed
 
     def test_to_float(self):
         assert to_float("42.10") == 42.1
@@ -226,3 +234,33 @@ class TestPipelineRow:
     def test_json_roundtrip(self):
         r = pipeline_row(pde_row())
         assert json.loads(json.dumps(r))["metadata"]["ground_truth"] == r["metadata"]["ground_truth"]
+
+
+def test_reservoir_seed_is_process_stable():
+    """hub#58: the pipeline-dump stratum seed must be deterministic across
+    processes — the old `hash(key) % 10000` used Python's salted built-in
+    hash, so reservoir RNG streams differed between runs (PYTHONHASHSEED).
+    zlib.crc32 is stable; two fresh reservoirs over the same stream agree
+    and the seed function is a pure function of the key."""
+    import zlib
+
+    def seed_for(key, base=42):
+        return base + zlib.crc32(str(key).encode()) % 10000
+
+    # same key -> same seed every call (pure function, no process salt)
+    assert seed_for(("inpatient", 2009, "LOW")) == seed_for(("inpatient", 2009, "LOW"))
+    # different keys -> (overwhelmingly) different seeds
+    assert seed_for(("inpatient", 2009, "LOW")) != seed_for(("pde", 2011, "MED"))
+
+    # two independent reservoirs over the same keyed stream must agree
+    def run_reservoir(seed):
+        from build_pipeline_dump import Reservoir
+
+        r = Reservoir(k=3, seed=seed)
+        for i in range(50):
+            r.add({"record_id": f"row-{i}", "claim_type": "inpatient"})
+        return sorted(x["record_id"] for x in r.items)
+
+    a = run_reservoir(seed_for(("inpatient", 2009, "LOW")))
+    b = run_reservoir(seed_for(("inpatient", 2009, "LOW")))
+    assert a == b

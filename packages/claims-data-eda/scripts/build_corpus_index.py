@@ -78,13 +78,41 @@ def compact(obj: Any) -> Any:
     return obj
 
 
+def _valid_ymd(y: int, mo: int, d: int) -> bool:
+    """1-12 month and calendar-correct day (leap-year aware)."""
+    import calendar
+
+    return 1 <= mo <= 12 and 1 <= d <= calendar.monthrange(y, mo)[1]
+
+
 def iso_date(raw: str | None) -> str | None:
+    """Normalize a date string to ISO YYYY-MM-DD, or None for garbage.
+
+    hub#58: the old code returned any non-8-digit string unchanged ('N/A',
+    '1/1/2010') and did no month/day range validation on 8-digit strings
+    ('20101332' -> '2010-13-32'), so downstream `int(...[:4])` raised
+    ValueError on garbage and the sibling bene age computation silently
+    swallowed it. Month 1-12 and calendar-correct day are validated; garbage
+    returns None.
+    """
     if not raw or not raw.strip():
         return None
     s = raw.strip()
     if len(s) == 8 and s.isdigit():
-        return f"{s[:4]}-{s[4:6]}-{s[6:8]}"
-    return s
+        y, mo, d = int(s[:4]), int(s[4:6]), int(s[6:8])
+        if _valid_ymd(y, mo, d):
+            return f"{y}-{mo:02d}-{d:02d}"
+        return None
+    # tolerate already-ISO dates; anything else is not machine-parseable
+    if len(s) == 10 and s[4] == "-" and s[7] == "-":
+        try:
+            y, mo, d = int(s[:4]), int(s[5:7]), int(s[8:10])
+            if _valid_ymd(y, mo, d):
+                return s
+        except ValueError:
+            return None
+        return None
+    return None
 
 
 def to_float(raw: str | None) -> float | None:
@@ -171,7 +199,10 @@ def bene_snapshot(rec: dict, year: int | None) -> dict:
             ref_year = year if year is not None else y
             age = max(ref_year - by, 0)
         except ValueError:
-            pass
+            # hub#58: an unparseable birth date left bene_age silently None —
+            # surface it so the data gap is observable, not hidden.
+            print(f"  !! unparseable birth_dt {rec.get('birth_dt')!r} "
+                  f"for record {rec.get('record_id')} — bene_age left None", flush=True)
     return {
         "bene_sex": {"1": "M", "2": "F"}.get(rec.get("bene_sex_ident_cd"), "U"),
         "bene_race_cd": to_int(rec.get("bene_race_cd")),

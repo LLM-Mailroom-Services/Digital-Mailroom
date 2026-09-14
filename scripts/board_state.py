@@ -333,6 +333,11 @@ def board_findings(state: BoardState, refs: dict[str, list[tuple[str, str]]],
         if card.pending_archive:
             findings.append(Finding("warning", "pending-archive", card.id,
                                     "done card still in the open table — move it to the Archive"))
+        elif card.lane == "done":
+            # hub#50: a bare `done` row (no "(pending archive)" marker) is a
+            # card that finished but was never archived — same hygiene gap.
+            findings.append(Finding("warning", "done-not-archived", card.id,
+                                    "done card without the (pending archive) marker — move it to the Archive"))
         if card.lane == "needs_attention" and not card.attention_tags:
             findings.append(Finding("error", "attention-tag-missing", card.id,
                                     "needs_attention card lacks a needs:/review:/decision: tag"))

@@ -14,7 +14,7 @@ intentionally NOT migrated —
   * ``board-site/index.html`` / ``docs/wiki/Board-Governance.md`` /
     ``docs/wiki/Served-Board.md`` — the cross-board switcher (and its
     documentation) links the original HUB board on purpose;
-  * ``scripts/apply_hub064_board.py`` — a historical one-off migration script;
+  * ``scripts/archive/apply_hub064_board.py`` — a historical one-off migration script (archived per mailroom-issues#50);
   * ``docs/reports/audits/org_migration_audit.*`` — the audit report itself.
 
 Usage:
@@ -52,9 +52,11 @@ ALLOWLIST = {
         "AGENTS.md",
         "CHANGELOG.md",
         "board-site/index.html",
-        "scripts/apply_hub064_board.py",
+        "scripts/archive/apply_hub064_board.py",
         "scripts/audit_references.py",
         "docs/reports/audits/org_migration_audit.*",
+        # archived HUB-era artifacts (mailroom-issues#50): retained as history.
+        "docs/reports/audits/APPLY-HUB-064.md",
         # board-evidence-auditor live audit state: must document predecessor
         # (HUB-era) lineage as evidence; not a stale-link defect (hub#33).
         ".opencode/agents/STATE.md",

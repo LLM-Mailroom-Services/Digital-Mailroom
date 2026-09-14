@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-### Added
+### Planned (not yet shipped — hub#54)
 
 - **DMR-059 — Modal doc-pipeline job queue plan**: `docs/modal-doc-jobs.md`
   designs a `sandbox-doc-jobs` Modal app modeled on the Modal docs tutorial
@@ -13,9 +13,12 @@
   graph through `DEFAULT_PROVIDER=vllm`) stages, `sandbox-doc-state` Dict
   progress mirror, `modal run` local-entrypoint smoke, and
   `Function.from_name(...).spawn(...)` consumption. Three phases (mock
-  smoke → live vLLM → CLI). The standalone repo also gains the monorepo's
-  `vllm-specialist` + `modal-specialist` opencode agents (`.opencode/agents/`,
-  sandbox-adapted wiring).
+  smoke → live vLLM → CLI). **Not yet shipped** — the card is still
+  `in_progress` on the board and neither `docs/modal-doc-jobs.md` nor
+  `.opencode/agents/` exist in the tree yet; this entry documents the plan
+  only.
+
+### Added
 
 - **DMR-058 — full CLI verification sweep + quickstart**: every `sandbox`
   command exercised against a fresh in-repo `.venv` (offline + live Hub

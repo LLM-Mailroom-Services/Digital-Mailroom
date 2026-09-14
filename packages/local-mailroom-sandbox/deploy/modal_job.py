@@ -284,4 +284,4 @@ def main(debug: bool = False) -> None:
         print(f"  sandbox root: {SANDBOX_ROOT} (config/ + data/fixtures bundled)")
         print(f"  secret keys: {list(_DEPLOY_ENV_KEYS)}")
         print(f"  volume commit cadence: every {COMMIT_EVERY_EVENTS} progress events")
-        print("  vendored family: vendor/llm-mailroom@v0.6.0 + vendor/llm-dojo-scoring@v0.12.2 (bundled, DMR-057)")
+        print("  vendored family: vendor/llm-mailroom@v0.7.1 + vendor/llm-dojo-scoring@v0.14.0 (bundled, DMR-057)")

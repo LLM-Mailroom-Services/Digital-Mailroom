@@ -63,8 +63,11 @@ def agent_prompt_names() -> list[str]:
     ``llm.prompts.prompt_templates()`` keys (DMR-057).
 
     The vendored snapshot is always importable now, so the templates are the
-    pipeline's live keys; the static roster keeps the sandbox-only agents
-    (relations / gmail_triage / intake) that v0.6.0 does not template.
+    pipeline's live keys (v0.7.1 templates gmail_triage / intake / relations);
+    the static roster is a superset/backstop that keeps the sandbox-only
+    agents (relations / gmail_triage / intake) registered even when the
+    vendored templates' roster naming differs. The reporter is retired in the
+    vendored graph (see ``config/components.yaml`` ``retired_agents``).
     """
     names = set(STATIC_AGENTS)
     try:

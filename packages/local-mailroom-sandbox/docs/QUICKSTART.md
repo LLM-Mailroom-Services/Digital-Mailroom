@@ -28,7 +28,7 @@ Optional extras, only when you need them:
 | `[notebooks]` | Jupyter + pandas/matplotlib | `sandbox up --compose-profile jupyter` |
 
 The family code is **already vendored and tracked** (`vendor/llm-mailroom`
-v0.6.0, `vendor/llm-dojo-scoring` v0.12.2) — a fresh checkout runs offline.
+v0.7.1, `vendor/llm-dojo-scoring` v0.14.0) — a fresh checkout runs offline.
 
 ## 1. The command surface at a glance
 

@@ -73,7 +73,7 @@ def mailroom_taxonomy_path() -> Path:
         return vendored
     raise FileNotFoundError(
         "Could not locate mailroom taxonomy.yaml. Run `sandbox fetch-deps` "
-        "or pip-install mailroom @ v0.6.0."
+        "to refresh the tracked vendor snapshot."
     )
 
 

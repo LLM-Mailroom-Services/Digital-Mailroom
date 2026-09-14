@@ -13,7 +13,7 @@ nodes:
   archive: true
   vision: true
   # HUB-015 reduced profile: the reporter AGENT is retired; the compile stage
-  # is the computational procedural assembler (llm-mailroom v0.6.0
+  # is the computational procedural assembler (llm-mailroom v0.7.1
   # compile_matter_record — no LLM call).
   compile_report: true
 
@@ -34,7 +34,7 @@ agents:
   archivist: true
 
 # Retired live-pipeline agents (dojo still scores historical traces).
-# reporter: the LLM reporter was retired in llm-mailroom v0.6.0 — the graph's
+# reporter: the LLM reporter was retired in llm-mailroom v0.7.1 — the graph's
 # compile_report node is the procedural assembler (no LLM call).
 retired_agents:
   - court_opinions_specialist

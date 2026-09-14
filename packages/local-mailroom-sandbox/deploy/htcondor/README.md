@@ -120,7 +120,7 @@ conda env create -f deploy/conda/environment.yml
 pip install -e ".[dev]" "langchain-core>=0.3.0" "langchain-openai>=0.3" \
     "langgraph>=0.2.0" "langgraph-checkpoint-sqlite>=1.0" \
     "sqlalchemy[asyncio]>=2.0" "aiosqlite>=0.19"   # inside the env, package root
-#    the eval stack's langchain/graph deps (the vendored llm-mailroom v0.6.0
+#    the eval stack's langchain/graph deps (the vendored llm-mailroom v0.7.1
 #    tree ships in the package tarball — no git pip pins needed, DMR-057);
 #    run_batch_eval.sh's fallback install of the same stack is a no-op here.
 conda pack -n mailroom-sandbox -o env-mailroom-sandbox.tar.gz
@@ -130,7 +130,7 @@ condor_submit vllm_batch_eval.sub
 ```
 
 `run_batch_eval.sh` unpacks the env, installs the sandbox (the eval stack —
-vendored `llm-mailroom@v0.6.0` + `llm-dojo-scoring@v0.12.2` — ships inside
+vendored `llm-mailroom@v0.7.1` + `llm-dojo-scoring@v0.14.0` — ships inside
 the package's `vendor/`, DMR-057), and **proves it is importable before
 starting vLLM** — a missing stack fails the job instead of silently scoring
 mocks. It then serves `Qwen/Qwen3-8B` with the same engine argv as

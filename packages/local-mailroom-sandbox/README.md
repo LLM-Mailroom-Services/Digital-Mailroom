@@ -4,11 +4,11 @@
 
 **A local-first experiment sandbox for the LLM-Mailroom pipeline — run the full classify → extract → report → archive graph offline on Ollama, vLLM, llama.cpp, or LM Studio.**
 
-Swap in OpenRouter when you need an API provider. This repo does **not** fork the pipeline — it ships the family code it needs as **tracked snapshots under `vendor/`** (DMR-057): the pipeline (`llm-mailroom` v0.6.0) and scoring (`llm-dojo-scoring` v0.12.2) are self-contained, with config, serving, eval, and scoring overlays on top.
+Swap in OpenRouter when you need an API provider. This repo does **not** fork the pipeline — it ships the family code it needs as **tracked snapshots under `vendor/`** (DMR-057): the pipeline (`llm-mailroom` v0.7.1) and scoring (`llm-dojo-scoring` v0.14.0) are self-contained, with config, serving, eval, and scoring overlays on top.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom%20v0.6.0-blue)](https://github.com/Exios66/llm-mailroom)
-[![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring%20v0.12.2-purple)](https://github.com/Exios66/llm-dojo-scoring)
+[![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom%20v0.7.1-blue)](https://github.com/Exios66/llm-mailroom)
+[![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring%20v0.14.0-purple)](https://github.com/Exios66/llm-dojo-scoring)
 [![Tracing](https://img.shields.io/badge/tracing-Langfuse%20v4-F5A623)](#tracing)
 
 </div>
@@ -22,8 +22,8 @@ Swap in OpenRouter when you need an API provider. This repo does **not** fork th
 | Component | Default | Notes |
 |:---|:---|:---|
 | **Default provider** | Ollama (`qwen3:8b`) | Fallback `qwen3:7b` |
-| **Scoring** | `llm-dojo-scoring` @ v0.12.2 (vendored) | Deterministic, field-type-aware |
-| **Pipeline** | `llm-mailroom` v0.6.0 (vendored) | 13-node LangGraph state machine |
+| **Scoring** | `llm-dojo-scoring` @ v0.14.0 (vendored) | Deterministic, field-type-aware |
+| **Pipeline** | `llm-mailroom` v0.7.1 (vendored) | 13-node LangGraph state machine |
 | **Tracing** | Langfuse 3 / SDK v4 | `document-pipeline` traces |
 | **Storage** | SQLite under `./data` | Mailroom default |
 
@@ -36,7 +36,7 @@ pip install -e ".[dev]"
 cp config/.env.example .env
 # family code is already vendored under vendor/ (self-contained); fetch-deps
 # only refreshes the pinned snapshots (network, optional):
-sandbox fetch-deps                 # refresh vendor/llm-mailroom @ v0.6.0 + vendor/llm-dojo-scoring @ v0.12.2
+sandbox fetch-deps                 # refresh vendor/llm-mailroom @ v0.7.1 + vendor/llm-dojo-scoring @ v0.14.0
 sandbox up                         # Langfuse + Ollama
 sandbox pull-models                # ollama pull qwen3:8b
 sandbox health
@@ -115,7 +115,7 @@ deploy/              Dockerfile + compose + Modal vLLM (modal_vllm.py) + Modal j
 notebooks/           offline env setup + data prep + mock smoke
 data/fixtures/       offline samples (see ATTRIBUTION.md)
 src/mailroom_sandbox/
-vendor/              tracked family snapshots (llm-mailroom v0.6.0 + llm-dojo-scoring v0.12.2; see VENDOR.md)
+vendor/              tracked family snapshots (llm-mailroom v0.7.1 + llm-dojo-scoring v0.14.0; see VENDOR.md)
 reports/             sandbox experiment log (not a sister-repo mirror)
 ```
 

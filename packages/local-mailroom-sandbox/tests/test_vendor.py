@@ -128,3 +128,39 @@ def test_refresh_locates_package_src_for_each_vendored_layout(tmp_path):
     weird = tmp_path / "weird"
     weird.mkdir()
     assert _package_src_dir(weird) is None
+
+def test_docs_claim_current_vendored_pins():
+    """hub#54: no non-vendor tracked file may claim the OLD vendored pins
+    (v0.6.0 / v0.12.2) as the current surface — the docs must name the
+    shipped snapshot pins. Historical release-note entries (CHANGELOG
+    released sections) are allowed to describe the old pins as history."""
+    root = repo_root()
+    # Intentional old-pin references: this test's own string, the
+    # test_live_or_loud assertion that the OLD git-pin form is absent from the
+    # htcondor script, and the run_batch_eval.sh line-142 historical note.
+    allow_substrings = (
+        "test_vendor.py",
+        "test_live_or_loud.py",
+        "the old mailroom@v0.6.0 / llm-dojo-scoring@v0.12.2",
+    )
+    stale = []
+    for path in root.rglob("*"):
+        if not path.is_file() or path.suffix.lower() not in {".py", ".md", ".yaml", ".yml", ".sh"}:
+            continue
+        rel = path.relative_to(root)
+        if "vendor" in rel.parts or "__pycache__" in rel.parts:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if "v0.6.0" in text or "v0.12.2" in text:
+            if any(s in str(rel) or s in text for s in allow_substrings):
+                continue
+            # CHANGELOG.md is history by definition — released AND in-flight
+            # entries legitimately describe the old pins (HUB-era notes). The
+            # live docs/source surface is what the sweep guards.
+            if rel.name == "CHANGELOG.md":
+                continue
+            stale.append(str(rel))
+    assert not stale, f"stale vendored-pin claims: {stale}"

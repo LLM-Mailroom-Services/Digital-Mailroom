@@ -30,10 +30,14 @@ Every specialty has a dedicated subagent. Invoke it through the **Task tool**
 specialty work done inline is a defect even when it happens to be correct.
 The subagent's returned report is the evidence for that slice of the card.
 The project specialists (`vllm-specialist`, `modal-specialist`,
-`prompt-engineer`, `board-evidence-auditor`) are `mode: all` — callable
-through the Task tool as subagents **and** selectable directly as primary
-agents (restart opencode after editing their `.opencode/agents/` files;
-verify with `opencode agent list`).
+`prompt-engineer`, `board-evidence-auditor`) and the global team
+(`lucius`, `archivist-file-organizer`, `code-analyst`,
+`test-suite-auditor`, `orchestrator-governor`,
+`athena-database-agent`, `atom`, `hazel-ui-software-master`,
+`jarvis-systems-maximizer`) are `mode: all` — callable through the Task
+tool as subagents **and** selectable directly as primary agents (restart
+opencode after editing their agent files; verify with `opencode agent
+list`).
 
 ### Roster
 
@@ -48,8 +52,12 @@ verify with `opencode agent list`).
 | 7 | **vLLM serving** | `vllm-specialist` (project, `.opencode/agents/vllm-specialist.md`) | `vllm serve` configs, quantization, multi-LoRA, structured outputs, speculative decoding, tensor/data/expert/context parallelism, KV-cache/memory tuning, diagnosing OOMs and throughput regressions | "Set up `vllm serve` for Llama-3-8B on an A10G with AWQ quantization — I need the exact flags for v0.29.0." / "The Modal-hosted vLLM is OOMing on 4096-token prompts — tune the memory budget and `max-model-len`." / "Enable prefix caching and structured JSON output via xgrammar for the contracts extraction endpoint." / "Diagnose why throughput dropped 40% after upgrading from v0.28.0 to v0.29.0 — check if Model Runner V2 is the cause." |
 | 8 | **Modal compute** | `modal-specialist` (project, `.opencode/agents/modal-specialist.md`) | Modal apps (`@app.function`/`@app.cls`/`@app.server`), container Images, Volumes, Secrets, Dicts/Queues, Sandboxes, GPU selection & cost control, scale-to-zero/cold-start tuning, `modal serve`/`deploy`/`run`/`endpoint`, debugging Modal-hosted services | "Deploy `deploy/modal_vllm.py` to Modal with an L4 GPU, `scaledown_window=15min`, and a persistent HF cache volume." / "The Sandbox v2 backend isn't working — check the SDK version and fix the opt-in config." / "Add a `modal.Secret` for `HF_TOKEN` and a `modal.Volume` for the vLLM model cache to the entity extraction deploy app." / "Why is cold-start taking 12 minutes? Tune `startup_timeout` and check if memory snapshots apply." |
 | 9 | **Board & repo auditing** | `board-evidence-auditor` (project, `.opencode/agents/board-evidence-auditor.md`) | Verifying board card claims against shipped evidence, auditing modules for incomplete work/TODOs, opening issues and DMR cards for discrepancies, maintaining STATE.md audit trail | "Audit all DMR-011 through DMR-029 cards — verify each claim against actual code and open cards for anything missing." / "The board claims DMR-029 is done, but the deploy file still has `Secret.from_local` — verify and open a defect card." / "Run a repo-wide audit for TODO/FIXME markers in deploy files and document findings in STATE.md." / "Check if the evidence links on done cards actually point to merged PRs, not stale branches." |
-| 10 | **Codebase exploration** | `explore` | Fast read-only searches ("where is X", "how does Y work") before you edit — never modifies code | "Where is the `vllm` provider wired into the mailroom pipeline?" / "How does the board_state.py sync-issues command map TASKS.md lanes to GitHub labels?" / "Find all files that import `modal` — I need to know what touches the Modal SDK." / "What's the contract between the entity extraction prompts and the mailroom pipeline prompts?" |
-| 11 | **General multi-step** | `general` | Research/execution spanning several specialties with no single owner; tasks that cut across data + prompts + infra | "Build an end-to-end eval pipeline: pull the dataset from HF, run extraction, score with dojo-scoring, and upload results to Braintrust." / "Set up a new package in the monorepo: create the layout, pyproject.toml, AGENTS.md, CI config, and sync_packages.json entry." / "Investigate why the mailroom pipeline is misclassifying insurance claims — check the data, the prompts, and the scorer in sequence." |
+| 10 | **File management & organization** | `archivist-file-organizer` (global, `~/.config/opencode/agents/`) | Repo-layout audits and restructures, directory/file grouping and renames, vendor/snapshot tree upkeep (drift refactors, VENDOR.md pins), symlink/workspace hygiene, duplicate-file detection, junk/orphan sweeps | "Audit the sandbox `vendor/` tree and propose a canonical snapshot layout with verified moves." / "Find and sweep `.orig`/`.rej`/editor-swap junk across the monorepo." / "Renaming `mailroom_ui/` internals — map every reference and prove the tree still resolves." |
+| 11 | **Concise code analysis** | `code-analyst` (global, `~/.config/opencode/agents/`) | Fast structured verdicts on code you point it at: diff review, root-cause tracing, dead-code confirmation, risk maps of unfamiliar modules — output is verdict + file:line evidence, never a book | "Give me a concise risk map of the pipeline retry ladder before I touch the 429 handling." / "Review this diff for silent-behavior changes." / "Is `hf_rows_as_manifest` dead? Show the search proof." |
+| 12 | **Test suite auditing** | `test-suite-auditor` (global, `~/.config/opencode/agents/`) | Auditing suites themselves: dead/weak tests, stub dishonesty (stubs that cannot express real failure modes), unpinned error paths, skip discipline, marker hygiene — the "loud = monitored" enforcement layer | "Which of these loud-error behaviors are actually pinned by tests, and where would a regression slip in green?" / "Audit the stub honesty of the modal-side test doubles." / "Why does deleting the vendor tree turn the drift guard into a skip?" |
+| 13 | **Master governance orchestrator** | `orchestrator-governor` (global, `~/.config/opencode/agents/`, `mode: all`) | Planning + dispatch + governance: reads AGENTS.md + the board first, breaks missions into units, briefs specialists like cards, chains them (never impersonates), holds the card lifecycle, closes with evidence; run as PRIMARY (plan/drive a session) or SUBAGENT (any agent hands it a mission) | "Plan and orchestrate the sandbox sweep — route each specialty and keep the card honest." / "I need a dispatch plan for a data + prompts + deploy mission; which agents in what order?" / "Govern this card to done: dispatch, gates, evidence, close." |
+| 14 | **Codebase exploration** | `explore` | Fast read-only searches ("where is X", "how does Y work") before you edit — never modifies code | "Where is the `vllm` provider wired into the mailroom pipeline?" / "How does the board_state.py sync-issues command map TASKS.md lanes to GitHub labels?" / "Find all files that import `modal` — I need to know what touches the Modal SDK." / "What's the contract between the entity extraction prompts and the mailroom pipeline prompts?" |
+| 15 | **General multi-step** | `general` | Research/execution spanning several specialties with no single owner; tasks that cut across data + prompts + infra | "Build an end-to-end eval pipeline: pull the dataset from HF, run extraction, score with dojo-scoring, and upload results to Braintrust." / "Set up a new package in the monorepo: create the layout, pyproject.toml, AGENTS.md, CI config, and sync_packages.json entry." / "Investigate why the mailroom pipeline is misclassifying insurance claims — check the data, the prompts, and the scorer in sequence." |
 
 > **Note:** `.opencode/agents/STATE.md` is **not** a callable subagent — it is the board-evidence-auditor's live audit state file. Read it before any audit session to avoid repeating past mistakes, but never invoke it via the Task tool.
 
@@ -81,9 +89,14 @@ Rules that make the roster work:
 - `PROMPT_ENGINEER_GEPA_PROVENANCE` is provenance documentation for the
   prompt-engineer agent — not a callable subagent.
 
-New specialist agents are added as project files under `.opencode/agents/`
-(committed, version-controlled, reviewed like code); restart opencode after
-adding one so the Task tool picks it up.
+New specialist agents live **globally first** (canonical file in
+`~/.config/opencode/agents/<name>.md`, available in every worktree), with an
+**identical committed mirror** under `.opencode/agents/` (the project copy
+is a harmless no-op while identical — keep them byte-identical; drift is a
+housekeeping defect, documented in `docs/wiki/Subagents.md`). Project-local
+specialists (prompt-engineer, vllm/modal-specialists, board-evidence-auditor,
+lucius) stay project files by design — their protocols are repo-specific.
+Restart opencode after adding any agent so the Task tool picks it up.
 
 ## Commands
 

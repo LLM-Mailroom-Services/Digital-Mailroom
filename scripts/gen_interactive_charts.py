@@ -277,7 +277,34 @@ def gen_enron():
 
 
 if __name__ == "__main__":
+    import argparse
+    import sys
+
+    # hub#64: a real CLI — --help prints usage and exits 0 instead of
+    # silently regenerating every chart (the pre-argparse behavior).
+    parser = argparse.ArgumentParser(
+        description="Generate Plotly interactive HTML charts for EDA repos (claims + enron)."
+    )
+    parser.add_argument("--claims", action="store_true", help="regenerate claims-data-eda charts only")
+    parser.add_argument("--enron", action="store_true", help="regenerate Enron-Evaluation-Environment charts only")
+    parser.add_argument("--dry-run", action="store_true", help="print what would be generated without writing files")
+    args = parser.parse_args()
+
+    targets = []
+    if args.claims:
+        targets.append("claims")
+    if args.enron:
+        targets.append("enron")
+    if not targets:
+        targets = ["claims", "enron"]
+    if args.dry_run:
+        print("would regenerate:", ", ".join(targets))
+        print("dry-run — no files written")
+        sys.exit(0)
+
     print("Generating Plotly charts...")
-    gen_claims()
-    gen_enron()
+    if "claims" in targets:
+        gen_claims()
+    if "enron" in targets:
+        gen_enron()
     print("Done.")

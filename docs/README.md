@@ -24,7 +24,7 @@
 | `../README.md` | Root monorepo README |
 | `../docs/v7-taxonomy.md` | Canonical five-class taxonomy definition |
 | `../docs/DOCCLASS_CONTRACT.md` | Dataset contract and versioning rules |
-| `../docs/mailroom-corpus-plan.md` | Strategic plan for corpus development |
+| `../docs/docclass-merged-plan.md` | Strategic plan for corpus development |
 
 ## Related Documentation
 

@@ -104,7 +104,7 @@ reports drift (CI-gated). Groups:
 
 | Group | Labels |
 | --- | --- |
-| Stage (lane mirrors) | `stage/assigned` · `stage/in-progress` · `stage/needs-attention` · `stage/done` |
+| Stage (lane mirrors) | `stage/unassigned` · `stage/assigned` · `stage/in-progress` · `stage/needs-attention` · `stage/done` |
 | Attention tags | `attention/blocked` · `attention/review` · `attention/decision` |
 | Type | `type/bug` · `type/feature` · `type/task` · `type/docs` · `type/governance` · `type/release` · `type/sync` |
 | Priority | `priority/critical` · `priority/high` · `priority/medium` · `priority/low` |

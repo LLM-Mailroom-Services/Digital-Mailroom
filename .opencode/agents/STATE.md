@@ -190,7 +190,7 @@ Full board state audit (DMR-011 through DMR-040), documentation drift check, arc
 | DMR-018 | unassigned | NOT SHIPPED — no INSURBIAS evaluation |
 | DMR-023 | unassigned | PARTIALLY SHIPPED — deploy fixed (DMR-029), test mock stale (`from_local` in stub, should be `from_dict`) |
 | DMR-024 | unassigned | PARTIALLY SHIPPED — deploy fixed (DMR-030), test mock stale (`from_local` in stub, should be `from_dict`) |
-| DMR-040 | unassigned | NOT SHIPPED — `vllm-specialist.md:83` still says `--disable-log-requests`, should be `--no-enable-log-requests` |
+| DMR-040 | unassigned | ~~NOT SHIPPED — `vllm-specialist.md:83` still says `--disable-log-requests`, should be `--no-enable-log-requests`~~ — **RESOLVED 2026-09-14 (mailroom-issues#64):** the claim was factually wrong — lines 83-84 carry the correct `--no-enable-log-requests`; DMR-040 closed as incorrect (see the Detailed Findings section). |
 
 ### Archived Card Verification
 DMR-026, DMR-028, DMR-029, DMR-030, DMR-031, DMR-032: all verified as shipped against actual codebase state.
@@ -199,7 +199,7 @@ DMR-026, DMR-028, DMR-029, DMR-030, DMR-031, DMR-032: all verified as shipped ag
 
 ### Documentation Drift Findings
 1. **AGENTS.md specialist roster** — ✅ No drift. The four `mode: all` project specialists match actual `.opencode/agents/*.md` files.
-2. **vllm-specialist.md playbook** — ⚠️ Stale flag `--disable-log-requests` at line 83 (tracked by DMR-040).
+2. **vllm-specialist.md playbook** — ~~⚠️ Stale flag `--disable-log-requests` at line 83 (tracked by DMR-040)~~ — **RESOLVED 2026-09-14 (mailroom-issues#64):** DMR-040's claim was factually wrong; lines 83-84 carry `--no-enable-log-requests`, the correct flag (see line 231 + the Detailed Findings section).
 3. **Test stub staleness** — ⚠️ Both `test_vllm_modal_capability.py` and `test_kanban096_modal_vllm.py` define `_Secret.from_local` (dead code); deploy code calls `from_dict` (not mocked). Functionally harmless but logically stale (tracked by DMR-023, DMR-024).
 4. **docs/wiki/Served-Board.md** — ✅ No drift. Correct repo name, deploy URL, tool commands.
 5. **TASKS.md archive** — ✅ Verified. DMR-026 through DMR-039 archive entries match codebase state.

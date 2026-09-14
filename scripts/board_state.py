@@ -548,7 +548,7 @@ def issue_body_set_section(body: str, heading: str, content: str) -> str:
     """Set/replace one '### heading' section, rebuilding the body cleanly so
     headings are never glued together (mirrors board-site/lib/gh.js). Returns
     the new body. The section is inserted at the end if not already present."""
-    body = (body or "").replace(r"\r\n", "\n")
+    body = (body or "").replace("\r\n", "\n")
     lines = body.split("\n")
     sections: list[tuple[str, list[str]]] = []
     preamble: list[str] = []

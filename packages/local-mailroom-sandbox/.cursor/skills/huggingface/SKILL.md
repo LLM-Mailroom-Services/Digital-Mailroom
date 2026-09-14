@@ -20,7 +20,7 @@ description: Hugging Face Hub usage for local-mailroom-sandbox — fixture schem
 ```bash
 sandbox datasets prepare                                    # offline cleaners
 sandbox datasets pull --dataset Lucius-Morningstar/mailroom-dataset --max-rows 50
-#   pinned revision fe3a6f96… (FAMILY_HF_REVISION, v9 mailroom-dataset tip),
+#   pinned revision 46a4d3c2… (FAMILY_HF_REVISION, v9 mailroom-dataset tip),
 #   ground_truth + default
 #   merged on filename, content_sha256 verified, exit 1 on any failure (DMR-056)
 ```

@@ -5,7 +5,7 @@ LLM-Mailroom family. It does **not** reimplement the 13-node LangGraph pipeline.
 The family code the sandbox imports at runtime — the pipeline
 ([`llm-mailroom`](https://github.com/Exios66/llm-mailroom) `v0.7.1`:
 `pipeline.*`/`graph.*`/`agents.*`/`llm.*`/`legalbench.*`) and scoring
-([`llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring) `v0.14.0`) —
+([`llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring) `v0.15.0`) —
 ships as **tracked snapshots under `vendor/`** (DMR-057). The sandbox is
 **self-contained**: no pip git pins, no `sandbox fetch-deps` step, no network
 needed to score or run evals. Prompt loops optionally in `llm-entity-extraction`.
@@ -41,7 +41,7 @@ sandbox cutover --profile ollama --agent-model judge=qwen3:14b
 sandbox up                          # langfuse + ollama compose profiles
 sandbox pull-models                 # ollama pull qwen3:8b
 sandbox health
-sandbox fetch-deps                  # optional: refresh tracked vendor snapshots (llm-mailroom v0.7.1, llm-dojo-scoring v0.14.0)
+sandbox fetch-deps                  # optional: refresh tracked vendor snapshots (llm-mailroom v0.7.1, llm-dojo-scoring v0.15.0)
 sandbox fetch-deps --visualizer     # also clone The-Mailroom
 sandbox pilot --mock                # no LLM
 sandbox eval sorter --mock
@@ -93,7 +93,7 @@ sandbox metrics compare --runs local,modal,api   # serving metrics comparison
 - Mailroom's `pipeline.config.CONFIG_PATH` is hardcoded; the sandbox monkeypatches it.
 - `DEFAULT_PROVIDER` alone is not enough — OpenRouter model ids must be rewritten via the overlay.
 - `--model` overrides every agent; `--agent-model NAME=tag` is surgical and wins last.
-- Scoring + pipeline are pinned by the tracked snapshots: `vendor/llm-mailroom/VENDOR.md` (v0.7.1, commit `2a212e76`) + `vendor/llm-dojo-scoring/VENDOR.md` (v0.14.0, commit `5298d703`); refresh both with `sandbox fetch-deps` and commit the diff. `get_suite("local_vs_api")` compares offline vs API-key serving metrics (table + scorecard + cost; TTFT never inferred; GPU/KV stripped on API records).
+- Scoring + pipeline are pinned by the tracked snapshots: `vendor/llm-mailroom/VENDOR.md` (v0.7.1, commit `2a212e76`) + `vendor/llm-dojo-scoring/VENDOR.md` (v0.15.0, commit `9db1417b`); refresh both with `sandbox fetch-deps` and commit the diff. `get_suite("local_vs_api")` compares offline vs API-key serving metrics (table + scorecard + cost; TTFT never inferred; GPU/KV stripped on API records).
 - Isolated evals call vendored agent classes (always importable now); the `offline_fallback` path still exists for missing deps.
 - `scripts/` and `legalbench/` are not in the installed `mailroom` wheel — they ARE in the vendored tree, which also supplies `PYTHONPATH` for `sandbox pipeline watcher` / `sandbox pipeline api` (`_mailroom_env` adds both vendored srcs).
 - No second kanban board in this repo. Cross-family work stays on llm-entity-extraction's MESSAGE_BOARD.

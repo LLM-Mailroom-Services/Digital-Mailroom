@@ -130,7 +130,7 @@ condor_submit vllm_batch_eval.sub
 ```
 
 `run_batch_eval.sh` unpacks the env, installs the sandbox (the eval stack —
-vendored `llm-mailroom@v0.7.1` + `llm-dojo-scoring@v0.14.0` — ships inside
+vendored `llm-mailroom@v0.7.1` + `llm-dojo-scoring@v0.15.0` — ships inside
 the package's `vendor/`, DMR-057), and **proves it is importable before
 starting vLLM** — a missing stack fails the job instead of silently scoring
 mocks. It then serves `Qwen/Qwen3-8B` with the same engine argv as

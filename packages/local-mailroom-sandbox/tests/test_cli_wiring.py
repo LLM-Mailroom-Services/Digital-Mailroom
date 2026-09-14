@@ -114,7 +114,7 @@ def test_datasets_pull_success_prints_rows_and_exit0(monkeypatch, capsys):
         return {
             "rows": 7,
             "sha256": "a" * 64,
-            "revision_resolved": "fe3a6f96",
+            "revision_resolved": "46a4d3c2",
             "metadata": {"source": "huggingface"},
         }
 

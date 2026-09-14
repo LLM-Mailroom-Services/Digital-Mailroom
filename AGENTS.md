@@ -185,7 +185,13 @@ or team to claim) → `assigned` (claimed, nothing underway) → `in_progress`
   a body that names each file changed and describes what/why (reference the
   card, note test evidence and gates). A terse "Update X" without a body is
   a defect. Rewrites of pushed history are reserved for human-directed
-  corrections (see the 2026-09-04 reword session note in TASKS.md).
+  corrections (see the 2026-09-04 reword session note in TASKS.md). **UTC is
+  the canonical timezone (hub#plan-Phase7):** timestamps in evidence, board
+  cards, and messages are UTC (ISO-8601, `%Y-%m-%dT%H:%M:%SZ`). Author
+  commits as UTC (`TZ=UTC git commit ...`); when reading a foreign timestamp
+  use `git show --date=iso-strict` so the offset is explicit. Bare `YYYY-MM-DD`
+  card dates are interpreted as UTC by convention (board_state.py flags
+  Owner-cell dates for this reason).
 - **Issue routing** — board-only for small/single-session/low-risk cards;
   critical or cross-package cards get an issue in the repo where the work
   lands (this monorepo for hub scope, the package repo for package scope).

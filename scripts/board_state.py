@@ -372,6 +372,18 @@ def board_findings(state: BoardState, refs: dict[str, list[tuple[str, str]]],
             findings.append(Finding("warning", "issue-cross-repo", card.id,
                                     f"issue link points outside {origin_repo} (allowed for package-scoped work, verify intent)"))
 
+        # hub#plan-Phase7: dates are UTC (ISO-8601) by convention. Owner cells
+        # (e.g. "lucius 2026-09-10") and archive rows carry bare YYYY-MM-DD —
+        # ambiguous without the documented timezone, so flag them so evidence
+        # never silently assumes local time. The canonical format is the
+        # ISO-8601 UTC the tooling emits (%Y-%m-%dT%H:%M:%SZ, utc_now()).
+        if re.search(r"\d{4}-\d{2}-\d{2}", card.owner):
+            findings.append(Finding("info", "owner-date-utc-convention", card.id,
+                                    "Owner cell embeds a bare YYYY-MM-DD date — by convention these are UTC (docs/TESTING.md, AGENTS.md); keep them date-only or append Z"))
+        if card.archived_date and not card.archived_date.endswith(("Z", "+00:00")):
+            findings.append(Finding("info", "archive-date-utc-convention", card.id,
+                                    "archive row date lacks a UTC marker — convention is ISO-8601 UTC; keep it bare YYYY-MM-DD (interpreted UTC) or append Z"))
+
     for card_id in sorted(refs):
         if card_id not in all_ids:
             latest = refs[card_id][0][1]

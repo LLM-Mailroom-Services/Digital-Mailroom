@@ -14,6 +14,13 @@ repo; HUB-era history and evidence live there and in this repo's git history
 (`git log --follow -- governance/TASKS.md`). The `DMR-` namespace starts at
 DMR-001 and never reuses HUB numbers.
 
+**Time convention (hub#plan-Phase7):** all dates on this board are **UTC**.
+Owner-cell dates and archive-row dates are bare `YYYY-MM-DD` and are
+interpreted as UTC (the tooling emits ISO-8601 UTC — `%Y-%m-%dT%H:%M:%SZ`).
+Never write local-time timestamps into evidence or Owner cells; when a precise
+instant is needed use the ISO-8601 UTC form. `scripts/board_state.py check`
+surfaces Owner-cell/archive dates that carry no UTC marker as info findings.
+
 Scope: **this repo's monorepo-level work** (workspace wiring, cross-package
 governance, board tooling, docs, releases). Work scoped to a single package is
 tracked by that package's own governance — this board holds the hub view and

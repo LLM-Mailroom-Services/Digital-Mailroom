@@ -6,6 +6,8 @@ import types
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 import mailroom_sandbox.job.remote as remote
 from mailroom_sandbox.job.checkpoint import RunStore
 
@@ -100,6 +102,68 @@ def test_is_alive_reflects_input_state(tmp_path, monkeypatch):
     assert remote.is_alive(store)
     _stub_modal(monkeypatch, live_status="SUCCESS")
     assert not remote.is_alive(store)
+
+
+def test_is_alive_exception_treated_as_alive(tmp_path, monkeypatch, caplog):
+    # hub#41: an SDK/network hiccup must not read as 'dead' — that made
+    # ensure_running re-fire the job and spawn a second worker on the same
+    # run dir (false-death double-fire).
+    import logging
+
+    store = _store(tmp_path)
+    store.write_checkpoint(
+        state="running", cursor=0, total=1, remote={"call_id": "call-x", "app": "a", "fn": "f"}
+    )
+
+    def _boom_modal():
+        raise RuntimeError("sdk hiccup")
+
+    monkeypatch.setattr(remote, "_modal", _boom_modal)
+    with caplog.at_level(logging.WARNING, logger="mailroom_sandbox.job.remote"):
+        assert remote.is_alive(store) is True
+    assert "treating as alive" in caplog.text
+
+
+def test_ensure_running_refuses_young_refire(tmp_path, monkeypatch):
+    # hub#41: a call that looks dead but was fired within the cooldown window
+    # must NOT be re-fired (a second worker on the same run dir corrupts it).
+    from datetime import datetime, timedelta, timezone
+
+    store = _store(tmp_path)
+    store.write_checkpoint(
+        state="running",
+        cursor=0,
+        total=1,
+        remote={
+            "call_id": "dead",
+            "app": "a",
+            "fn": "f",
+            "fired_at": (datetime.now(timezone.utc) - timedelta(minutes=2)).isoformat(),
+        },
+    )
+    _stub_modal(monkeypatch, live_status="SUCCESS")
+    with pytest.raises(RuntimeError, match="cooldown"):
+        remote.ensure_running(store)
+
+
+def test_ensure_running_refires_after_cooldown(tmp_path, monkeypatch):
+    # hub#41: once the cooldown has passed, a dead call may be re-fired and
+    # the spawn timestamp is re-stamped.
+    from datetime import datetime, timedelta, timezone
+
+    store = _store(tmp_path)
+    old = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
+    store.write_checkpoint(
+        state="running",
+        cursor=0,
+        total=1,
+        remote={"call_id": "dead", "app": "a", "fn": "f", "fired_at": old},
+    )
+    _stub_modal(monkeypatch, live_status="SUCCESS")
+    action = remote.ensure_running(store)
+    assert action["action"] == "fired"
+    cp = store.read_checkpoint() or {}
+    assert (cp.get("remote") or {}).get("fired_at") != old
 
 
 def test_ensure_running_reattaches_live(tmp_path, monkeypatch):

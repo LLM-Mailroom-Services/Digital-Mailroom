@@ -30,6 +30,7 @@ bundled paths.
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 from datetime import datetime, timezone
@@ -125,15 +126,17 @@ def _config_secrets() -> list[modal.Secret]:
     return [modal.Secret.from_dict(values)]
 
 
-def _enable_debug_logging() -> None:
-    """SANDBOX_DEBUG=1: DEBUG-level Python logging for the sandbox + mailroom."""
-    if os.environ.get("SANDBOX_DEBUG", "").strip() in {"1", "true", "yes"}:
-        import logging
+logger = logging.getLogger("modal_job")
 
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format="%(asctime)s %(levelname)s %(name)s %(message)s",
-        )
+
+def _enable_debug_logging() -> None:
+    """Always configure logging; DEBUG-level for the sandbox + mailroom when
+    SANDBOX_DEBUG=1 (hub#41: lifecycle failures must surface in worker logs)."""
+    logging.basicConfig(
+        level=logging.DEBUG if os.environ.get("SANDBOX_DEBUG", "").strip() in {"1", "true", "yes"} else logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+    if os.environ.get("SANDBOX_DEBUG", "").strip() in {"1", "true", "yes"}:
         for name in ("mailroom_sandbox", "llm", "pipeline", "graph", "agents"):
             logging.getLogger(name).setLevel(logging.DEBUG)
 
@@ -208,13 +211,16 @@ def run_job(payload: dict) -> dict:
         # DMR-056: Dict.put(key, value) is two-arg in modal 1.5.5 — the old
         # one-arg call raised TypeError, killing the progress mirror + commit
         # cadence in a REAL deploy (invisible to the stubbed test suite).
-        state_dict.put(run_id, progress)
+        try:
+            state_dict.put(run_id, progress)
+        except Exception as exc:  # noqa: BLE001 — hub#41: loud, never silent
+            logger.warning("state Dict put failed (progress mirror stale): %s", exc, exc_info=True)
         events["n"] += 1
         if events["n"] % COMMIT_EVERY_EVENTS == 0:
             try:
                 runs_volume.commit()
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001 — hub#41: loud, never silent
+                logger.warning("runs_volume.commit failed: %s", exc, exc_info=True)
 
     payload_mock = payload.get("mock")
     try:
@@ -237,8 +243,12 @@ def run_job(payload: dict) -> dict:
         try:
             state_dict.put(run_id, failed)
             runs_volume.commit()
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 — hub#41: loud, never silent
+            logger.error(
+                "terminal state write failed (worker exit will not be observed by the CLI): %s",
+                exc,
+                exc_info=True,
+            )
         flush_tracer(tracer)
         return failed
 
@@ -248,13 +258,19 @@ def run_job(payload: dict) -> dict:
     if reports_log.is_file():
         try:
             shutil.copyfile(reports_log, store.dir / "experiment_log.jsonl")
-        except OSError:
-            pass
+        except OSError as exc:  # noqa: BLE001 — hub#41: loud, never silent
+            logger.warning("could not copy experiment log into run dir: %s", exc, exc_info=True)
 
-    state_dict.put(run_id, {"run_id": run_id, "spec_hash": spec_hash, "heartbeat_at": _now(), **result})
-    runs_volume.commit()
-    flush_tracer(tracer)
-    return result
+    try:
+        state_dict.put(run_id, {"run_id": run_id, "spec_hash": spec_hash, "heartbeat_at": _now(), **result})
+        runs_volume.commit()
+    except Exception as exc:  # noqa: BLE001 — hub#41: loud, never silent
+        logger.error(
+            "terminal state write failed (worker exit will not be observed by the CLI): %s",
+            exc,
+            exc_info=True,
+        )
+        raise
 
 
 @app.local_entrypoint()

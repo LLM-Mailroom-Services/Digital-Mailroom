@@ -181,7 +181,16 @@ def preflight(
     run_id = run_id or resolve_run_id(spec)
     store = RunStore(run_dir(run_id))
 
-    existing = store.read_lock()
+    try:
+        existing = store.read_lock()
+    except RuntimeError as exc:
+        # hub#41: a corrupt spec.lock.json is a LOUD preflight failure —
+        # never a silent run with spec_hash: null.
+        return {
+            "status": "failed",
+            "run_id": run_id,
+            "checks": [{"name": "lock", "ok": False, "detail": str(exc)}],
+        }
 
     report: dict[str, Any] = {"run_id": run_id, "status": "prepared", "checks": []}
     if dry_run:

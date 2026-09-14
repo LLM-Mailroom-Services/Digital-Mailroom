@@ -52,6 +52,22 @@ def test_preflight_prepares_and_locks(tmp_path):
     assert store.spec_hash() == spec.spec_hash()
 
 
+def test_preflight_corrupt_lock_refuses_loud(tmp_path, job_data_dir):
+    # hub#41: a corrupt spec.lock.json is a loud preflight failure naming
+    # the path — never a silent run with spec_hash: null.
+    spec = _run_spec(tmp_path, run_id="pf-corrupt")
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared"
+    store = _store(report)
+    store.lock_path.write_text("{garbage", encoding="utf-8")
+    report2 = preflight.preflight(spec, offline=True)
+    assert report2["status"] == "failed"
+    assert report2["checks"][0]["name"] == "lock"
+    assert not report2["checks"][0]["ok"]
+    assert "corrupt JSON" in report2["checks"][0]["detail"]
+    assert str(store.lock_path) in report2["checks"][0]["detail"]
+
+
 def test_preflight_drift_refusal_then_force(tmp_path):
     spec = _run_spec(tmp_path, limit=2)
     report = preflight.preflight(spec, offline=True)

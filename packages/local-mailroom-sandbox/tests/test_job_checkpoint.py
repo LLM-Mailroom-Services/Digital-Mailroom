@@ -68,3 +68,23 @@ def test_terminal_and_summary(store):
     store.write_checkpoint(state="done", cursor=1, total=1)
     assert store.terminal()
     assert store.summary()["state"] == "done"
+
+
+def test_corrupt_lock_raises_loud(store):
+    # hub#41: a corrupt spec.lock.json must raise — a silent None made
+    # preflight skip the drift check, write_lock no-op, and every experiment
+    # record carry spec_hash: null.
+    store.lock_path.write_text("{not json", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="corrupt JSON"):
+        store.read_lock()
+    with pytest.raises(RuntimeError, match="corrupt JSON"):
+        store.write_lock({"spec_hash": "x"})
+    with pytest.raises(RuntimeError, match="corrupt JSON"):
+        store.spec_hash()
+
+
+def test_corrupt_prompt_lock_raises_loud(store):
+    # hub#41: same live-or-loud rule for the prompt lock.
+    store.prompt_lock_path.write_text("{nope", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="corrupt JSON"):
+        store.read_prompt_lock()

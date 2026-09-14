@@ -47,12 +47,17 @@ def _atomic_write(path: Path, payload: str) -> None:
         pass
 
 
-def _read_json(path: Path) -> dict[str, Any] | None:
+def _read_json(path: Path, *, strict: bool = False) -> dict[str, Any] | None:
     if not path.is_file():
         return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except Exception as exc:
+        if strict:
+            # hub#41: a corrupt lock must be LOUD — a silent None made
+            # preflight skip the drift check, write_lock no-op, and every
+            # experiment record carry spec_hash: null.
+            raise RuntimeError(f"corrupt JSON in {path}: {exc}") from exc
         return None
 
 
@@ -117,12 +122,15 @@ class RunStore:
     # ── lock (immutable preflight manifest) ─────────────────────────────────
     def write_lock(self, payload: dict[str, Any]) -> Path:
         if self.lock_path.is_file():
+            # hub#41: an existing lock must be readable — a corrupt lock is a
+            # loud failure, never a silent no-op that keeps stale state.
+            _read_json(self.lock_path, strict=True)
             return self.lock_path
         _atomic_write(self.lock_path, json.dumps(payload, indent=2, sort_keys=True, default=str))
         return self.lock_path
 
     def read_lock(self) -> dict[str, Any] | None:
-        return _read_json(self.lock_path)
+        return _read_json(self.lock_path, strict=True)
 
     def spec_hash(self) -> str | None:
         lock = self.read_lock()
@@ -162,7 +170,7 @@ class RunStore:
         return self.prompt_lock_path
 
     def read_prompt_lock(self) -> dict[str, Any] | None:
-        return _read_json(self.prompt_lock_path)
+        return _read_json(self.prompt_lock_path, strict=True)
 
     def summary(self) -> dict[str, Any]:
         cp = self.read_checkpoint() or {}

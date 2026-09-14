@@ -22,13 +22,17 @@ DMR-047 hardening:
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import subprocess
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from mailroom_sandbox.job.checkpoint import RunStore
+
+logger = logging.getLogger(__name__)
 
 VOLUME_NAME = "sandbox-runs"
 STATE_DICT = "sandbox-job-state"
@@ -36,6 +40,10 @@ APP_NAME = "sandbox-job"
 FN_NAME = "run_job"
 
 TERMINAL_STATES = ("SUCCESS", "FAILURE", "TERMINATED", "TIMEOUT", "INIT_FAILURE")
+
+# hub#41: refuse to re-fire a call younger than this (the sandbox modal app's
+# scaledown window) — a double-fired worker would append to the same run dir.
+REMOTE_REFIRE_COOLDOWN_SECONDS = 15 * 60
 
 
 def _modal():
@@ -134,7 +142,12 @@ def fire(store: RunStore, *, payload: dict | None = None) -> dict[str, Any]:
         state="running",
         cursor=cp.get("cursor", 0),
         total=cp.get("total", len(store.dataset_rows())),
-        remote={"call_id": call_id, "app": APP_NAME, "fn": FN_NAME},
+        remote={
+            "call_id": call_id,
+            "app": APP_NAME,
+            "fn": FN_NAME,
+            "fired_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        },
     )
     store.append_event("fired", "info", call_id=call_id)
     return {"call_id": call_id}
@@ -148,8 +161,14 @@ def is_alive(store: RunStore) -> bool:
     try:
         modal = _modal()
         status = _call_status(modal.FunctionCall.from_id(call_id))
-    except Exception:
-        return False
+    except Exception as exc:  # noqa: BLE001 — hub#41: false death double-fires workers
+        # An undeterminable call (transient SDK/network error, missing SDK)
+        # must be treated as ALIVE — is_alive=False on any exception made
+        # ensure_running re-fire the job, spawning a second worker on the
+        # same run dir. Match _call_status's None posture: alive unless
+        # provably terminal.
+        logger.warning("could not determine remote call status; treating as alive: %s", exc)
+        return True
     return status not in TERMINAL_STATES
 
 
@@ -203,8 +222,28 @@ def ensure_running(store: RunStore) -> dict:
     """Attach to a live call or (re)fire the job; returns the action taken."""
     cp = store.read_checkpoint() or {}
     remote = cp.get("remote")
-    if isinstance(remote, dict) and remote.get("call_id") and is_alive(store):
-        store.append_event("remote_reattached", "info", call_id=remote["call_id"])
-        return {"action": "attached", "call_id": remote["call_id"]}
+    if isinstance(remote, dict) and remote.get("call_id"):
+        if is_alive(store):
+            store.append_event("remote_reattached", "info", call_id=remote["call_id"])
+            return {"action": "attached", "call_id": remote["call_id"]}
+        # hub#41: a call that looks dead but was fired within the cooldown
+        # window is treated as possibly-live — re-firing would spawn a second
+        # worker appending to the same run dir (corrupting items.jsonl). The
+        # _remote_lock_hash guard only skips the Volume upload, not the
+        # re-fire, so the guard lives here.
+        fired_at = remote.get("fired_at")
+        age: float | None = None
+        if fired_at:
+            try:
+                age = (datetime.now(timezone.utc) - datetime.fromisoformat(fired_at)).total_seconds()
+            except ValueError:
+                age = None
+        if age is not None and age < REMOTE_REFIRE_COOLDOWN_SECONDS:
+            raise RuntimeError(
+                f"remote call {remote['call_id']} is not alive but was fired "
+                f"{age / 60:.0f} minutes ago (< {REMOTE_REFIRE_COOLDOWN_SECONDS // 60}-minute "
+                f"cooldown) — refusing to re-fire a possibly-live worker; inspect with "
+                f"`sandbox run status {store.run_id} --watch`"
+            )
     result = fire(store)
     return {"action": "fired", "call_id": result["call_id"]}

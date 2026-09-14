@@ -948,11 +948,27 @@ def _watch_remote(store, args) -> int:
     from mailroom_sandbox.job import remote as job_remote
 
     import time
+    from datetime import datetime, timezone
+
+    # hub#41: the watch must fail after a stall, never poll forever. A worker
+    # that dies before its first state_dict.put leaves the Dict without a
+    # terminal state; the heartbeat rides the payload, and the remote call
+    # liveness is the second leg of the check.
+    WATCH_STALL_SECONDS = 20 * 60
+    last_heartbeat = time.monotonic()
 
     while True:
         progress = job_remote.read_progress(store)
         state = (progress or {}).get("state") or store.state() or "unknown"
         print(f"{store.run_id} {state} {progress or {}}")
+        heartbeat_at = (progress or {}).get("heartbeat_at")
+        if heartbeat_at:
+            try:
+                ts = datetime.fromisoformat(str(heartbeat_at).replace("Z", "+00:00"))
+                if ts.tzinfo is not None:
+                    last_heartbeat = time.monotonic() - (datetime.now(timezone.utc) - ts).total_seconds()
+            except ValueError:
+                pass
         if state in {"done", "failed"}:
             _finalize_remote(store)
             if state == "failed":
@@ -967,6 +983,16 @@ def _watch_remote(store, args) -> int:
                     print("-----------------------------")
                 print(f"diagnose with: sandbox run status {store.run_id} --watch (or --config ... --force)")
             return 0 if state == "done" else 1
+        if (
+            time.monotonic() - last_heartbeat > WATCH_STALL_SECONDS
+            and not job_remote.is_alive(store)
+        ):
+            print(
+                f"run stalled: no heartbeat for {WATCH_STALL_SECONDS // 60} minutes and the "
+                f"remote call is no longer alive (last state: {state!r}) — abandoning watch; "
+                f"diagnose with: sandbox run status {store.run_id}"
+            )
+            return 1
         time.sleep(3.0)
 
 

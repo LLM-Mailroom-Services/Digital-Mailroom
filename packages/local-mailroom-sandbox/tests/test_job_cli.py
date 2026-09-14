@@ -83,4 +83,30 @@ def test_run_status_still_requires_some_id(tmp_path, capsys):
         main(["run", "status"])
 
 
+def test_watch_remote_stalls_out_after_deadline(tmp_path, monkeypatch, capsys):
+    # hub#41: a worker that dies before its first state_dict.put must not
+    # leave the watch polling 'running' forever — no heartbeat + a call that
+    # is provably not alive fails the watch with exit 1.
+    from mailroom_sandbox import cli
+    from mailroom_sandbox.job import remote as job_remote
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+
+    store = RunStore(run_dir("run-watch"))
+    store.write_lock({"spec_hash": "s1"})
+    store.write_checkpoint(
+        state="running", cursor=0, total=2, remote={"call_id": "call-x", "app": "a", "fn": "f"}
+    )
+
+    clock = {"t": 0.0}
+    monkeypatch.setattr("time.monotonic", lambda: clock["t"])
+    monkeypatch.setattr("time.sleep", lambda s: clock.__setitem__("t", clock["t"] + s))
+    monkeypatch.setattr(job_remote, "read_progress", lambda store: {"state": "running"})
+    monkeypatch.setattr(job_remote, "is_alive", lambda store: False)
+    rc = cli._watch_remote(store, None)
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "stalled" in out
+
+
 pytestmark = pytest.mark.usefixtures("job_data_dir")

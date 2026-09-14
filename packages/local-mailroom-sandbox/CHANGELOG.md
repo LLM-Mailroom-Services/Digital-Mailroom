@@ -2,6 +2,47 @@
 
 ## [Unreleased]
 
+### Added — DMR-061 live-or-loud sweep (2026-09-14)
+
+- **Vendored pins (DMR-057, now reflected in this changelog):** llm-mailroom
+  **v0.7.1** (`2a212e76`, `vendor/llm-mailroom/VENDOR.md`), llm-dojo-scoring
+  **v0.15.0** (`9db1417b`, vendor snapshot refreshed with the emitter
+  counters in the same commit so the hub#62 drift guard stays byte-identical);
+  the corpus pin is **v9 `46a4d3c2`** (`FAMILY_HF_REVISION`).
+- **Tracing loudness:** `eval/tracing.py` now warns on every silent-degrade
+  path (dojo constants fallback, mailroom-setup/SDK unavailability,
+  `propagate_attributes` failure) and COUNTS lost score emissions + failed
+  flushes (`tracing_failure_counts()`).
+- **Engine-base resolution:** a typo'd run-spec profile now raises with the
+  available list; `modal-vllm` without `MODAL_WORKSPACE` raises instead of
+  emitting a literal `<workspace>` URL.
+- **hub#41 double-fire guard:** a malformed `fired_at` FAILS CLOSED (refuses
+  the re-fire) instead of silently bypassing the cooldown.
+- **Honest provenance:** a live intake failure falls back AND labels the row
+  `offline_fallback=True`; `_live_intake` never re-labels a degraded output
+  as a real prediction.
+- **No unknown-as-ok:** a live pipeline returning no `doc_type` raises on
+  the sorter + pipeline + job-runner paths (was scored `ok=True` "unknown").
+- **Corrupt GT is loud:** malformed `expected_fields` JSON raises with row
+  context in `datasets.py` + `corpus.py` (was silently scored as empty).
+- **Methodology transparency:** `eval/scoring.py` stamps `scoring_method`
+  and warns on every silent suite→generic fallback; the chained composite
+  refuses a 0-sentinel when either half produced no scores.
+- **Failure counters with test seams:** `job/otel.py` (OTLP flush errors),
+  `job/metrics.py` (dojo cost fallback), `job/remote.py` (state-Dict/lock
+  probes) all log instead of swallowing; `tracing_failure_counts()` and
+  `llm_dojo_scoring.emitter.sink_failure_counts()` are test-pinned.
+- **CLI/deploy:** `sandbox health` rc=1 on probe failure is pinned; the
+  visualizer pull rc is honored; `tunnel down` raises on a failed kill;
+  metrics compare refuses a run without a lock; compose vllm gained a
+  bearer-aware healthcheck; HTCondor `.sub` files opt into
+  `notification = Error`; `run_batch_eval.sh` writes the failing rc into
+  `run.log` and fixes the elapsed-time off-by-one; `modal_job.py` re-raises
+  when the terminal failure state cannot be published (the CLI watch would
+  stall forever).
+- **New tests:** `tests/test_live_or_loud_sweep.py` (13 pins) + the
+  vendored-family counter pins in the dojo emitter suite.
+
 ### Planned (not yet shipped — hub#54)
 
 - **DMR-059 — Modal doc-pipeline job queue plan**: `docs/modal-doc-jobs.md`

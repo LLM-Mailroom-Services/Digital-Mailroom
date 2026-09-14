@@ -9,7 +9,9 @@ network or an install to score runs.
 
 - Upstream: https://github.com/Exios66/llm-dojo-scoring
 - Pin: **v0.15.0** (annotated tag; llm-mailroom v0.7.1's own pin)
-- Commit: (workspace snapshot — see monorepo)
+- Commit: `9db1417b` (v0.15.0 tag; the vendored tree mirrors the monorepo
+  workspace snapshot, refreshed with the DMR-061 emitter counters on
+  2026-09-14 so the drift guard stays byte-identical)
 - Layout: upstream package dir relocated under `src/` (mirrors
   `vendor/llm-mailroom/src`); upstream `tests/`, `examples/`, `docs/` are not
   vendored.

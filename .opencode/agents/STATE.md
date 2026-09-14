@@ -1,6 +1,16 @@
 # Audit State
 
 ## Latest Audit
+- **Date:** 2026-09-14
+- **Scope:** DMR-061 research + write-up — live-or-loud sweep (sandbox src, deploy surface, monorepo-wide) + test pinning
+- **Claim vs. Evidence verdict:** Research phase (6 read-only audits) CONFIRMED the DMR-044..056 claim set in full (zero REGRESSED inside the sandbox; the llm-entity-extraction deploy sibling WAS regressed vs DMR-056 doctrine on 3 points — max_model_len 32768 boot-failing default, [hf_transfer] deprecated extra, missing smoke/prewarm/TP knob) and enumerated 12 SILENT / ~25 SEMI-LOUD sandbox sites, 15 SILENT + ~25 SEMI-LOUD repo-wide sites, and 12 unpinned test gaps. Write-up (this card): all sandbox src sites, deploy surfaces, the entity sibling reconciliation, the repo-wide offender list, and 13+2+3+5 new pinning tests shipped in commits `2c3481e6` + `1ef3aef8` (DMR-061).
+- **Actions taken:** See the DMR-061 card Evidence + both commit messages. Verified suites: sandbox 272p/1s, entity 774p/28s, llm-mailroom 1061p/36s, dojo 371p/5s, The-Mailroom 336p, agent-mailroom 86p, corpus-eda green, claims 40p, Enron 87p. Known non-defect: `uv.lock` marker re-serialization from a newer uv (staged in the housekeeping commit with an honest message, no version changes).
+- **Follow-up (not this card):** the sandbox vendor trees + sweep delta await propagation to `Exios66/local-mailroom-sandbox` + the fork (DMR-057 card); the DMR-061 monorepo-ahead counts shown by sync status are this card's commits, propagation remains on DMR-057.
+
+
+
+
+## Latest Audit
 - **Date:** 2026-09-10
 - **Scope:** DMR-043 + DMR-045 implementation pass — docker-compose jupyter/GPU fixes + vLLM model catalog & TP knob
 - **Claim vs. Evidence verdict:** Both cards' defects confirmed and SHIPPED (commit `73aa807f`). DMR-043: jupyter compose context/volume now resolve to the package root, vllm service has the GPU reservation. DMR-045: modal_models matrix (13 entries) + MODAL_VLLM_TP_SIZE → --tensor-parallel-size.

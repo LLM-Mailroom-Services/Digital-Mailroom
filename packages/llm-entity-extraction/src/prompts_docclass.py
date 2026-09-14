@@ -926,6 +926,24 @@ JUDGE_DOCCLASS_PILOT_PROMPT_V0 = _with_pilot_context(JUDGE_DOCCLASS_PROMPT_V0)
 JUDGE_CLASSIFICATION_DOCCLASS_PILOT_PROMPT_V0 = _with_pilot_context(JUDGE_CLASSIFICATION_DOCCLASS_PROMPT_V0)
 JUDGE_CORRECTNESS_DOCCLASS_PILOT_PROMPT_V0 = _with_pilot_context(JUDGE_CORRECTNESS_DOCCLASS_PROMPT_V0)
 
+# pilot_v1 (hub#43): dual-taxonomy repair. PILOT_PROMPT_V0 swapped the PILOT
+# 5-class context block but its role rules still graded the EXTENDED 8-class
+# set (due_diligence / compliance_filing / court_opinion cannot occur on the
+# pilot surface). Mirror of the reviewer/arbiter pilot fix; V0 stays frozen
+# experiment identity.
+JUDGE_CLASSIFICATION_DOCCLASS_PILOT_PROMPT_V1 = JUDGE_CLASSIFICATION_DOCCLASS_PILOT_PROMPT_V0.replace(
+    """1. You are grading the docclass chain itself: judge doc_type AND \
+doc_subclass against the EXTENDED primary set — contract, \
+corporate_record, due_diligence, correspondence, compliance_filing, \
+court_opinion, insurance_claim, merger_agreement.""",
+    """1. You are grading the docclass chain itself: judge doc_type AND \
+doc_subclass against the PILOT primary set — contract, corporate_record, \
+correspondence, insurance_claim, merger_agreement.""",
+).replace(
+    """3. expected_class must be an exact key from the extended list; leave it """,
+    """3. expected_class must be an exact key from the pilot list; leave it """,
+)
+
 # pilot_v1: label-consistency repair. Baseline benches (pilot-140 insurance,
 # clean GT copies) showed the judge writing all-"correct" field verdicts and
 # "fully correct" notes while emitting label="partial" — an internal
@@ -1079,6 +1097,7 @@ DOCCLASS_PROMPT_VERSIONS: dict[str, str] = {
     "arbiter_docclass_pilot_v0": ARBITER_DOCCLASS_PILOT_PROMPT_V0,
     "judge_docclass_pilot_v0": JUDGE_DOCCLASS_PILOT_PROMPT_V0,
     "judge_classification_docclass_pilot_v0": JUDGE_CLASSIFICATION_DOCCLASS_PILOT_PROMPT_V0,
+    "judge_classification_docclass_pilot_v1": JUDGE_CLASSIFICATION_DOCCLASS_PILOT_PROMPT_V1,
     "judge_correctness_docclass_pilot_v0": JUDGE_CORRECTNESS_DOCCLASS_PILOT_PROMPT_V0,
     "judge_correctness_docclass_pilot_v1": JUDGE_CORRECTNESS_DOCCLASS_PILOT_PROMPT_V1,
     "boss_docclass_pilot_v0": BOSS_DOCCLASS_PILOT_PROMPT_V0,

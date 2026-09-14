@@ -16,6 +16,7 @@ slice of the card.
 | Docs & board | `atom` | READMEs/wikis/changelogs, doc-drift detection, Kanban board upkeep, inter-agent coordination, repo restructuring |
 | Software & UI | `hazel-ui-software-master` | UI/UX, fullstack, HTML/JS/CSS, bug fixes, local network testing, app architecture |
 | Systems & repo hygiene | `jarvis-systems-maximizer` | performance triage, memory/CPU hogs, disk usage, cache cleanup, repo bloat, process prioritization |
+| Board evidence | `board-evidence-auditor` | DMR board/card evidence audits, TASKS.md ↔ board_state.py reconciliation, card-law compliance |
 | vLLM serving | `vllm-specialist` | `vllm serve` configs, quantization, multi-LoRA, structured outputs, speculative decoding, parallelism, KV-cache/memory tuning, local or Modal-hosted vLLM behind `DEFAULT_PROVIDER=vllm` |
 | Modal compute | `modal-specialist` | Modal apps (`@app.function`/`@app.cls`/`@app.server`), Images/Volumes/Secrets/Sandboxes, GPU choice, scale-to-zero, `modal serve`/`deploy`, the repo's `deploy/modal_vllm.py` apps |
 | Codebase exploration | `explore` | fast read-only searches ("where is X", "how does Y work") before you edit |

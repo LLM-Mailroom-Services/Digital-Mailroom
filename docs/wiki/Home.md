@@ -32,7 +32,7 @@ The board is also served live at **https://digital-mailroom-theta.vercel.app**
 | Task board | [`governance/TASKS.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/governance/TASKS.md) — machine-readable via `scripts/board_state.py` |
 | Served board | [digital-mailroom-theta.vercel.app](https://digital-mailroom-theta.vercel.app) — live, issue-backed ([[Served-Board]]) |
 | Conventions | [`AGENTS.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/AGENTS.md) — read first, every session |
-| Subagents | 10-specialty roster ([[Subagents]]) — project agents under `.opencode/agents/` |
+| Subagents | 11-specialty roster ([[Subagents]]) — project agents under `.opencode/agents/` |
 | Packages | 10 (6 built + 4 virtual members) |
 | Python | 3.11+ (workspace `requires-python >= 3.11`) |
 | Family pins | llm-mailroom **v0.7.1** · llm-dojo-scoring **v0.15.0** · llm-entity-extraction **v0.21.0** |

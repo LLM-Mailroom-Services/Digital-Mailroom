@@ -159,7 +159,7 @@ def test_classification_scoring_smoke():
     assert scores["f1_macro"] == 1.0
 
 
-def test_dojo_pin_is_v0_14():
+def test_dojo_pin_is_v0_15():
     import re
 
     import llm_dojo_scoring as dojo
@@ -171,7 +171,7 @@ def test_dojo_pin_is_v0_14():
     vendor = vendored_dojo_src()
     assert vendor is not None, "vendored llm-dojo-scoring snapshot missing"
     vendor_md = (vendor.parent / "VENDOR.md").read_text(encoding="utf-8")
-    assert "v0.14.0" in vendor_md
+    assert "v0.15.0" in vendor_md
     assert str(vendor.resolve()) in sys.path, "vendored dojo must be on sys.path"
     assert str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
     version = re.match(r"(\d+)\.(\d+)", dojo.__version__)

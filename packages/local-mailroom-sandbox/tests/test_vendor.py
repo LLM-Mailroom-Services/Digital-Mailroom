@@ -1,7 +1,7 @@
 """DMR-057 self-containment regression tests.
 
 The sandbox must be fully operational from a fresh checkout: the pipeline
-(llm-mailroom@v0.7.1) and scoring engine (llm-dojo-scoring@v0.14.0) ship as
+(llm-mailroom@v0.7.1) and scoring engine (llm-dojo-scoring@v0.15.0) ship as
 TRACKED snapshots under ``vendor/`` and are put on ``sys.path`` at package
 import. No pip git pins, no ``sandbox fetch-deps`` step, no env tricks.
 """
@@ -18,8 +18,10 @@ from mailroom_sandbox.runtime import resolve_dojo_src, resolve_mailroom_src
 
 MAILROOM_PIN = "v0.7.1"
 MAILROOM_COMMIT = "2a212e76a62b98f6eba451ff6f3c5bc96039ae37"
-DOJO_PIN = "v0.14.0"
-DOJO_COMMIT = "5298d7036652c04467be4150028453edbbcd4a38"
+DOJO_PIN = "v0.15.0"
+# hub#62: the dojo vendor snapshot tracks the workspace package (not a fixed
+# upstream tag) — the drift guard (tests/test_vendor_drift.py) enforces it.
+DOJO_COMMIT = "workspace snapshot — see monorepo"
 
 
 def test_vendored_trees_are_tracked_and_pinned():

@@ -8,8 +8,8 @@ deterministic scoring engine the sandbox imports at runtime
 network or an install to score runs.
 
 - Upstream: https://github.com/Exios66/llm-dojo-scoring
-- Pin: **v0.14.0** (annotated tag; llm-mailroom v0.7.1's own pin)
-- Commit: `5298d7036652c04467be4150028453edbbcd4a38`
+- Pin: **v0.15.0** (annotated tag; llm-mailroom v0.7.1's own pin)
+- Commit: (workspace snapshot — see monorepo)
 - Layout: upstream package dir relocated under `src/` (mirrors
   `vendor/llm-mailroom/src`); upstream `tests/`, `examples/`, `docs/` are not
   vendored.

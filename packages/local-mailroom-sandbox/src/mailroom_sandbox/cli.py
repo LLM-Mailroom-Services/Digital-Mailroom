@@ -57,7 +57,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("up", help="Start compose profiles (langfuse + provider)", parents=[shared])
     p.add_argument("--compose-profile", action="append", dest="compose_profiles")
-    p.add_argument("-d", "--detach", action="store_true", default=True)
+    # hub#56: -d opts in to detached mode; the default is foreground (the old
+    # action='store_true', default=True made -d a permanent no-op and `sandbox
+    # up` could NEVER run in the foreground).
+    p.add_argument("-d", "--detach", action="store_true", default=False)
     p.set_defaults(handler=_cmd_up)
 
     p = sub.add_parser("down", help="Stop compose stack", parents=[shared])
@@ -323,7 +326,10 @@ def _cmd_health(args: argparse.Namespace) -> int:
         {
             "name": "phoenix",
             "base_url": os.environ.get("PHOENIX_ENDPOINT", "http://localhost:6006/v1/traces").rsplit("/v1", 1)[0],
-            "health": {"models_url": "http://localhost:6006/healthz"},
+            # hub#56: derive the healthz URL from the resolved Phoenix base —
+            # the old hardcoded localhost:6006/healthz probed the wrong server
+            # whenever PHOENIX_ENDPOINT pointed at a remote Phoenix.
+            "health": {"models_url": (os.environ.get("PHOENIX_ENDPOINT", "http://localhost:6006/v1/traces").rsplit("/v1", 1)[0]) + "/healthz"},
         }
     )
     result["phoenix"] = phoenix.as_dict()

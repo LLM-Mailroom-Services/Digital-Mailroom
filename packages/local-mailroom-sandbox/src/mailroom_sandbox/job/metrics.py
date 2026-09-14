@@ -93,14 +93,17 @@ def record_from_run(
 ) -> dict[str, Any]:
     """Aggregate per-item captures into one dojo-compatible serving record."""
     kind = bucket_kind({"serving_kind": "", "profile": profile, "provider": _provider_for(profile)})
-    # Failed/retried items carry inflated latency (backoff sleeps) — average
-    # only successful items (DMR-049 H).
+    # hub#56: TTFT aggregation must treat failures like the latency
+    # aggregation — failed/retried items carry inflated TTFT from backoff
+    # sleeps, so average TTFT over the SAME ok_items as e2e latency (the two
+    # must never disagree about which items are representative). Token sums
+    # stay over ALL items (cost is real even for failures).
     ok_items = [i for i in items if i.get("ok", True) is not False]
     latencies = [float(i.get("latency_ms", 0)) for i in ok_items if i.get("latency_ms") is not None]
     prompt_tokens = sum(int(i.get("prompt_tokens") or 0) for i in items)
     completion_tokens = sum(int(i.get("completion_tokens") or 0) for i in items)
     total_tokens = prompt_tokens + completion_tokens
-    ttfts = [float(i.get("ttft_ms", 0)) for i in items if i.get("ttft_ms") is not None]
+    ttfts = [float(i.get("ttft_ms", 0)) for i in ok_items if i.get("ttft_ms") is not None]
     rec: dict[str, Any] = {
         "serving_kind": kind,
         "provider": _provider_for(profile),

@@ -152,7 +152,10 @@ def run_isolated_eval(
         )
     mean = scoring.mean_or_zero(matches)
     scores = {"exact_match": mean, "n": len(rows), "offline_fallback": offline, "error_count": errors}
-    if per_row and "overall_extraction_score" in (per_row[0].get("score") or {}):
+    # hub#56: decide overall_extraction_score presence from ANY row, not just
+    # per_row[0] — the old check silently dropped the aggregate when the first
+    # row lacked the key but later rows carried it.
+    if any("overall_extraction_score" in (r.get("score") or {}) for r in per_row):
         scores["overall_extraction_score"] = mean
     tracing.emit_langfuse_score("class_correct" if spec.observation == "classify-document" else "stage_completed", mean)
     tracing.flush_traces()

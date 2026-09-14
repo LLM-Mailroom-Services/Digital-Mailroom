@@ -195,12 +195,17 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 
 ### Tunnel commands
 
+> **Flag placement (hub#56):** `--profile` goes BEFORE the sub-subcommand
+> (`sandbox tunnel --profile vllm-remote plan`) — the leaf parsers omit
+> `parents=[shared]` deliberately, so `sandbox tunnel plan --profile …`
+> rejects the flag.
+
 | Command | Description |
 |---|---|
-| `sandbox tunnel plan --profile vllm-remote` | Print the SSH command |
-| `sandbox tunnel up --profile vllm-remote` | Start SSH forward |
-| `sandbox tunnel status --profile vllm-remote` | Check tunnel status |
-| `sandbox tunnel down --profile vllm-remote` | Stop SSH forward |
+| `sandbox tunnel --profile vllm-remote plan` | Print the SSH command |
+| `sandbox tunnel --profile vllm-remote up` | Start SSH forward |
+| `sandbox tunnel --profile vllm-remote status` | Check tunnel status |
+| `sandbox tunnel --profile vllm-remote down` | Stop SSH forward |
 
 ### Tests
 

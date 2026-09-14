@@ -109,3 +109,25 @@ def test_record_from_run_latency_excludes_failed_items():
         ],
     )
     assert abs(rec["e2e_latency_seconds"] - 0.1) < 1e-9
+
+def test_record_from_run_ttft_excludes_failed_items():
+    """hub#56: TTFT aggregation must use the same ok_items as e2e latency —
+    failed/retried items carry inflated TTFT from backoff sleeps, so a run
+    with failures must not report TTFT over failures while excluding them
+    from latency."""
+    rec = metrics.record_from_run(
+        run_id="r3",
+        spec_hash="sh",
+        task="sorter",
+        profile="ollama",
+        model="Qwen/Qwen3-8B",
+        prompt_version="code-default",
+        dataset_fingerprint="fp",
+        items=[
+            {"latency_ms": 100, "ttft_ms": 50, "ok": True},
+            {"latency_ms": 200, "ttft_ms": 80, "ok": True},
+            {"latency_ms": 9500, "ttft_ms": 8000, "ok": False},  # backoff-inflated
+        ],
+    )
+    assert abs(rec["ttft_seconds"] - 0.065) < 1e-9, rec.get("ttft_seconds")
+    assert abs(rec["e2e_latency_seconds"] - 0.15) < 1e-9

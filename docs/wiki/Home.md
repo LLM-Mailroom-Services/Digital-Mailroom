@@ -35,6 +35,6 @@ The board is also served live at **https://digital-mailroom-theta.vercel.app**
 | Subagents | 10-specialty roster ([[Subagents]]) — project agents under `.opencode/agents/` |
 | Packages | 10 (6 built + 4 virtual members) |
 | Python | 3.11+ (workspace `requires-python >= 3.11`) |
-| Family pins | llm-mailroom **v0.7.1** · llm-dojo-scoring **v0.14.0** · llm-entity-extraction **v0.20.0** |
+| Family pins | llm-mailroom **v0.7.1** · llm-dojo-scoring **v0.15.0** · llm-entity-extraction **v0.21.0** |
 | HF corpus | [mailroom-dataset](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset) — schema v9, 3,302 rows (frozen v8 baseline: [mailroom-corpus](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-corpus)) |
 | CI gate | `.github/workflows/board-governance.yml` — board invariants + label drift |

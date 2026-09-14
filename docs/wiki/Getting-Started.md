@@ -33,7 +33,7 @@ uv run pytest packages/claims-data-eda/tests
 uv run pytest packages/Enron-Evaluation-Environment/tests
 ```
 
-`llm-mailroom-graph` and `mailroom-corpus-eda` ship no test suite — the
+`llm-mailroom-graph` ships no test suite (static site); `mailroom-corpus-eda` ships 8 test files (~79 tests) — the
 graph site is a static build and the corpus EDA is verified behaviorally via
 `packages/mailroom-corpus-eda/run_all.py` (P0–P6).
 

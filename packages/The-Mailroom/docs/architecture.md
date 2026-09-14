@@ -49,7 +49,7 @@ page, instant), one-time slim catalog for search/stats, and per-row live
 monorepo mirrors upstream — contract-tested against `packages_sync.json` —
 plus the hub copies `mailroom-dev`/`mailroom-hub`/`LLM-Postal` and the
 derived graph sites). The static site bundles a slim catalog
-(`scripts/export_corpus_catalog.py` → `site/data/corpus.json`, 2,000 rows)
+(`scripts/export_corpus_catalog.py` → `site/data/corpus.json`, 3,302 rows)
 so listing/search/stats work offline; `corpus show` fetches rows live
 (datasets-server CORS is verified for the Pages origin).
 

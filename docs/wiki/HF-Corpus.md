@@ -94,7 +94,7 @@ Corpus strata vocabulary (per doc type, used by eval targets):
 | --- | --- |
 | contract | 26 incl. Consulting Agreements, Development, IP, Hosting |
 | corporate_record | articles_of_incorporation, bylaws, other, powers_of_attorney, rights_instrument |
-| correspondence | attorney_demand, demand, email, letter, meeting_request, memo, notice, press_release |
+| correspondence | attorney_demand, demand, email, letter, meeting_request, memo, notice, press_release, voicemail, other |
 | insurance_claim | carrier, inpatient, outpatient, pde, property, auto |
 | merger_agreement | all_cash, all_stock, mixed_cash_stock, mixed_cash_stock_election, other |
 

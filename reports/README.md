@@ -13,8 +13,8 @@
 | Path | Contents |
 |:---|:---|
 | [`audits/`](audits/) | Baseline audits and structural analysis |
-| [`audits/mailroom_corpus_baseline.md`](audits/mailroom_corpus_baseline.md) | Canonical baseline audit for mailroom-corpus |
-| [`audits/mailroom_corpus_baseline.json`](audits/mailroom_corpus_baseline.json) | Machine-readable baseline data |
+| [`docs/reports/audits/docclass_merged_baseline.md`](../docs/reports/audits/docclass_merged_baseline.md) | Canonical baseline audit for the mailroom corpus (docclass-merged lineage) |
+| [`docs/reports/audits/docclass_merged_baseline.json`](../docs/reports/audits/docclass_merged_baseline.json) | Machine-readable baseline data |
 
 ## Related Reports
 

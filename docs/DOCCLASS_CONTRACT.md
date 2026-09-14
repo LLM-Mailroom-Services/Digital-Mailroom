@@ -5,7 +5,7 @@ corpus (v9, 3,302 rows — published 2026-09-12 as the successor of the frozen
 v8 baseline `Lucius-Morningstar/mailroom-corpus`) and the Mailroom pipeline.
 Companion to `docs/v7-taxonomy.md`
 (taxonomy doctrine) and `docs/reports/audits/docclass_merged_baseline.md`
-(frozen v0.1-working baseline). Plan reference: `docs/mailroom-corpus-plan.md`
+(frozen v0.1-working baseline). Plan reference: `docs/docclass-merged-plan.md`
 §80–§81.
 
 ## 1. What mailroom-dataset is

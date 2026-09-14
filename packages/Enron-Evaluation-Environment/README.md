@@ -151,7 +151,7 @@ python scripts/spot_check.py
 python scripts/build_samples.py
 
 # 8️⃣ Validate correctness with the test harness (no corpus data needed)
-pytest tests/ -v                       # 85/85 passing
+pytest tests/ -v                       # 87/87 passing
 ```
 
 <details>
@@ -289,7 +289,7 @@ before publishing. Row-compatible sibling implementation:
 
 ```
 ├── AGENTS.md                           # Agent-facing operational guide
-├── tests/                              # ✅ 85/85 validation harness
+├── tests/                              # ✅ 87/87 validation harness
 ├── scripts/
 │   ├── correspondence_subclasses.py    # Shared heuristic labeler (10-key taxonomy)
 │   ├── acquire_enron.py                # Download + verify + extract CMU tarball
@@ -318,7 +318,7 @@ python scripts/build_corpus_index.py     # parse maildir -> index.jsonl
 python scripts/eda/explore_enron.py      # EDA -> reports/eda/
 python scripts/build_pipeline_dump.py    # sample -> pipeline.jsonl (+ dry-run)
 python scripts/spot_check.py             # review artifact -> reports/eda/spot_check.csv
-pytest tests/ -v                         # 85/85 validation pass
+pytest tests/ -v                         # 87/87 validation pass
 ```
 
 ---

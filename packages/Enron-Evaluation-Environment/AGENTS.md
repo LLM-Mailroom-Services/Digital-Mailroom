@@ -47,7 +47,7 @@ python scripts/eda/explore_enron.py
 python scripts/build_pipeline_dump.py
 
 # 6. Validate
-pytest tests/ -v    # 85/85 expected
+pytest tests/ -v    # 87/87 expected
 ```
 
 All data files live in `data/` which is gitignored. Index is ~500MB+ JSONL; pipeline dump is a stratified sample subset.
@@ -159,7 +159,7 @@ Draws a labeled review sample from the index. Outputs a CSV where a human (Jack)
 Tests require NO corpus data. They construct minimal synthetic index-row dicts inline.
 
 ```bash
-# Run everything (expected: 85 passed)
+# Run everything (expected: 87 passed)
 pytest tests/ -v
 
 # Run just classification tests

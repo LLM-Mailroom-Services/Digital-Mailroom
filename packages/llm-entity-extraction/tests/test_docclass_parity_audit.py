@@ -156,3 +156,48 @@ def test_classify_failure_none_subclass_is_not_subclass_miss():
     from src.dojo_compat import classify_failure
 
     assert classify_failure(True, None, None) is None
+
+
+def test_pilot_schema_aligns_with_active_pilot_prompt_vocabulary():
+    """hub#51: the pilot schema's doc_subclass enum must match what the ACTIVE
+    pilot sorter prompt (the mailroom lineage) actually teaches. The frozen
+    pre-v8 docclass pilot lineage (v0..v3) is expected to carry the pre-v8 key
+    set only (pinned separately below) — the schema speaks for the live surface.
+    """
+    pilot_enum = set(DOCCLASS_PILOT_SCHEMA["properties"]["doc_subclass"]["enum"])
+    assert pilot_enum == set(DOC_SUBCLASS_KEYS)
+
+    # The ACTIVE pilot sorter (mailroom lineage, v8+ LOB) teaches every token
+    # the pilot schema can emit.
+    mailroom_pilot = get_prompt("sorter_mailroom_pilot_v0")
+    for key in pilot_enum:
+        assert key in mailroom_pilot, f"sorter_mailroom_pilot_v0 missing {key!r}"
+
+    # The frozen docclass pilot lineage predates the LOB tokens: it must teach
+    # the pre-v8 key set and NEVER claim property/auto (pinned, not mutated).
+    frozen = get_prompt("sorter_docclass_pilot_v3")
+    lob = {"property", "auto"}
+    for key in pilot_enum - lob:
+        assert key in frozen, f"sorter_docclass_pilot_v3 missing {key!r}"
+    assert "property" not in frozen.split("INSURANCE CLAIM SUBCLASS")[1][:600]
+
+
+def test_prompts_name_real_fallback_other_never_unknown():
+    """hub#51: the doc_subclass fallback key is `other`; `unknown` is not a
+    schema token and must never be taught as one. Every docclass prompt that
+    instructs against the fallback must name `other`, and no registered prompt
+    text may contain the phantom `unknown` token."""
+    from src.prompts_docclass import DOCCLASS_PROMPT_VERSIONS
+
+    fallback_key = "other"
+    samples = ["sorter_docclass_v7", "sorter_docclass_pilot_v3",
+               "judge_docclass_v1", "judge_classification_docclass_v1",
+               "arbiter_docclass_v1", "boss_docclass_v1"]
+    for name in samples:
+        text = DOCCLASS_PROMPT_VERSIONS[name]
+        # the fallback key is taught; the phantom `unknown` token either never
+        # appears or appears ONLY as an explicit prohibition (never a valid
+        # option the model is invited to emit)
+        assert fallback_key in text, f"{name} must teach the `other` fallback"
+        if "unknown" in text:
+            assert "not a valid token" in text, f"{name} must name `unknown` only as a prohibition"

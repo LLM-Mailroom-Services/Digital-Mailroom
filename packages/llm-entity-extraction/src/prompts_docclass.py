@@ -507,7 +507,7 @@ _CORRESPONDENCE_V1_EXTRA = (
     "demand, attorney_demand, press_release, meeting_request. Enron-style "
     "inbox messages are email; internal memoranda are memo; calendar/meeting "
     "invites are meeting_request; news wires are press_release. Readable "
-    "correspondence is never unknown.\n"
+    "correspondence is never `other` (the doc_subclass fallback key; `unknown` is not a valid token).\n"
 )
 
 _COMPLIANCE_V1_EXTRA = (
@@ -607,7 +607,8 @@ _REVIEWER_V1_EXTRA = (
     "family).\n"
     "Exhibit-vs-form: charter/bylaws/POA/rights-instrument BODY -> "
     "corporate_record (SEC wrapper does not win); CMS claim tables -> "
-    "insurance_claim; readable email/memo text -> correspondence, not unknown.\n"
+    "insurance_claim; readable email/memo text -> correspondence, never `other` "
+    "(the doc_subclass fallback key; `unknown` is not a valid token).\n"
 )
 
 REVIEWER_DOCCLASS_PROMPT_V1 = REVIEWER_DOCCLASS_PROMPT_V0.replace(
@@ -721,7 +722,7 @@ _ARBITER_V1_EXTRA = (
     "Exhibit-vs-form: charter/bylaws/POA/rights-instrument BODY -> "
     "corporate_record even under an S-1/10-K wrapper; CMS claim tables -> "
     "insurance_claim; readable email/memo/invite text -> correspondence, "
-    "never unknown.\n"
+    "never `other` (the doc_subclass fallback key; `unknown` is not a valid token).\n"
 )
 
 ARBITER_DOCCLASS_PROMPT_V1 = ARBITER_DOCCLASS_PROMPT_V0.replace(
@@ -733,7 +734,7 @@ _BOSS_V1_EXTRA = (
     "4. Exhibit-vs-form: charter/bylaws/rights-instrument BODY -> "
     "corporate_record even with an SEC exhibit wrapper; CMS/DE-SynPUF claim "
     "tables -> insurance_claim; readable email/memo text -> correspondence, "
-    "not unknown.\n"
+    "never `other` (the doc_subclass fallback key; `unknown` is not a valid token).\n"
 )
 
 BOSS_DOCCLASS_PROMPT_V1 = BOSS_DOCCLASS_PROMPT_V0.replace(
@@ -744,7 +745,8 @@ BOSS_DOCCLASS_PROMPT_V1 = BOSS_DOCCLASS_PROMPT_V0.replace(
 _JUDGE_V1_EXTRA = (
     "3. Exhibit-vs-form: a charter/bylaws/POA/rights-instrument BODY is "
     "corporate_record even under an S-1/10-K wrapper; CMS claim tables are "
-    "insurance_claim; readable email/memo text is correspondence, not unknown.\n"
+    "insurance_claim; readable email/memo text is correspondence, never `other` "
+    "(the doc_subclass fallback key; `unknown` is not a valid token).\n"
 )
 
 JUDGE_DOCCLASS_PROMPT_V1 = JUDGE_DOCCLASS_PROMPT_V0.replace(
@@ -755,7 +757,8 @@ JUDGE_DOCCLASS_PROMPT_V1 = JUDGE_DOCCLASS_PROMPT_V0.replace(
 _JUDGE_CLASSIFICATION_V1_EXTRA = (
     "4. Exhibit-vs-form: a charter/bylaws/POA/rights-instrument BODY is "
     "corporate_record even under an S-1/10-K wrapper; CMS claim tables are "
-    "insurance_claim; readable email/memo text is correspondence, not unknown.\n"
+    "insurance_claim; readable email/memo text is correspondence, never `other` "
+    "(the doc_subclass fallback key; `unknown` is not a valid token).\n"
 )
 
 JUDGE_CLASSIFICATION_DOCCLASS_PROMPT_V1 = JUDGE_CLASSIFICATION_DOCCLASS_PROMPT_V0.replace(

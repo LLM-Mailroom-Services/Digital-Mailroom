@@ -336,6 +336,14 @@ DOCCLASS_SCHEMA = build_structured_schema(
 
 # Pilot schema: same shape over the 5-class pilot universe (the classes the
 # docclass-merged / docclass-pilot ground truth actually contains).
+#
+# hub#51 subclass alignment: the pilot surface's insurance dimension is the
+# SIX-token set (the mailroom pilot lineage teaches all of carrier/pde/
+# outpatient/inpatient/property/auto — see sorter_mailroom_pilot_v0). The
+# frozen pre-v8 docclass pilot lineage (sorter_docclass_pilot_v0..v3)
+# predates the LOB tokens and teaches only the four CMS file types; those
+# versions are never mutated (frozen experiment identity), so the schema
+# enum below = the ACTIVE pilot surface and the parity test pins the split.
 DOCCLASS_PILOT_SCHEMA = build_structured_schema(
     {
         "doc_type": {"type": "string", "enum": DOCCLASS_PILOT_CLASS_KEYS},

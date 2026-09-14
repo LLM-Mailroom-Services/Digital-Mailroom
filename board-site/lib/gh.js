@@ -92,10 +92,17 @@ async function gh(path, { method = "GET", body, query, ifNoneMatch } = {}) {
   if (res.status === 304) return { _notModified: true, _etag: res.headers.get("etag") };
   const text = await res.text();
   let data = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch (_) {
-    /* non-JSON body */
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (_) {
+      if (res.ok) {
+        // Live-or-loud (DMR-061): a 2xx with a non-JSON body is not "empty" —
+        // mark it so callers never treat the phantom object as real data.
+        console.warn(`[gh] ${url} answered 2xx with a non-JSON body:`, text.slice(0, 200));
+        return { _etag: res.headers.get("etag"), _nonJsonBody: text.slice(0, 300) };
+      }
+    }
   }
   if (!res.ok) {
     const msg = (data && (data.message || JSON.stringify(data))) || `GitHub ${res.status}`;
@@ -257,8 +264,10 @@ async function findIssueByCardId(cardId) {
       const issue = await gh(`/repos/${repo()}/issues/${hit.number}`);
       return issue;
     }
-  } catch (_) {
-    // Search API may fail on some configs; fall back to list scan
+  } catch (err) {
+    // Search API may fail on some configs; fall back to list scan — but say
+    // it out loud so a dead search endpoint cannot mask itself forever.
+    console.warn(`[gh] /search/issues failed for ${cardId}, falling back to the list scan:`, err.message || err);
   }
   // Fallback: scan all kanban issues (slower, but reliable)
   const cards = await listKanbanIssues();

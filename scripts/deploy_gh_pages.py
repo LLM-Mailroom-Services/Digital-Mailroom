@@ -124,6 +124,12 @@ def _get_remote_url(repo_slug: str) -> str:
     result = _run(["gh", "api", f"repos/Exios66/{repo_slug}", "--jq", ".ssh_url"], ROOT, check=False)
     if result.returncode == 0 and result.stdout.strip():
         return result.stdout.strip()
+    print(
+        f"  WARN: could not resolve the ssh_url via `gh api` (rc={result.returncode}, "
+        f"{result.stderr.strip()[:200]}) — falling back to the HTTPS URL; the push "
+        f"may need a token",
+        file=sys.stderr,
+    )
     # Fallback to HTTPS
     return f"https://github.com/Exios66/{repo_slug}.git"
 
@@ -133,8 +139,12 @@ def _deploy_to_gh_pages(
     reports_dir: Path,
     display_title: str,
     dry_run: bool = False,
-) -> None:
-    """Build and push a gh-pages branch for one repo."""
+) -> int:
+    """Build and push a gh-pages branch for one repo; returns 0 on success.
+
+    Live-or-loud (DMR-061): a failed force-push or a failed Pages-enable
+    exits 1 — a stale gh-pages site must never present as deployed.
+    """
     remote_url = _get_remote_url(repo_slug)
     print(f"\n{'='*60}")
     print(f"  Deploying {display_title} → gh-pages branch")
@@ -171,43 +181,47 @@ def _deploy_to_gh_pages(
         if dry_run:
             print("  [dry-run] Would push to gh-pages branch")
             _run(["git", "log", "--oneline", "-1"], work)
-        else:
-            _run(["git", "remote", "add", "origin", remote_url], work)
-            # Force push to gh-pages (safe — this branch is ephemeral by design)
-            result = _run(["git", "push", "--force", "origin", "gh-pages"], work, check=False)
-            if result.returncode != 0:
-                print(f"  WARN: push failed: {result.stderr.strip()}")
-                # Try with HTTPS token if SSH failed
-                print("  Retrying with gh auth token...")
-                token = subprocess.run(
-                    ["gh", "auth", "token"], capture_output=True, text=True
-                ).stdout.strip()
-                if token:
-                    auth_url = remote_url.replace(
-                        "https://github.com/",
-                        f"https://x-access-token:{token}@github.com/",
-                    ).replace(
-                        "git@github.com:",
-                        f"https://x-access-token:{token}@github.com/",
-                    )
-                    _run(["git", "remote", "set-url", "origin", auth_url], work)
-                    result = _run(["git", "push", "--force", "origin", "gh-pages"], work, check=False)
-                    if result.returncode != 0:
-                        print(f"  ERROR: push still failed: {result.stderr.strip()}")
-                        return
-                else:
-                    print("  ERROR: no auth token available")
-                    return
+            return 0
 
-            print(f"  Pushed to gh-pages ✓")
+        _run(["git", "remote", "add", "origin", remote_url], work)
+        # Force push to gh-pages (safe — this branch is ephemeral by design)
+        result = _run(["git", "push", "--force", "origin", "gh-pages"], work, check=False)
+        if result.returncode != 0:
+            print(f"  ERROR: push failed: {result.stderr.strip()}")
+            # Try with HTTPS token if SSH failed
+            print("  Retrying with gh auth token...")
+            token_proc = subprocess.run(
+                ["gh", "auth", "token"], capture_output=True, text=True
+            )
+            token = token_proc.stdout.strip() if token_proc.returncode == 0 else ""
+            if token:
+                auth_url = remote_url.replace(
+                    "https://github.com/",
+                    f"https://x-access-token:{token}@github.com/",
+                ).replace(
+                    "git@github.com:",
+                    f"https://x-access-token:{token}@github.com/",
+                )
+                _run(["git", "remote", "set-url", "origin", auth_url], work)
+                result = _run(["git", "push", "--force", "origin", "gh-pages"], work, check=False)
+                if result.returncode != 0:
+                    print(f"  ERROR: push still failed: {result.stderr.strip()}")
+                    return 1
+            else:
+                print("  ERROR: no auth token available")
+                return 1
+
+        print(f"  Pushed to gh-pages ✓")
 
     # 4. Enable GitHub Pages (branch must exist first, so skip on dry-run)
+    pages_ok = True
     if not dry_run:
-        _enable_pages(repo_slug)
+        pages_ok = _enable_pages(repo_slug)
+    return 0 if pages_ok else 1
 
 
-def _enable_pages(repo_slug: str) -> None:
-    """Enable GitHub Pages on the gh-pages branch via the API."""
+def _enable_pages(repo_slug: str) -> bool:
+    """Enable GitHub Pages on the gh-pages branch via the API; True on success."""
     # Check current state
     result = _run(
         ["gh", "api", f"repos/Exios66/{repo_slug}/pages", "--jq", ".html_url"],
@@ -215,7 +229,7 @@ def _enable_pages(repo_slug: str) -> None:
     )
     if result.returncode == 0 and result.stdout.strip():
         print(f"  Pages already enabled: {result.stdout.strip()}")
-        return
+        return True
 
     # Enable Pages
     result = _run(
@@ -227,9 +241,10 @@ def _enable_pages(repo_slug: str) -> None:
         data = json.loads(result.stdout) if result.stdout.strip() else {}
         url = data.get("html_url", f"https://exios66.github.io/{repo_slug}/")
         print(f"  Pages enabled → {url}")
-    else:
-        print(f"  WARN: could not enable Pages via API: {result.stderr.strip()}")
-        print(f"  Enable manually: https://github.com/Exios66/{repo_slug}/settings/pages")
+        return True
+    print(f"  ERROR: could not enable Pages via API: {result.stderr.strip()}")
+    print(f"  Enable manually: https://github.com/Exios66/{repo_slug}/settings/pages")
+    return False
 
 
 # ── CLI ─────────────────────────────────────────────────────────────────
@@ -252,14 +267,18 @@ def main() -> None:
 
     targets = list(REPOS.keys()) if args.all else [args.package]
 
+    failures = 0
     for slug in targets:
         pkg_dir, reports_subdir, title = REPOS[slug]
         reports_dir = PACKAGES / pkg_dir / reports_subdir
         if not reports_dir.exists():
             print(f"SKIP {slug}: {reports_dir} does not exist")
             continue
-        _deploy_to_gh_pages(slug, reports_dir, title, dry_run=args.dry_run)
+        failures += _deploy_to_gh_pages(slug, reports_dir, title, dry_run=args.dry_run)
 
+    if failures:
+        print(f"\nDONE WITH {failures} FAILURE(S) — see the ERROR lines above; do not treat the site as deployed.")
+        sys.exit(1)
     print(f"\nDone. URLs:")
     for slug in targets:
         print(f"  https://exios66.github.io/{slug}/")

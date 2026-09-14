@@ -74,6 +74,13 @@ def git(*args: str) -> str:
 def gh(*args: str) -> list[dict]:
     proc = run(["gh", *args], check=False)
     if proc.returncode != 0:
+        # Live-or-loud (DMR-061): an incomplete release body must be visible.
+        print(
+            f"WARNING: `gh {' '.join(args)}` failed (rc={proc.returncode}) — the "
+            "release body will LACK the PR/commit sections it contributes: "
+            f"{proc.stderr.strip()[:240]}",
+            file=sys.stderr,
+        )
         return []
     return json.loads(proc.stdout) if proc.stdout.strip() else []
 

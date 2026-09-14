@@ -88,8 +88,12 @@ def join_beneficiary(e: dict, bene: dict | None) -> dict:
     if birth and e.get("year"):
         try:
             e["bene_age"] = max(e["year"] - int(birth[:4]), 0)
-        except ValueError:
-            pass
+        except ValueError as exc:
+            print(
+                f"WARNING: beneficiary birth_dt {birth!r} is not a parseable "
+                f"date — bene_age left out of this row ({exc})",
+                file=__import__("sys").stderr,
+            )
     return e
 
 

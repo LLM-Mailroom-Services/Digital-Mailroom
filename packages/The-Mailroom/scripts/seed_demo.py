@@ -138,8 +138,8 @@ def ensure_score_configs(client) -> str:
     try:
         for cfg in cfg_api.get(limit=100, request_options={"timeout_in_seconds": 20}).data:
             existing[cfg.name] = cfg
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"WARNING: score-config listing failed ({str(exc)[:120]}) — configs may be re-created", file=sys.stderr)
     cfg = existing.get(JUDGE_CONFIG_NAME)
     if cfg is not None:
         return cfg.id
@@ -486,7 +486,8 @@ def repair_missing_scores(client, runs, rounds=4, settle_s=25):
                 resp = v3.get_many_v3(trace_id=run.tid, limit=100,
                                       request_options={"timeout_in_seconds": 20})
                 existing = {s.name for s in (resp.data or [])}
-            except Exception:
+            except Exception as exc:
+                print(f"WARNING: score listing failed ({str(exc)[:120]}) — treating all scores as missing", file=sys.stderr)
                 continue
             missing = [sc for sc in run.scores if sc.name not in existing]
             if missing:
@@ -549,8 +550,8 @@ def cleanup_stale_traces(client, keep_tids: set[str], settle_s=5):
             trace_api.delete(tid, request_options={"timeout_in_seconds": 20,
                                                     "max_retries": 0})
             print(f"  removed stale {tid}")
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"WARNING: stale-trace removal failed for {tid} ({str(exc)[:120]}) — trace left in place", file=sys.stderr)
     if stale:
         time.sleep(settle_s)
     return True
@@ -620,8 +621,8 @@ def verify_seeded(client, runs, timeout_s=150):
                 trace_api.get(tid, request_options={"timeout_in_seconds": 15,
                                                      "max_retries": 1})
                 pending.discard(tid)
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f"WARNING: pending-trace discard failed ({str(exc)[:120]})", file=sys.stderr)
         if not pending:
             break
         if not reingested and deadline - time.monotonic() < timeout_s * 0.6:
@@ -799,7 +800,8 @@ def reattach_missing_scores(specs) -> None:
             resp = v3.get_many_v3(trace_id=tid, limit=100,
                                   request_options={"timeout_in_seconds": 20})
             existing = {s.name for s in (resp.data or [])}
-        except Exception:
+        except Exception as exc:
+            print(f"WARNING: score listing failed ({str(exc)[:120]}) — treating all scores as missing", file=sys.stderr)
             continue
         run = build_run(spec, datetime.now(timezone.utc))
         attach_scores(run, spec, cfg_id)

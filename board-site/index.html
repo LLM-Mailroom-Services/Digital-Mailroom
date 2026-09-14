@@ -1762,7 +1762,19 @@
                 if (agent) opts.headers['X-Mailroom-Actor'] = agent;
                 if (payload) opts.body = JSON.stringify(payload);
                 return fetch(path, opts).then(async (res) => {
-                    const data = await res.json().catch(() => ({}));
+                    const text = await res.text().catch(() => '');
+                    let data;
+                    try {
+                        data = text ? JSON.parse(text) : {};
+                    } catch (_e) {
+                        // Live-or-loud: a non-JSON error body must never masquerade
+                        // as a bare HTTP code — surface what the proxy actually said.
+                        console.warn(`[board] ${method} ${path} returned non-JSON body:`, text.slice(0, 300));
+                        if (!res.ok) {
+                            throw new Error(`HTTP ${res.status} (non-JSON body): ` + (text.slice(0, 200) || 'empty response'));
+                        }
+                        data = {};
+                    }
                     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
                     return data;
                 });

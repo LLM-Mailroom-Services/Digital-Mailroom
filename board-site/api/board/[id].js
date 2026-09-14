@@ -110,16 +110,31 @@ module.exports = async function handler(req, res) {
     if ("archived" in want) patch.state = want.archived ? "closed" : "open";
 
     await ghx.gh(issuePath, { method: "PATCH", body: patch });
+    const commentFailures = [];
     for (const comment of comments) {
-      await ghx.gh(`/repos/${ghx.repo()}/issues/${issue.number}/comments`, {
-        method: "POST",
-        body: { body: comment },
-      });
+      try {
+        await ghx.gh(`/repos/${ghx.repo()}/issues/${issue.number}/comments`, {
+          method: "POST",
+          body: { body: comment },
+        });
+      } catch (cerr) {
+        // Live-or-loud (DMR-061): the write already landed — a broken mirror
+        // comment must NOT 5xx (a client retry would duplicate the PATCH); it
+        // rides back on the card so the UI can show the degraded mirror law.
+        commentFailures.push({
+          comment: comment.slice(0, 140),
+          error: (cerr && (cerr.message || String(cerr))) || "unknown",
+        });
+      }
     }
 
     const fresh = await ghx.gh(issuePath);
     const card = ghx.toCard(fresh);
     if (comments.length) card._comments = comments;
+    if (commentFailures.length) {
+      card._commentFailures = commentFailures;
+      console.warn(`[board] mirror comment failed for ${cardId}:`, commentFailures);
+    }
     return sendJson(res, 200, card);
   } catch (err) {
     const status = err.status || 500;

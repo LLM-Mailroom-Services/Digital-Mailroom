@@ -521,7 +521,13 @@ def create_app(source: Optional[object] = None) -> FastAPI:
 
             schema = PipelineSchema.load()
             classes = schema.doc_classes if hasattr(schema, "doc_classes") else DOC_CLASSES
-        except Exception:
+        except Exception as exc:
+            log.warning(
+                "PipelineSchema.load() failed (%s) — serving the STALE hardcoded "
+                "doc classes; the pipeline mirror is out of sync with the "
+                "taxonomy it renders",
+                exc,
+            )
             classes = DOC_CLASSES
         subclasses = {k: list(v) for k, v in DOC_SUBCLASS_BY_CLASS.items()}
         return {

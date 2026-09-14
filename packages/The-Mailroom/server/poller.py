@@ -321,15 +321,32 @@ class PollHub:
                     if force and hasattr(self.source, "invalidate_run"):
                         try:
                             self.source.invalidate_run(run.trace_id)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            log.warning(
+                                "invalidate_run(%s) failed — stale cached run kept "
+                                "for the next refresh: %s",
+                                run.trace_id,
+                                exc,
+                            )
                     full = getter(run.trace_id, force_refresh=force) if getter else None
                 except TypeError:
                     try:
                         full = self.source.get_run(run.trace_id)
-                    except Exception:
+                    except Exception as exc:
+                        log.warning(
+                            "get_run(%s) failed — run displayed with LIGHT identity "
+                            "only (no detail): %s",
+                            run.trace_id,
+                            exc,
+                        )
                         full = None
-                except Exception:
+                except Exception as exc:
+                    log.warning(
+                        "get_run(%s) failed — run displayed with LIGHT identity "
+                        "only (no detail): %s",
+                        run.trace_id,
+                        exc,
+                    )
                     full = None
                 chosen = apply_light_identity(full, run) if full is not None else run
                 payload = floor_payload(chosen)
@@ -342,8 +359,13 @@ class PollHub:
                             "generations": [g.model_dump(mode="json") for g in full.generations],
                             "scores": full.scores,
                         })
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        log.warning(
+                            "persist_run(%s) failed — this run is NOT persisted "
+                            "and will be re-fetched on restart: %s",
+                            run.trace_id,
+                            exc,
+                        )
             else:
                 chosen = apply_light_identity(prev, run) if prev is not None else run
                 payload = floor_payload(chosen)

@@ -158,8 +158,13 @@ def main() -> int:
             sig = getattr(item, "id", None)
             if sig:
                 known_items[sig] = item
-    except Exception:
-        pass
+    except Exception as exc:
+        print(
+            f"WARNING: could not list existing dataset items ({str(exc)[:120]}) — "
+            "the upsert will re-create everything (idempotency scan lost); "
+            "duplicate items may appear",
+            file=sys.stderr,
+        )
 
     for row in default_rows:
         fn = row.get("filename")

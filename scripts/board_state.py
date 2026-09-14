@@ -255,12 +255,24 @@ def parse_board(board_path: Path | None = None) -> BoardState:
 def git_head() -> tuple[str | None, bool]:
     head = run(["git", "rev-parse", "--short", "HEAD"])
     sha = head.stdout.strip() if head.returncode == 0 else None
-    dirty = run(["git", "status", "--porcelain"]).stdout.strip() != ""
+    dirty_proc = run(["git", "status", "--porcelain"])
+    if dirty_proc.returncode != 0:
+        # Live-or-loud (DMR-061): a failed git probe must never report 'clean'.
+        raise RuntimeError(
+            "git status --porcelain failed — cannot determine the worktree "
+            "state; refusing to report it as clean"
+        )
+    dirty = dirty_proc.stdout.strip() != ""
     return sha, dirty
 
 
 def commit_log(limit: int) -> list[tuple[str, str]]:
     result = run(["git", "log", f"--max-count={limit}", "--pretty=%h%x09%s"])
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"git log failed (rc={result.returncode}): "
+            f"{result.stderr.strip()[:240]}"
+        )
     commits = []
     for line in result.stdout.splitlines():
         if "\t" in line:

@@ -132,7 +132,7 @@ CONSTELLATION: dict[str, dict[str, str]] = {
         "dist": "mailroom-dev-graph",
         "blurb": "Interactive graphify knowledge graph of the mailroom-dev "
                  "monorepo — 4,870 code symbols, 16,161 edges, 325 communities "
-                 "across 9 packages.",
+                 "across 10 packages.",
         "homepage": "https://exios66.github.io/mailroom-dev-graph/",
     },
     "llm-entity-extraction-graph": {

@@ -132,6 +132,13 @@ Langfuse remains the sole display source. The full gallery, including the
 PR screen recording, lives in the **[demos notebook](docs/demos/The-Mailroom-Demos.ipynb)**
 and [`docs/demos.md`](docs/demos.md) (wiki twin: [`Demos`](wiki/Demos.md)).
 
+> **Media note:** the recorded videos, posters, and notebook are heavy
+> assets that are pruned from this checkout (`docs/demos/` and
+> `docs/screenshots/` do not exist locally). They live upstream in the
+> `LLM-Mailroom-Services/Digital-Mailroom` repo at
+> `packages/The-Mailroom/docs/demos/` and `packages/The-Mailroom/docs/screenshots/`
+> (raw URLs on github.com); open the files there to play them.
+
 **Hugging Face Space — live Observatory** (~102s) — public Docker Space
 after #30 (classification cards, headline strip, inbox setup hint, Export
 snapshot, then Review / History / Matters / Metrics / Debug). Live:

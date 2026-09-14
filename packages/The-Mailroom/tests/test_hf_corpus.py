@@ -29,7 +29,7 @@ def test_defaults_pin_corrected_merged(monkeypatch):
     assert hf.corpus_id() == "Lucius-Morningstar/mailroom-dataset"
     assert hf.corpus_revision() == hf.FULL_CORPUS_REVISION
     assert hf.gt_config() == "ground_truth"
-    assert hf.FULL_CORPUS_REVISION.startswith("fe3a6f96")
+    assert hf.FULL_CORPUS_REVISION.startswith("46a4d3c2")
 
 
 def test_env_overrides(monkeypatch):

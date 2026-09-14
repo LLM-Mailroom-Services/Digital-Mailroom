@@ -111,8 +111,6 @@ def main() -> int:
 
     print(f"{'status':<10} prompt")
     print("-" * 60)
-    if not args.dry_run:
-        pass
     statuses = []
     for agent_name, template in sorted(templates.items()):
         status = sync_one(client, agent_name, template, force=args.force, dry_run=args.dry_run,

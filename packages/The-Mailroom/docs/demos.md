@@ -3,6 +3,11 @@
 > Mirrored at `wiki/Demos.md`. Stills live in [`docs/screenshots/`](screenshots/);
 > the walkthrough video and notebook live in [`docs/demos/`](demos/).
 
+> **Media note:** these assets are pruned from this checkout (`docs/demos/`
+> and `docs/screenshots/` do not exist locally) — they live upstream in the
+> `LLM-Mailroom-Services/Digital-Mailroom` repo under
+> `packages/The-Mailroom/docs/{demos,screenshots}/` (raw URLs on github.com).
+
 The pixel console, hosted Observatory, and TUI share one display API.
 These captures document those desks. **Langfuse is still the sole display
 source** — nothing here is canned data served to the UI.

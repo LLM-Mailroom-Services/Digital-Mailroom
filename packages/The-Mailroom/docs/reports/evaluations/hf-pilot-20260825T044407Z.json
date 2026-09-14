@@ -1,4 +1,8 @@
 {
+  "historical": {
+    "note": "v8-era artifact: ran against Lucius-Morningstar/docclass-merged (renamed mailroom-corpus, 2,000 rows), since deleted. The pinned corpus is now mailroom-dataset v9 (3,302 rows).",
+    "annotated": "2026-09-14 (hub#61)"
+  },
   "summary": {
     "n": 5,
     "exact_accuracy": 0.8,

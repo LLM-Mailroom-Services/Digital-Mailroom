@@ -13,8 +13,9 @@ commands consume:
 ``index`` / ``gt_index`` are row offsets into the Hub datasets-server
 ``/rows`` API for the default / ground_truth configs — the site fetches the
 full doc_text + GT fields live, one row at a time, never the whole corpus.
-The catalog keeps the bundle small (~2,000 slim rows) while listing, search,
-and stats work fully offline.
+The catalog keeps the bundle small (~3,300 slim rows — mailroom-dataset
+v9, 2,979 train / 323 test) while listing, search, and stats work fully
+offline.
 
 Usage:
     python scripts/export_corpus_catalog.py [--out site/data] [--max-rows N]

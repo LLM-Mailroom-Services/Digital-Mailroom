@@ -24,7 +24,14 @@
 # Usage:
 #   scripts/publish_pages.sh [--source langfuse|phoenix|both] [--since-hours N]
 #                            [--limit N] [--skip-export] [--allow-empty] [--dry-run]
+#
 # Env overrides: PAGES_BRANCH (default gh-pages), PAGES_REMOTE (default origin).
+#
+# ⚠ PAGES_REMOTE disambiguation (hub#61): this script defaults REMOTE=origin,
+# which in the Digital-Mailroom monorepo is the *hub* repo
+# (LLM-Mailroom-Services/Digital-Mailroom). The gh-pages branch is meant for
+# The-Mailroom's own repo (LLM-Mailroom-Services/The-Mailroom) — set
+# PAGES_REMOTE to that remote (or add it and pass its name) before publishing.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

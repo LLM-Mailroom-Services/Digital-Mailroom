@@ -132,7 +132,8 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
   dataset (filename/class/subclass/sha/split + row-index offsets for
   on-demand doc_text fetches) → `site/data/corpus.json`; run by
   `publish_pages.sh` alongside the snapshot export. Verified end-to-end
-  against the live Hub: 2,000 rows (1,792 train / 208 test).
+  against the live Hub: 3,302 rows (2,979 train / 323 test; mailroom-dataset
+  v9, pinned revision 46a4d3c2).
 - `scripts/seed_demo.py` — planned (M5): generates demo traces **into Langfuse** (env `demo`), never served directly.
 
 ## Langfuse is ALWAYS the source of visualization
@@ -215,7 +216,7 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
   `mailroom-tui` rebuilt as a typed-command REPL (`tui/commands.py`,
   `tui/views.py`, `tui/corpus.py`, `tui/repos.py`); corpus browser over
   `Lucius-Morningstar/mailroom-dataset` (slim windowed listing + live
-  per-row doc_text/GT); constellation repo browser (13 repos, manifest
+  per-row doc_text/GT); constellation repo browser (15 repos, manifest
   contract-tested against `packages_sync.json`); new `terminal/` owlcot-
   family site staged to `gh-pages:/docs/terminal/` with the slim corpus
   catalog (`scripts/export_corpus_catalog.py`); `hf_corpus.fetch_rows`

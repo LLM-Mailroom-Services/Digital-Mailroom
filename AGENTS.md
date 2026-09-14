@@ -269,7 +269,10 @@ Test gates: run the surgically relevant suite for the package you touched by
 default; run that package's FULL suite (and any dependent suites) for
 significant changes (packaging/imports, cross-cutting refactors, scoring).
 Suites run one package per pytest invocation — several packages ship a
-top-level regular `tests` package and collide when batched. Docs currency:
+top-level regular `tests` package and collide when batched. **Read
+`docs/TESTING.md` for the tier model (surgical / package unit /
+cross-package / full+governance), per-package commands with measured
+durations, and the change-type → required-suite matrix.** Docs currency:
 when a change alters behavior described by `README.md`, `AGENTS.md`, or
 `governance/TASKS.md`, update those files in the same commit.
 

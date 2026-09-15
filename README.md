@@ -56,7 +56,7 @@ All ten packages live in `packages/` as git subtrees and mirror independent `Exi
 <div align="center">
 
 | Layer | Repository | GitHub/Vercel Pages |
-|:---|:---|:---|
+| :--- | :--- | :--- |
 | **Hub** (central truth) | [`LLM-Mailroom-Services/Digital-Mailroom`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) | [Dispatch Board](https://digital-mailroom-theta.vercel.app) |
 | **Corpus feed** | [`Exios66/Enron-Evaluation-Environment`](https://github.com/Exios66/Enron-Evaluation-Environment) | [exios66.github.io/Enron-Evaluation-Environment](https://exios66.github.io/Enron-Evaluation-Environment/) |
 | **Corpus feed** | [`Exios66/claims-data-eda`](https://github.com/Exios66/claims-data-eda) | [exios66.github.io/claims-data-eda](https://exios66.github.io/claims-data-eda/) |
@@ -76,7 +76,7 @@ All ten packages live in `packages/` as git subtrees and mirror independent `Exi
 <div align="center">
 
 | Package | Role | Source |
-|:---|:---|:---|
+| :--- | :--- | :--- |
 | `llm-dojo-scoring` | Deterministic scoring, error-analysis, visualization & interpretation suite | [`Exios66/llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring) |
 | `llm-mailroom` | LangGraph multi-agent legal-document pipeline (FastAPI producer) | [`Exios66/llm-mailroom`](https://github.com/Exios66/llm-mailroom) |
 | `llm-entity-extraction` | Prompt-experiment loop: prompt versions × models over CUAD/LegalBench/MAUD | [`Exios66/llm-entity-extraction`](https://github.com/Exios66/llm-entity-extraction) |
@@ -154,7 +154,7 @@ python scripts/sync_packages.py snapshot                # cursor verification
 ## GitHub Governance Tooling
 
 The board and GitHub surface are kept machine-readable and mutually consistent.
-The live dispatch board is **https://digital-mailroom-theta.vercel.app** (issue-backed; see `board-site/` and `docs/wiki/Served-Board.md`):
+The live dispatch board is **<https://digital-mailroom-theta.vercel.app>** (issue-backed; see `board-site/` and `docs/wiki/Served-Board.md`):
 
 ```bash
 python scripts/board_state.py status            # live board snapshot (--json for machines)

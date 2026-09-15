@@ -1,11 +1,11 @@
 # CMS DE-SynPUF (Sample 1) — Full-Corpus EDA Report
-_Generated 2026-08-23 · scripts/eda/explore_cms.py · data: data/cms/{beneficiaries,index}.jsonl_
 
+_Generated 2026-08-23 · scripts/eda/explore_cms.py · data: data/cms/{beneficiaries,index}.jsonl_
 
 ## 1. Corpus Inventory
 
 | Metric | Value |
-|---|---|
+| --- | --- |
 | Beneficiaries (merged 3 yearly summaries) | 116,352 |
 | Total claim/PDE event rows (segments & lines kept) | 11,151,319 |
 | Unique claims (CLM_ID) / fills (PDE_ID) | 11,140,276 |
@@ -13,7 +13,7 @@ _Generated 2026-08-23 · scripts/eda/explore_cms.py · data: data/cms/{beneficia
 | Source archives | 8 ZIPs (see data/raw/MANIFEST.json; 3 recovered via Wayback Machine) |
 
 | Claim type | Event rows | Unique claim IDs |
-|---|---|---|
+| --- | --- | --- |
 | Inpatient | 66,773 | 66,705 |
 | Outpatient | 790,790 | 779,815 |
 | Carrier (physician) | 4,741,335 | 4,741,335 |
@@ -24,7 +24,7 @@ _Generated 2026-08-23 · scripts/eda/explore_cms.py · data: data/cms/{beneficia
 ## 2. Referential Integrity & Linkage
 
 | Type | Events linked to beneficiary summary | Orphan events |
-|---|---|---|
+| --- | --- | --- |
 | Inpatient | 66,773 | 0 |
 | Outpatient | 790,790 | 0 |
 | Carrier (physician) | 4,741,335 | 0 |
@@ -33,12 +33,12 @@ _Generated 2026-08-23 · scripts/eda/explore_cms.py · data: data/cms/{beneficia
 ## 3. Beneficiary Demographics
 
 | Sex | Count |
-|---|---|
+| --- | --- |
 | Male | 52,005 |
 | Female | 64,347 |
 
 | Age band (2008) | Count | % |
-|---|---|---|
+| --- | --- | --- |
 | <65 | 19,120 | 16.4% |
 | 65-74 | 49,547 | 42.6% |
 | 75-84 | 32,882 | 28.3% |
@@ -51,7 +51,7 @@ Deaths recorded across window: **5,461** (2008: 1,814, 2009: 1,784, 2010: 1,863)
 ## 4. Chronic Conditions & Comorbidity
 
 | Condition (2010 flag) | % of beneficiaries |
-|---|---|
+| --- | --- |
 | Ischemic Heart Disease | 36.2% |
 | Diabetes | 28.3% |
 | Heart Failure | 25.1% |
@@ -77,7 +77,7 @@ Claim volumes are flat-to-seasonal with no year-over-year growth trend — consi
 ## 6. Cost Distributions
 
 | Type | p10 | p25 | p50 | p75 | p90 | p95 | p99 | Σ paid |
-|---|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Inpatient | $3.0K | $4.0K | $7.0K | $11.0K | $19.0K | $29.0K | $57.0K | $639.26M |
 | Outpatient | $20.00 | $40.00 | $80.00 | $200.00 | $800.00 | $1.7K | $3.3K | $224.52M |
 | Carrier (physician) | $10.00 | $30.00 | $60.00 | $100.00 | $200.00 | $340.00 | $660.00 | $414.60M |
@@ -89,11 +89,10 @@ All four payment distributions are heavy-tailed (p99 ≫ p50); inpatient is the 
 
 ## 7. Diagnosis Codes (ICD-9)
 
-
 **Inpatient — top 15 diagnosis codes:**
 
 | Code | Occurrences |
-|---|---|
+| --- | --- |
 | 4019 | 23,512 |
 | 25000 | 11,987 |
 | 2724 | 11,898 |
@@ -113,7 +112,7 @@ All four payment distributions are heavy-tailed (p99 ≫ p50); inpatient is the 
 **Outpatient — top 15 diagnosis codes:**
 
 | Code | Occurrences |
-|---|---|
+| --- | --- |
 | 4019 | 93,932 |
 | 25000 | 45,218 |
 | 2724 | 42,390 |
@@ -133,7 +132,7 @@ All four payment distributions are heavy-tailed (p99 ≫ p50); inpatient is the 
 **Carrier (physician) — top 15 diagnosis codes:**
 
 | Code | Occurrences |
-|---|---|
+| --- | --- |
 | 4019 | 310,654 |
 | 4011 | 264,695 |
 | 2724 | 166,879 |
@@ -156,13 +155,12 @@ Empty-diagnosis rate: Inpatient 0.1%, Outpatient 0.7%, Carrier (physician) 0.0%,
 
 ## 8. Procedures, HCPCS & Drugs
 
-
 **Top inpatient ICD-9 procedure-slot codes:**
 
-_Data quirk: SynPUF's generator populated `ICD9_PRCDR_CD_*` slots with a mix of true procedure codes (9904 transfusion, 8154 joint replacement, 3893 vessel repair, 3995 hemodialysis) and high-frequency *diagnosis* codes (4019, 25000). Treat procedure-slot GT with care when evaluating extraction._
+_Data quirk: SynPUF's generator populated `ICD9_PRCDR_CD_*` slots with a mix of true procedure codes (9904 transfusion, 8154 joint replacement, 3893 vessel repair, 3995 hemodialysis) and high-frequency _diagnosis_ codes (4019, 25000). Treat procedure-slot GT with care when evaluating extraction._
 
 | Code | Claims |
-|---|---|
+| --- | --- |
 | 4019 | 3,266 |
 | 9904 | 1,861 |
 | 2724 | 1,659 |
@@ -182,7 +180,7 @@ _Data quirk: SynPUF's generator populated `ICD9_PRCDR_CD_*` slots with a mix of 
 **Top outpatient HCPCS:**
 
 | Code | Claims |
-|---|---|
+| --- | --- |
 | 36415 | 221,899 |
 | 97110 | 162,090 |
 | A4657 | 134,778 |
@@ -202,7 +200,7 @@ _Data quirk: SynPUF's generator populated `ICD9_PRCDR_CD_*` slots with a mix of 
 **Top carrier-line HCPCS:**
 
 | Code | Lines |
-|---|---|
+| --- | --- |
 | 99213 | 600,006 |
 | 99214 | 429,649 |
 | 36415 | 369,023 |
@@ -222,7 +220,7 @@ _Data quirk: SynPUF's generator populated `ICD9_PRCDR_CD_*` slots with a mix of 
 **Top NDC products (PDE fills):**
 
 | NDC | Fills |
-|---|---|
+| --- | --- |
 | 00002840001 | 206 |
 | 54868540600 | 193 |
 | 64378033202 | 187 |
@@ -255,7 +253,7 @@ Across 4,742,114 sampled carrier lines, **23.9%** of lines concentrate in the to
 **Top DRGs (inpatient):**
 
 | MS-DRG | Claims |
-|---|---|
+| --- | --- |
 | 882 | 282 |
 | 177 | 281 |
 | 886 | 275 |
@@ -277,7 +275,7 @@ Across 4,742,114 sampled carrier lines, **23.9%** of lines concentrate in the to
 ## 10. Utilization Concentration
 
 | Metric | Value |
-|---|---|
+| --- | --- |
 | Active beneficiaries | 103,935 |
 | Mean events per active beneficiary | 107.3 |
 | Max events for one beneficiary | 410 |
@@ -288,7 +286,7 @@ Across 4,742,114 sampled carrier lines, **23.9%** of lines concentrate in the to
 ## 11. Annual Reimbursement Rollups (Beneficiary Files)
 
 | Year | IP | OP | CAR |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 2008 | $257.62M | $72.40M | $135.21M |
 | 2009 | $250.84M | $88.14M | $153.23M |
 | 2010 | $139.99M | $48.76M | $95.57M |
@@ -300,7 +298,7 @@ Across 4,742,114 sampled carrier lines, **23.9%** of lines concentrate in the to
 ## 12. Pipeline Fit Assessment (llm-mailroom `insurance_claim`)
 
 | Specialist field | GT source in SynPUF | Coverage note |
-|---|---|---|
+| --- | --- | --- |
 | claim_number | CLM_ID (+segment suffix) | exact, verbatim-renderable |
 | policy_number | DESYNPUF_ID | exact; stable join key |
 | insurer | 'CMS Medicare Part A/B' | constant by construction |
@@ -318,5 +316,5 @@ Across 4,742,114 sampled carrier lines, **23.9%** of lines concentrate in the to
 ### Evaluation caveats
 
 1. **No negative class**: every rendered document will be an approved health claim; denial-letter and reservation-of-rights ground truth must come from another source.
-2. **Fully synthetic**: CMS warns of limited inferential utility — treat as *pipeline substrate*, not epidemiology. Distributions here characterize the eval artifact itself.
+2. **Fully synthetic**: CMS warns of limited inferential utility — treat as _pipeline substrate_, not epidemiology. Distributions here characterize the eval artifact itself.
 3. **Verbatim contract**: every GT value above is rendered verbatim into doc_text so the mailroom field scorer's factuality audit can verify extraction without fuzzy fallback.

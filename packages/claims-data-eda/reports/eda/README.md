@@ -11,7 +11,7 @@
 ## Contents
 
 | Path | Description |
-|:---|:---|
+| :--- | :--- |
 | [`figures/`](figures/) | Static PNG charts |
 | [`figures_interactive/`](figures_interactive/) | Interactive Plotly HTML charts |
 

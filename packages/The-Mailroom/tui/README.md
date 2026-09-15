@@ -28,7 +28,7 @@ mailroom-tui --once --view corpus  # single frame for scripting/CI
 ## REPL commands
 
 | command | what it does |
-|---|---|
+| --- | --- |
 | `help` / `man <cmd>` | command list / manual entry |
 | `floor` | live floor desk — auto-refreshing table + banner log (`q` to leave) |
 | `review` / `sessions` / `metrics` | Langfuse-derived desks |

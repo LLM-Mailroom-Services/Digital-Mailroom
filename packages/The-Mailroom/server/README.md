@@ -11,6 +11,7 @@
 ## Purpose
 
 The server provides the backend API for The-Mailroom visualizer, including:
+
 - Langfuse/Phoenix data aggregation
 - WebSocket event streaming
 - Review queue management
@@ -28,7 +29,7 @@ mailroom-hosted           # Observatory on http://127.0.0.1:8001/live
 ## API Endpoints
 
 | Endpoint | Purpose |
-|:---|:---|
+| :--- | :--- |
 | `/api/traces` | Pipeline trace data |
 | `/api/review-queue` | Human review queue |
 | `/api/review/resolve` | Resolve review items |

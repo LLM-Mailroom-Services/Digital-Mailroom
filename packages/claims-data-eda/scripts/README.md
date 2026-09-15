@@ -11,7 +11,7 @@
 ## Functional index
 
 | Group | Script | Purpose |
-|:---|:---|:---|
+| :--- | :--- | :--- |
 | **Acquire** | `acquire_synpuf.py` | Acquire the CMS 2008-2010 DE-SynPUF Sample 1 (all 5 file types / 8 ZIPs) |
 | **Build** | `build_corpus_index.py` | Normalize the DE-SynPUF Sample-1 CSVs into unified JSONL indexes |
 | | `build_pipeline_dump.py` | Build the pipeline-ready `insurance_claim` sample from the index |

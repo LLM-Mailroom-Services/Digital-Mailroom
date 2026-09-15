@@ -11,7 +11,7 @@
 ## Structure
 
 | Path | Contents |
-|:---|:---|
+| :--- | :--- |
 | [`docker-compose.yml`](docker-compose.yml) | Docker Compose configuration |
 | [`nginx/`](nginx/) | Nginx reverse proxy configuration |
 
@@ -25,7 +25,7 @@ docker compose --profile ui up --build
 ## Profiles
 
 | Profile | Services |
-|:---|:---|
+| :--- | :--- |
 | `ui` | React operator desk + backend |
 | `default` | Pixel console + backend |
 

@@ -13,7 +13,7 @@ evaluation family under [Exios66](https://github.com/Exios66). Artifacts flow
 downstream; nothing flows back without a versioned handoff.
 
 | Repo | Role | Coupling |
-|---|---|---|
+| --- | --- | --- |
 | [`llm-mailroom`](https://github.com/Exios66/llm-mailroom) | Multi-agent legal-document intake pipeline; owns the doc-class taxonomy incl. **`insurance_claim`** (`InsuranceClaimExtraction` schema + `insurance_claims_specialist`) this repo renders GT against | Upstream taxonomy governor |
 | **claims-data-eda** (this repo) | Full-corpus EDA + rendered-EOB dataset production for CMS DE-SynPUF Sample 1 | — |
 | [`llm-entity-extraction`](https://github.com/Exios66/llm-entity-extraction) | Training/eval environment consuming streamer-dump JSONLs via `build_docclass_merged.py`; Enron feeds it as `correspondence`, this repo as `insurance_claim` | Direct downstream consumer |

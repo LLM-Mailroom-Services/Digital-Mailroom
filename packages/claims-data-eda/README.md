@@ -30,7 +30,7 @@ ground-truth extraction fields aligned to the mailroom's
 ## 📊 Corpus at a Glance
 
 | File type | Events | Unique IDs | Σ paid | p50 | p99 |
-|---|---:|---:|---:|---:|---:|
+| --- | ---: | ---: | ---: | ---: | ---: |
 | 🏨 Inpatient | 66,773 | 66,705 | $639M | $7.0K | $57.0K |
 | 🏥 Outpatient | 790,790 | 779,815 | $225M | $80 | $3.3K |
 | 🩺 Carrier (physician) | 4,741,335 | 4,741,335 | $415M | $60 | $660 |
@@ -53,7 +53,7 @@ evaluation family under [@Exios66](https://github.com/Exios66). Artifacts flow
 downstream; nothing flows back without a versioned handoff.
 
 | Repository | Role | Coupling |
-|---|---|---|
+| --- | --- | --- |
 | [`llm-mailroom`](https://github.com/Exios66/llm-mailroom) | Multi-agent legal-document intake pipeline; owns the doc-class taxonomy incl. **`insurance_claim`** (`InsuranceClaimExtraction` + `insurance_claims_specialist`) this repo renders GT against | ⬆️ Upstream taxonomy governor |
 | **claims-data-eda** (this repo) | Full-corpus EDA + rendered-EOB dataset production for CMS DE-SynPUF Sample 1 | — |
 | [`llm-entity-extraction`](https://github.com/Exios66/llm-entity-extraction) | Training/eval environment consuming streamer-dump JSONLs via `build_docclass_merged.py` — Enron feeds `correspondence`, this repo feeds `insurance_claim` | ⬇️ Direct downstream consumer |
@@ -68,6 +68,7 @@ Handoff contract & wiring commands: [`reports/pipeline/README.md`](reports/pipel
 <tr><td width="50%">
 
 ### Heavy-tailed costs
+
 Inpatient payments span **$3K (p10) → $57K (p99)**. Sampling must bucket on
 **log-cost** or the tail vanishes from eval sets — the stratified sampler
 enforces a **≥15% high-cost floor** per claim type.
@@ -75,6 +76,7 @@ enforces a **≥15% high-cost floor** per claim type.
 </td><td width="50%">
 
 ### Concentration everywhere
+
 Top 1% of carrier providers bill **23.9%** of physician lines; top 20% of
 patients generate **42.4%** of all events. Provider NPIs are strong,
 skewed entity-extraction targets.
@@ -83,6 +85,7 @@ skewed entity-extraction targets.
 <tr><td width="50%">
 
 ### Stationary synthetics
+
 Demographics, chronic-condition prevalence (ischemic heart disease **36%**,
 diabetes **28%**, heart failure **25%**) and monthly volumes barely move across
 2008–2010 — the fingerprint of template-driven generation.
@@ -90,6 +93,7 @@ diabetes **28%**, heart failure **25%**) and monthly volumes barely move across
 </td><td width="50%">
 
 ### Clean GT anchors — with caveats
+
 Empty-diagnosis rates **≤0.7%**; every event joins its beneficiary record.
 But SynPUF contains only **adjudicated-paid** claims → no denial ground truth
 exists, and procedure slots mix true ICD-9 procedures with diagnosis codes
@@ -111,7 +115,7 @@ exists, and procedure slots mix true ICD-9 procedures with diagnosis codes
 <summary><b>🖼️ Full figure gallery (12 charts)</b></summary>
 
 | # | Figure | Insight |
-|---|---|---|
+| --- | --- | --- |
 | 01 | [Corpus overview](reports/eda/figures/01_corpus_overview.png) | Event rows vs unique claim IDs per type |
 | 02 | [Monthly volume](reports/eda/figures/02_monthly_volume.png) | Stationary seasonality; 2010 tapers mid-year |
 | 03 | [Demographics](reports/eda/figures/03_demographics.png) | Age bands, race mix, top states |

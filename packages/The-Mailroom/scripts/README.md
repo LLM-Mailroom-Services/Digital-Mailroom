@@ -11,7 +11,7 @@
 ## Functional index
 
 | Group | Script | Purpose |
-|:---|:---|:---|
+| :--- | :--- | :--- |
 | **Demo / seed** | `demo_pilot_run.py` | Stagger a fake Langfuse pilot so envelopes travel the conveyor |
 | | `demo_review_tray.py` | Working REVIEW-tray demo (FakeClient Langfuse + in-process producer) |
 | | `demo_v030_cast.py` | Static FakeClient floor for the v0.3.0 release stills + desk recordings |

@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| From | m..schmidt@enron.com |
+| From | <m..schmidt@enron.com> |
 | Date | 2001-11-19T13:51:52+00:00 |
 | Message-ID | 10432787.1075861666305.JavaMail.evans@thyme |
 | Subclass | **Notice** (`notice`) |

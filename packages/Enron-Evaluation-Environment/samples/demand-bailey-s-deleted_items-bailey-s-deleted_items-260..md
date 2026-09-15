@@ -2,10 +2,10 @@
 
 | Field | Value |
 | --- | --- |
-| From | sara.shackleton@enron.com |
-| To | louis.dicarlo@enron.com; susan.bailey@enron.com |
-| Cc | michael.bridges@enron.com; ed.mcmichael@enron.com; angelo.miroballi@enron.com |
-| Bcc | michael.bridges@enron.com; ed.mcmichael@enron.com; angelo.miroballi@enron.com |
+| From | <sara.shackleton@enron.com> |
+| To | <louis.dicarlo@enron.com>; <susan.bailey@enron.com> |
+| Cc | <michael.bridges@enron.com>; <ed.mcmichael@enron.com>; <angelo.miroballi@enron.com> |
+| Bcc | <michael.bridges@enron.com>; <ed.mcmichael@enron.com>; <angelo.miroballi@enron.com> |
 | Date | 2002-03-06T23:30:46+00:00 |
 | Message-ID | 21499059.1075861108328.JavaMail.evans@thyme |
 | Subclass | **Demand** (`demand`) |

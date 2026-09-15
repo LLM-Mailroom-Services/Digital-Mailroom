@@ -35,7 +35,7 @@ open exactly one specialty skill. Companion to
   `git+https://github.com/Exios66/llm-mailroom.git@2a212e76a62b` (package 0.7.1,
   tag `v0.7.1`).
   `mailroom_ui/producer.py` is the only import adapter — `pipeline.review_resolve`
-  + `schemas.manifest` for REVIEW dispositions / `serialize_document`. Default
+  - `schemas.manifest` for REVIEW dispositions / `serialize_document`. Default
   `pip install -e ".[dev]"` stays light; missing extra falls back to the same
   contract constants. **Never** import `api.main` (import-time watcher) or
   `llm_dojo_scoring`. Bump `MAILROOM_GIT_SHA` and the extra together.
@@ -172,19 +172,22 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
 ## Release process (semver + CHANGELOG + README + wiki + tags)
 
 **Semantic versioning** (`MAJOR.MINOR.PATCH`), version lives in `pyproject.toml`:
+
 - **MAJOR** — breaking change to the API responses, the data contract (trace interpretation), or the visual design.
 - **MINOR** — new feature: new screen, new metrics, milestone delivery (M2/M3/M4/M5 each = MINOR).
 - **PATCH** — bug fixes, docs fixes, tests-only changes.
 
-**CHANGELOG.md** — Keep a Changelog format (https://keepachangelog.com). During development new entries accumulate under `## [Unreleased]`; on release they are moved under `## [X.Y.Z] - YYYY-MM-DD` with `Added`/`Changed`/`Fixed`/`Removed` bullets.
+**CHANGELOG.md** — Keep a Changelog format (<https://keepachangelog.com>). During development new entries accumulate under `## [Unreleased]`; on release they are moved under `## [X.Y.Z] - YYYY-MM-DD` with `Added`/`Changed`/`Fixed`/`Removed` bullets.
 
 **Mandatory, in the same commit as the code, for every major update:**
+
 1. Update `CHANGELOG.md` (move the Unreleased entries to the new version header).
 2. Update `README.md` if user-facing behavior changed (commands, config, screens).
 3. Update `wiki/` (and its mirror `docs/`) if the release changes architecture, config, or usage.
 4. Run the full test suite before committing.
 
 **Tagging (coordinated with the changelog):**
+
 - Tag must point at the release commit and match the CHANGELOG header exactly: `git tag -a vX.Y.Z -m "X.Y.Z — <one-line summary>"`, then `git push` and `git push --tags`.
 - Never tag a commit that does not have a CHANGELOG entry for that version.
 

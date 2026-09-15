@@ -2,10 +2,10 @@
 
 | Field | Value |
 | --- | --- |
-| From | david.delainey@enron.com |
-| To | larry.izzo@enron.com; chip.schneider@enron.com |
-| Cc | rick.buy@enron.com |
-| Bcc | rick.buy@enron.com |
+| From | <david.delainey@enron.com> |
+| To | <larry.izzo@enron.com>; <chip.schneider@enron.com> |
+| Cc | <rick.buy@enron.com> |
+| Bcc | <rick.buy@enron.com> |
 | Date | 2000-12-19T13:55:00+00:00 |
 | Message-ID | 31388212.1075854499398.JavaMail.evans@thyme |
 | Subclass | **Demand** (`demand`) |
@@ -33,7 +33,6 @@ Enron North America Corp.
 
 From: Chip Schneider @ ENRON 12/19/2000 12:34 PM
 
-
 To: Larry L Izzo/ENRON_DEVELOPMENT@ENRON_DEVELOPMENT
 cc: Rick Buy/HOU/ECT@ECT, David Gorte/HOU/ECT@ECT, David W
 Delainey/HOU/ECT@ECT, Brett R Wiggs/SA/Enron@Enron, Dan Leff/HOU/EES@EES,
@@ -58,7 +57,7 @@ P5 $194.25
 P50 (expected) $210.00
 P95 $225.75
 
-2. With regard to schedule, I am told that EE&CC has a copy of the
+1. With regard to schedule, I am told that EE&CC has a copy of the
 Consortium Agreement where this information is contained. I retrieved this
 information from that document. I have attached a copy of the Consortium
 Agreement. I hear your points and understand the risk. The schedule will be
@@ -69,7 +68,7 @@ EWS/Americas and EE&CC will be essential in determining the continued
 viability of the schedule. Enron owns 25% of CEG and does not have
 control--I would recommend that we consult with Enron legal on this question.
 
-3. It is prudent to restrict expenditures to $15 million until we receive
+2. It is prudent to restrict expenditures to $15 million until we receive
 our permits given this is the maximum recoverable amount from Petrobras.
 From a permitting perspective, we are unable to commence construction of the
 plant beyond site clearance without the actual environmental and installation
@@ -80,9 +79,9 @@ be ordered in advance of permit issuance. Our understanding is that the $15
 million figure was derived with the assistance of EE&CC and takes into
 consideration funding required for long-lead items.
 
-4. The 9169 btu/kwh is assumed to be LHV in the model.
+3. The 9169 btu/kwh is assumed to be LHV in the model.
 
-5. The Consortium Agreement anticipates a 92% availability for maximum
+4. The Consortium Agreement anticipates a 92% availability for maximum
 payout of the capacity payment. The capacity payment is discounted ratably
 to the extent the Equivalent Availability Factor is less than 92% as per
 Schedule 8.06 in the Consortium Agreement.
@@ -97,7 +96,7 @@ Regards,
 
 Chip
 
-To: david.gorte@enron.com, Chip Schneider/NA/Enron@Enron
+To: <david.gorte@enron.com>, Chip Schneider/NA/Enron@Enron
 cc:
 
 Subject: DASH FOR RIOGEN MERCHANT (AKA "ELECTROBOLT")

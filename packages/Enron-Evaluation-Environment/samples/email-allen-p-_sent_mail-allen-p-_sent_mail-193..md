@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| From | phillip.allen@enron.com |
-| To | colleen.sullivan@enron.com |
+| From | <phillip.allen@enron.com> |
+| To | <colleen.sullivan@enron.com> |
 | Date | 2000-08-09T14:11:00+00:00 |
 | Message-ID | 25730802.1075855689480.JavaMail.evans@thyme |
 | Subclass | **Email** (`email`) |

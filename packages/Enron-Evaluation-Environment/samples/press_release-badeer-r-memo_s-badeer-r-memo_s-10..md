@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| From | office.chairman@enron.com |
-| To | all.america@enron.com |
+| From | <office.chairman@enron.com> |
+| To | <all.america@enron.com> |
 | Date | 2000-05-17T11:13:00+00:00 |
 | Message-ID | 12296501.1075863603653.JavaMail.evans@thyme |
 | Subclass | **Press Release** (`press_release`) |
@@ -56,4 +56,4 @@ of 2000. The company will be headquartered in Greenwich, Connecticut, with
 some operations in Houston.
 
 For more information, please log onto their website at
-http://www.newpowercompany.com.
+<http://www.newpowercompany.com>.

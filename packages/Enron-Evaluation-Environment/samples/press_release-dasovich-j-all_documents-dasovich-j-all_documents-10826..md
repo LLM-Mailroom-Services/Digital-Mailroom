@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| From | jmunoz@mcnallytemple.com |
-| To | abb@eslawfirm.com; andybrwn@earthlink.net; cabaker@duke-energy.com; rescalante@riobravo-gm.com; rbw@mrwassoc.com; curtis_l_kebler@reliantenergy.com; dean.nistetter@dynegy.com; dkk@eslawfirm.com; gtbl@dynegy.com; smutny@iepa.com; jeff.dasovich@enron.com; joer@calpine.com; john.g.larrea@williams.com; john_h_stout@reliantenergy.com; jmball@ns.net; kgough@calpine.com; kent.palmerton@williams.com; lale@dynegy.com; mmoretti@mccabeandcompany.net; mwilson@pstrategies.com; rmcnally@mcnallytemple.com; nam.nguyen@powersrc.com; knorton@mcnallytemple.com; paula.hall-collins@williams.com; jackp@calpine.com; rwhyde@duke-energy.com; roger.pelote@williams.com; stephanie-newell@reliantenergy.com; smara@enron.com; tross@mcnallytemple.com; tcwillia@duke-energy.com; alex.sugaoka@uaecorp.com; william_carlson@wastemanagement.com; billw@calpine.com; bellery@spi-ind.com; bob.gates@enron.com; cody.carter@williams.com; curt.hatton@gen.pge.com; david.parquet@enron.com; dean_gosselin@fpl.com; fernley.doug@epenergy.com; dnelsen@gwfpower.com; ed.tomeo@uaecorp.com; eileenk@calpine.com; eric.eisenman@gen.pge.com; frank.derosa@gen.pge.com; frazier_blaylock@ogden-energy.com; hap_boyd@enron.com; jack.hawks@gen.pge.com; elliottsa@earthlink.net; jgreco@caithnessenergy.com; jweisgall@aol.com; ccastillo@riobravo-gm.com; kellyl@enxco.com; khoffman@caithnessenergy.com; kfickett@usgen.com; lynn.a.lednicky@dynegy.com; marty_mcfadden@ogden-energy.com; paula_soos@ogden-energy.com; rjhickok@duke-energy.com; rskoebbe@powerworksinc.com; rllamkin@seiworldwide.com; ain@worldnet.att.net; siliff@riobravo-gm.com; steve_ponder@fpl.com; twetzel@thermoecotek.com; wfhall2@duke-energy.com; trusso@mcnallytemple.com; sadlersa@earthlink.net; mstultz@epsa.org; rtemple@mcnallytemple.com; tracy.fairchild@edelman.com; megan.beiser@edelman.com; deborah.fiorito@dynegy.com; lchurch@epsa.org; kaplan@iepa.com; tcwillia@duke-energy.com; rwhyde@duke-energy.com; tmcmorrow@manatt.com |
+| From | <jmunoz@mcnallytemple.com> |
+| To | <abb@eslawfirm.com>; <andybrwn@earthlink.net>; <cabaker@duke-energy.com>; <rescalante@riobravo-gm.com>; <rbw@mrwassoc.com>; <curtis_l_kebler@reliantenergy.com>; <dean.nistetter@dynegy.com>; <dkk@eslawfirm.com>; <gtbl@dynegy.com>; <smutny@iepa.com>; <jeff.dasovich@enron.com>; <joer@calpine.com>; <john.g.larrea@williams.com>; <john_h_stout@reliantenergy.com>; <jmball@ns.net>; <kgough@calpine.com>; <kent.palmerton@williams.com>; <lale@dynegy.com>; <mmoretti@mccabeandcompany.net>; <mwilson@pstrategies.com>; <rmcnally@mcnallytemple.com>; <nam.nguyen@powersrc.com>; <knorton@mcnallytemple.com>; <paula.hall-collins@williams.com>; <jackp@calpine.com>; <rwhyde@duke-energy.com>; <roger.pelote@williams.com>; <stephanie-newell@reliantenergy.com>; <smara@enron.com>; <tross@mcnallytemple.com>; <tcwillia@duke-energy.com>; <alex.sugaoka@uaecorp.com>; <william_carlson@wastemanagement.com>; <billw@calpine.com>; <bellery@spi-ind.com>; <bob.gates@enron.com>; <cody.carter@williams.com>; <curt.hatton@gen.pge.com>; <david.parquet@enron.com>; <dean_gosselin@fpl.com>; <fernley.doug@epenergy.com>; <dnelsen@gwfpower.com>; <ed.tomeo@uaecorp.com>; <eileenk@calpine.com>; <eric.eisenman@gen.pge.com>; <frank.derosa@gen.pge.com>; <frazier_blaylock@ogden-energy.com>; <hap_boyd@enron.com>; <jack.hawks@gen.pge.com>; <elliottsa@earthlink.net>; <jgreco@caithnessenergy.com>; <jweisgall@aol.com>; <ccastillo@riobravo-gm.com>; <kellyl@enxco.com>; <khoffman@caithnessenergy.com>; <kfickett@usgen.com>; <lynn.a.lednicky@dynegy.com>; <marty_mcfadden@ogden-energy.com>; <paula_soos@ogden-energy.com>; <rjhickok@duke-energy.com>; <rskoebbe@powerworksinc.com>; <rllamkin@seiworldwide.com>; <ain@worldnet.att.net>; <siliff@riobravo-gm.com>; <steve_ponder@fpl.com>; <twetzel@thermoecotek.com>; <wfhall2@duke-energy.com>; <trusso@mcnallytemple.com>; <sadlersa@earthlink.net>; <mstultz@epsa.org>; <rtemple@mcnallytemple.com>; <tracy.fairchild@edelman.com>; <megan.beiser@edelman.com>; <deborah.fiorito@dynegy.com>; <lchurch@epsa.org>; <kaplan@iepa.com>; <tcwillia@duke-energy.com>; <rwhyde@duke-energy.com>; <tmcmorrow@manatt.com> |
 | Date | 2001-04-09T13:02:00+00:00 |
 | Message-ID | 27141596.1075843419613.JavaMail.evans@thyme |
 | Subclass | **Press Release** (`press_release`) |
@@ -58,7 +58,7 @@ Wednesday?s hearing in San Diego will feature testimony from major wholesale
 energy producers, including Reliant Energy and Williams Energy Services.
 
 Times and locations are listed below. For a complete witness list, please see
-the Committee?s website: www.house.gov/reform.
+the Committee?s website: <www.house.gov/reform>.
 
 Schedule:
 TUESDAY, APRIL 10, 2001 11 a.m. PST
@@ -89,7 +89,7 @@ April 5, 2001 ????????????????????????????????????????????? (202)225-5074
 
 ?
 
-*** Media Advisory***
+***Media Advisory***
 
 WASHINGTON, D.C. --- The House Government Reform Committee will hold three
 field hearings next week in California to look into the state?s energy

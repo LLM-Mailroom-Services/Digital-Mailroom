@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| From | pdavidson@socalgas.com |
-| To | 'blair@enron.com; lblair@enron.com |
+| From | <pdavidson@socalgas.com> |
+| To | '<blair@enron.com>; <lblair@enron.com> |
 | Date | 2001-10-11T16:18:15+00:00 |
 | Message-ID | 26285327.1075859380866.JavaMail.evans@thyme |
 | Subclass | **Meeting Request** (`meeting_request`) |

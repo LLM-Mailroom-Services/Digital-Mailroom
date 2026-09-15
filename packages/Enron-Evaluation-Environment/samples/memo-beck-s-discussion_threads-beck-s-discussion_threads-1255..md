@@ -2,10 +2,10 @@
 
 | Field | Value |
 | --- | --- |
-| From | gary.stadler@enron.com |
-| To | sally.beck@enron.com; rick.buy@enron.com; wes.colwell@enron.com; ted.murphy@enron.com; john.lavorato@enron.com; john.sherriff@enron.com |
-| Cc | michael.moscoso@enron.com; kate.agnew@enron.com; bjorn.hagelmann@enron.com; rudi.zipter@enron.com; vladimir.gorny@enron.com; rebecca.phillips@enron.com |
-| Bcc | michael.moscoso@enron.com; kate.agnew@enron.com; bjorn.hagelmann@enron.com; rudi.zipter@enron.com; vladimir.gorny@enron.com; rebecca.phillips@enron.com |
+| From | <gary.stadler@enron.com> |
+| To | <sally.beck@enron.com>; <rick.buy@enron.com>; <wes.colwell@enron.com>; <ted.murphy@enron.com>; <john.lavorato@enron.com>; <john.sherriff@enron.com> |
+| Cc | <michael.moscoso@enron.com>; <kate.agnew@enron.com>; <bjorn.hagelmann@enron.com>; <rudi.zipter@enron.com>; <vladimir.gorny@enron.com>; <rebecca.phillips@enron.com> |
+| Bcc | <michael.moscoso@enron.com>; <kate.agnew@enron.com>; <bjorn.hagelmann@enron.com>; <rudi.zipter@enron.com>; <vladimir.gorny@enron.com>; <rebecca.phillips@enron.com> |
 | Date | 2000-06-26T17:11:00+00:00 |
 | Message-ID | 14150625.1075855837907.JavaMail.evans@thyme |
 | Subclass | **Memorandum** (`memo`) |

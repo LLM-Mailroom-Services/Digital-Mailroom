@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| From | newsletters@newsletters.dallasnews.com |
-| To | insideutfootball@newsletters.dallasnews.com |
+| From | <newsletters@newsletters.dallasnews.com> |
+| To | <insideutfootball@newsletters.dallasnews.com> |
 | Date | 2000-12-07T00:15:00+00:00 |
 | Message-ID | 3530912.1075854664916.JavaMail.evans@thyme |
 | Subclass | **Press Release** (`press_release`) |
@@ -16,8 +16,6 @@
 
 [IMAGE] [IMAGE]
 
-
-
 [IMAGE]
 
 Brown vs. Bellotti in San Diego Dec. 7, 2000
@@ -27,16 +25,14 @@ answers your questions about the Holiday Bowl, UT's quarterback situation,
 probable NFL draft picks, Mack Brown and more. Inside UT Football appears on
 Thursdays.
 
-E-mail questions to Chip: chipbrown@dallasnews.com
+E-mail questions to Chip: <chipbrown@dallasnews.com>
 
 Listen to Chip Brown talk about the Longhorns on
 DallasNews.com's Colleges site
 
 Buy all your UT team gear at our E-Fanshop.com
 
-
 Chip Shot
-
 
 One of the most intriguing matchups to watch in this year's Culligan Holiday
 Bowl at San Diego will take place on the sidelines with Texas coach Mack
@@ -65,9 +61,7 @@ the Pac-10 and the Big 12."
 
 Longhorn fans can purchase tickets to the Culligan Holiday Bowl by
 contacting the UT ticket office (512-471-3333/1-800-982-BEVO) or by logging
-on to the athletics department Web site (www.TexasSports.com).
-
-
+on to the athletics department Web site (<www.TexasSports.com>).
 
 Longhorn Q & A Q: Longhorn officials will probably not say which bowl they
 would prefer to play in, but were any of their options less desirable because
@@ -98,11 +92,6 @@ same game. So believe it when UT says the Holiday Bowl is where it wanted to
 be.
 ?
 
-
-
-
-
-
 [IMAGE] Casey Hampton
 
 Q: How high do you think Casey Hampton will go in the NFL draft? I would
@@ -123,7 +112,6 @@ height has hurt me, it's on you." I would be surprised if Hampton fell to the
 third round.
 ?
 
-
 Q: Let's see now: Rose Bowl ... Cotton Bowl ... Sugar Bowl ... Orange Bowl
 ... Fiesta Bowl ... Galleryfurniture.com Bowl ... Which one does NOT give
 you cold chills just to think about?
@@ -137,7 +125,6 @@ Astrodome, fairs better than the old Bluebonnet Bowl, which went bankrupt and
 failed to pay Texas and Pittsburgh their purses for the 1987 game (won by UT,
 32-27). That was the last bowl game ever played in Houston.
 ?
-
 
 Q: Texas' quarterback controversy early this year was an artificial thing
 manufactured by the ill-fated rotation scheme. Now, however, the quarterback
@@ -164,7 +151,6 @@ said they were more comfortable with Applewhite coming off the bench this
 season because of his experience. So we'll see if their stance has changed.
 ?
 
-
 Q: The 70-yard pump-and-go TD play from Chris Simms to B.J. Johnson is both
 a validation of Simms' abilities AND an indictment of the quarterback
 rotation. Chris Simms made that play happen because he had played every
@@ -183,11 +169,6 @@ didn't come around until he was taking all the snaps. So I don't know if the
 coaches are willing to put him through that again and risk losing his
 confidence.
 ?
-
-
-
-
-
 
 [IMAGE] Mack Brown
 

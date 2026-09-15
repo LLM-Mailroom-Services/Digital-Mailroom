@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| From | robert.benson@enron.com |
-| To | lisa.shoemake@enron.com |
+| From | <robert.benson@enron.com> |
+| To | <lisa.shoemake@enron.com> |
 | Date | 2001-07-25T21:05:31+00:00 |
 | Message-ID | 12334558.1075863384725.JavaMail.evans@thyme |
 | Subclass | **Meeting Request** (`meeting_request`) |

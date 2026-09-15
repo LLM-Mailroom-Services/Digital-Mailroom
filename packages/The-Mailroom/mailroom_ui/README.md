@@ -11,6 +11,7 @@
 ## Purpose
 
 The `mailroom_ui` package provides the Python backend for The-Mailroom visualizer, including:
+
 - API endpoints for the visualizer
 - Data transformation and aggregation
 - WebSocket event handling

@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| From | showard@milbank.com |
-| To | richard.b.sanders@enron.com |
+| From | <showard@milbank.com> |
+| To | <richard.b.sanders@enron.com> |
 | Date | 2000-05-22T18:53:00+00:00 |
 | Message-ID | 13980417.1075853227685.JavaMail.evans@thyme |
 | Subclass | **Attorney Demand** (`attorney_demand`) |

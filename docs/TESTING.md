@@ -12,7 +12,7 @@ suites"). All timings below are **measured wall-clock** (2026-09-14, shared
 ## Four tiers
 
 | Tier | What it covers | Typical wall time | When |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **1 — surgical** | The single test file/module touched by a change | seconds | Every edit, before committing |
 | **2 — package unit** | The full test suite of the one changed package | seconds–minutes | Every non-trivial change to a package |
 | **3 — cross-package** | The suites of every package a change touches, plus any package that imports the changed surface | 1–6 min | Cross-package refactors, shared-catalog changes (taxonomy, vendor, dojo), version bumps |
@@ -25,7 +25,7 @@ top-level `tests` package and collide when batched — run **one package per
 invocation**.
 
 | Package | Command | Tests | Wall time |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | llm-dojo-scoring | `uv run pytest packages/llm-dojo-scoring/tests -q` | 369 pass / 5 skip | ~13 s |
 | llm-entity-extraction | `uv run pytest packages/llm-entity-extraction/tests -q` | 764 pass / 28 skip | ~26 s |
 | llm-mailroom | `uv run pytest packages/llm-mailroom/src/tests -q` | 995 pass / 36 skip | ~4:50 |
@@ -43,7 +43,7 @@ invocation**.
 ## Change-type → required-suite matrix
 
 | Change type | Tier | Which suites |
-|---|---|---|
+| --- | --- | --- |
 | Docs/markdown/`.gitignore`/comment only | **1** | None required (surgical if the file has a test) |
 | Single-function fix in one package | **2** | That package's full suite |
 | New test file | **1** | The new file itself + the package it tests |

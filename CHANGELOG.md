@@ -186,6 +186,7 @@ and is recorded there, not here.
   head `8edbe4a9`, cursor re-baselined).
 
 ## [0.5.0] - 2026-09-10
+
 ### Added
 
 - **Modal deploy hardening — vLLM cache volume, revision knob, SDK pin
@@ -251,7 +252,7 @@ and is recorded there, not here.
   stands up the new Vercel project `digital-mailroom` (Root Directory
   `board-site`, Vercel Authentication off, `GITHUB_TOKEN` production secret)
   serving the issue-backed board at
-  **https://digital-mailroom-theta.vercel.app** — `board-site/lib/gh.js`,
+  **<https://digital-mailroom-theta.vercel.app>** — `board-site/lib/gh.js`,
   `board-site/api/board/[id].js` and `board-site/index.html` now read/write the
   new repo under the `DMR-` prefix with the new CORS origins, and a repo-root
   `.vercelignore` keeps CLI deploys limited to `board-site/`. **DMR-003**
@@ -276,7 +277,7 @@ and is recorded there, not here.
   Releases.md "Release-notes template" section + AGENTS.md command index.
 - **Served Kanban board deployed live (HUB-055, 2026-09-06):** the HUB-055
   dispatch board is now served in production at
-  **https://mailroom-dev.vercel.app** (Vercel project `mailroom-dev`, deploy
+  **<https://mailroom-dev.vercel.app>** (Vercel project `mailroom-dev`, deploy
   root `board-site/`). Read path (`GET /api/board` → live kanban cards from
   the `kanban`-labeled issues) and write-back (`PATCH /api/board/HUB-0NN`)
   verified end-to-end in production against `Exios66/mailroom-dev` via the
@@ -315,6 +316,7 @@ and is recorded there, not here.
   `serve_vllm.sh` used the pre-v0.28.0 `--disable-log-requests` flag.
 
 ## [0.4.0] - 2026-09-05
+
 ### Added
 
 - **Terminal-stylized TUI + terminal GH Pages site for The-Mailroom
@@ -335,9 +337,9 @@ and is recorded there, not here.
   sequence, animated man pages) is staged to `gh-pages:/docs/terminal/` by
   `publish_pages.sh` (pixel console stays the root); commands cover the
   snapshot traces + LIVE corpus browsing via datasets-server (CORS verified)
-  + the constellation repo browser. `scripts/export_corpus_catalog.py` writes
+  - the constellation repo browser. `scripts/export_corpus_catalog.py` writes
   the slim `site/data/corpus.json` catalog (filename/class/subclass/sha/split
-  + row-index offsets; `--check` verifies counts + sha integrity; 2,000 rows
+  - row-index offsets; `--check` verifies counts + sha integrity; 2,000 rows
   live-verified). `hf_corpus.fetch_rows` gains offset/page_sleep/429 backoff.
   The-Mailroom release 0.3.0 → 0.4.0 (its own package cut). Pipeline
   architecture diagrams updated for the v0.4.0 agent roster.
@@ -554,7 +556,7 @@ and is recorded there, not here.
   cursors re-baselined; the sanctioned all-packages one-liner
   (`push --all --patch`) verified; the ingest/intake consolidation tail —
   every remaining package mention consolidated; git `commit-message` doctrine
-  + reword session note (human directive 2026-09-04).
+  - reword session note (human directive 2026-09-04).
 
 ### Changed
 
@@ -676,6 +678,7 @@ and is recorded there, not here.
   `simulation_run_id` + `sequence_position` (strictly reproducible, §27).
   62 rows / 39 cols; published + sha256-verified (13/13). Stream builder
   `mailroom_eda.bundles.build_streams` with 3 new tests.
+
 ### Changed
 
 - The-Mailroom stage enum + TUI/web/hosted labels: `ingest` → `intake`
@@ -721,7 +724,7 @@ agent-mailroom v0.2.0, local-mailroom-sandbox v0.1.0.
 - **GitHub governance tooling** (HUB-014): `scripts/board_state.py`
   (status/card/check/sync-issues/project-init/project-sync over
   `governance/TASKS.md`), declarative label taxonomy (`.github/labels.json`)
-  + `scripts/github_labels.py` audit, YAML issue/PR templates, blocking CI
+  - `scripts/github_labels.py` audit, YAML issue/PR templates, blocking CI
   gate (`.github/workflows/board-governance.yml`), optional Projects v2
   mirror.
 - **Document-class taxonomy-parity gate** (HUB-019 §65A):
@@ -769,8 +772,4 @@ agent-mailroom v0.2.0, local-mailroom-sandbox v0.1.0.
 [0.3.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.3.0...v0.4.0
 [0.2.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.2.0...v0.3.0
 [0.1.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.1.0
-[0.2.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.2.0
-[0.3.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.3.0
-[0.4.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.4.0
 [0.5.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.5.0

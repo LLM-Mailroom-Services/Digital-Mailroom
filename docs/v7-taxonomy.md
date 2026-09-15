@@ -48,7 +48,7 @@ The v7 corpus therefore has **5 represented document classes**, with complete to
 Examples used by the current sandbox/fixtures include:
 
 | Document class | Example subclass |
-|---|---|
+| --- | --- |
 | `contract` | `Consulting Agreements` |
 | `merger_agreement` | `all_cash` |
 | `corporate_record` | `bylaws` |

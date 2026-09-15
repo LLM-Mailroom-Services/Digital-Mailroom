@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| From | no.address@enron.com |
+| From | <no.address@enron.com> |
 | Date | 2002-01-03T23:35:15+00:00 |
 | Message-ID | 33268061.1075840318242.JavaMail.evans@thyme |
 | Subclass | **Notice** (`notice`) |

@@ -2,10 +2,10 @@
 
 | Field | Value |
 | --- | --- |
-| From | bob.hall@enron.com |
-| To | sally.beck@enron.com |
-| Cc | leslie.reeves@enron.com; jeffrey.gossett@enron.com; james.scribner@enron.com |
-| Bcc | leslie.reeves@enron.com; jeffrey.gossett@enron.com; james.scribner@enron.com |
+| From | <bob.hall@enron.com> |
+| To | <sally.beck@enron.com> |
+| Cc | <leslie.reeves@enron.com>; <jeffrey.gossett@enron.com>; <james.scribner@enron.com> |
+| Bcc | <leslie.reeves@enron.com>; <jeffrey.gossett@enron.com>; <james.scribner@enron.com> |
 | Date | 2001-01-23T09:16:00+00:00 |
 | Message-ID | 4270050.1075849817511.JavaMail.evans@thyme |
 | Subclass | **Memorandum** (`memo`) |
@@ -29,11 +29,7 @@ thanks
 
 bob
 
-
-
-
 From: Sally Beck @ ECT 01/22/2001 01:59 PM
-
 
 To: Bob M Hall/NA/Enron@Enron, Leslie Reeves/HOU/ECT@ECT, Jeffrey C
 Gossett/HOU/ECT@ECT, James Scribner/Corp/Enron@Enron

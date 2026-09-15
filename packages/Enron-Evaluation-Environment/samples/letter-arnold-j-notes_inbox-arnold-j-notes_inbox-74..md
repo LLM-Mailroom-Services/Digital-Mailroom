@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| From | thanks@amazon.com |
-| To | jarnold@ect.enron.com |
+| From | <thanks@amazon.com> |
+| To | <jarnold@ect.enron.com> |
 | Date | 2001-05-11T19:20:00+00:00 |
 | Message-ID | 21121285.1075857631342.JavaMail.evans@thyme |
 | Subclass | **Letter** (`letter`) |
@@ -106,4 +106,4 @@ The fine print:
 For the fine print, please follow the link to our free shipping offer.
 
 Please note that this message was sent to the following e-mail address:
-jarnold@ect.enron.com
+<jarnold@ect.enron.com>

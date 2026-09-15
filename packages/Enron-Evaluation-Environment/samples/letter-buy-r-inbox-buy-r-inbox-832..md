@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| From | ellen_prendergast@america.hypovereinsbank.com |
-| To | rick.buy@enron.com |
+| From | <ellen_prendergast@america.hypovereinsbank.com> |
+| To | <rick.buy@enron.com> |
 | Date | 2001-09-07T19:27:20+00:00 |
 | Message-ID | 5984403.1075863371842.JavaMail.evans@thyme |
 | Subclass | **Letter** (`letter`) |
@@ -52,4 +52,4 @@ Yoram Dankner
 
 Please RSVP: Ellen Prendergast at:
 Phone: 212-672-5663; Fax: 212-672-5530
-Ellen_Prendergast@hvbamericas.com
+<Ellen_Prendergast@hvbamericas.com>

@@ -8,16 +8,16 @@
 **Pixel-art visual engine for the [`llm-mailroom`](https://github.com/Exios66/llm-mailroom)
 multi-agent legal-document pipeline.** The Mailroom renders every pipeline run as an
 animated conveyor of document envelopes — sorter, specialist bays, the boss's desk,
-the reporter, the archive — driven entirely by **Langfuse traces**. 
+the reporter, the archive — driven entirely by **Langfuse traces**.
 
 Four surfaces share one display API (`/api/*` + `/ws`):
 
 | Surface | Command / URL | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Pixel-art console | `mailroom-web` → `http://127.0.0.1:8001/` | the CRT conveyor floor |
 | Hosted Observatory | `mailroom-hosted` (also `/live` on the same server) | public operations desk |
 | TUI | `mailroom-tui` | typed-command REPL (`MAILROOM_API_URL`) |
-| Terminal site | `…/terminal/` on GH Pages | owlcot-style TTY: `ls`/`cat`/`cd`, `corpus ls|show`, `repos` |
+| Terminal site | `…/terminal/` on GH Pages | owlcot-style TTY: `ls`/`cat`/`cd`, `corpus ls | show`,`repos` |
 
 The terminal site and the TUI both add a **dataset viewer** (`corpus …`
 commands over `Lucius-Morningstar/mailroom-dataset` — slim windowed
@@ -51,7 +51,7 @@ board, one discussion log, and one trace contract:
 ```
 
 | Repository | Role | Relationship to The-Mailroom |
-|---|---|---|
+| --- | --- | --- |
 | [llm-mailroom](https://github.com/Exios66/llm-mailroom) | LangGraph state machine processing legal documents through specialist LLM agents (classify → extract → report → archive); pin `@2a212e76a62b` / **v0.7.1** (package `mailroom` 0.7.1) | **Upstream** — its Langfuse project is this visualizer's sole data source; optional `pip install -e ".[pipeline]"` imports `pipeline.review_resolve` |
 | [llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction) | Prompt-experiment loop (prompt versions × models, paired-bootstrap ablations) | Breeds the pipeline's sorter/specialist prompts; hosts the shared kanban board + governance log for the whole chain |
 | [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Deterministic, field-type-aware scoring engine (`@v0.11.0`) | Upstream governed dependency of both pipeline repos |
@@ -142,7 +142,7 @@ and [`docs/demos.md`](docs/demos.md) (wiki twin: [`Demos`](wiki/Demos.md)).
 **Hugging Face Space — live Observatory** (~102s) — public Docker Space
 after #30 (classification cards, headline strip, inbox setup hint, Export
 snapshot, then Review / History / Matters / Metrics / Debug). Live:
-https://lucius-morningstar-mailroom-observatory.hf.space/
+<https://lucius-morningstar-mailroom-observatory.hf.space/>
 [hf-space-observatory-live-walkthrough.mp4](docs/demos/hf-space-observatory-live-walkthrough.mp4)
 
 [![HF Space Observatory Pipeline](docs/demos/hf-space-observatory-poster.png)](docs/demos/hf-space-observatory-live-walkthrough.mp4)
@@ -185,7 +185,7 @@ Open a section below to expand the stills.
 <summary>Pixel-art console (<code>mailroom-web</code>)</summary>
 
 | | |
-|---|---|
+| --- | --- |
 | ![The Mailroom floor — conveyor, stations, envelopes](docs/screenshots/floor.png) |
 | **FLOOR** — seven stations, per-doc-type envelope tints, review siding and failed bin. Click an envelope to inspect. |
 | ![Pilot run — four envelopes in motion](docs/screenshots/pilot-floor.png) |
@@ -209,7 +209,7 @@ Open a section below to expand the stills.
 <summary>Hosted Observatory (<code>/live</code>, <code>mailroom-hosted</code>)</summary>
 
 | | |
-|---|---|
+| --- | --- |
 | ![Observatory pipeline trays](docs/screenshots/observatory-pipeline.png) |
 | **Pipeline** — live trays including INBOX hopper, Sorter · Extract · Judge · Boss · Report · Archive · Review · Completed. |
 | ![Observatory review queue](docs/screenshots/observatory-review.png) |
@@ -229,7 +229,7 @@ Open a section below to expand the stills.
 <summary>TUI (<code>mailroom-tui</code>)</summary>
 
 | | |
-|---|---|
+| --- | --- |
 | ![TUI floor table and live log](docs/screenshots/tui-console.png) |
 | **Floor** (`mailroom-tui --once`) — per-doc table, verdicts, station banners, live log. |
 | ![TUI review siding](docs/screenshots/tui-review.png) |

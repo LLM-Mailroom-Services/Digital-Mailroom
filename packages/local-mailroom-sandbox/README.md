@@ -20,7 +20,7 @@ Swap in OpenRouter when you need an API provider. This repo does **not** fork th
 <div align="center">
 
 | Component | Default | Notes |
-|:---|:---|:---|
+| :--- | :--- | :--- |
 | **Default provider** | Ollama (`qwen3:8b`) | Fallback `qwen3:7b` |
 | **Scoring** | `llm-dojo-scoring` @ v0.15.0 (vendored) | Deterministic, field-type-aware |
 | **Pipeline** | `llm-mailroom` v0.7.1 (vendored) | 13-node LangGraph state machine |
@@ -96,7 +96,7 @@ GPU recommended for Qwen 8B.
 ## Docs
 
 | Guide | Description |
-|:---|:---|
+| :--- | :--- |
 | [Quickstart](docs/QUICKSTART.md) | **Start here** — install, full CLI reference, canonical workflows |
 | [Providers](docs/providers.md) | Ollama, vLLM, Modal, llama.cpp, LM Studio, OpenRouter |
 | [Evals](docs/evals.md) | Runners, matrix, scoring, experiment log |

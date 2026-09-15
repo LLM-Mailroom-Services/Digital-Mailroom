@@ -13,7 +13,7 @@ family under [Exios66](https://github.com/Exios66). Artifacts flow downstream;
 nothing flows back without a versioned handoff.
 
 | Repo | Role | Coupling |
-|---|---|---|
+| --- | --- | --- |
 | [`llm-mailroom`](https://github.com/Exios66/llm-mailroom) | Multi-agent legal-document intake pipeline; owns the doc-class taxonomy (`correspondence`, `contract`, `merger_agreement`, `corporate_record`) this repo labels against | Upstream taxonomy governor |
 | **Enron-Evaluation-Environment** (this repo) | Full-corpus EDA + stratified `correspondence` dataset production for the CMU Enron corpus | — |
 | [`llm-entity-extraction`](https://github.com/Exios66/llm-entity-extraction) | Training/eval environment for legal document entity extraction & classification; consumes `pipeline.jsonl` via `build_docclass_merged.py` + the sorter's subclass dimension | Direct downstream consumer |
@@ -88,9 +88,11 @@ reports/
 ## 🔑 Key Files — What You Need to Know
 
 ### `scripts/correspondence_subclasses.py` (SHARED DEPENDENCY)
+
 The single source of truth for the 10-key taxonomy. Imported by ALL downstream tools.
 
 **Public API:**
+
 ```python
 from correspondence_subclasses import (
     SUBCLASS_KEYS,               # List[Literal["email", "memo", ...]]
@@ -103,6 +105,7 @@ from correspondence_subclasses import (
 ```
 
 **How to modify it safely:**
+
 1. **Do NOT change the enum order.** The first-match-wins logic depends on ordering. Current order: `meeting_request > voicemail > press_release > demand/attorney_demand > notice > memo > letter > email > other`.
 2. **Add new keys only at the end.** Never insert before existing keys.
 3. **Test false positives.** Any new marker must survive: energy-market terms (`demand`, `capacity`, `TCF`), marketing clickbait (`CLICK HERE NOW`), and ordinary corporate vocabulary (`legal`, `partner`).
@@ -110,14 +113,17 @@ from correspondence_subclasses import (
 5. **Document every heuristic change.** Add inline comments explaining what pattern fires, why, and what edge cases are known.
 
 **Known limitations:**
+
 - Attorney detection relies on domain lists + name patterns. Not exhaustive.
 - `voicemail` is currently 0% in this text-only dump. Would need EDRM v2 audio-transcript format.
 - The `_is_attorney()` function was missing `re.IGNORECASE` on sender-name matching — patched 2026-08-21.
 
 ### `scripts/eda/explore_enron.py` (EDA ENGINE)
+
 Reads `data/enron/index.jsonl` and produces reports + figures.
 
 **Output destinations:**
+
 - `reports/eda/report.md` — Full narrative EDA report
 - `reports/eda/findings.md` — Condensed bullet-point summary
 - `reports/eda/figures/` — 12 PNG charts (01–12)
@@ -126,16 +132,19 @@ Reads `data/enron/index.jsonl` and produces reports + figures.
 **Important:** `final_report.md` is STATIC — it does not regenerate when you run `explore_enron.py`. After making changes to the analysis engine that would affect the final report's numbers, manually verify `final_report.md` matches the live output. Last synced: 2026-08-23.
 
 **To generate fresh reports without figures:**
+
 ```bash
 python scripts/eda/explore_enron.py --no-figures
 ```
 
 **To analyze a subset (smoke testing):**
+
 ```bash
 python scripts/eda/explore_enron.py --limit 1000
 ```
 
 ### `scripts/build_corpus_index.py`
+
 Walks `data/raw/maildir/<custodian>/<folder>/<thread>/<msg>`, parses each message with stdlib `email`, writes JSONL row per message.
 
 **Determinism guarantee:** Output is sorted by maildir path. Rebuilds are byte-identical.
@@ -143,13 +152,16 @@ Walks `data/raw/maildir/<custodian>/<folder>/<thread>/<msg>`, parses each messag
 **Parallelism:** Spawns worker pool via `multiprocessing.Pool` with `CORPUS_PROCS` env var (default: 8).
 
 ### `scripts/build_pipeline_dump.py`
+
 Stratified sampling from `index.jsonl` into `pipeline.jsonl`. Preserves:
+
 - Custodian distribution
 - Internal/external ratio  
 - Subclass proportions
 - Attachment presence
 
 ### `scripts/spot_check.py`
+
 Draws a labeled review sample from the index. Outputs a CSV where a human (Jack) reviews subclass assignments for quality validation. Spot-check samples are deterministic given the same seed.
 
 ---
@@ -184,6 +196,7 @@ pip install pytest-cov && pytest tests/ --cov=scripts/correspondence_subclasses 
 When updating EDA analysis code, follow this checklist:
 
 1. **Run the analyzer** against a test subset:
+
    ```bash
    python scripts/eda/explore_enron.py --limit 5000 --no-figures
    ```
@@ -199,6 +212,7 @@ When updating EDA analysis code, follow this checklist:
 4. **Update `final_report.md`** if the new analysis materially changes reported numbers.
 
 5. **Regenerate figures** if adding/changing chart types:
+
    ```bash
    python scripts/eda/explore_enron.py  # default includes figures
    ```
@@ -210,6 +224,7 @@ When updating EDA analysis code, follow this checklist:
 ## 🔄 Common Workflows
 
 ### Adding a new correlation dimension to EDA
+
 1. Add helper functions to `explore_enron.py` (e.g., `def _tz_offset(date_str)`).
 2. Collect stats in the `analyze()` function loop using new counters.
 3. Add new sections to `render_report()` via `L.append(...)`.
@@ -218,6 +233,7 @@ When updating EDA analysis code, follow this checklist:
 6. Update `README.md` → "New Analysis Sections" table.
 
 ### Updating the labeler taxonomy
+
 1. Edit `correspondence_subclasses.py` — add constants, regexes, or enum entries.
 2. Write a corresponding test in `tests/test_labeler.py` BEFORE merging.
 3. Verify no existing tests break.
@@ -225,6 +241,7 @@ When updating EDA analysis code, follow this checklist:
 5. Update this AGENTS.md § "Key Files" section noting the change.
 
 ### Generating fresh pipeline dumps
+
 ```bash
 # Regenerate from scratch
 python scripts/build_pipeline_dump.py --dry-run   # preview plan
@@ -232,12 +249,14 @@ python scripts/build_pipeline_dump.py              # execute
 ```
 
 ### Generating the Markdown samples folder (HUB-045)
+
 ```bash
 # Corpus must be acquired first (gitignored); samples are the ONLY
 # committed corpus text — bounded, deterministic, taxonomy-stratified.
 python scripts/build_samples.py --dry-run     # preview the selection
 python scripts/build_samples.py               # render samples/ + README
 ```
+
 Selection law: N per subclass key via the SHARED labeler (candidates
 reservoir + seeded RNG — seed 20150507, the tarball date), walk cap
 40k, per-message body cap. Same corpus + seed ⇒ byte-identical
@@ -266,7 +285,7 @@ do not fork the spec — sync changes both ways.
 ## ⚠️ Pitfalls to Avoid
 
 | Pitfall | Consequence | How to avoid |
-|---------|-------------|--------------|
+| --------- | ------------- | -------------- |
 | Modifying `correspondence_subclasses.py` without running tests | False positive/negative labels silently deployed | Always run `pytest tests/` before committing labeler changes |
 | Forgetting `final_report.md` is STATIC | Numbers drift from live analysis | Check final_report.md after any labeler/analyzer change |
 | Committing `data/*.jsonl` files | Bloated repo, merge conflicts | These are gitignored — if committed, untrack immediately |

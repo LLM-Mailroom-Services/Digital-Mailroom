@@ -21,7 +21,7 @@ This directory holds shared data that spans multiple packages in the monorepo. P
 ## Related Data Locations
 
 | Package | Data Directory |
-|:---|:---|
+| :--- | :--- |
 | `llm-entity-extraction` | `packages/llm-entity-extraction/data/` — CUAD/MAUD/S-1 corpora, ground truth, manifests |
 | `llm-mailroom` | `packages/llm-mailroom/data/` — HF pilot outputs |
 | `local-mailroom-sandbox` | `packages/local-mailroom-sandbox/data/` — fixtures, runtime data |

@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| From | ann.schmidt@enron.com |
+| From | <ann.schmidt@enron.com> |
 | Date | 2001-05-15T17:17:00+00:00 |
 | Message-ID | 22799044.1075857630536.JavaMail.evans@thyme |
 | Subclass | **Notice** (`notice`) |
@@ -50,7 +50,7 @@ Enron-promoted Dabhol Power Company (DPC) should be allowed to to serve a
 preliminary PPA termination notice to the Maharashtra State Electricity Board
 (MSEB). The voting will take place through conference calls criss-crossing
 the globe at 6.30 pm, Indian Standard Time. Even though the three Indian
-lenders_ the Industrial Development Bank of India (IDBI), the State Bank of
+lenders_the Industrial Development Bank of India (IDBI), the State Bank of
 India (SBI) and ICICI_ have decided to vote against the proposition, they
 will not be able to block the move.
 Technically, the proposal can be passed if four per cent of lenders are in
@@ -98,7 +98,7 @@ back investments," JB Online quoted Gonzales as saying.
 Gonzales said the decision to suspend the investments may be reconsidered if
 the energy sector regulator Aneel establishes clearer regulations.
 mg/as
-For more information and to contact AFX: www.afxnews.com and www.afxpress.com
+For more information and to contact AFX: <www.afxnews.com> and <www.afxpress.com>
 
 Copyright , 2000 Dow Jones & Company, Inc. All Rights Reserved.
 

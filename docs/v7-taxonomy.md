@@ -110,7 +110,15 @@ The pending GEPA task refers to a "5 doc class & associated subclass set." The i
 
 The experiment now evaluates the same five top-level classes used by the production pipeline. `compliance_filing` is not part of the canonical sorter output contract or any corpus/evaluation surface.
 
-**Retirement state (verified 2026-09-02):** the pipeline config retains `compliance_filing` as inert machinery — `packages/llm-mailroom/src/config/taxonomy.yaml` keeps its `doc_classes` entry marked `status: retired`, so the config-driven sorter label set, prompt catalog, and specialist dispatch still resolve it (zero Hub rows; local eval packs only). That remnant is retained deliberately and is not live taxonomy vocabulary; removing it is a separate release decision, and the taxonomy-parity gate treats the marked entry as a known remnant, not drift.
+**Removal state (verified 2026-09-15):** the config-driven sorter label
+set, prompt catalog, and specialist dispatch no longer resolve the
+compliance class — commit `59c47401` (2026-09-15) **removed** its
+`doc_classes` entry from `packages/llm-mailroom/src/config/taxonomy.yaml`
+outright (zero Hub rows); no `status: retired` marker remains and nothing
+is retained. The five-class roster plus `unknown` is final, and the
+taxonomy-parity gate's retired roster treats all former classes as
+historical vocabulary, not drift — but only as historical vocabulary:
+none of them resolve in the pipeline.
 
 ## 5. Canonical naming rules
 

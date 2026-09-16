@@ -116,7 +116,7 @@ AGENTS.md before touching code inside it.
 | Eval runners | `packages/llm-entity-extraction/scripts/eval/run_*.py` (`--dry-run` first, always) |
 | Experiment records | `packages/llm-entity-extraction/reports/experiment_log.jsonl` (+ rendered `.md`, site data) |
 | Research memos | `packages/llm-entity-extraction/docs/memos/*.md` (the house research-memo format) |
-| Pipeline prompts (downstream) | `packages/llm-mailroom/src/langchain_agents/prompts.py` + `prompts_docclass.py` |
+| Pipeline prompts (downstream) | `packages/llm-mailroom/src/langchain_agents/prompts.py` (`PROMPT_VERSIONS`, vendored sorter/contracts lineage) + `src/llm/prompts.py` (`prompt_templates()` registry) |
 | Scoring engine (OUT OF SCOPE) | `packages/llm-dojo-scoring` — the shared package; `src/field_scoring.py` etc. in the entity package are thin re-export shims |
 | Ground truth (OUT OF SCOPE) | `packages/llm-entity-extraction/src/cuad_ground_truth.py`, `src/master_labels.py` (`data/cuad/master_clauses.csv`) |
 | Corpus feeds | `packages/Enron-Evaluation-Environment` (the shared Enron labelers: `correspondence_subclasses` / `content_topics` / `sentiment_scorer`), `packages/claims-data-eda` |
@@ -132,15 +132,20 @@ AGENTS.md before touching code inside it.
   NEVER edit a prompt string after it has run — a changed prompt needs a NEW
   version key. Derived versions (`.replace()` on a prior constant) are fine
   as long as the base string is untouched.
-- **Mailroom (`prompts_docclass.py`)**: the PURE-APPEND law — every variant
-  is a pure append of its base (`variant.startswith(base)` holds in full,
-  base bytes untouched), mirroring the mailroom's own production bases.
+- **Mailroom (live surface)**: the vendored sorter/contracts lineage lives
+  in `src/langchain_agents/prompts.py` (`PROMPT_VERSIONS`); every other
+  agent prompt (intake, judge, arbiter, boss, gmail triage, relations,
+  image extractor) lives in `src/llm/prompts.py` under
+  `prompt_templates()`. The mailroom docclass prompt file was deleted with
+  the docclass arm (commit `59c47401`, 2026-09-15) — do not reference or
+  recreate it; the PURE-APPEND law governs the entity docclass surface
+  only.
 - **Direction doctrine**: prompts iterate in the entity eval loop
   (llm-dojo), and only same-surface-validated versions flow INTO the
   mailroom package (mirror sync is a separate card — hand off, don't
-  self-promote). Never the reverse. Mailroom-side mutations are opt-in
-  derivatives (`scripts/sync_prompts.py --docclass` deploys them under
-  namespaced `mailroom-docclass-<key>` names).
+  self-promote). Never the reverse. Mailroom-side prompt deployment is a
+  separate sync (`PYTHONPATH=src python src/scripts/sync_prompts.py` pushes
+  `prompt_templates()` into Langfuse under the `mailroom-<agent>` names).
 
 ## Environment variables that matter
 

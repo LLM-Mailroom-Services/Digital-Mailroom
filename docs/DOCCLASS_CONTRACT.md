@@ -39,8 +39,9 @@ The corpus represents exactly the **five-class live Mailroom taxonomy**
 `correspondence`, `insurance_claim`. There is no extended live taxonomy
 awaiting corpus coverage. `compliance_filing`, `court_opinion`, and
 `due_diligence` are **retired former classes** — historical/changelog
-vocabulary only (§60); the pipeline config retains a `status: retired`
-`compliance_filing` entry as inert machinery (see v7-taxonomy.md §4).
+vocabulary only (§60). The `compliance_filing` taxonomy entry was
+**removed** on 2026-09-15 (commit `59c47401`) — no `status: retired`
+marker remains in the pipeline config (see v7-taxonomy.md §4).
 Reintroducing any retired class is a new taxonomy decision with its own
 `taxonomy_version` bump — never a silent "restoration".
 

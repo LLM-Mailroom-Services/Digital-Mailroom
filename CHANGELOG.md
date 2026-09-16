@@ -46,6 +46,18 @@ and is recorded there, not here.
   The Enron eval-environment labeler keeps its `voicemail` key locally (its
   text-only corpus makes it 0% by construction) — a documented intentional
   divergence, not drift.
+- **llm-mailroom synthetic sample-gate residue reconciled (DMR-072):** the
+  retired compliance agent's stand-in sample ids left the pilot surface
+  entirely — `test_real_sample_gate.py` no longer expects `compliance_01/02`
+  in the synthetic set (8 synthetic: 5 live-class stand-ins + 3 insurance
+  contrast letters; mock-live-manifest count 25 → 23; the retired ids keep a
+  negative guard so a stale manifest could never process them in `--real`
+  mode), and the stale roster/count prose is corrected everywhere it cited
+  them (README "25-sample" → 23; AGENTS.md `--mock` line, the pilot-samples
+  paragraph roster "compliance/corporate/correspondence/…" → 8 samples, the
+  Langfuse dataset summary 13 → 11 original samples). Expectations proven
+  against the live `is_real_sample` / `filter_real_samples` logic with a
+  reconstructed 23-row manifest; full llm-mailroom suite 1053p/36s.
 
 ## [0.7.0] - 2026-09-16
 ### Added

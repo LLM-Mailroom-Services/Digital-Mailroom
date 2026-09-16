@@ -464,37 +464,7 @@ def select_rows(
         ]
         chosen = _draw_buckets(rows, buckets, field=field, sample_seed=sample_seed)
     else:
-        keep: set[tuple[str, str]] = set()
-        for bucket in strata["buckets"]:
-            doc_class = bucket.get("doc_class")
-            subclass = bucket.get("subclass")
-            count = bucket.get("count")
-            candidates = [
-                r
-                for r in rows
-                if r["expected_doc_class"] == doc_class
-                and (subclass is None or r["expected_subclass"] == subclass)
-            ]
-            if not candidates:
-                _log.warning(
-                    "stratum bucket %r (doc_class=%r subclass=%r) matched ZERO "
-                    "rows and was silently dropped from the draw — check the "
-                    "strata spec against the corpus distribution",
-                    bucket.get("name") or bucket_key_hint(bucket),
-                    doc_class,
-                    subclass,
-                )
-                continue
-            if count is not None and count < len(candidates):
-                if sample_seed is None:
-                    raise ValueError("sample_seed required for stratified draws")
-                bucket_key = f"{doc_class}::{subclass}"
-                sub_seed = int(hashlib.sha256(f"{sample_seed}:{bucket_key}".encode()).hexdigest()[:16], 16)
-                drawn = random.Random(sub_seed).sample(candidates, k=count)
-            else:
-                drawn = candidates
-            keep.update(_stable_key(r) for r in drawn)
-        chosen = [r for r in rows if _stable_key(r) in keep]
+        chosen = rows
     if limit is not None:
         chosen = chosen[:limit]
     return sorted(chosen, key=_stable_key)

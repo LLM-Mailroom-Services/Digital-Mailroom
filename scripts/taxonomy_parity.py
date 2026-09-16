@@ -102,12 +102,17 @@ SANDBOX_FIXTURE = "packages/local-mailroom-sandbox/data/fixtures/hf/docclass_min
 
 # --- HUB-041 subclass layer ---------------------------------------------------
 #
-# Canonical Hub expected_subclass vocabulary per live class, pinned from
-# mailroom-corpus v8 (revision eafe1ab4, docclass_merged_v8.jsonl: 2,000 rows,
-# 50 class x subclass strata) and verified 2026-09-03 (HUB-041 Phase 1).
-# Contract GT carries 26 folder-style subclass spellings
+# Canonical Hub expected_subclass vocabulary per live class, re-pinned from
+# the CURRENT dataset: mailroom-dataset v9 (Lucius-Morningstar/mailroom-dataset,
+# pinned tip 46a4d3c2, 3,302 rows, GT-closure revision 2026-09-13) — the
+# canonical successor of the frozen mailroom-corpus v8 baseline (eafe1ab4,
+# 2,000 rows; DMR-071 adjudication 2026-09-16: the dataset pin is the source
+# of truth). Contract GT carries 26 folder-style subclass spellings
 # ("License_Agreements", "Joint Venture _ Filing", ...) that normalize onto
-# these 25 CUAD family keys (dojo normalize_subtype).
+# these 25 CUAD family keys (dojo normalize_subtype). Correspondence GT
+# carries exactly the 8 communication-form tokens — the `voicemail` key from
+# the v8-era Enron labeler enum is NOT in the v9 GT vocabulary and was
+# removed from every catalog surface (DMR-071).
 HUB_SUBCLASSES: dict[str, frozenset[str]] = {
     "contract": frozenset({
         "affiliate", "agency", "collaboration", "co_branding", "consulting",
@@ -122,8 +127,9 @@ HUB_SUBCLASSES: dict[str, frozenset[str]] = {
         "other",
     }),
     "corporate_record": frozenset({
-        "articles_of_incorporation", "bylaws", "other", "powers_of_attorney",
-        "rights_instrument",
+        "articles_of_incorporation", "board_resolution", "bylaws",
+        "charter_amendment", "indenture", "officer_certificate", "other",
+        "powers_of_attorney", "rights_instrument", "subsidiary_list",
     }),
     "correspondence": frozenset({
         "email", "letter", "memo", "notice", "demand", "attorney_demand",
@@ -134,14 +140,14 @@ HUB_SUBCLASSES: dict[str, frozenset[str]] = {
     }),
 }
 
-#: Documented extras: corporate_record's full scoring enum extends the 5-token
-#: corpus subset with 6 record types (dojo corpus.py "full enum is the scoring
-#: surface"); the insurance EXTRACT claim_type inventory keeps the legacy FNOL
-#: product lines (doc_inventories.py). `other` is the sanctioned fallback
-#: everywhere and never needs a roster entry.
+#: Documented extras: corporate_record's full scoring enum extends the 10-token
+#: v9 GT vocabulary with exactly one record type (`certificate_of_formation`,
+#: LLC formation certificates — EDGAR EX-3.1 convention, dojo corpus.py "full
+#: enum is the scoring surface"); the insurance EXTRACT claim_type inventory
+#: keeps the legacy FNOL product lines (doc_inventories.py). `other` is the
+#: sanctioned fallback everywhere and never needs a roster entry.
 CORPORATE_FULL_ENUM_EXTRAS = frozenset({
-    "certificate_of_formation", "charter_amendment", "subsidiary_list",
-    "indenture", "board_resolution", "officer_certificate",
+    "certificate_of_formation",
 })
 INSURANCE_EXTRACT_EXTRAS = frozenset({
     "liability", "health", "life", "workers_comp",

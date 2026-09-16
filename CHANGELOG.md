@@ -20,6 +20,32 @@ belongs to the standalone mailroom lineage that became `packages/llm-mailroom`
 and is recorded there, not here.
 
 ## [Unreleased]
+### Changed
+
+- **Subclass taxonomies re-pinned to the current dataset pin (DMR-071):** the
+  HUB-041 canonical `expected_subclass` vocabularies now pin to
+  **mailroom-dataset v9** (`Lucius-Morningstar/mailroom-dataset`, tip
+  `46a4d3c2`, 3,302 rows, GT-closure 2026-09-13) instead of the frozen v8
+  baseline — the human adjudication (2026-09-16): the dataset pin is the
+  source of truth. Three concrete alignments: (1) **`voicemail` removed from
+  every correspondence catalog** — it is NOT in the v9 GT vocabulary (28
+  docclass-arm prompt strings in The-Mailroom `docclass_prompts.py`, the
+  entity sorter catalog + 2 prompt strings, dojo `DOC_TYPE_SUBCLASSES` +
+  observed-GT surfaces, both test pins, the HF-Corpus wiki table); it now
+  normalizes to the sanctioned `other` fallback. (2) **`corporate_record`
+  re-pinned to the 10-token v9 observed set** (5 v8-era tokens + 5 record
+  types the v9 corpus added: `board_resolution`, `charter_amendment`,
+  `indenture`, `officer_certificate`, `subsidiary_list`) across the parity
+  gate, dojo observed-GT surfaces + `HUB_SUBCLASS_INVENTORIES`, and
+  The-Mailroom `DOC_SUBCLASS_BY_CLASS`; `certificate_of_formation` becomes
+  the sole documented scoring-enum extra (EDGAR EX-3.1 convention, not in
+  v9 GT). (3) Correspondence observed-GT surfaces exact-pin to the 8
+  communication-form tokens. `scripts/taxonomy_parity.py` exits 0 for the
+  first time since the drift surfaced; suites: llm-dojo-scoring 371p/5s,
+  llm-entity-extraction 774p/28s, The-Mailroom 336p, llm-mailroom 1053p/36s.
+  The Enron eval-environment labeler keeps its `voicemail` key locally (its
+  text-only corpus makes it 0% by construction) — a documented intentional
+  divergence, not drift.
 
 ## [0.7.0] - 2026-09-16
 ### Added

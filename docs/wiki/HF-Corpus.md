@@ -88,13 +88,17 @@ adjuster, damages_description, coverage_determination, denial_reasons,
 supporting_documents, cuad_clause_labels, maud_clause_labels, intent,
 subject_matter, keywords, intent_source, intent_confidence, intent_status`
 
-Corpus strata vocabulary (per doc type, used by eval targets):
+Corpus strata vocabulary (per doc type, used by eval targets) — re-pinned to
+the current dataset GT (mailroom-dataset v9, tip `46a4d3c2`, 3,302 rows;
+DMR-071 2026-09-16: the dataset pin is the source of truth; the v8-era
+`voicemail` correspondence key is not in the v9 GT vocabulary and left every
+catalog surface):
 
 | Doc type | Subclasses (examples) |
 | --- | --- |
-| contract | 26 incl. Consulting Agreements, Development, IP, Hosting |
-| corporate_record | articles_of_incorporation, bylaws, other, powers_of_attorney, rights_instrument |
-| correspondence | attorney_demand, demand, email, letter, meeting_request, memo, notice, press_release, voicemail, other |
+| contract | 26 folder-style spellings incl. Consulting Agreements, Development, IP, Hosting (normalize onto the 25 CUAD family keys) |
+| corporate_record | articles_of_incorporation, board_resolution, bylaws, charter_amendment, indenture, officer_certificate, other, powers_of_attorney, rights_instrument, subsidiary_list |
+| correspondence | attorney_demand, demand, email, letter, meeting_request, memo, notice, press_release |
 | insurance_claim | carrier, inpatient, outpatient, pde, property, auto |
 | merger_agreement | all_cash, all_stock, mixed_cash_stock, mixed_cash_stock_election, other |
 

@@ -317,8 +317,9 @@ DOC_SUBCLASS_BY_CLASS: dict[str, tuple[str, ...]] = {
         "mixed_cash_stock_election", "other",
     ),
     "corporate_record": (
-        "articles_of_incorporation", "bylaws", "powers_of_attorney",
-        "rights_instrument", "other",
+        "articles_of_incorporation", "board_resolution", "bylaws",
+        "charter_amendment", "indenture", "officer_certificate", "other",
+        "powers_of_attorney", "rights_instrument", "subsidiary_list",
     ),
     "correspondence": (
         "email", "letter", "memo", "notice", "demand", "attorney_demand",

@@ -29,7 +29,6 @@ SPECIALIST_CLASS = {
     "contracts_specialist": "contract",
     "corporate_records_specialist": "corporate_record",
     "correspondence_specialist": "correspondence",
-    "compliance_specialist": "compliance_filing",
     "insurance_claims_specialist": "insurance_claim",
 }
 
@@ -37,11 +36,13 @@ LIVE_CLASS_MAP = {
     "contracts_specialist": ("agents.contracts_specialist", "ContractsSpecialist"),
     "corporate_records_specialist": ("agents.corporate_records_specialist", "CorporateRecordsSpecialist"),
     "correspondence_specialist": ("agents.correspondence_specialist", "CorrespondenceSpecialist"),
-    "compliance_specialist": ("agents.compliance_specialist", "ComplianceSpecialist"),
     "insurance_claims_specialist": ("agents.insurance_claims_specialist", "InsuranceClaimsSpecialist"),
 }
 
-RETIRED_AGENTS = ("court_opinions_specialist", "due_diligence_specialist")
+# compliance_specialist: docclass-era agent retired in llm-mailroom (59c47401,
+# five-class taxonomy); the vendored snapshot no longer ships the class, so
+# the retired list below keeps the isolated-eval loader from referencing it.
+RETIRED_AGENTS = ("court_opinions_specialist", "due_diligence_specialist", "compliance_specialist")
 
 
 def _resolve_fixture_path(row: dict[str, Any], default: Path) -> Path:

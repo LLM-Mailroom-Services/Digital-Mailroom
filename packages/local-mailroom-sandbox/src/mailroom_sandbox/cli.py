@@ -370,20 +370,35 @@ def _cmd_pull_models(args: argparse.Namespace) -> int:
 
 
 def _cmd_fetch_deps(args: argparse.Namespace) -> int:
-    """Refresh the TRACKED vendor snapshots from their pinned upstream tags.
+    """Refresh the TRACKED vendor snapshots (DMR-057/DMR-070).
 
     The family code ships in-repo (DMR-057), so a fresh checkout needs no
-    network. This refresh re-snapshots the pinned trees into ``vendor/`` from
-    a throwaway clone (no ``.git`` lands in the tracked tree) — the diff is
-    the new snapshot and should be committed like any code change.
+    network. Refresh order (DMR-070 rework): when the sandbox checkout lives
+    inside the Digital-Mailroom monorepo, the workspace package is the
+    development source of truth and the vendor tree MIRRORS it — carrying
+    BOTH content updates AND deletions (a copy-only refresh is how the
+    removed docclass-era compliance files survived their upstream deletion).
+    Standalone clones fall back to the tag-based clone refresh, with a loud
+    warning that tags can lag removals (the v0.7.1 tag predates 59c47401).
     """
     print(
         "vendor trees are tracked snapshots (self-contained); fetch-deps "
-        "re-snapshots them from the pinned upstream tags (network)"
+        "refreshes them — workspace mirror first (offline, carries "
+        "deletions), tag-based clone fallback for standalone clones"
     )
     rc = 0
     for name, tag, url in _VENDOR_PINS:
-        rc = rc or _refresh_vendor(name, tag, url)
+        ws = _monorepo_workspace_pkg(name)
+        if ws is not None:
+            rc = rc or _refresh_vendor_from_workspace(name, ws)
+        else:
+            print(
+                f"== {name}: no monorepo workspace detected — falling back to the "
+                f"tag-based refresh ({tag}); NOTE tags can lag removals — prefer "
+                "the monorepo workspace as the source of truth",
+                file=sys.stderr,
+            )
+            rc = rc or _refresh_vendor(name, tag, url)
     if getattr(args, "visualizer", False):
         dest = vendor_dir() / "The-Mailroom"
         if dest.is_dir() and (dest / ".git").exists():
@@ -407,11 +422,98 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
     return rc
 
 
-# (vendor name, pinned tag, upstream url) — the tracked snapshot pins.
+# (vendor name, pinned tag, upstream url) — STANDALONE-clone fallback pins.
+# In the monorepo, fetch-deps ignores these and mirrors the workspace package
+# instead (DMR-057/070): tags can lag removals — the v0.7.1 tag predates the
+# five-class taxonomy removal (59c47401), so a tag-based refresh of
+# llm-mailroom would resurrect the deleted docclass-era files.
 _VENDOR_PINS: tuple[tuple[str, str, str], ...] = (
     ("llm-mailroom", "v0.7.1", "https://github.com/Exios66/llm-mailroom.git"),
     ("llm-dojo-scoring", "v0.15.0", "https://github.com/Exios66/llm-dojo-scoring.git"),
 )
+
+
+def _monorepo_workspace_pkg(name: str):
+    """Locate the monorepo workspace package for a vendored family member.
+
+    Returns the package dir to mirror (llm-mailroom: its ``src/``;
+    llm-dojo-scoring: its root-level ``llm_dojo_scoring/`` package dir), or
+    ``None`` when the sandbox checkout is standalone (no monorepo sibling).
+    """
+    mono = repo_root().parents[1]  # packages/<sandbox> -> monorepo root
+    pkg = mono / "packages" / name
+    if (pkg / "llm_dojo_scoring").is_dir():
+        return pkg / "llm_dojo_scoring"
+    if (pkg / "src").is_dir():
+        return pkg / "src"
+    return None
+
+
+# Mirror exclusions — keep in sync with scripts/sync_vendor.py (monorepo)
+# and tests/test_vendor_drift.py.
+_VENDOR_EXCLUDE_NAMES = {"__pycache__"}
+_VENDOR_EXCLUDE_SUFFIXES = {".pyc"}
+_VENDOR_EXCLUDE_REL_PREFIXES = {"legalbench/reports"}
+_VENDOR_EXCLUDE_TOP_LEVEL_DIRS = {"tests"}
+
+
+def _vendor_rel_excluded(rel: Path) -> bool:
+    if any(part in _VENDOR_EXCLUDE_NAMES for part in rel.parts):
+        return True
+    if rel.parts and rel.parts[0] in _VENDOR_EXCLUDE_TOP_LEVEL_DIRS:
+        return True
+    if any(part.endswith(".egg-info") for part in rel.parts):
+        return True
+    if rel.suffix in _VENDOR_EXCLUDE_SUFFIXES:
+        return True
+    if any("/".join(rel.parts).startswith(p) for p in _VENDOR_EXCLUDE_REL_PREFIXES):
+        return True
+    return False
+
+
+def _refresh_vendor_from_workspace(name: str, ws_root: Path) -> int:
+    """Mirror the monorepo workspace package onto ``vendor/<name>`` (DMR-070).
+
+    Deletion-carrying exact mirror: after a run the vendored tree is an exact
+    image of the workspace package (minus the shared exclusions), so a
+    subsequent drift-guard run (tests/test_vendor_drift.py) passes. VENDOR.md
+    lives OUTSIDE the mirrored ``src`` root and is never touched.
+    """
+    import shutil
+
+    dest_root = vendor_dir() / name / "src"
+    if ws_root.name != "src":
+        # llm-dojo-scoring layout: the package dir relocates under src/
+        # (mirrors the tag-based path's DMR-058 normalization).
+        dest_root = dest_root / ws_root.name
+    dest_root.parent.mkdir(parents=True, exist_ok=True)
+
+    wanted: set[str] = set()
+    for path in sorted(ws_root.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(ws_root)
+        if _vendor_rel_excluded(rel):
+            continue
+        wanted.add(str(rel))
+        dst = dest_root / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, dst)
+    removed = 0
+    if dest_root.is_dir():
+        for path in sorted(dest_root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+            rel = path.relative_to(dest_root)
+            if path.is_file():
+                if str(rel) not in wanted:
+                    path.unlink()
+                    removed += 1
+            elif path.is_dir() and not any(path.iterdir()):
+                path.rmdir()
+    print(
+        f"== mirrored vendor/{name} from the monorepo workspace "
+        f"({ws_root}) — {len(wanted)} file(s), {removed} deleted; commit the diff"
+    )
+    return 0
 
 
 def _package_src_dir(clone_root: Path) -> Path | None:

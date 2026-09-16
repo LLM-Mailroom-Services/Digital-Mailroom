@@ -30,7 +30,6 @@ STATIC_AGENTS = (
     "contracts_specialist",
     "corporate_records_specialist",
     "correspondence_specialist",
-    "compliance_specialist",
     "insurance_claims_specialist",
     "judge",
     "judge-classification",
@@ -63,7 +62,7 @@ def agent_prompt_names() -> list[str]:
     ``llm.prompts.prompt_templates()`` keys (DMR-057).
 
     The vendored snapshot is always importable now, so the templates are the
-    pipeline's live keys (v0.7.1 templates gmail_triage / intake / relations);
+    pipeline's live keys (vendored templates gmail_triage / intake / relations);
     the static roster is a superset/backstop that keeps the sandbox-only
     agents (relations / gmail_triage / intake) registered even when the
     vendored templates' roster naming differs. The reporter is retired in the

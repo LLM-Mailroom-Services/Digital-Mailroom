@@ -706,7 +706,7 @@ def run_pipeline_eval(
 
 
 def _langchain_mock_patches(expect: dict[str, Any]) -> list:
-    """Mock patches for mailroom v0.7.1's vendored LangChain agents.
+    """Mock patches for mailroom's vendored LangChain agents.
 
     The vendored agents build their own ``ChatOpenAI`` and bypass
     ``llm.client.get_llm``, so — mirroring mailroom's own test suite — the

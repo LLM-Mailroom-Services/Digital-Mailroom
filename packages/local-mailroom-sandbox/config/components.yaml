@@ -24,7 +24,6 @@ agents:
   contracts_specialist: true
   corporate_records_specialist: true
   correspondence_specialist: true
-  compliance_specialist: true
   insurance_claims_specialist: true
   boss: true
   pdf_transcriber: true
@@ -36,10 +35,13 @@ agents:
 # Retired live-pipeline agents (dojo still scores historical traces).
 # reporter: the LLM reporter was retired in llm-mailroom v0.7.1 — the graph's
 # compile_report node is the procedural assembler (no LLM call).
+# compliance_specialist: docclass-era agent retired in llm-mailroom (59c47401,
+# five-class taxonomy) — removed from the vendored snapshot (DMR-057/070).
 retired_agents:
   - court_opinions_specialist
   - due_diligence_specialist
   - reporter
+  - compliance_specialist
 
 routing:
   confidence:

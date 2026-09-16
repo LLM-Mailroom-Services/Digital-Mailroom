@@ -27,7 +27,6 @@ def test_eval_task_roster_covers_live_agents():
         "contracts_specialist",
         "corporate_records_specialist",
         "correspondence_specialist",
-        "compliance_specialist",
         "insurance_claims_specialist",
         "judge",
         "arbiter",

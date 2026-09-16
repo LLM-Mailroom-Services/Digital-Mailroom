@@ -1,9 +1,12 @@
 """DMR-057 self-containment regression tests.
 
 The sandbox must be fully operational from a fresh checkout: the pipeline
-(llm-mailroom@v0.7.1) and scoring engine (llm-dojo-scoring@v0.15.0) ship as
-TRACKED snapshots under ``vendor/`` and are put on ``sys.path`` at package
-import. No pip git pins, no ``sandbox fetch-deps`` step, no env tricks.
+(llm-mailroom) and scoring engine (llm-dojo-scoring) ship as TRACKED
+snapshots under ``vendor/`` and are put on ``sys.path`` at package import.
+No pip git pins, no ``sandbox fetch-deps`` step, no env tricks. Both
+snapshots track the monorepo workspace packages (hub#62 doctrine) — the
+drift guard (tests/test_vendor_drift.py) enforces byte-identity and
+``scripts/sync_vendor.py`` is the refresh leg.
 """
 
 from __future__ import annotations
@@ -16,11 +19,15 @@ import pytest
 from mailroom_sandbox.paths import repo_root, vendored_dojo_src, vendored_mailroom_src
 from mailroom_sandbox.runtime import resolve_dojo_src, resolve_mailroom_src
 
-MAILROOM_PIN = "v0.7.1"
-MAILROOM_COMMIT = "2a212e76a62b98f6eba451ff6f3c5bc96039ae37"
-DOJO_PIN = "v0.15.0"
-# hub#62: the dojo vendor snapshot tracks the workspace package (not a fixed
-# upstream tag) — the drift guard (tests/test_vendor_drift.py) enforces it.
+# hub#62 doctrine: both vendor snapshots track the monorepo workspace
+# packages, not a fixed upstream tag. llm-mailroom's last TAGGED pin was
+# v0.7.1 (2a212e76); the five-class taxonomy removal (59c47401) landed
+# upstream afterwards and the snapshot tracks the post-removal workspace
+# (DMR-057/DMR-070 — the docclass-era compliance files are intentionally
+# absent).
+MAILROOM_PIN = "workspace snapshot"
+MAILROOM_COMMIT = "tracks `packages/llm-mailroom` in the"
+DOJO_PIN = "workspace snapshot — see monorepo"
 DOJO_COMMIT = "workspace snapshot — see monorepo"
 
 

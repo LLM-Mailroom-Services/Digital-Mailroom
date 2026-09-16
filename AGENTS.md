@@ -309,6 +309,27 @@ per package, and re-baselines the cursors; follow with
 commit the cursor file. `patch_push` extracts committed blobs (`git ls-tree -r
 HEAD` + `git cat-file blob`) — uncommitted work never propagates (DMR-028).
 
+**Sync failures are diagnosed, never silent (DMR-064):** exit codes are
+0 ok / 1 network / 2 dirty-at-entry (or conflicts left in place via
+`--keep-conflicts`/`--allow-dirty`) / 3 merge conflict aborted cleanly /
+4 other git/internal failure (multi-package runs return the max severity).
+A conflicted `pull` is detected (MERGE_HEAD + `diff --diff-filter=U` +
+`ls-files -u` classification: both-modified/add/add/modify-delete), the
+worktree is **aborted back to its pre-pull state by default**, and a
+structured summary with per-path remediation is printed. To import a
+divergent upstream as a reviewable change instead of a local mess, use
+`pull --open-pr [--resolve ours|theirs]` — it aborts, creates
+`sync/<package>/import-<sha>` (main stays clean), imports upstream with the
+chosen resolution strategy, pushes the branch, and opens a `gh` PR against
+`main`; the sync cursor never advances until the PR merges. Entry-guard
+recovery: a leftover `MERGE_HEAD` from an interrupted run is diagnosed with a
+remediation hint instead of a dead "worktree is dirty" refusal.
+`pull`/`push`/`snapshot` accept `--json` (JSON Lines, one record per package:
+command, package, ok, exit_code, error_class, conflicted_paths, remediation,
+cursor_updated, branch, pr_url) and the global `--manifest`/`--repo-root`
+overrides for temp-state runs. Hermetic suite: `python3 -m unittest discover
+scripts/tests`.
+
 ## Workspace rules
 
 - Member dependency lines keep their published git pins (release builds via

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sub-package <-> standalone-repo sync driver (issue #2).
+"""Sub-package <-> standalone-repo sync driver (issue #2, DMR-064).
 
 Each package under ``packages/`` mirrors an independent GitHub repository
 (``Exios66/<name>``). The monorepo is the single source of truth for active
@@ -11,10 +11,54 @@ development; the sync flow keeps the mirrors reconciled with their upstreams:
   snapshot  re-baseline the sync manifest at the current upstream tips
 
 Usage:
-    python scripts/sync_packages.py status [--package NAME] [--no-fetch] [--json]
-    python scripts/sync_packages.py pull   [--package NAME | --all] [--squash]
-    python scripts/sync_packages.py push   [--package NAME | --all] [--patch] [--dry-run]
-    python scripts/sync_packages.py snapshot [--package NAME] [--force]
+    python scripts/sync_packages.py [--manifest PATH] [--repo-root PATH] \\
+        status [--package NAME | --all] [--no-fetch] [--json]
+    python scripts/sync_packages.py [--manifest PATH] [--repo-root PATH] \\
+        pull [--package NAME | --all] [--squash] [--allow-dirty] \\
+             [--open-pr [--resolve ours|theirs] | --keep-conflicts] [--json]
+    python scripts/sync_packages.py [--manifest PATH] [--repo-root PATH] \\
+        push [--package NAME | --all] [--allow-dirty] [--patch] [--dry-run] [--json]
+    python scripts/sync_packages.py [--manifest PATH] [--repo-root PATH] \\
+        snapshot [--package NAME | --all] [--force] [--json]
+
+Exit codes (DMR-064 taxonomy):
+  0  ok
+  1  network/fetch failure  — upstream unreachable (ls-remote / fetch failed)
+  2  dirty worktree refusal at entry, or a merge conflict LEFT in place
+     (--keep-conflicts / --allow-dirty blocked the auto-abort)
+  3  merge conflict — aborted cleanly (worktree restored to the pre-pull state)
+  4  other git/internal failure — unknown package, corrupt manifest, missing
+     git subtree, worktree add/remove failure, gh missing, abort failure
+
+Multi-package runs return the highest (most severe) code observed
+(severity order 4 > 3 > 2 > 1 > 0).
+
+Conflict handling (pull): a nonzero ``git subtree pull`` is probed for real
+merge state (MERGE_HEAD present AND unmerged paths via ``diff --diff-filter=U``
++ ``git ls-files -u`` + ``git status --porcelain=v1``). When a conflict is
+real, the default is ``git merge --abort`` (only when the script verified a
+clean entry state) plus a structured per-path summary and exit 3.
+``--keep-conflicts`` leaves the merge in place for manual resolution;
+``--allow-dirty`` also blocks the auto-abort (it would clobber the user's
+pre-existing uncommitted work).
+
+PR branch flow (pull --open-pr): on conflict the pull is aborted, a branch
+``sync/<package>/import-<upstream12>`` is created from main, the upstream is
+fetched and merged with ``git merge --no-ff -s recursive
+-X subtree=packages/<package> -X <ours|theirs> FETCH_HEAD`` (git-subtree has
+no ``-X`` passthrough; ours = monorepo content wins, the HUB-021 containment
+doctrine — ``theirs`` drops monorepo content), remaining add/add /
+modify-delete paths are taken via ``git checkout --ours/--theirs`` (or
+``git rm -f`` to keep a deletion), the merge is committed, pushed, and a PR
+against main is opened via ``gh``. The sync cursor is NEVER advanced from a
+branch/PR state — it bounces only when the import lands on main
+(``unimported_upstream_paths`` stays the containment safety net).
+
+--json parity: each of pull/push/snapshot emits one JSON document per package
+(JSON Lines on stdout, even on failure — human text goes to stderr):
+{command, package, ok, exit_code, error_class: "network"|"dirty"|"conflict"
+|"git"|"ok", conflicted_paths: [{path, kind}], remediation, cursor_updated,
+branch, pr_url}  (+ upstream_tip/resolution/aborted where relevant).
 
 Cursor safety (HUB-021; incidents HUB-012/HUB-018): every cursor write is
 guarded by a CONTENT check — the upstream tip's blob tree must be fully
@@ -23,12 +67,21 @@ that points past content never imported made the next squash pull re-import a
 whole range (HUB-018) and made subtree pushes non-fast-forward (HUB-012),
 which is why ``push --patch`` exists: it rebuilds the package's tracked files
 on top of the real upstream tip and lands ONE fast-forward commit upstream,
-then re-baselines the cursor. Actual pushes remain explicit operations.
+then re-baselines the cursor. Actual pushes remain explicit operations. The
+manifest is written atomically (temp file + ``os.replace``); a corrupt
+manifest is never overwritten (exit 4 with a repair hint). ``push --patch``
+saves each package's cursor entry immediately after its push so an interrupt
+cannot desync one package's cursor.
 
 Baseline (per issue #2): the monorepo is aligned with the standalone repos as
 of 2026-08-30 19:06 CST (2026-08-31T00:06:57Z). That cursor lives in
 ``scripts/packages_sync.json``; ``status`` always recomputes real drift against
 the live upstreams, so a stale manifest is visible at a glance.
+
+Test seams (hermetic harness in scripts/tests/): ``--manifest`` and
+``--repo-root`` override the manifest path and the git working directory;
+``SYNC_PACKAGES_ORIGIN`` overrides the upstream URL prefix (default
+https://github.com/Exios66) so local fixtures can stand in for the remotes.
 
 Requires: git with the ``subtree`` contrib command, network for fetch-based
 commands. Stdlib only.
@@ -38,6 +91,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -45,11 +99,23 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+E_OK, E_NETWORK, E_DIRTY, E_CONFLICT, E_GIT = 0, 1, 2, 3, 4
+ERROR_CLASS = {
+    E_OK: "ok",
+    E_NETWORK: "network",
+    E_DIRTY: "dirty",
+    E_CONFLICT: "conflict",
+    E_GIT: "git",
+}
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = REPO_ROOT / "scripts" / "packages_sync.json"
 
-ORIGIN = "https://github.com/Exios66"
+ORIGIN = os.environ.get("SYNC_PACKAGES_ORIGIN", "https://github.com/Exios66")
 DEFAULT_BRANCH = "main"
+
+# JSON Lines mode: records go to stdout, human progress to stderr.
+JSON_MODE = False
 
 # package directory name -> standalone repo name (all under Exios66/, main).
 PACKAGES: dict[str, str] = {
@@ -73,10 +139,18 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _rel_or_abs(path: Path) -> str:
+    """Manifest path for humans — relative to the repo root when possible."""
+    try:
+        return path.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return str(path)
+
+
 def run(cmd: list[str], *, capture: bool = True, binary: bool = False) -> subprocess.CompletedProcess:
     return subprocess.run(
         cmd,
-        cwd=REPO_ROOT,
+        cwd=str(REPO_ROOT),
         check=False,
         text=not binary,
         capture_output=capture,
@@ -87,14 +161,128 @@ def git(args: list[str], *, capture: bool = True, binary: bool = False) -> subpr
     return run(["git", *args], capture=capture, binary=binary)
 
 
-def load_manifest() -> dict:
-    if MANIFEST.is_file():
-        return json.loads(MANIFEST.read_text(encoding="utf-8"))
-    return {"version": 1, "note": "", "packages": {}}
+def git_foreground(args: list[str]) -> subprocess.CompletedProcess:
+    """Live-output git call; under --json the output is replayed to stderr so
+    stdout stays pure JSON Lines."""
+    if JSON_MODE:
+        result = git(args, capture=True)
+        if result.stdout:
+            sys.stderr.write(result.stdout)
+            sys.stderr.flush()
+        return result
+    return git(args, capture=False)
+
+
+def info(msg: str) -> None:
+    """Progress line: stdout in human mode, stderr in --json mode."""
+    print(msg, file=sys.stderr if JSON_MODE else sys.stdout)
+
+
+def warn(msg: str) -> None:
+    print(msg, file=sys.stderr)
+
+
+# --------------------------------------------------------------------------- #
+# JSON records (DMR-064)
+# --------------------------------------------------------------------------- #
+
+
+def base_record(command: str, package: str | None) -> dict:
+    return {
+        "command": command,
+        "package": package,
+        "ok": False,
+        "exit_code": E_GIT,
+        "error_class": "git",
+        "conflicted_paths": [],
+        "remediation": None,
+        "cursor_updated": False,
+        "branch": None,
+        "pr_url": None,
+    }
+
+
+def record_ok(command: str, package: str, *, cursor_updated: bool = False, branch: str | None = None,
+              pr_url: str | None = None) -> dict:
+    return {
+        "command": command,
+        "package": package,
+        "ok": True,
+        "exit_code": E_OK,
+        "error_class": "ok",
+        "conflicted_paths": [],
+        "remediation": None,
+        "cursor_updated": cursor_updated,
+        "branch": branch,
+        "pr_url": pr_url,
+    }
+
+
+def emit(record: dict) -> None:
+    """Machine record: stdout JSONL under --json, no-op in human mode."""
+    if JSON_MODE:
+        print(json.dumps(record, sort_keys=True))
+
+
+def fail(command: str, code: int, message: str, *, package: str | None = None,
+         remediation: str | None = None, extra: dict | None = None) -> None:
+    """Emit a failure record and raise SystemExit(code) (human text on stderr)."""
+    record = base_record(command, package)
+    record["exit_code"] = code
+    record["error_class"] = ERROR_CLASS[code]
+    record["remediation"] = remediation
+    if extra:
+        record.update(extra)
+    emit(record)
+    if remediation:
+        warn(message + f"\n  Remediation: {remediation}")
+    else:
+        warn(message)
+    raise SystemExit(code)
+
+
+# --------------------------------------------------------------------------- #
+# manifest (atomic writes, repair hint on corruption)
+# --------------------------------------------------------------------------- #
+
+
+def load_manifest(command: str) -> dict:
+    if not MANIFEST.is_file():
+        return {"version": 1, "note": "", "packages": {}}
+    try:
+        data = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        fail(
+            command,
+            E_GIT,
+            f"sync manifest is corrupt: {MANIFEST} ({exc.__class__.__name__}: {exc})",
+            remediation=(
+                f"restore the last good cursor: git checkout -- {_rel_or_abs(MANIFEST)} "
+                "(or repair the file by hand); the sync tool refuses to overwrite a corrupt cursor"
+            ),
+            extra={"manifest": str(MANIFEST)},
+        )
+    if not isinstance(data, dict):
+        fail(
+            command,
+            E_GIT,
+            f"sync manifest {MANIFEST} is not a JSON object ({type(data).__name__})",
+            remediation=f"repair {_rel_or_abs(MANIFEST)} by hand or restore: git checkout -- {_rel_or_abs(MANIFEST)}",
+            extra={"manifest": str(MANIFEST)},
+        )
+    return data
 
 
 def save_manifest(data: dict) -> None:
-    MANIFEST.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    """Atomic manifest write: temp file + os.replace (no partial reads ever)."""
+    tmp = Path(str(MANIFEST) + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(tmp, MANIFEST)
+
+
+# --------------------------------------------------------------------------- #
+# upstream plumbing
+# --------------------------------------------------------------------------- #
 
 
 def url_for(package: str) -> str:
@@ -113,34 +301,194 @@ def fetch_upstream(package: str) -> str | None:
     url, branch = url_for(package), DEFAULT_BRANCH
     result = git(["fetch", "--no-tags", url, branch])
     if result.returncode != 0:
-        print(result.stderr.strip(), file=sys.stderr)
+        warn(result.stderr.strip())
         return None
     resolved = git(["rev-parse", "FETCH_HEAD"])
     return resolved.stdout.strip() if resolved.returncode == 0 else None
 
 
-def assert_clean_tree(action: str, allow_dirty: bool) -> None:
+# --------------------------------------------------------------------------- #
+# entry guards (DMR-064: real exit codes + leftover-merge recovery)
+# --------------------------------------------------------------------------- #
+
+
+def assert_clean_tree(command: str, action: str, allow_dirty: bool) -> None:
+    if merge_in_progress():
+        cs = classify_conflicts()
+        fail(
+            command,
+            E_DIRTY,
+            f"refusing to {action}: leftover merge state from a previous failed sync "
+            f"(MERGE_HEAD present, {len(cs)} unmerged path(s)). A stale merge is NOT a "
+            "plain dirty tree — --allow-dirty does not bypass it.",
+            remediation=(
+                "resolve or discard the stale merge first: run `git merge --abort` "
+                "(or finish/reset manually), then re-run"
+            ),
+            extra={"conflicted_paths": [{"path": p["path"], "kind": p["kind"]} for p in cs],
+                   "leftover_merge": True},
+        )
     status = git(["status", "--porcelain"])
     dirty = bool(status.stdout.strip())
     if dirty and not allow_dirty:
-        sys.exit(
-            f"refusing to {action}: worktree is dirty (git status reports changes).\n"
-            "Commit or stash first, or pass --allow-dirty if you accept the risk."
+        fail(
+            command,
+            E_DIRTY,
+            f"refusing to {action}: worktree is dirty (git status reports changes).",
+            remediation="commit or stash first, or pass --allow-dirty if you accept the risk",
         )
 
 
-def require_subtree() -> None:
+def require_subtree(command: str) -> None:
     probe = git(["subtree", "-h"], capture=True)
     if probe.returncode not in (0, 129):
-        sys.exit("git subtree is unavailable; install git with the subtree contrib command.")
+        fail(
+            command,
+            E_GIT,
+            "git subtree is unavailable; install git with the subtree contrib command.",
+            remediation="install git-subtree (shipped with git contrib; on macOS: brew install git)",
+        )
 
 
-def selected_packages(args: argparse.Namespace) -> list[str]:
+def selected_packages(command: str, args: argparse.Namespace) -> list[str]:
     if args.package:
         if args.package not in PACKAGES:
-            sys.exit(f"unknown package {args.package!r}; valid: {', '.join(PACKAGES)}")
+            fail(
+                command,
+                E_GIT,
+                f"unknown package {args.package!r}; valid: {', '.join(PACKAGES)}",
+                remediation="check the package name against PACKAGES in scripts/sync_packages.py",
+            )
         return [args.package]
     return list(PACKAGES)
+
+
+# --------------------------------------------------------------------------- #
+# conflict detection / classification / abort (DMR-064)
+# --------------------------------------------------------------------------- #
+
+
+def merge_in_progress() -> bool:
+    return git(["rev-parse", "-q", "--verify", "MERGE_HEAD"]).returncode == 0
+
+
+def unmerged_paths() -> list[str]:
+    out = git(["diff", "--name-only", "--diff-filter=U"])
+    return [ln for ln in out.stdout.splitlines() if ln]
+
+
+def classify_conflicts() -> list[dict]:
+    """Per-path classification from `git ls-files -u` stage info + porcelain codes.
+
+    Stage sets per path determine the kind:
+      {1,2,3} both-modified | {2,3} add/add | otherwise modify-delete
+      (modify/delete = the blob is missing from one side's stage).
+    """
+    stages: dict[str, list[int]] = {}
+    out = git(["ls-files", "-u", "-z"])
+    for rec in out.stdout.split("\0"):
+        if not rec:
+            continue
+        meta, _, path = rec.partition("\t")  # meta never contains tabs
+        pieces = meta.split()
+        if len(pieces) != 3:
+            continue
+        stages.setdefault(path, []).append(int(pieces[2]))
+    porc: dict[str, str] = {}
+    st = git(["status", "--porcelain=v1"])
+    for ln in st.stdout.splitlines():
+        if len(ln) >= 4 and ln[0] in "UAD" and ln[1] in "UAD":
+            path = ln[3:]
+            if path.startswith('"') and path.endswith('"'):
+                path = path[1:-1]
+            porc[path] = ln[:2]
+    result = []
+    for path, ss in sorted(stages.items()):
+        sset = set(ss)
+        if 1 in sset and 2 in sset and 3 in sset:
+            kind = "both-modified"
+        elif 2 in sset and 3 in sset:
+            kind = "add/add"
+        else:
+            kind = "modify-delete"
+        result.append(
+            {"path": path, "kind": kind, "stages": sorted(sset), "status": porc.get(path)}
+        )
+    return result
+
+
+def conflict_state() -> dict | None:
+    """Real conflict class: MERGE_HEAD present AND unmerged paths. Else None."""
+    if not merge_in_progress():
+        return None
+    paths = classify_conflicts()
+    if not paths:
+        return None
+    return {"paths": paths}
+
+
+def abort_merge() -> bool:
+    r = git(["merge", "--abort"])
+    if r.returncode != 0:
+        return False
+    if merge_in_progress():
+        return False
+    if git(["status", "--porcelain"]).stdout.strip():
+        return False
+    return True
+
+
+def conflict_remediation_hint(kind: str) -> str:
+    return {
+        "both-modified": "both sides edited this file; resolve by hand or re-run with "
+                         "--open-pr --resolve ours|theirs (ours = monorepo content wins)",
+        "add/add": "both sides added this path; --open-pr resolves via checkout --ours/--theirs",
+        "modify-delete": "one side modified, the other deleted; --open-pr resolves via "
+                         "checkout --ours/--theirs (or keeps the deletion with git rm)",
+    }.get(kind, "resolve manually")
+
+
+def render_conflict_summary(package: str, head: str, cs: dict, *, aborted: bool,
+                            pr_url: str | None = None) -> None:
+    warn(f"!! CONFLICT importing {package} upstream {head[:12]} into packages/{package}")
+    warn(f"   Merge state detected (MERGE_HEAD) with {len(cs['paths'])} unmerged path(s):")
+    for p in cs["paths"]:
+        warn(f"     - {p['path']:<50} {p['kind']:<15} stages={p['stages']} "
+             f"status={p['status'] or '-'}")
+        warn(f"         {conflict_remediation_hint(p['kind'])}")
+    if aborted:
+        warn("   The pull was ABORTED (git merge --abort): the worktree is restored to its")
+        warn("   pre-pull state. Remediation: re-run with --open-pr to land the import via")
+        warn("   a PR branch (--resolve ours|theirs), or resolve by hand with a manual pull.")
+        if pr_url:
+            warn(f"   Import PR opened: {pr_url} — main untouched; the cursor does not advance")
+            warn("   until the PR merges.")
+    else:
+        warn("   The merge was LEFT in place (--keep-conflicts / --allow-dirty blocked the")
+        warn("   auto-abort). Remediation: git merge --abort to restore, or resolve the")
+        warn("   paths above manually.")
+
+
+def conflict_record(command: str, package: str, head: str, cs: dict, *, aborted: bool,
+                    exit_code: int) -> dict:
+    rec = base_record(command, package)
+    rec.update(
+        {
+            "exit_code": exit_code,
+            "error_class": "conflict",
+            "upstream_tip": head[:12],
+            "aborted": aborted,
+            "conflicted_paths": [{"path": p["path"], "kind": p["kind"]} for p in cs["paths"]],
+            "remediation": (
+                "pull aborted cleanly; re-run with --open-pr to import via a PR branch, "
+                "or resolve manually"
+                if aborted
+                else "merge left in the worktree; run `git merge --abort` or resolve the "
+                     "conflicting paths manually"
+            ),
+        }
+    )
+    return rec
 
 
 # --------------------------------------------------------------------------- #
@@ -227,10 +575,10 @@ def cursor_gap_report(package: str, synced_sha: str | None) -> dict[str, object]
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    manifest = load_manifest()
+    manifest = load_manifest(args.command)
     entries = manifest.setdefault("packages", {})
     rows: list[dict[str, object]] = []
-    for package in selected_packages(args):
+    for package in selected_packages(args.command, args):
         url = url_for(package)
         head = None if args.no_fetch else fetch_upstream(package)
         entry = entries.get(package, {})
@@ -279,69 +627,371 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 
 def cmd_pull(args: argparse.Namespace) -> int:
-    require_subtree()
-    assert_clean_tree("pull", args.allow_dirty)
-    manifest = load_manifest()
+    require_subtree(args.command)
+    assert_clean_tree(args.command, "pull", args.allow_dirty)
+    manifest = load_manifest(args.command)
     entries = manifest.setdefault("packages", {})
-    failed = False
-    for package in selected_packages(args):
+    worst = E_OK
+    for package in selected_packages(args.command, args):
         url = url_for(package)
         head = upstream_head(url, DEFAULT_BRANCH)
-        if head and rev_exists(head) and not unimported_upstream_paths(head, package):
-            print(
-                f"== {package}: upstream tip {head[:12]} is already contained in "
-                "packages/"
-                f"{package} (nothing to import) — re-baseline with 'snapshot' instead"
+        if head is None:
+            rec = base_record(args.command, package)
+            rec.update(
+                {
+                    "exit_code": E_NETWORK,
+                    "error_class": "network",
+                    "remediation": "check connectivity / upstream URL; verify with: "
+                                   "git ls-remote <url> main",
+                }
             )
+            emit(rec)
+            warn(f"!! {package}: could not read upstream head (ls-remote failed)")
+            worst = max(worst, E_NETWORK)
+            continue
+        if rev_exists(head) and not unimported_upstream_paths(head, package):
             entries[package] = {
                 "url": url,
                 "branch": DEFAULT_BRANCH,
                 "synced_sha": head,
                 "synced_at": utc_now(),
             }
+            save_manifest(manifest)
+            info(
+                f"== {package}: upstream tip {head[:12]} is already contained in "
+                "packages/"
+                f"{package} (nothing to import) — re-baseline with 'snapshot' instead"
+            )
+            emit(record_ok(args.command, package, cursor_updated=True))
             continue
-        print(f"== git subtree pull --prefix packages/{package} {url} {DEFAULT_BRANCH}"
-              + (" --squash" if args.squash else ""))
+        info(
+            f"== git subtree pull --prefix packages/{package} {url} {DEFAULT_BRANCH}"
+            + (" --squash" if args.squash else "")
+        )
         cmd = ["subtree", "pull", f"--prefix=packages/{package}", url, DEFAULT_BRANCH]
         if args.squash:
             cmd.append("--squash")
-        result = git(cmd, capture=False)
-        if result.returncode != 0:
-            print(f"!! pull failed for {package}", file=sys.stderr)
-            failed = True
+        result = git_foreground(cmd)
+        if result.returncode == 0:
+            entries[package] = {
+                "url": url,
+                "branch": DEFAULT_BRANCH,
+                "synced_sha": upstream_head(url, DEFAULT_BRANCH),
+                "synced_at": utc_now(),
+            }
+            save_manifest(manifest)
+            emit(record_ok(args.command, package, cursor_updated=True))
             continue
-        # Record the exact upstream tip that was merged in.
-        entries[package] = {
-            "url": url,
-            "branch": DEFAULT_BRANCH,
-            "synced_sha": upstream_head(url, DEFAULT_BRANCH),
-            "synced_at": utc_now(),
+        cs = conflict_state()
+        if cs is None:
+            # Not a merge conflict: probe whether the network is the cause.
+            probe = git(["fetch", "--no-tags", url, DEFAULT_BRANCH])
+            if probe.returncode != 0:
+                rec = base_record(args.command, package)
+                rec.update(
+                    {
+                        "exit_code": E_NETWORK,
+                        "error_class": "network",
+                        "remediation": "check connectivity / upstream URL; verify with: "
+                                       "git ls-remote <url> main",
+                    }
+                )
+                emit(rec)
+                warn(
+                    f"!! {package}: subtree pull failed (exit {result.returncode}) and the "
+                    "upstream is unreachable; the worktree was NOT modified by the pull"
+                )
+                worst = max(worst, E_NETWORK)
+            else:
+                rec = base_record(args.command, package)
+                rec.update(
+                    {
+                        "exit_code": E_GIT,
+                        "error_class": "git",
+                        "remediation": "subtree pull failed WITHOUT a merge conflict — read "
+                                       "the git output above (typical causes: missing graft "
+                                       "ancestry, untracked-file collisions); the worktree "
+                                       "was NOT modified by the pull",
+                    }
+                )
+                emit(rec)
+                warn(
+                    f"!! {package}: subtree pull failed (exit {result.returncode}) without "
+                    "a merge conflict — see the git output above"
+                )
+                worst = max(worst, E_GIT)
+            continue
+        # ---- real merge conflict ----
+        entry_clean = not args.allow_dirty
+        if args.keep_conflicts or not entry_clean:
+            # Neither abort (would clobber pre-existing dirt) nor PR branch (needs clean main).
+            code = E_DIRTY
+            emit(conflict_record(args.command, package, head, cs, aborted=False, exit_code=code))
+            render_conflict_summary(package, head, cs, aborted=False)
+            worst = max(worst, code)
+            continue
+        if not abort_merge():
+            fail(
+                args.command,
+                E_GIT,
+                f"!! {package}: git merge --abort FAILED to restore a clean tree — the "
+                "worktree is in an unknown state",
+                remediation=(
+                    "run `git merge --abort` manually; inspect `git status`; a hard "
+                    "`git reset --hard HEAD` is the destructive last resort"
+                ),
+                package=package,
+                extra={
+                    "conflicted_paths": [{"path": p["path"], "kind": p["kind"]} for p in cs["paths"]],
+                    "upstream_tip": head[:12],
+                },
+            )
+        # Aborted cleanly — the worktree is back on the pre-pull state.
+        if args.open_pr:
+            rc, rec = pr_branch_flow(args, package, url, head, cs)
+            emit(rec)
+            if rc == E_OK:
+                render_conflict_summary(package, head, cs, aborted=True, pr_url=rec["pr_url"])
+                info(
+                    f"== {package}: import PR opened at {rec['pr_url']}; main untouched; "
+                    "the cursor does not advance until the PR merges"
+                )
+            else:
+                render_conflict_summary(package, head, cs, aborted=True)
+            worst = max(worst, rc)
+            continue
+        emit(conflict_record(args.command, package, head, cs, aborted=True, exit_code=E_CONFLICT))
+        render_conflict_summary(package, head, cs, aborted=True)
+        worst = max(worst, E_CONFLICT)
+    return worst
+
+
+def resolve_remaining_ours_theirs(paths: list[dict], side: str) -> bool:
+    """Take one side for leftover add/add + modify/delete paths.
+
+    Under a deletion on the preferred side, `git rm -f` keeps the deletion;
+    otherwise `git checkout --<side>` + `git add`. Returns False on failure.
+    """
+    for p in paths:
+        path = p["path"]
+        stages = p.get("stages") or []
+        blob_on_us = 2 in stages
+        blob_on_them = 3 in stages
+        prefer_deletion = (side == "ours" and not blob_on_us) or (side == "theirs" and not blob_on_them)
+        if prefer_deletion:
+            rm = git(["rm", "-f", "--", path])
+            if rm.returncode != 0:
+                warn(f"!! could not keep the deletion for {path} under {side}: {rm.stderr.strip()}")
+                return False
+            warn(f"   resolved {path}: kept deletion under {side}")
+            continue
+        co = git(["checkout", f"--{side}", "--", path])
+        if co.returncode != 0:
+            warn(f"!! checkout --{side} failed for {path}: {co.stderr.strip()}")
+            return False
+        add = git(["add", "--", path])
+        if add.returncode != 0:
+            warn(f"!! git add failed for {path}: {add.stderr.strip()}")
+            return False
+        warn(f"   resolved {path}: took {side} version")
+    return True
+
+
+def pr_body(package: str, url: str, head: str, cs: dict, resolve: str) -> str:
+    lines = [
+        f"Import upstream `{url}` tip `{head}` into `packages/{package}` via the "
+        "DMR-064 PR branch flow (auto-generated by `scripts/sync_packages.py pull --open-pr`).",
+        "",
+        f"- package: `{package}`",
+        f"- upstream: `{url}`",
+        f"- upstream tip: `{head}`",
+        f"- resolution strategy: `{resolve}`",
+        "  - `ours` (default): monorepo content wins — the monorepo is the development "
+        "source of truth; per the HUB-021 containment doctrine, modified blobs are "
+        "monorepo-ahead fixes, so monorepo versions win.",
+        "  - `theirs`: upstream content wins and DROPS monorepo content at the "
+        "conflicting paths.",
+        "",
+        f"Conflicted paths ({len(cs['paths'])}):",
+        "",
+    ]
+    for p in cs["paths"]:
+        lines.append(f"- `{p['path']}` — {p['kind']}: {conflict_remediation_hint(p['kind'])}")
+    lines += [
+        "",
+        "Merge executed on the branch:",
+        "",
+        f"    git merge --no-ff -s recursive -X subtree=packages/{package} -X {resolve} FETCH_HEAD",
+        "",
+        "Review the merge commit on this branch; main was left untouched. The sync "
+        "cursor is not advanced by this PR — it bounces only after the import lands "
+        "on main (containment guard: `unimported_upstream_paths`).",
+        "",
+        "Remediation if something looks wrong: `git merge --abort` on the branch, or "
+        "close this PR and re-run with `--resolve theirs`.",
+    ]
+    return "\n".join(lines)
+
+
+def pr_branch_flow(args: argparse.Namespace, package: str, url: str, head: str,
+                   cs: dict) -> tuple[int, dict]:
+    """Import the upstream tip onto a PR branch (`pull --open-pr`).
+
+    Precondition: main clean + the conflicting merge aborted (cmd_pull verified
+    a clean entry state). Always ENDS back on main with the local branch
+    deleted (a pushed copy survives for the PR). The sync cursor is never
+    touched from this flow.
+    """
+    command = args.command
+    sha12 = head[:12]
+    branch = f"sync/{package}/import-{sha12}"
+    record = base_record(command, package)
+    record.update(
+        {
+            "branch": branch,
+            "upstream_tip": sha12,
+            "resolution": args.resolve,
+            "conflicted_paths": [{"path": p["path"], "kind": p["kind"]} for p in cs["paths"]],
         }
-    save_manifest(manifest)
-    return 1 if failed else 0
+    )
+
+    def teardown(code: int, message: str, remediation: str) -> tuple[int, dict]:
+        restore = git(["switch", "-f", "main"])
+        if restore.returncode != 0:
+            warn("!! could not return to main after the failed branch flow (run: git switch -f main)")
+        git(["branch", "-D", branch])
+        record.update({"ok": False, "exit_code": code, "error_class": ERROR_CLASS[code],
+                       "remediation": remediation})
+        warn(message)
+        return code, record
+
+    # Drop any stale branch from an earlier interrupted run.
+    if git(["rev-parse", "--verify", "--quiet", branch]).returncode == 0:
+        git(["branch", "-D", branch])
+    made = git(["switch", "-c", branch])
+    if made.returncode != 0:
+        return teardown(E_GIT, f"!! {package}: could not create branch {branch}",
+                        f"inspect git state; branch create failed: {made.stderr.strip()}")
+    fetched = git(["fetch", "--no-tags", url, DEFAULT_BRANCH])
+    if fetched.returncode != 0:
+        return teardown(E_NETWORK, f"!! {package}: fetch of {url} failed",
+                        "check connectivity to the upstream repo")
+    msg = (
+        f"sync: import {package} upstream {sha12} ({args.resolve} resolution) "
+        "from Digital-Mailroom — DMR-064 branch flow"
+    )
+    merged = git_foreground(
+        ["merge", "--no-ff", "-m", msg, "-s", "recursive",
+         f"-Xsubtree=packages/{package}", f"-X{args.resolve}", "FETCH_HEAD"],
+    )
+    if merged.returncode != 0:
+        cs2 = conflict_state()
+        if cs2 is None:
+            return teardown(E_GIT, f"!! {package}: strategy merge failed WITHOUT conflicts",
+                            f"not a conflicts issue; inspect the merge output above: {merged.stderr.strip()}")
+        ok = resolve_remaining_ours_theirs(cs2["paths"], args.resolve)
+        if not ok:
+            return teardown(E_GIT, f"!! {package}: could not auto-resolve remaining paths under {args.resolve}",
+                            "resolve manually on the branch, or abandon: git switch -f main && git branch -D "
+                            + branch)
+        if conflict_state() is not None:
+            return teardown(E_GIT, f"!! {package}: unmerged paths remain after resolution",
+                            "resolve manually on the branch, or abandon (git switch -f main)")
+        done = git(["commit", "-m", msg])
+        if done.returncode != 0:
+            return teardown(E_GIT, f"!! {package}: could not commit the resolved merge",
+                            f"inspect the commit failure: {done.stderr.strip()}")
+    if merge_in_progress():
+        return teardown(E_GIT, f"!! {package}: merge state still present after the branch merge",
+                        "inspect git status on the branch")
+    pushed = git(["push", "-u", "origin", branch])
+    if pushed.returncode != 0:
+        return teardown(
+            E_GIT,
+            f"!! {package}: push of {branch} failed\n{pushed.stderr.strip()}",
+            f"push failed (auth/remote?); the branch stays local — resolve and push manually, "
+            f"then: gh pr create --base main --head {branch} --title \"sync({package}): "
+            f"import upstream {sha12}\"",
+        )
+    gh = shutil.which("gh")
+    if gh is None:
+        cmd_hint = (
+            f"gh pr create --base main --head {branch} --title \"sync({package}): "
+            f"import upstream {sha12}\" --body '<conflict description>'"
+        )
+        return teardown(E_GIT, f"!! {package}: gh CLI not found — branch {branch} was pushed "
+                               f"to origin but no PR was opened.\n    Manual PR:\n    {cmd_hint}",
+                        f"run the gh command above (or install gh): {cmd_hint}")
+    title = f"sync({package}): import upstream {sha12}"
+    body = pr_body(package, url, head, cs, args.resolve)
+    pr = run([gh, "pr", "create", "--base", "main", "--head", branch,
+              "--title", title, "--body", body])
+    if pr.returncode != 0:
+        hint = (f"gh pr create --base main --head {branch} --title \"{title}\" --body "
+                "'<conflict description>'")
+        return teardown(E_GIT, f"!! {package}: gh pr create failed\n{pr.stderr.strip()}",
+                        f"run manually: {hint}")
+    pr_url = None
+    for line in (pr.stdout or "").splitlines() + (pr.stderr or "").splitlines():
+        line = line.strip()
+        if line.startswith("http"):
+            pr_url = line
+            break
+    restore = git(["switch", "-f", "main"])
+    if restore.returncode != 0:
+        return teardown(E_GIT, f"!! {package}: could not return to main after opening the PR",
+                        "run: git switch -f main")
+    git(["branch", "-D", branch])
+    record.update(
+        {"ok": True, "exit_code": E_OK, "error_class": "ok", "pr_url": pr_url,
+         "cursor_updated": False, "remediation": None, "aborted": True}
+    )
+    return E_OK, record
 
 
-def patch_push(package: str, url: str, tip: str, *, dry_run: bool) -> int:
+def patch_push(package: str, url: str, tip: str, *, dry_run: bool) -> tuple[int, dict]:
     """HUB-012 workaround, scripted: land the monorepo delta as ONE commit on
     top of the real upstream tip (fast-forward by construction), then
     re-baseline the cursor. Only tracked package files propagate; upstream
     files deleted monorepo-side are NOT carried by this path (subtree push
     handles full-history pushes; patch pushes carry content).
+
+    Returns (exit_code, JSON record).
     """
-    gaps = unimported_upstream_paths(tip, package)
-    if gaps:
-        print(
-            f"!! {package}: upstream tip {tip[:12]} is NOT contained in the package "
-            f"({len(gaps)} path(s) missing/modified — pull first, then patch-push",
-            file=sys.stderr,
+    command = "push"
+    if gaps := unimported_upstream_paths(tip, package):
+        rec = base_record(command, package)
+        rec.update(
+            {
+                "exit_code": E_GIT,
+                "error_class": "git",
+                "remediation": "upstream tip is not contained in the package tree — "
+                               "pull first, then patch-push",
+                "upstream_tip": tip[:12],
+            }
         )
-        return 1
-    tmp = Path(tempfile.mkdtemp(prefix=f"sync-patch-{package}-"))
-    worktree = git(["worktree", "add", "--detach", str(tmp), tip])
-    if worktree.returncode != 0:
-        print(f"!! worktree add failed: {worktree.stderr.strip()}", file=sys.stderr)
-        return 1
+        warn(
+            f"!! {package}: upstream tip {tip[:12]} is NOT contained in the package "
+            f"({len(gaps)} path(s) missing/modified — pull first, then patch-push"
+        )
+        return E_GIT, rec
+    tmp: Path | None = None
     try:
+        # DMR-064: mkdtemp INSIDE the try — a failed worktree add must not leak it.
+        tmp = Path(tempfile.mkdtemp(prefix=f"sync-patch-{package}-"))
+        worktree = git(["worktree", "add", "--detach", str(tmp), tip])
+        if worktree.returncode != 0:
+            rec = base_record(command, package)
+            rec.update(
+                {
+                    "exit_code": E_GIT,
+                    "error_class": "git",
+                    "remediation": "git worktree add failed — see the git error below",
+                    "upstream_tip": tip[:12],
+                }
+            )
+            warn(f"!! worktree add failed: {worktree.stderr.strip()}")
+            return E_GIT, rec
         # DMR-028 fix: extract committed blobs (HEAD) instead of copying from
         # the working tree.  Previously `git ls-files` + `shutil.copy2` would
         # propagate uncommitted changes — a race when concurrent edits exist.
@@ -360,18 +1010,24 @@ def patch_push(package: str, url: str, tip: str, *, dry_run: bool) -> int:
             # write_bytes rejects the text-mode str output (DMR-054).
             blob = git(["cat-file", "blob", blob_sha], binary=True)
             if blob.returncode != 0:
-                print(f"!! cat-file failed for {rel}: {blob.stderr.strip()}", file=sys.stderr)
-                return 1
+                rec = base_record(command, package)
+                rec.update({"exit_code": E_GIT, "error_class": "git",
+                            "remediation": f"git cat-file failed for {rel}"})
+                warn(f"!! cat-file failed for {rel}: {blob.stderr.strip()}")
+                return E_GIT, rec
             dst.write_bytes(blob.stdout)
         add = git(["-C", str(tmp), "add", "-A"])
         if add.returncode != 0:
-            print(f"!! staging failed: {add.stderr.strip()}", file=sys.stderr)
-            return 1
+            rec = base_record(command, package)
+            rec.update({"exit_code": E_GIT, "error_class": "git",
+                        "remediation": "staging the patch worktree failed"})
+            warn(f"!! staging failed: {add.stderr.strip()}")
+            return E_GIT, rec
         staged = git(["-C", str(tmp), "diff", "--cached", "--stat", "HEAD"])
         n_files = len([ln for ln in staged.stdout.splitlines() if "|" in ln])
         if not staged.stdout.strip() or n_files == 0:
-            print(f"== {package}: no content delta vs upstream tip {tip[:12]} — nothing to propagate")
-            return 0
+            info(f"== {package}: no content delta vs upstream tip {tip[:12]} — nothing to propagate")
+            return E_OK, record_ok(command, package, cursor_updated=False)
         stamp = git(["rev-parse", "--short", "HEAD"]).stdout.strip()
         message = (
             f"Monorepo propagation: {package} from Digital-Mailroom@{stamp}\n\n"
@@ -380,65 +1036,117 @@ def patch_push(package: str, url: str, tip: str, *, dry_run: bool) -> int:
             "no real graft ancestry (HUB-012/HUB-021)."
         )
         if dry_run:
-            print(f"== DRY RUN {package}: would commit {n_files} file(s) on {tip[:12]} and push {url}")
-            print(staged.stdout.rstrip())
-            return 0
+            info(f"== DRY RUN {package}: would commit {n_files} file(s) on {tip[:12]} and push {url}")
+            info(staged.stdout.rstrip())
+            return E_OK, record_ok(command, package, cursor_updated=False)
         commit = git(["-C", str(tmp), "commit", "-m", message])
         if commit.returncode != 0:
-            print(f"!! commit failed: {commit.stderr.strip()}", file=sys.stderr)
-            return 1
+            rec = base_record(command, package)
+            rec.update({"exit_code": E_GIT, "error_class": "git",
+                        "remediation": "committing the patch worktree failed"})
+            warn(f"!! commit failed: {commit.stderr.strip()}")
+            return E_GIT, rec
         push = git(["-C", str(tmp), "push", url, f"HEAD:refs/heads/{DEFAULT_BRANCH}"])
         if push.returncode != 0:
-            print(f"!! push failed: {push.stderr.strip()}", file=sys.stderr)
-            return 1
-        print(f"== {package}: propagated {n_files} file(s) to {url} (tip {tip[:12]})")
-        return 0
+            probe = upstream_head(url, DEFAULT_BRANCH)
+            code = E_NETWORK if probe is None else E_GIT
+            rec = base_record(command, package)
+            rec.update(
+                {
+                    "exit_code": code,
+                    "error_class": ERROR_CLASS[code],
+                    "remediation": ("check connectivity/auth for the upstream repo"
+                                    if code == E_NETWORK
+                                    else "push rejected by the upstream (auth/permissions?) — "
+                                         "recover the patch worktree by hand or re-run"),
+                    "upstream_tip": tip[:12],
+                }
+            )
+            warn(f"!! push failed: {push.stderr.strip()}")
+            return code, rec
+        info(f"== {package}: propagated {n_files} file(s) to {url} (tip {tip[:12]})")
+        return E_OK, record_ok(command, package, cursor_updated=False)
     finally:
-        git(["worktree", "remove", "--force", str(tmp)])
-        shutil.rmtree(tmp, ignore_errors=True)
+        # DMR-064 leak hardening: verify the removal, prune stale registrations
+        # on failure, and sweep the directory as a last resort.
+        if tmp is not None:
+            removed = git(["worktree", "remove", "--force", str(tmp)])
+            if removed.returncode != 0:
+                git(["worktree", "prune"])
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 def cmd_push(args: argparse.Namespace) -> int:
-    require_subtree()
-    assert_clean_tree("push", args.allow_dirty)
-    manifest = load_manifest()
+    require_subtree(args.command)
+    assert_clean_tree(args.command, "push", args.allow_dirty)
+    manifest = load_manifest(args.command)
     entries = manifest.setdefault("packages", {})
-    failed = False
-    for package in selected_packages(args):
+    worst = E_OK
+    for package in selected_packages(args.command, args):
         url = url_for(package)
         if args.patch:
             tip = fetch_upstream(package)
             if tip is None:
-                print(f"!! could not fetch upstream tip for {package}", file=sys.stderr)
-                failed = True
+                rec = base_record(args.command, package)
+                rec.update(
+                    {
+                        "exit_code": E_NETWORK,
+                        "error_class": "network",
+                        "remediation": "check connectivity / upstream URL",
+                    }
+                )
+                emit(rec)
+                warn(f"!! could not fetch upstream tip for {package}")
+                worst = max(worst, E_NETWORK)
                 continue
-            if patch_push(package, url, tip, dry_run=args.dry_run) != 0:
-                failed = True
-                continue
-            if not args.dry_run:
+            code, rec = patch_push(package, url, tip, dry_run=args.dry_run)
+            if code == E_OK and not args.dry_run:
+                # DMR-064: cursor entry saved IMMEDIATELY after the push lands —
+                # an interrupt after this point cannot desync this package.
                 entries[package] = {
                     "url": url,
                     "branch": DEFAULT_BRANCH,
                     "synced_sha": upstream_head(url, DEFAULT_BRANCH),
                     "synced_at": utc_now(),
                 }
+                save_manifest(manifest)
+                rec = dict(rec)
+                rec["cursor_updated"] = True
+            emit(rec)
+            worst = max(worst, code)
             continue
-        print(f"== git subtree push --prefix packages/{package} {url} {DEFAULT_BRANCH}")
+        info(f"== git subtree push --prefix packages/{package} {url} {DEFAULT_BRANCH}")
         if args.dry_run:
-            print("== DRY RUN: no push performed")
+            info("== DRY RUN: no push performed")
+            emit(record_ok(args.command, package, cursor_updated=False))
             continue
-        result = git(
+        result = git_foreground(
             ["subtree", "push", f"--prefix=packages/{package}", url, DEFAULT_BRANCH],
-            capture=False,
         )
         if result.returncode != 0:
-            print(
+            probe = upstream_head(url, DEFAULT_BRANCH)
+            code = E_NETWORK if probe is None else E_GIT
+            rec = base_record(args.command, package)
+            rec.update(
+                {
+                    "exit_code": code,
+                    "error_class": ERROR_CLASS[code],
+                    "remediation": (
+                        "check connectivity / upstream URL"
+                        if code == E_NETWORK
+                        else "non-fast-forward? see HUB-012: re-run with --patch to land the "
+                             "delta as one fast-forward commit on the current upstream tip"
+                    ),
+                }
+            )
+            emit(rec)
+            warn(
                 f"!! push failed for {package} (non-fast-forward? see HUB-012). "
                 "Re-run with --patch to land the delta as one fast-forward commit "
-                "on the current upstream tip.",
-                file=sys.stderr,
+                "on the current upstream tip." if code == E_GIT
+                else f"!! push failed for {package}: upstream unreachable"
             )
-            failed = True
+            worst = max(worst, code)
             continue
         entries[package] = {
             "url": url,
@@ -446,53 +1154,14 @@ def cmd_push(args: argparse.Namespace) -> int:
             "synced_sha": upstream_head(url, DEFAULT_BRANCH),
             "synced_at": utc_now(),
         }
-    save_manifest(manifest)
-    return 1 if failed else 0
+        save_manifest(manifest)
+        rec = record_ok(args.command, package, cursor_updated=True)
+        emit(rec)
+    return worst
 
 
 def cmd_snapshot(args: argparse.Namespace) -> int:
-    manifest = load_manifest()
-    entries = manifest.setdefault("packages", {})
-    now = utc_now()
-    for package in selected_packages(args):
-        url = url_for(package)
-        head = upstream_head(url, DEFAULT_BRANCH)
-        if head is None:
-            print(f"!! could not read upstream tip for {package}; keeping previous entry", file=sys.stderr)
-            continue
-        if not rev_exists(head):
-            fetched = fetch_upstream(package)
-            if fetched is None:
-                print(
-                    f"!! upstream tip {head[:12]} for {package} has no local objects "
-                    "and the fetch failed; keeping previous entry",
-                    file=sys.stderr,
-                )
-                continue
-            head = fetched
-        gaps = unimported_upstream_paths(head, package)
-        if gaps and not args.force:
-            sample = ", ".join(sorted(gaps)[:5])
-            print(
-                f"!! refusing to snapshot {package}: upstream tip {head[:12]} is not "
-                f"contained in packages/{package} ({len(gaps)} path(s) "
-                f"missing/modified: {sample}). This is the HUB-018 cursor/content "
-                "gap — pull first (or pass --force to accept the lie explicitly).",
-                file=sys.stderr,
-            )
-            continue
-        if gaps:
-            print(
-                f"!! {package}: snapshot forced past {len(gaps)} non-contained path(s) "
-                "— the cursor now describes content the monorepo may not have",
-                file=sys.stderr,
-            )
-        entries[package] = {
-            "url": url,
-            "branch": DEFAULT_BRANCH,
-            "synced_sha": head,
-            "synced_at": now,
-        }
+    manifest = load_manifest(args.command)
     manifest["version"] = 1
     manifest.setdefault("note", "")
     manifest["note"] = (
@@ -502,13 +1171,95 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
         "content-verified (HUB-021) — upstream tip must be contained in the "
         "package tree unless snapshot --force is passed."
     )
+    entries = manifest.setdefault("packages", {})
+    now = utc_now()
+    worst = E_OK
+    for package in selected_packages(args.command, args):
+        url = url_for(package)
+        head = upstream_head(url, DEFAULT_BRANCH)
+        if head is None:
+            rec = base_record(args.command, package)
+            rec.update(
+                {
+                    "exit_code": E_NETWORK,
+                    "error_class": "network",
+                    "remediation": "check connectivity / upstream URL; the previous cursor "
+                                   "entry is kept",
+                }
+            )
+            emit(rec)
+            warn(f"!! could not read upstream tip for {package}; keeping previous entry")
+            worst = max(worst, E_NETWORK)
+            continue
+        if not rev_exists(head):
+            fetched = fetch_upstream(package)
+            if fetched is None:
+                rec = base_record(args.command, package)
+                rec.update(
+                    {
+                        "exit_code": E_NETWORK,
+                        "error_class": "network",
+                        "remediation": "upstream tip has no local objects and the fetch "
+                                       "failed; the previous cursor entry is kept",
+                    }
+                )
+                emit(rec)
+                warn(
+                    f"!! upstream tip {head[:12]} for {package} has no local objects "
+                    "and the fetch failed; keeping previous entry"
+                )
+                worst = max(worst, E_NETWORK)
+                continue
+            head = fetched
+        gaps = unimported_upstream_paths(head, package)
+        if gaps and not args.force:
+            sample = ", ".join(sorted(gaps)[:5])
+            rec = base_record(args.command, package)
+            rec.update(
+                {
+                    "exit_code": E_GIT,
+                    "error_class": "git",
+                    "remediation": "this is the HUB-018 cursor/content gap — pull first "
+                                   "(or pass --force to accept the lie explicitly)",
+                }
+            )
+            emit(rec)
+            warn(
+                f"!! refusing to snapshot {package}: upstream tip {head[:12]} is not "
+                f"contained in packages/{package} ({len(gaps)} path(s) "
+                f"missing/modified: {sample}). This is the HUB-018 cursor/content "
+                "gap — pull first (or pass --force to accept the lie explicitly)."
+            )
+            worst = max(worst, E_GIT)
+            continue
+        if gaps:
+            warn(
+                f"!! {package}: snapshot forced past {len(gaps)} non-contained path(s) "
+                "— the cursor now describes content the monorepo may not have"
+            )
+        entries[package] = {
+            "url": url,
+            "branch": DEFAULT_BRANCH,
+            "synced_sha": head,
+            "synced_at": now,
+        }
+        save_manifest(manifest)
+        emit(record_ok(args.command, package, cursor_updated=True))
     save_manifest(manifest)
-    print(f"snapshot written to {MANIFEST.relative_to(REPO_ROOT)} at {now}")
-    return 0
+    info(f"snapshot written to {_rel_or_abs(MANIFEST)} at {now}")
+    return worst
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument(
+        "--manifest", metavar="PATH",
+        help="override the sync manifest path (default: scripts/packages_sync.json)",
+    )
+    parser.add_argument(
+        "--repo-root", metavar="PATH",
+        help="override the git working directory (default: the monorepo root)",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     def add_common(p: argparse.ArgumentParser, with_all: bool = True) -> None:
@@ -526,6 +1277,23 @@ def main(argv: list[str] | None = None) -> int:
     add_common(pull)
     pull.add_argument("--squash", action="store_true", help="squash upstream history on import")
     pull.add_argument("--allow-dirty", action="store_true", help="bypass the clean-worktree guard")
+    pull_group = pull.add_mutually_exclusive_group()
+    pull_group.add_argument(
+        "--open-pr", "--pr", dest="open_pr", action="store_true",
+        help="on conflict: abort, import via a sync/<package>/import-<sha> branch and "
+             "open a PR against main with gh instead of leaving the failure",
+    )
+    pull_group.add_argument(
+        "--keep-conflicts", action="store_true",
+        help="on conflict: leave the merge in the worktree for manual resolution "
+             "(no auto-abort; the tree stays dirty)",
+    )
+    pull.add_argument(
+        "--resolve", choices=("ours", "theirs"), default="ours",
+        help="resolution strategy for --open-pr (default: ours = monorepo content "
+             "wins, the HUB-021 containment doctrine; theirs DROPS monorepo content)",
+    )
+    pull.add_argument("--json", action="store_true", help="machine-readable output (JSON Lines)")
     pull.set_defaults(func=cmd_pull)
 
     push = sub.add_parser("push", help="git subtree push packages/<name> back to upstream")
@@ -538,6 +1306,7 @@ def main(argv: list[str] | None = None) -> int:
         "one commit on the current upstream tip, then re-baseline the cursor",
     )
     push.add_argument("--dry-run", action="store_true", help="print the plan; no pushes, no cursor writes")
+    push.add_argument("--json", action="store_true", help="machine-readable output (JSON Lines)")
     push.set_defaults(func=cmd_push)
 
     snap = sub.add_parser("snapshot", help="re-baseline the manifest at current upstream tips")
@@ -548,9 +1317,18 @@ def main(argv: list[str] | None = None) -> int:
         help="advance the cursor even when the upstream tip is not contained in "
         "the package tree (accepts the HUB-018 cursor/content gap explicitly)",
     )
+    snap.add_argument("--json", action="store_true", help="machine-readable output (JSON Lines)")
     snap.set_defaults(func=cmd_snapshot)
 
     args = parser.parse_args(argv)
+    if args.manifest:
+        global MANIFEST  # noqa: PLW0603 — single-process override from --manifest
+        MANIFEST = Path(args.manifest).resolve()
+    if args.repo_root:
+        global REPO_ROOT  # noqa: PLW0603 — single-process override from --repo-root
+        REPO_ROOT = Path(args.repo_root).resolve()
+    global JSON_MODE  # noqa: PLW0603
+    JSON_MODE = bool(getattr(args, "json", False))
     return args.func(args)
 
 

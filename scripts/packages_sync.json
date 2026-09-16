@@ -51,8 +51,8 @@
     },
     "local-mailroom-sandbox": {
       "branch": "main",
-      "synced_at": "2026-09-16T17:51:32Z",
-      "synced_sha": "6ac17418f1ee289154f08106bf869c0fd4a93158",
+      "synced_at": "2026-09-16T19:36:46Z",
+      "synced_sha": "ef77cec442692247053f9e83e5ea6d426dc3f2c9",
       "url": "https://github.com/Exios66/local-mailroom-sandbox.git"
     },
     "mailroom-corpus-eda": {

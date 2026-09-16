@@ -169,6 +169,29 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
 - `tests/conftest.py` adds the repo root to `sys.path`; `asyncio_mode = "auto"` is set.
 - Frontend has no test framework — verify manually (boot server, cycle all screens, inspect an envelope, disconnect Langfuse to see the closed state). Do not invent a JS test harness.
 
+## Monorepo development (Digital-Mailroom)
+
+This repo is also `packages/The-Mailroom` inside the
+[Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
+monorepo — a single `uv` workspace that holds every constellation repo as a
+git-subtree package (the monorepo is the dev source of truth for cross-repo
+development; the hub task board is `governance/TASKS.md`, cards `DMR-0NN`).
+
+- **Sync contract**: `python scripts/sync_packages.py {status|pull|push}`
+  at the monorepo root reconciles subtree mirrors with `Exios66/*`.
+  Standalone-repo work flows monorepo-ward via `pull --squash`; monorepo
+  fixes flow out via `push`. Never hand-edit `packages/The-Mailroom/` in
+  the monorepo when the standalone repo is upstream of it.
+- **Monorepo-side adaptations** that live ONLY there (re-apply on conflict
+  when pulling): the `[tool.uv.sources]` block in `pyproject.toml` and
+  pruned-heavy-asset test skips. Nested `.github/` workflows are inert in
+  the monorepo (release-time only).
+- **Release propagation**: the Release process below cuts the standalone
+  release; the release commit then flows into the monorepo via the sync
+  pass at release time (`sync_packages.py push`) and the cursor is
+  re-baselined. Test gates in the monorepo:
+  `uv run pytest packages/The-Mailroom/tests`.
+
 ## Release process (semver + CHANGELOG + README + wiki + tags)
 
 **Semantic versioning** (`MAJOR.MINOR.PATCH`), version lives in `pyproject.toml`:
@@ -192,6 +215,8 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
 - Never tag a commit that does not have a CHANGELOG entry for that version.
 
 **Automation:** `python scripts/release.py --bump <patch|minor|major> --note "<summary>"` performs the mechanical steps (bumps `pyproject.toml`, moves `[Unreleased]` → `[X.Y.Z] - date`, prints the exact commit/tag commands) and **refuses to run on a dirty working tree**. `--check` validates repo state (tests pass, changelog format, version/tag consistency) without changing anything. After a pushed major/minor release, run `wiki/sync-wiki.sh` to publish the wiki.
+
+**Propagate to the monorepo:** after tagging, land the release upstream from `LLM-Mailroom-Services/Digital-Mailroom` with `python scripts/sync_packages.py push --package The-Mailroom` (content-only deltas), re-baseline the cursor, and confirm `sync_packages.py status` shows in-sync (see "Monorepo development" above).
 
 **Commit style**: imperative subject + concise body, mirroring the existing history (`git log --oneline`).
 

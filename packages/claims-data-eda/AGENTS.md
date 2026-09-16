@@ -6,6 +6,19 @@
 
 ---
 
+## 📦 Monorepo home (Digital-Mailroom)
+
+This repo is also `packages/claims-data-eda` in the
+[Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
+monorepo — a **virtual member** (no build; uv workspace only). Development
+happens in the monorepo; changes flow to this standalone repo
+(`Exios66/claims-data-eda`) ONLY via
+`python scripts/sync_packages.py push` (monorepo root) — never hand-edit
+the mirror and never push directly from the standalone side. The hub task
+board is `governance/TASKS.md` (cards `DMR-0NN`).
+
+---
+
 ## 🏛️ Governed Repositories (Ecosystem)
 
 This repo is the **insurance-claims data-production node** of a governed

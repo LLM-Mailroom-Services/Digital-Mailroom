@@ -88,6 +88,18 @@ change what every release carries, never hand-type a release body.
 4. **Verify** — the touched packages' FULL suites green; `git status`
    clean; the board card closed with Evidence naming the commits.
 
+## Ownership
+
+- **Planning & dispatch** — sync/release missions are `orchestrator-governor`
+  units of work: it breaks the train into per-package sync units (push leg,
+  `--verify-suite`, cursor re-baseline) and hub-release units, briefed from
+  this page + [[Sub-Package-Sync]].
+- **Execution** — `general` missions run the sweeps
+  (`sync_packages.py push --all --patch`, `sync_vendor.py`, pin bumps).
+- **Never hand-edit a mirror** — a deliverable that must reach a standalone
+  repo is a sync unit on the card; propagation is `sync_packages.py push`,
+  never a direct push from the monorepo tree.
+
 ## Current family pins
 
 | Package | Pin | Consumed by |

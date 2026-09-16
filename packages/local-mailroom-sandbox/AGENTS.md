@@ -17,6 +17,15 @@ needed to score or run evals. Prompt loops optionally in `llm-entity-extraction`
 
 Python 3.11+, no build step.
 
+**Monorepo-family flow:** this package syncs to
+`Exios66/local-mailroom-sandbox` via `scripts/sync_packages.py` (monorepo
+root — `status`/`push --all --patch` is the release-train sweep); the
+sandbox itself ships no releases, but sibling surfaces (llm-mailroom,
+llm-dojo-scoring) do — their version bumps flow through the same sync pass,
+the vendor refresh below, and the consuming pins. Full law: root
+`AGENTS.md` §Sub-package sync + `docs/wiki/Sub-Package-Sync.md` +
+`docs/wiki/Releases.md`.
+
 ## Skills (tool selection)
 
 Committed under `.cursor/skills/`. **Read `sandbox-tool-router` first** for any

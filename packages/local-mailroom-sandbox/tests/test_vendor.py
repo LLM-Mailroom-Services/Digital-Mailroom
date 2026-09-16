@@ -152,6 +152,16 @@ def test_docs_claim_current_vendored_pins():
         rel = path.relative_to(root)
         if "vendor" in rel.parts or "__pycache__" in rel.parts:
             continue
+        # The guard's contract is the TRACKED repo surface ("no non-vendor
+        # tracked file"). Virtualenvs are untracked tooling: the supported
+        # `.[pipeline]` installs real langgraph wheels into site-packages,
+        # and langgraph's own metadata references its historical 0.6.0 line —
+        # irrelevant to the vendored-pin claims this test guards.
+        if any(
+            part in {".venv", "venv", "site-packages", "build", ".tox", "dist"}
+            for part in rel.parts
+        ):
+            continue
         try:
             text = path.read_text(encoding="utf-8", errors="ignore")
         except OSError:

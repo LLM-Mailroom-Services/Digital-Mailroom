@@ -1,0 +1,55 @@
+# DMR-066 — Subclass-stratified 50-row sorter run (expected_subclass).
+#
+# Fixes the DMR-063 stratification no-op: `expected_doc_class` is constant
+# `contract` in the joined ground_truth config, so the old `strata.expected:`
+# FILTER silently produced contract×N (the filter is not a draw — contracts
+# sort first and `limit` truncated). This spec stratifies on
+# `expected_subclass` (19-surface vocabulary in the pinned test split;
+# 13 target strata below exactly fill 50 rows, each target <= availability).
+#
+# Preflight now HARD-FAILS (exit 1) on: requested value absent from data,
+# constant stratum field with >1 requested value, or a draw/limit that drops a
+# requested stratum (corpus.strata_guard / strata_draw_guard).
+schema: sandbox.run/v1
+run_id: run-50-subclass
+task: sorter
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: test
+  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (FAMILY_HF_REVISION)
+  strata:
+    field: expected_subclass
+    values: [service, supply, distributor, co_branding, ip, development,
+             maintenance, strategic_alliance, sponsorship, license,
+             hosting, joint_venture, manufacturing]
+    counts: [8, 5, 5, 5, 4, 4, 4, 4, 3, 2, 2, 2, 2]     # sum 50, each <= availability
+  limit: 50
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B
+  vllm: {max_model_len: 16384, gpu_memory_utilization: 0.90,
+         max_num_seqs: 256, quantization: "", revision: ""}
+  modal: {app: sandbox-vllm, gpu: L4, image_tag: v0.29.0,
+          scaledown_seconds: 600, max_containers: 4, prewarm: true}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 16            # 4 replicas x 4 in-flight (DMR-063 scale-out)
+
+trace:
+  sink: none
+  otlp: false
+  environment: subclass
+  tags: [sandbox, job]

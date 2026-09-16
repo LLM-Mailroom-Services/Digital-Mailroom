@@ -30,7 +30,7 @@ fi
 MODEL="${MODEL:-Qwen/Qwen3-8B}"
 # Engine parity knobs (compose/Modal contract); overridable per submission via
 # the .sub `environment = "MODEL=...,MAX_MODEL_LEN=..."` line.
-# DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.28.0
+# DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.29.0
 # raises at boot); AWQ/FP8 rows set 32768 explicitly.
 MAX_MODEL_LEN="${MAX_MODEL_LEN:-16384}"
 GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-0.90}"
@@ -187,7 +187,7 @@ log "vllm serve pid=$VLLM_PID (log: results/vllm_serve.log)"
 echo "== wait for /v1/models =="
 HEALTHY=0
 # DMR-056: bounded probe (--max-time 5); forward the bearer when the job env
-# carries VLLM_API_KEY (v0.28.0 enforces it automatically — a keyless probe
+# carries VLLM_API_KEY (v0.29.0 enforces it automatically — a keyless probe
 # would 401 forever and false-fail after 20 minutes).
 CURL_AUTH=()
 if [ -n "$VLLM_API_KEY" ]; then

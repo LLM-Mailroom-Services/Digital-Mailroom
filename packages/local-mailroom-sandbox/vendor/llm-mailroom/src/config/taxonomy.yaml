@@ -54,7 +54,10 @@ run_limits:
   # Hard wall-clock cutoff per document run (abort past this).
   deadline_seconds: 3600
   # Per-LLM-call socket timeout — bounds a single hanging provider request.
-  llm_call_timeout_seconds: 120
+  # DMR-063 (sandbox): 300s, NOT 120s — intake on real-corpus rows generates
+  # 1.3-2.3k tokens at ~13-16 tok/s on an L4 (2.5-3.5 min/call); the 120s cap
+  # made scale-out runs on Modal vLLM thrash in APITimeoutError retry storms.
+  llm_call_timeout_seconds: 300
   # Per-run cumulative output-token cap — aborts stuck/excessively-verbose
   # models that keep generating past the point of usefulness.
   max_total_output_tokens: 20000

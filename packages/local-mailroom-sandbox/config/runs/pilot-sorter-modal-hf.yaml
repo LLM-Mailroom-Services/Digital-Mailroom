@@ -1,0 +1,51 @@
+# Pilot run spec — small sorter live run against the Modal-deployed vLLM
+# (HF-secret wiring pilot; DMR-062). Smallest live surface before the 300-doc
+# run: 8 fixture rows end-to-end through the vendored sorter + reviewers on
+# the deployed Qwen/Qwen3-8B endpoint.
+schema: sandbox.run/v1
+run_id: pilot-sorter-modal-hf
+task: sorter
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    sorter_reviewer: {source: local, file: sorter_reviewer_local_v0}
+    judge: {source: local, file: judge_local_v0}
+
+dataset:
+  provider: file
+  local_path: data/fixtures/hf/docclass_mini.jsonl
+  limit: 8
+  sample_seed: 1
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B
+  vllm:
+    max_model_len: 16384      # DMR-056: boot-valid cap for L4-bf16 8B rows
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 256
+    quantization: ""
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0        # parity pin — DMR-062 live pilot passed, so
+                              # Modal + compose + htcondor bumped together
+    scaledown_seconds: 900
+    max_containers: 1
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 4              # fill the endpoint's continuous batching
+
+trace:
+  sink: none
+  otlp: true
+  environment: pilot
+  tags: [sandbox, job]

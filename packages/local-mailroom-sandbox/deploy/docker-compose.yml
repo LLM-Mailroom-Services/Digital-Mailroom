@@ -98,9 +98,9 @@ services:
     environment:
       OLLAMA_KEEP_ALIVE: 30m
 
-  # vLLM v0.28.0 — same image tag as the Modal app (deploy/modal_vllm.py), so
+  # vLLM v0.29.0 — same image tag as the Modal app (deploy/modal_vllm.py), so
   # local and remote runs share one engine version. The image entrypoint is
-  # `vllm serve`; v0.28.0 made per-request logging opt-in
+  # `vllm serve`; v0.29.0 made per-request logging opt-in
   # (`--enable-log-requests`), so `--no-enable-log-requests` pins it off (the
   # pre-0.28 `--disable-log-requests` flag no longer exists).
   # Memory posture (TEST sandbox on an L4 24 GB): 0.90 of GPU memory (vLLM
@@ -113,7 +113,7 @@ services:
   # compose command has no --quantization/--revision substitution (an empty
   # value would break vLLM boot) — use the Modal app for those knobs.
   vllm:
-    image: vllm/vllm-openai:v0.28.0
+    image: vllm/vllm-openai:v0.29.0
     container_name: sandbox-vllm
     profiles: ["vllm"]
     ports:
@@ -133,7 +133,7 @@ services:
       - --port
       - "8000"
       - --max-model-len
-      # DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.28.0
+      # DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.29.0
       # RAISES at boot when the KV pool can't fit one request); AWQ rows set 32768.
       - ${VLLM_MAX_MODEL_LEN:-16384}
       - --gpu-memory-utilization

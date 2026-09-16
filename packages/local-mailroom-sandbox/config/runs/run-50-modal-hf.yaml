@@ -1,0 +1,57 @@
+# DMR-063 milestone: 50-doc STRATIFIED live run through the Modal-deployed
+# vLLM endpoint (Qwen/Qwen3-8B L4, v0.29.0, HF secret wired DMR-062).
+# Scales the pilot (7 fixture rows) to the live pinned corpus with
+# per-stratum deterministic draws; same sorter/reviewer/judge surface.
+schema: sandbox.run/v1
+run_id: run-50-modal-hf
+task: sorter
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    sorter_reviewer: {source: local, file: sorter_reviewer_local_v0}
+    judge: {source: local, file: judge_local_v0}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth            # labels + doc_text joined on filename
+  split: test
+  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (MAILROOM_HF_REVISION)
+  strata:
+    expected: [insurance_claim, contract, merger_agreement]
+  limit: 50
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B
+  vllm:
+    max_model_len: 16384      # DMR-056/DMR-062: boot-valid cap (v0.29.0 keeps the admission check)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 256
+    quantization: ""
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0        # parity pin (DMR-062 pilot passed)
+    scaledown_seconds: 600
+    max_containers: 4         # DMR-063 scale-out: 4 L4 replicas (documented
+                              # raise; deploy-time MODAL_VLLM_MAX_CONTAINERS=4)
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 16             # 4 replicas x 4 in-flight each — fill every
+                              # replica's continuous batching (no bottleneck)
+
+trace:
+  sink: none
+  otlp: true
+  environment: pilot
+  tags: [sandbox, job]

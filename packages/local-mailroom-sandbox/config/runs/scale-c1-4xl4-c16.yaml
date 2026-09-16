@@ -1,0 +1,46 @@
+# DMR-068 — scale matrix cell C1: 4xL4, concurrency 16, bf16 baseline.
+# Fixed-doc-size fixture (2k/6k/12k char buckets) — see docs/scale-matrix.md.
+# Deploy the fleet PINNED for measurement:
+#   MODAL_VLLM_MIN_CONTAINERS=4 MODAL_VLLM_MAX_CONTAINERS=4 \
+#   MODAL_VLLM_SCALEDOWN_SECONDS=600 modal deploy deploy/modal_vllm.py
+schema: sandbox.run/v1
+run_id: scale-c1-4xl4-c16
+task: sorter
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file                 # fixture: data/fixtures/scale/c1.jsonl
+  local_path: file://data/fixtures/scale/c1.jsonl
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B
+  vllm:
+    max_model_len: 16384
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 256
+    quantization: ""
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 600
+    max_containers: 4
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 16
+
+trace:
+  sink: none
+  otlp: false
+  environment: scale
+  tags: [sandbox, job, scale-matrix]

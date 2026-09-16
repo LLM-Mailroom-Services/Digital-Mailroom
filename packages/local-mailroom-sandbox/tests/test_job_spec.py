@@ -53,7 +53,7 @@ def test_spec_core_is_behavioral_and_json_serializable():
 
 def test_vllm_range_validation():
     # DMR-056 pin: the DEFAULT max_model_len is 16384 (boot-valid for L4-bf16
-    # 8B-class rows on v0.28.0 — 32768 RAISES at the KV admission check), not
+    # 8B-class rows on v0.29.0 — 32768 RAISES at the KV admission check), not
     # the pre-DMR-056 32768; AWQ/FP8 rows opt up explicitly.
     assert VLLMSpec().max_model_len == 16384
     VLLMSpec(max_model_len=32768)  # explicit opt-up stays valid
@@ -121,3 +121,36 @@ def test_yaml_load_roundtrip(tmp_path):
     assert spec.run_id == "example"
     assert spec.prompt["agents"]["judge"]["file"] == "judge_local_v0"
     assert spec_hash(spec)
+
+# --- DMR-066: strata block shape validation ---------------------------------
+
+
+def test_strata_values_form_validates():
+    spec = RunSpec(
+        task="sorter",
+        profile="ollama",
+        dataset=DatasetSpec(
+            strata={
+                "field": "expected_subclass",
+                "values": ["service", "supply"],
+                "counts": [3, 2],
+            }
+        ),
+    )
+    assert spec.dataset.strata["values"] == ["service", "supply"]
+
+
+def test_strata_values_counts_mismatch_rejected():
+    with pytest.raises(ValueError, match="counts length must match"):
+        RunSpec(
+            task="sorter",
+            profile="ollama",
+            dataset=DatasetSpec(
+                strata={"field": "expected_subclass", "values": ["a", "b"], "counts": [1]}
+            ),
+        )
+
+
+def test_strata_unknown_keys_rejected():
+    with pytest.raises(ValueError, match="unknown keys"):
+        DatasetSpec(strata={"bogus": 1})

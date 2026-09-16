@@ -46,6 +46,11 @@ pipeline = [
     "langgraph>=0.2",
     "requests>=2.31",
     "watchdog>=4.0",
+    # DMR-067: vendored graph's live storage surface (storage.catalog /
+    # storage.audit_log in build_graph.py) + llm.prompts importable roster —
+    # absent before, every live doc logged catalog_upsert_error (non-fatal)
+    # and the agent roster degraded to the static 18.
+    "sqlalchemy>=2.0",
 ]
 notebooks = [
     "jupyterlab>=4.2",

@@ -97,7 +97,10 @@ class DatasetSpec(BaseModel):
     limit: int | None = None
     sample_seed: int | None = None
     # strata: {expected: [...], expected_subclass: [...]} filters OR
-    #         {"buckets": [{doc_class, subclass, count}]} for stratified draws.
+    #         {"buckets": [{doc_class, subclass, count}]} for stratified draws
+    #         OR (DMR-066) {field: expected_subclass, values: [...],
+    #         counts: [...]} — subclass-stratified draws over any row field;
+    #         see corpus.strata_field / select_rows for semantics.
     strata: dict[str, Any] | None = None
     exclude_expected: list[str] | None = None
     columns: dict[str, str] | None = None
@@ -109,6 +112,47 @@ class DatasetSpec(BaseModel):
     def _positive(cls, v: int | None) -> int | None:
         if v is not None and v < 1:
             raise ValueError("limit must be >= 1")
+        return v
+
+    @field_validator("strata")
+    @classmethod
+    def _strata_shape(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Guard the strata block shape (DMR-066) so bad specs fail at parse."""
+        if v is None:
+            return v
+        allowed = {"field", "values", "counts", "expected", "expected_subclass", "buckets"}
+        unknown = set(v) - allowed
+        if unknown:
+            raise ValueError(f"strata: unknown keys {sorted(unknown)} (allowed: {sorted(allowed)})")
+        if "buckets" in v:
+            if not isinstance(v["buckets"], list) or not v["buckets"]:
+                raise ValueError("strata.buckets must be a non-empty list")
+            for b in v["buckets"]:
+                if not isinstance(b, dict):
+                    raise ValueError("strata.buckets entries must be objects")
+                if "count" in b and (not isinstance(b["count"], int) or b["count"] < 1):
+                    raise ValueError("strata.buckets[].count must be a positive int")
+            return v
+        if "values" in v:
+            if not isinstance(v["values"], list) or not v["values"]:
+                raise ValueError("strata.values must be a non-empty list")
+            if any(not isinstance(x, str) or not x for x in v["values"]):
+                raise ValueError("strata.values entries must be non-empty strings")
+            if v.get("field") not in (None, "expected_doc_class", "expected_subclass"):
+                raise ValueError("strata.field must be 'expected_doc_class' or 'expected_subclass'")
+            counts = v.get("counts")
+            if counts is not None:
+                if not isinstance(counts, list) or len(counts) != len(v["values"]):
+                    raise ValueError("strata.counts length must match strata.values")
+                if any(not isinstance(c, int) or c < 1 for c in counts):
+                    raise ValueError("strata.counts entries must be positive ints")
+            return v
+        # legacy {'expected': [...]} / {'expected_subclass': [...]} filters
+        for key in ("expected", "expected_subclass"):
+            if key in v:
+                vals = v[key]
+                if not isinstance(vals, list) or not vals:
+                    raise ValueError(f"strata.{key} must be a non-empty list")
         return v
 
     def is_local(self) -> bool:
@@ -159,10 +203,10 @@ class DatasetSpec(BaseModel):
 
 
 class VLLMSpec(BaseModel):
-    """vLLM serve flags (verified for v0.28.0 in DMR-022).
+    """vLLM serve flags (verified for v0.29.0 in DMR-022).
 
     ``max_model_len`` defaults to 16384 — the DMR-056 boot-valid cap for
-    L4-bf16 8B-class rows: v0.28.0 RAISES at boot when the KV pool cannot
+    L4-bf16 8B-class rows: v0.29.0 RAISES at boot when the KV pool cannot
     hold one request at max_model_len (it does not shrink-and-warn). AWQ /
     FP8 rows may set 32768 explicitly.
     """
@@ -199,7 +243,7 @@ class VLLMSpec(BaseModel):
     def _quant(cls, v: str) -> str:
         if v not in VALID_QUANTIZATIONS:
             raise ValueError(
-                f"quantization {v!r} is not a registered v0.28.0 method; "
+                f"quantization {v!r} is not a registered v0.29.0 method; "
                 f"valid: {sorted(x for x in VALID_QUANTIZATIONS if x)}"
             )
         return v
@@ -208,7 +252,7 @@ class VLLMSpec(BaseModel):
 class ModalSpec(BaseModel):
     app: str = "sandbox-vllm"
     gpu: str = "L4"
-    image_tag: str = "v0.28.0"
+    image_tag: str = "v0.29.0"
     scaledown_seconds: int = 900
     max_containers: int = 1
     prewarm: bool = True

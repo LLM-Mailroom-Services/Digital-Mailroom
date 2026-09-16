@@ -667,5 +667,200 @@ class TestBackwardCompat(SyncScriptTest):
         self.assertEqual(rows[0]["package"], PKG)
 
 
+# --------------------------------------------------------------------------- #
+# DMR-070: post-import verification seams
+# --------------------------------------------------------------------------- #
+
+
+def _load_sync_module():
+    """Import scripts/sync_packages.py as a module for unit-level seams."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("sync_packages_dmr070", str(SCRIPT))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class TestResolutionClassifier(unittest.TestCase):
+    """DMR-070(a): classify_resolution — the verdict table."""
+
+    def test_l_classify_resolution_table(self):
+        mod = _load_sync_module()
+        f = mod.classify_resolution
+        self.assertEqual(f(None, "a", "b"), "absent")       # deletion kept
+        self.assertEqual(f("a", "a", "b"), "ours")          # faithful ours
+        self.assertEqual(f("b", "a", "b"), "theirs")        # faithful theirs
+        self.assertEqual(f("a", "a", "a"), "both")          # identical sides
+        self.assertEqual(f("c", "a", "b"), "divergent")     # the v0.6 mangle
+        self.assertEqual(f("c", None, "b"), "divergent")    # ours deleted, new content
+        self.assertEqual(f(None, None, None), "absent")
+
+    def test_l2_resolution_divergences_maps_theirs_prefix(self):
+        """The theirs side is addressed WITHOUT the packages/<pkg>/ prefix
+        (upstream repo-root layout) while ours/resolved carry the prefix."""
+        mod = _load_sync_module()
+        repo = Path(tempfile.mkdtemp(prefix="dmr070-div-"))
+        self.addCleanup(shutil.rmtree, repo, ignore_errors=True)
+        env = dict(os.environ)
+        env.update(GIT_ENV)
+
+        def g(*args):
+            return subprocess.run(["git", *args], cwd=str(repo), env=env,
+                                  text=True, capture_output=True, check=True)
+
+        # monorepo-style layout: the package lives under packages/<pkg>/
+        g("init", "-q", "-b", "main", ".")
+        (repo / "packages" / "pkg").mkdir(parents=True)
+        (repo / "packages" / "pkg" / "doc.txt").write_text("ours side\n")
+        g("add", "-A")
+        g("commit", "-m", "ours")
+        pre_head = g("rev-parse", "HEAD").stdout.strip()
+        g("checkout", "-q", "-b", "upstream")
+        g("mv", "packages/pkg/doc.txt", "doc.txt")  # upstream repo-root layout
+        (repo / "doc.txt").write_text("upstream side\n")
+        g("add", "-A")
+        g("commit", "-m", "upstream")
+        theirs = g("rev-parse", "HEAD").stdout.strip()
+        g("checkout", "-q", "main")
+        # the "resolved" blob matches NEITHER side (hand-mangled, v0.6 class)
+        (repo / "packages" / "pkg" / "doc.txt").write_text("mangled fusion\n")
+        g("add", "-A")
+        g("commit", "-m", "resolved merge")
+        saved_root = mod.REPO_ROOT
+        mod.REPO_ROOT = repo  # point the module's git cwd at the fixture
+        try:
+            divs = mod.resolution_divergences("pkg", pre_head, theirs,
+                                              ["packages/pkg/doc.txt"])
+        finally:
+            mod.REPO_ROOT = saved_root
+        self.assertEqual(len(divs), 1)
+        d = divs[0]
+        self.assertEqual(d["path"], "packages/pkg/doc.txt")
+        self.assertEqual(d["verdict"], "divergent")
+        self.assertTrue(d["ours"] and d["theirs"] and d["resolved"])
+        self.assertNotEqual(d["resolved"], d["ours"])
+        self.assertNotEqual(d["resolved"], d["theirs"])
+
+
+class TestPatchPushDeletionGuard(SyncScriptTest):
+    """DMR-070(b): a package whose monorepo tree deletes tracked upstream
+    paths is REFUSED on --patch (exit 5, error_class verify) and directed to
+    the full subtree-push leg — the content-push path can never carry
+    deletions (the v0.6.0 lesson; previously it failed containment with the
+    misleading "pull first" remediation)."""
+
+    def test_m_patch_push_refused_on_deletion(self):
+        (self.mono / f"packages/{PKG}/a.txt").unlink()
+        git(self.mono, "add", "-A", check=True)
+        git(self.mono, "commit", "-m", "mono deletes a.txt", check=True)
+        upstream_before = git(self.origin, "rev-parse", "main").stdout.strip()
+        res = self.run_script("push", "--patch", "--package", PKG, "--json",
+                              env_extra=self.origin_env)
+        self.assertEqual(res.returncode, 5, res.stderr + res.stdout)
+        rec = self.json_record(res)
+        self.assertEqual(rec["exit_code"], 5)
+        self.assertEqual(rec["error_class"], "verify")
+        self.assertFalse(rec["ok"])
+        self.assertEqual(rec["deleted_paths"], [f"packages/{PKG}/a.txt"])
+        self.assertIn("subtree-push leg", rec["remediation"])
+        self.assertIn("DMR-070", res.stderr)
+        self.assertIn(f"packages/{PKG}/a.txt", res.stderr)
+        # nothing pushed, cursor untouched
+        self.assertEqual(git(self.origin, "rev-parse", "main").stdout.strip(),
+                         upstream_before)
+        self.assertNotIn(PKG, self.read_manifest().get("packages", {}))
+
+
+class TestVerifySuiteGate(SyncScriptTest):
+    """DMR-070 --verify-suite: SYNC_VERIFY_CMD stubs the package suite.
+    Red refuses push / cursor-advance (exit 5); green lets the flow run."""
+
+    def _mono_ahead(self):
+        (self.mono / f"packages/{PKG}/a.txt").write_text("base a\nmono change\n")
+        git(self.mono, "add", "-A", check=True)
+        git(self.mono, "commit", "-m", "mono ahead", check=True)
+
+    @staticmethod
+    def _stub(path, body):
+        path.write_text(body)
+        os.chmod(path, 0o755)
+        return path
+
+    def test_n_patch_push_red_suite_refuses(self):
+        self._mono_ahead()
+        stub = self._stub(self.tmp / "fail-suite",
+                          "#!/bin/sh\necho '3 failed'\nexit 1\n")
+        upstream_before = git(self.origin, "rev-parse", "main").stdout.strip()
+        res = self.run_script("push", "--patch", "--verify-suite",
+                              "--package", PKG, "--json",
+                              env_extra={**self.origin_env,
+                                         "SYNC_VERIFY_CMD": str(stub)})
+        self.assertEqual(res.returncode, 5, res.stderr + res.stdout)
+        rec = self.json_record(res)
+        self.assertEqual(rec["error_class"], "verify")
+        self.assertIn("verify-suite failed", rec["remediation"])
+        self.assertIn("3 failed", rec.get("verify_detail_tail", ""))
+        # nothing pushed, cursor untouched
+        self.assertEqual(git(self.origin, "rev-parse", "main").stdout.strip(),
+                         upstream_before)
+        self.assertNotIn(PKG, self.read_manifest().get("packages", {}))
+
+    def test_n2_patch_push_green_suite_pushes_and_advances_cursor(self):
+        self._mono_ahead()
+        stub = self._stub(self.tmp / "ok-suite", "#!/bin/sh\nexit 0\n")
+        upstream_before = git(self.origin, "rev-parse", "main").stdout.strip()
+        res = self.run_script("push", "--patch", "--verify-suite",
+                              "--package", PKG, "--json",
+                              env_extra={**self.origin_env,
+                                         "SYNC_VERIFY_CMD": str(stub)})
+        self.assertEqual(res.returncode, 0, res.stderr + res.stdout)
+        rec = self.json_record(res)
+        self.assertTrue(rec["ok"])
+        self.assertTrue(rec["cursor_updated"])
+        self.assertIn(PKG, self.read_manifest().get("packages", {}))
+        self.assertNotEqual(git(self.origin, "rev-parse", "main").stdout.strip(),
+                            upstream_before)
+
+    def test_n3_pull_red_suite_refuses_cursor_advance(self):
+        # non-conflicting upstream commit (new file) → clean subtree pull
+        (self.src / "upnew.txt").write_text("up new\n")
+        git(self.src, "add", "-A", check=True)
+        git(self.src, "commit", "-m", "up new", check=True)
+        git(self.src, "push", "origin", "main", check=True)
+        stub = self._stub(self.tmp / "fail-suite", "#!/bin/sh\nexit 1\n")
+        res = self.run_script("pull", "--package", PKG, "--verify-suite",
+                              "--json",
+                              env_extra={**self.origin_env,
+                                         "SYNC_VERIFY_CMD": str(stub)})
+        self.assertEqual(res.returncode, 5, res.stderr + res.stdout)
+        rec = self.json_record(res)
+        self.assertEqual(rec["error_class"], "verify")
+        self.assertIn("verify-suite failed", rec["remediation"])
+        # the merge landed in the worktree but the cursor did NOT advance
+        self.assertNotIn(PKG, self.read_manifest().get("packages", {}))
+        self.assertIn("upnew.txt",
+                      git(self.mono, "ls-files", "--", f"packages/{PKG}").stdout)
+
+    def test_n4_open_pr_record_carries_resolution_divergences(self):
+        # clean -X strategy path: no ladder resolution → empty divergence list,
+        # but the record field is always present (structural seam).
+        self.diverge()
+        log = self.tmp / "gh.log"
+        bin_dir = self.make_fake_gh(log)
+        env = {
+            **self.origin_env,
+            "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+            "FAKE_GH_LOG": str(log),
+        }
+        res = self.run_script("pull", "--open-pr", "--package", PKG, "--json",
+                              env_extra=env)
+        self.assertEqual(res.returncode, 0, res.stderr + res.stdout)
+        rec = self.json_record(res)
+        self.assertTrue(rec["ok"])
+        self.assertIn("resolution_divergences", rec)
+        self.assertEqual(rec["resolution_divergences"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

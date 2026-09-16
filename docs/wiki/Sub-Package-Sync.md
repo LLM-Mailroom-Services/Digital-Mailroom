@@ -56,6 +56,42 @@ python scripts/sync_packages.py snapshot [--package <name>] [--force]  # re-base
   gitignored-heavy-asset paths; gitignore does not apply to tracked files,
   so `git rm -r --cached` + tree removal is the fix — HUB-004).
 
+## The push-leg decision tree (DMR-070)
+
+Pick the push leg by WHAT the monorepo delta contains — the wrong leg is a
+doom loop:
+
+| Delta contains | Leg | Why |
+| --- | --- | --- |
+| Additions/modifications only | `push --package <name> --patch` (or full subtree push) | Content pushes carry everything; `--patch` lands one fast-forward commit. |
+| Deletions of tracked upstream paths | `push --package <name>` (full subtree push, NO `--patch`) | `patch_push` rebuilds monorepo blobs on top of the tip — upstream-only paths would silently survive. The deletion guard now REFUSES (`exit 5`, `deleted_paths`) instead of letting that happen (the v0.6.0 compliance-removal trap). |
+| Either, before pushing | add `--verify-suite` | Runs the touched package's pytest suite first (`SYNC_VERIFY_CMD` overrides); a red suite refuses push AND cursor advance. |
+
+Post-import (DMR-070a): `pull --open-pr` blob-compares every ladder-resolved
+path against BOTH merge sides; a resolution matching neither side is
+resolution-introduced content — reported on stderr, in
+`resolution_divergences` (JSON), and in the PR body. Exit codes:
+0 ok / 1 network / 2 dirty / 3 conflict-aborted / 4 git-internal /
+**5 verification refused**.
+
+## Vendor snapshots (sandbox self-containment)
+
+`packages/local-mailroom-sandbox/vendor/` tracks the monorepo **workspace
+packages**, not upstream tags (hub#62 doctrine; the drift guard
+`packages/local-mailroom-sandbox/tests/test_vendor_drift.py` enforces
+byte-identity).
+
+```bash
+python scripts/sync_vendor.py           # mirror workspace -> vendor (content AND deletions)
+python scripts/sync_vendor.py --check   # CI-friendly no-op drift gate
+```
+
+`sandbox fetch-deps` mirrors the workspace when the monorepo layout is
+detected and falls back to a loud tag-based refresh for standalone clones.
+NEVER tag-refresh the vendored llm-mailroom from the monorepo: the v0.7.1
+tag predates the five-class taxonomy removal (59c47401), so a tag-based
+re-snapshot resurrects the deleted docclass-era files.
+
 ## Verification contract for a sync session
 
 1. `status` → all packages in sync (or the drift is the work).

@@ -14,14 +14,15 @@ Usage:
     python scripts/sync_packages.py [--manifest PATH] [--repo-root PATH] \\
         status [--package NAME | --all] [--no-fetch] [--json]
     python scripts/sync_packages.py [--manifest PATH] [--repo-root PATH] \\
-        pull [--package NAME | --all] [--squash] [--allow-dirty] \\
+        pull [--package NAME | --all] [--squash] [--allow-dirty] [--verify-suite] \\
              [--open-pr [--resolve ours|theirs] | --keep-conflicts] [--json]
     python scripts/sync_packages.py [--manifest PATH] [--repo-root PATH] \\
-        push [--package NAME | --all] [--allow-dirty] [--patch] [--dry-run] [--json]
+        push [--package NAME | --all] [--allow-dirty] [--patch] [--verify-suite] \\
+             [--dry-run] [--json]
     python scripts/sync_packages.py [--manifest PATH] [--repo-root PATH] \\
         snapshot [--package NAME | --all] [--force] [--json]
 
-Exit codes (DMR-064 taxonomy):
+Exit codes (DMR-064 taxonomy, +5 DMR-070):
   0  ok
   1  network/fetch failure  — upstream unreachable (ls-remote / fetch failed)
   2  dirty worktree refusal at entry, or a merge conflict LEFT in place
@@ -29,9 +30,13 @@ Exit codes (DMR-064 taxonomy):
   3  merge conflict — aborted cleanly (worktree restored to the pre-pull state)
   4  other git/internal failure — unknown package, corrupt manifest, missing
      git subtree, worktree add/remove failure, gh missing, abort failure
+  5  verification refused (DMR-070) — ``--verify-suite`` ran the touched
+     package's suite and it FAILED, or the patch-push deletion guard refused
+     to content-push a package whose monorepo tree deletes tracked upstream
+     paths (content pushes can never carry deletions)
 
 Multi-package runs return the highest (most severe) code observed
-(severity order 4 > 3 > 2 > 1 > 0).
+(severity order 5 > 4 > 3 > 2 > 1 > 0).
 
 Conflict handling (pull): a nonzero ``git subtree pull`` is probed for real
 merge state (MERGE_HEAD present AND unmerged paths via ``diff --diff-filter=U``
@@ -54,11 +59,26 @@ against main is opened via ``gh``. The sync cursor is NEVER advanced from a
 branch/PR state — it bounces only when the import lands on main
 (``unimported_upstream_paths`` stays the containment safety net).
 
+Post-import verification (DMR-070, the v0.6.0 lessons): (a) every resolved
+conflict path is blob-compared against BOTH merge sides — a resolution that
+matches neither side (the v0.6 ``corpus.py`` else-branch mangling class) is
+reported loudly on stderr, carried as ``resolution_divergences`` in the JSON
+record, and appended to the PR body; (b) ``--verify-suite`` runs the touched
+package's test suite (default: ``pytest packages/<pkg>/[src/]tests -q -x``;
+``SYNC_VERIFY_CMD`` overrides) — pull refuses to advance the cursor, the
+branch flow refuses to push/open the PR, and ``push --patch`` refuses to
+push, whenever the suite fails; (c) ``push --patch`` REFUSES (exit 5,
+``deleted_paths``) any package whose monorepo tree deletes tracked upstream
+paths — content pushes cannot carry deletions; use the full subtree-push leg.
+
 --json parity: each of pull/push/snapshot emits one JSON document per package
 (JSON Lines on stdout, even on failure — human text goes to stderr):
 {command, package, ok, exit_code, error_class: "network"|"dirty"|"conflict"
-|"git"|"ok", conflicted_paths: [{path, kind}], remediation, cursor_updated,
-branch, pr_url}  (+ upstream_tip/resolution/aborted where relevant).
+|"git"|"verify"|"ok", conflicted_paths: [{path, kind}], remediation,
+cursor_updated, branch, pr_url}  (+ upstream_tip/resolution/aborted where
+relevant; DMR-070 additions: ``deleted_paths`` on a refused patch push,
+``resolution_divergences`` on a resolved import, ``verify_detail_tail`` on a
+failed --verify-suite).
 
 Cursor safety (HUB-021; incidents HUB-012/HUB-018): every cursor write is
 guarded by a CONTENT check — the upstream tip's blob tree must be fully
@@ -99,13 +119,14 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-E_OK, E_NETWORK, E_DIRTY, E_CONFLICT, E_GIT = 0, 1, 2, 3, 4
+E_OK, E_NETWORK, E_DIRTY, E_CONFLICT, E_GIT, E_VERIFY = 0, 1, 2, 3, 4, 5
 ERROR_CLASS = {
     E_OK: "ok",
     E_NETWORK: "network",
     E_DIRTY: "dirty",
     E_CONFLICT: "conflict",
     E_GIT: "git",
+    E_VERIFY: "verify",
 }
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -673,6 +694,28 @@ def cmd_pull(args: argparse.Namespace) -> int:
             cmd.append("--squash")
         result = git_foreground(cmd)
         if result.returncode == 0:
+            # DMR-070: --verify-suite gates cursor advance on the touched
+            # package's suite. The merge is already committed here; a red
+            # suite leaves the merge in place (fix or revert it) and the
+            # cursor untouched.
+            if getattr(args, "verify_suite", False):
+                ok, detail = run_verify_suite(package)
+                if not ok:
+                    rec = base_record(args.command, package)
+                    rec.update(
+                        {
+                            "exit_code": E_VERIFY,
+                            "error_class": ERROR_CLASS[E_VERIFY],
+                            "remediation": "verify-suite failed on the imported merge — fix or revert "
+                                           f"the merge commit (git reset --hard ORIG_HEAD), then re-run; "
+                                           "the cursor was NOT advanced",
+                            "verify_detail_tail": detail[-1500:],
+                            "upstream_tip": head[:12],
+                        }
+                    )
+                    emit(rec)
+                    worst = max(worst, E_VERIFY)
+                    continue
             entries[package] = {
                 "url": url,
                 "branch": DEFAULT_BRANCH,
@@ -876,6 +919,12 @@ def pr_branch_flow(args: argparse.Namespace, package: str, url: str, head: str,
     if fetched.returncode != 0:
         return teardown(E_NETWORK, f"!! {package}: fetch of {url} failed",
                         "check connectivity to the upstream repo")
+    # DMR-070(a): capture both merge sides BEFORE merging — pre_head is the
+    # "ours" blob source, FETCH_HEAD (pinned to a sha NOW, before any other
+    # git op can move it) is the "theirs" side (upstream paths carry NO
+    # packages/<pkg>/ prefix).
+    theirs = git(["rev-parse", "FETCH_HEAD"]).stdout.strip()
+    pre_head = git(["rev-parse", "HEAD"]).stdout.strip()
     msg = (
         f"sync: import {package} upstream {sha12} ({args.resolve} resolution) "
         "from Digital-Mailroom — DMR-064 branch flow"
@@ -884,6 +933,7 @@ def pr_branch_flow(args: argparse.Namespace, package: str, url: str, head: str,
         ["merge", "--no-ff", "-m", msg, "-s", "recursive",
          f"-Xsubtree=packages/{package}", f"-X{args.resolve}", "FETCH_HEAD"],
     )
+    resolved_paths: list[str] = []
     if merged.returncode != 0:
         cs2 = conflict_state()
         if cs2 is None:
@@ -901,9 +951,34 @@ def pr_branch_flow(args: argparse.Namespace, package: str, url: str, head: str,
         if done.returncode != 0:
             return teardown(E_GIT, f"!! {package}: could not commit the resolved merge",
                             f"inspect the commit failure: {done.stderr.strip()}")
+        resolved_paths = [p["path"] for p in cs2["paths"]]
     if merge_in_progress():
         return teardown(E_GIT, f"!! {package}: merge state still present after the branch merge",
                         "inspect git status on the branch")
+    # DMR-070(a): post-resolution divergence audit — every ladder-resolved
+    # path is blob-compared against BOTH merge sides. A resolution matching
+    # neither side is resolution-introduced content (the v0.6 corpus.py
+    # else-branch mangling shipped exactly this way, silently). The clean
+    # -X-strategy path is skipped: its fusion blobs legitimately match
+    # neither pure side, so auditing it would only produce false positives.
+    divergences = resolution_divergences(package, pre_head, theirs, resolved_paths)
+    for d in divergences:
+        warn(f"!! {package}: RESOLUTION DIVERGENCE (DMR-070): {d['path']} — "
+             f"resolved blob {d['resolved']} matches NEITHER merge side "
+             f"(ours {d['ours']}, theirs {d['theirs']}) — review before merging this import")
+    record["resolution_divergences"] = divergences
+    # DMR-070: --verify-suite gates the push/PR on the touched package's
+    # suite. A red suite refuses to push the branch and open the PR.
+    if getattr(args, "verify_suite", False):
+        ok, detail = run_verify_suite(package)
+        if not ok:
+            record["verify_detail_tail"] = detail[-1500:]
+            return teardown(
+                E_VERIFY,
+                f"!! {package}: verify-suite FAILED on the import branch — not pushing, not opening a PR",
+                "fix the suite on the branch, or abandon it (git switch -f main && git branch -D "
+                + branch + ") and re-run",
+            )
     pushed = git(["push", "-u", "origin", branch])
     if pushed.returncode != 0:
         return teardown(
@@ -924,6 +999,18 @@ def pr_branch_flow(args: argparse.Namespace, package: str, url: str, head: str,
                         f"run the gh command above (or install gh): {cmd_hint}")
     title = f"sync({package}): import upstream {sha12}"
     body = pr_body(package, url, head, cs, args.resolve)
+    if divergences:
+        lines = [
+            "", "## DMR-070 resolution divergences", "",
+            "Resolved paths whose blob matches NEITHER merge side — resolution-"
+            "introduced content. Review each before merging this import:",
+        ]
+        for d in divergences:
+            lines.append(
+                f"- `{d['path']}` — resolved {d['resolved']} vs ours {d['ours']} "
+                f"/ theirs {d['theirs']}"
+            )
+        body += "\n".join(lines)
     pr = run([gh, "pr", "create", "--base", "main", "--head", branch,
               "--title", title, "--body", body])
     if pr.returncode != 0:
@@ -949,7 +1036,129 @@ def pr_branch_flow(args: argparse.Namespace, package: str, url: str, head: str,
     return E_OK, record
 
 
-def patch_push(package: str, url: str, tip: str, *, dry_run: bool) -> tuple[int, dict]:
+# --------------------------------------------------------------------------- #
+# DMR-070: post-import verification seams
+# --------------------------------------------------------------------------- #
+
+
+def _blob_sha(rev: str, path: str) -> str | None:
+    """Blob sha of ``path`` at ``rev`` (absolute), or None when absent."""
+    res = git(["rev-parse", "--verify", "--quiet", f"{rev}:{path}"])
+    if res.returncode != 0:
+        return None
+    return res.stdout.strip() or None
+
+
+def classify_resolution(resolved: str | None, ours: str | None,
+                        theirs: str | None) -> str:
+    """Classify a conflict resolution against its two merge sides (DMR-070a).
+
+    Returns "ours" | "theirs" | "both" (identical sides) | "absent" (a
+    deletion was kept) | "divergent" — the resolved blob matches NEITHER side,
+    the resolution-introduced-content class (the v0.6 ``corpus.py``
+    else-branch mangling shipped exactly this way, silently).
+    """
+    if resolved is None:
+        return "absent"
+    if ours is not None and theirs is not None and resolved == ours == theirs:
+        return "both"
+    if ours is not None and resolved == ours:
+        return "ours"
+    if theirs is not None and resolved == theirs:
+        return "theirs"
+    return "divergent"
+
+
+def resolution_divergences(package: str, pre_head: str, upstream: str,
+                           paths: list[str]) -> list[dict]:
+    """Report resolved paths whose blob matches neither merge side (DMR-070a).
+
+    ``pre_head`` is the monorepo HEAD before the import merge (the "ours"
+    side); ``upstream`` is the fetched upstream tip sha (the "theirs" side —
+    NOTE the upstream tree has NO ``packages/<pkg>/`` prefix; paths are
+    addressed relative to the package root there). Only the DIVERGENT verdict
+    is reported — "ours"/"theirs"/"both" are faithful resolutions and
+    "absent" is a kept deletion.
+    """
+    prefix = f"packages/{package}/"
+    out: list[dict] = []
+    for path in paths:
+        rel = path[len(prefix):] if path.startswith(prefix) else path
+        resolved = _blob_sha("HEAD", path)
+        ours = _blob_sha(pre_head, path)
+        theirs = _blob_sha(upstream, rel)
+        verdict = classify_resolution(resolved, ours, theirs)
+        if verdict == "divergent":
+            out.append({
+                "path": path,
+                "verdict": verdict,
+                "resolved": (resolved or "")[:12],
+                "ours": (ours or "")[:12],
+                "theirs": (theirs or "")[:12],
+            })
+    return out
+
+
+def monorepo_deleted_paths(tip: str, package: str) -> list[str]:
+    """Tracked upstream paths (repo-root-relative at ``tip``) absent from the
+    monorepo package tree — the deletion class a content push can NEVER carry
+    (DMR-070b: patch pushes rebuild monorepo blobs ON TOP of the tip, so
+    upstream-only paths silently survive the push). Gitignored missing paths
+    are excluded (the deliberate heavy-asset prune is not a deletion)."""
+    return sorted(unimported_upstream_paths(tip, package))
+
+
+def _verify_cmd(package: str) -> list[str] | None:
+    """Verify-suite command for a package (DMR-070 --verify-suite).
+
+    Default: the package's pytest suite (``packages/<pkg>/tests`` or
+    ``packages/<pkg>/src/tests``). ``SYNC_VERIFY_CMD`` (shlex-split)
+    overrides — the hermetic tests inject stubs through it. None when the
+    package ships no recognizable tests dir (trivially green).
+    """
+    override = os.environ.get("SYNC_VERIFY_CMD", "").strip()
+    if override:
+        import shlex
+
+        return shlex.split(override)
+    for tests_dir in (f"packages/{package}/tests", f"packages/{package}/src/tests"):
+        if (REPO_ROOT / tests_dir).is_dir():
+            return [sys.executable, "-m", "pytest", tests_dir, "-q", "--no-header", "-x"]
+    return None
+
+
+def run_verify_suite(package: str, *, dry_run: bool = False) -> tuple[bool, str]:
+    """Run the touched package's test suite (DMR-070 --verify-suite).
+
+    Returns (ok, detail_tail). Callers refuse to advance cursors / push /
+    open PRs when ok is False.
+    """
+    cmd = _verify_cmd(package)
+    if cmd is None:
+        info(f"== {package}: no tests dir found — verify-suite trivially green")
+        return True, "no tests dir"
+    if dry_run:
+        info(f"== DRY RUN {package}: would run verify-suite: {' '.join(cmd)}")
+        return True, "dry-run"
+    env = dict(os.environ)
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    try:
+        proc = subprocess.run(cmd, cwd=str(REPO_ROOT), env=env, text=True,
+                              capture_output=True, timeout=3600)
+    except subprocess.TimeoutExpired:
+        warn(f"!! {package}: verify-suite TIMED OUT after 3600s — refusing to advance")
+        return False, "verify-suite timed out"
+    detail = ((proc.stdout or "")[-4000:] + "\n" + (proc.stderr or "")[-2000:]).strip()
+    if proc.returncode != 0:
+        warn(f"!! {package}: verify-suite FAILED (exit {proc.returncode}) — "
+             "refusing to advance (DMR-070 --verify-suite)")
+        return False, detail[-2000:]
+    info(f"== {package}: verify-suite green ({' '.join(cmd)})")
+    return True, detail[-500:]
+
+
+def patch_push(package: str, url: str, tip: str, *, dry_run: bool,
+               verify_suite: bool = False) -> tuple[int, dict]:
     """HUB-012 workaround, scripted: land the monorepo delta as ONE commit on
     top of the real upstream tip (fast-forward by construction), then
     re-baseline the cursor. Only tracked package files propagate; upstream
@@ -959,6 +1168,35 @@ def patch_push(package: str, url: str, tip: str, *, dry_run: bool) -> tuple[int,
     Returns (exit_code, JSON record).
     """
     command = "push"
+    # DMR-070(b): patch pushes carry CONTENT, never deletions — the worktree
+    # is rebuilt from monorepo blobs ON TOP of the tip, so upstream paths the
+    # monorepo deleted would silently survive the push (the v0.6.0 compliance
+    # removal needed the full subtree-push leg for exactly this reason).
+    # Checked BEFORE the containment guard: a deletion-bearing package also
+    # fails containment, but with a misleading "pull first" remediation — a
+    # deliberate removal cannot be fixed by pulling. Refuse with the leg that
+    # actually carries deletions (full subtree push).
+    if deleted := monorepo_deleted_paths(tip, package):
+        prefixed = [f"packages/{package}/{p}" for p in deleted]
+        rec = base_record(command, package)
+        rec.update(
+            {
+                "exit_code": E_VERIFY,
+                "error_class": ERROR_CLASS[E_VERIFY],
+                "remediation": f"{len(deleted)} tracked upstream path(s) deleted monorepo-side; "
+                               "content pushes cannot carry deletions — use the full "
+                               f"subtree-push leg: python scripts/sync_packages.py push --package {package}",
+                "deleted_paths": prefixed,
+                "upstream_tip": tip[:12],
+            }
+        )
+        warn(f"!! {package}: patch-push REFUSED — the monorepo deletes "
+             f"{len(deleted)} tracked upstream path(s), which a content push "
+             "would silently resurrect upstream (DMR-070):")
+        for p in prefixed:
+            warn(f"   - {p}")
+        warn(f"   use the full subtree-push leg: python scripts/sync_packages.py push --package {package}")
+        return E_VERIFY, rec
     if gaps := unimported_upstream_paths(tip, package):
         rec = base_record(command, package)
         rec.update(
@@ -1028,6 +1266,24 @@ def patch_push(package: str, url: str, tip: str, *, dry_run: bool) -> tuple[int,
         if not staged.stdout.strip() or n_files == 0:
             info(f"== {package}: no content delta vs upstream tip {tip[:12]} — nothing to propagate")
             return E_OK, record_ok(command, package, cursor_updated=False)
+        # DMR-070: --verify-suite gates the push on the touched package's own
+        # suite (run in the monorepo checkout — HEAD carries exactly the delta
+        # being propagated). A red suite refuses commit AND push.
+        if verify_suite:
+            ok, detail = run_verify_suite(package)
+            if not ok:
+                rec = base_record(command, package)
+                rec.update(
+                    {
+                        "exit_code": E_VERIFY,
+                        "error_class": ERROR_CLASS[E_VERIFY],
+                        "remediation": "verify-suite failed — fix or revert the monorepo delta, "
+                                       "then re-run; nothing was committed or pushed",
+                        "verify_detail_tail": detail[-1500:],
+                        "upstream_tip": tip[:12],
+                    }
+                )
+                return E_VERIFY, rec
         stamp = git(["rev-parse", "--short", "HEAD"]).stdout.strip()
         message = (
             f"Monorepo propagation: {package} from Digital-Mailroom@{stamp}\n\n"
@@ -1099,7 +1355,8 @@ def cmd_push(args: argparse.Namespace) -> int:
                 warn(f"!! could not fetch upstream tip for {package}")
                 worst = max(worst, E_NETWORK)
                 continue
-            code, rec = patch_push(package, url, tip, dry_run=args.dry_run)
+            code, rec = patch_push(package, url, tip, dry_run=args.dry_run,
+                                   verify_suite=args.verify_suite)
             if code == E_OK and not args.dry_run:
                 # DMR-064: cursor entry saved IMMEDIATELY after the push lands —
                 # an interrupt after this point cannot desync this package.
@@ -1293,6 +1550,12 @@ def main(argv: list[str] | None = None) -> int:
         help="resolution strategy for --open-pr (default: ours = monorepo content "
              "wins, the HUB-021 containment doctrine; theirs DROPS monorepo content)",
     )
+    pull.add_argument(
+        "--verify-suite", action="store_true",
+        help="DMR-070: run the touched package's test suite before advancing the cursor "
+             "(pull) / pushing the import branch (pull --open-pr); SYNC_VERIFY_CMD overrides "
+             "the default pytest invocation",
+    )
     pull.add_argument("--json", action="store_true", help="machine-readable output (JSON Lines)")
     pull.set_defaults(func=cmd_pull)
 
@@ -1306,6 +1569,12 @@ def main(argv: list[str] | None = None) -> int:
         "one commit on the current upstream tip, then re-baseline the cursor",
     )
     push.add_argument("--dry-run", action="store_true", help="print the plan; no pushes, no cursor writes")
+    push.add_argument(
+        "--verify-suite",
+        action="store_true",
+        help="DMR-070: run the touched package's test suite before pushing the patch; "
+             "SYNC_VERIFY_CMD overrides the default pytest invocation",
+    )
     push.add_argument("--json", action="store_true", help="machine-readable output (JSON Lines)")
     push.set_defaults(func=cmd_push)
 

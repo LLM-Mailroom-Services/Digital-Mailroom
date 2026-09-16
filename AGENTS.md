@@ -330,6 +330,48 @@ cursor_updated, branch, pr_url) and the global `--manifest`/`--repo-root`
 overrides for temp-state runs. Hermetic suite: `python3 -m unittest discover
 scripts/tests`.
 
+**Push-leg decision tree (DMR-070 — follow it; the wrong leg is a doom
+loop):** pick the leg by WHAT the monorepo delta contains:
+- **Content-only delta** (files added/modified, nothing deleted): either leg
+  works — `push --package <name> --patch` (fast, one fast-forward commit) or
+  the full `git subtree push` leg.
+- **Deletion-bearing delta** (the monorepo removed tracked upstream paths —
+  e.g. a retired agent): **only the full subtree-push leg carries
+  deletions** — run `push --package <name>` WITHOUT `--patch`.
+  `push --patch` REFUSES deletion-bearing packages (exit 5, error_class
+  `verify`, `deleted_paths` in the record) because a content push would
+  silently resurrect the deleted files upstream — the v0.6.0 compliance
+  removal shipped exactly this trap. If a deletion-bearing push fails
+  containment/non-fast-forward, fix the push (fetch upstream, graft), never
+  re-add the deleted files.
+- **Verify before pushing:** add `--verify-suite` to `push --patch` (and
+  `pull`) to run the touched package's pytest suite before anything is
+  pushed or any cursor advances (`SYNC_VERIFY_CMD` env overrides the
+  default pytest invocation — used by the hermetic tests).
+
+**Post-import verification (DMR-070):** after `pull --open-pr` resolves
+conflicts, every ladder-resolved path is blob-compared against BOTH merge
+sides; a resolution matching NEITHER side is resolution-introduced content
+(the v0.6 `corpus.py` else-branch mangling class) — it is reported loudly on
+stderr, carried as `resolution_divergences` in the JSON record, and appended
+to the PR body. Exit codes now include **5 verification refused**
+(`--verify-suite` failure, or the patch-push deletion guard); severity order
+5 > 4 > 3 > 2 > 1 > 0.
+
+**Vendor snapshots (sandbox self-containment, DMR-057/hub#62/DMR-070):**
+`packages/local-mailroom-sandbox/vendor/` are TRACKED snapshots that track
+the monorepo **workspace packages**, not upstream tags (the drift guard
+`tests/test_vendor_drift.py` enforces byte-identity; both VENDOR.md files
+document the doctrine). Refresh with `python scripts/sync_vendor.py`
+(monorepo root) — it mirrors workspace → vendor carrying BOTH content AND
+deletions, and `--check` is a CI-friendly no-op drift gate.
+`sandbox fetch-deps` mirrors the workspace when the monorepo layout is
+detected and falls back to a loud tag-based refresh for standalone clones.
+NEVER tag-refresh the vendored llm-mailroom from the monorepo: the v0.7.1
+tag predates the five-class taxonomy removal (59c47401), so a tag-based
+re-snapshot resurrects the deleted docclass-era files (the exact revival
+this tooling now refuses).
+
 ## Workspace rules
 
 - Member dependency lines keep their published git pins (release builds via

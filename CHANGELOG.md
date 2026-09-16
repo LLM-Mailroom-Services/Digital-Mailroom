@@ -20,6 +20,69 @@ belongs to the standalone mailroom lineage that became `packages/llm-mailroom`
 and is recorded there, not here.
 
 ## [Unreleased]
+### Added
+
+- **Sync tooling: post-import verification seams (DMR-070):** new exit code
+  **5 verification refused**; `push --patch` REFUSES deletion-bearing
+  packages (the monorepo removed tracked upstream paths) with `deleted_paths`
+  in the record and directs to the full subtree-push leg — a content push
+  would silently resurrect the deleted files upstream (the v0.6.0
+  compliance-removal trap). `pull --open-pr` blob-compares every
+  ladder-resolved conflict path against BOTH merge sides and reports
+  resolution-introduced content loudly (stderr + `resolution_divergences`
+  record field + PR-body section) — the v0.6 `corpus.py` else-branch
+  mangling class. New `--verify-suite` flag on `pull`/`push --patch` runs
+  the touched package's pytest suite (`SYNC_VERIFY_CMD` overrides) before
+  any push or cursor advance; a red suite refuses with the failure tail in
+  `verify_detail_tail`. Hermetic suite: 35 tests
+  (`python3 -m unittest discover scripts/tests`), including deletion-guard,
+  verify-gate, resolution-classifier, and divergence-mapping pins.
+
+- **Vendor snapshot refresh tooling (DMR-057/DMR-070):** new
+  `scripts/sync_vendor.py` mirrors the workspace packages onto
+  `packages/local-mailroom-sandbox/vendor/` carrying BOTH content AND
+  deletions (a copy-only refresh is how the docclass-era compliance files
+  survived their upstream removal), with `--check` as a CI-friendly drift
+  gate. `sandbox fetch-deps` now prefers the same workspace mirror when the
+  monorepo layout is detected (offline, deletion-carrying) and falls back to
+  a loud tag-based refresh for standalone clones — a tag-based re-snapshot
+  of llm-mailroom from the monorepo would resurrect the deleted docclass-era
+  files (the v0.7.1 tag predates 59c47401).
+
+### Changed
+
+- **Vendor snapshots track the workspace packages (hub#62 doctrine, both
+  trees):** `vendor/llm-mailroom/VENDOR.md` + `vendor/llm-dojo-scoring/
+  VENDOR.md` document the workspace-snapshot pin; `test_vendor.py` asserts
+  the doctrine strings. The vendored llm-mailroom snapshot was refreshed to
+  the post-removal workspace: 26 files updated, the 5 docclass-era files
+  deleted (`agents/compliance_specialist.py`, `pipeline/docclass_mode.py`,
+  `langchain_agents/prompts_docclass.py`,
+  `langchain_agents/skills/compliance_specialist/*`) — closing the
+  DMR-057 vendor-drift set DMR-066 flagged (`test_vendor` pin mismatch +
+  `test_vendor_drift` `[llm-mailroom]` compliance residue).
+
+- **Compliance-specialist retirement completed across the sandbox surface:**
+  removed from the eval registry (`SPECIALIST_CLASS`/`LIVE_CLASS_MAP`, added
+  to `RETIRED_AGENTS`), the prompt roster (`STATIC_AGENTS`), the component
+  gates (`config/components.yaml` → `retired_agents`), the taxonomy overlay,
+  and the sandbox base taxonomy (`compliance_filing` doc class + specialist
+  model block); `test_agents.py` roster updated. The stale specialist-roster
+  prose in `packages/llm-mailroom/src/agents/README.md` was corrected in the
+  workspace and mirrored into the vendored snapshot.
+
+### Fixed
+
+- **Board invariant repair:** removed the byte-identical duplicate DMR-064
+  archive entry that failed `board_state.py check` (duplicate-card-id) —
+  `board check` is green again (12 open cards, 0 errors/warnings).
+
+- **Docs truth:** `AGENTS.md` Sub-package sync section + the
+  `Sub-Package-Sync` wiki page now carry the DMR-070 push-leg decision tree
+  (content-only vs deletion-bearing deltas), the exit-code 5 taxonomy, the
+  post-import divergence audit, and the vendor-snapshot workspace doctrine
+  with the tag-refresh resurrection warning — the doom-loop instructions
+  that let removed files repopulate are corrected at the contract level.
 
 ## [0.6.0] - 2026-09-16
 ### Fixed

@@ -58,6 +58,25 @@ and is recorded there, not here.
   Langfuse dataset summary 13 → 11 original samples). Expectations proven
   against the live `is_real_sample` / `filter_real_samples` logic with a
   reconstructed 23-row manifest; full llm-mailroom suite 1053p/36s.
+- **sync_packages.py: the silent no-op push class is killed (DMR-073).** The
+  DMR-071 propagation audit caught the patch-push success line reporting
+  `propagated N file(s) (tip X)` with the PRE-push tip and no landing proof —
+  two real deltas (llm-dojo-scoring 9 files, llm-entity-extraction 4 files)
+  silently never reached upstream while the session and the cursors read
+  success. Hardened: every patch push now proves its landing with a post-push
+  `ls-remote` probe that must equal the pushed worktree commit — unchanged tip
+  refuses as exit 5 `verify` ("SILENT NO-OP GUARD"), an unreachable remote
+  refuses as exit 1, a foreign tip (concurrent push) refuses as exit 5; the
+  success message names the POST-push tip and the pushed commit. The empty
+  delta path no longer trusts its own claim: a staged diff of zero files is
+  cross-checked against the tree-level comparison `status` uses
+  (`local_ahead_paths`) and an "empty diff while the monorepo is ahead"
+  contradiction refuses as exit 5 `extraction mismatch`. The subtree push leg
+  reports the true post-push tip and says plainly when the remote did not
+  move (git-verified already-contained). Cursors re-baseline only after a
+  verified landing; success records carry `pushed_commit`/`landed_tip`.
+  Hermetic pins: 9 new unit tests (all guard branches, both push legs);
+  scripts/tests 44/44 green.
 
 ## [0.7.0] - 2026-09-16
 ### Added

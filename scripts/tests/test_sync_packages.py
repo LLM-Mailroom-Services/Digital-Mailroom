@@ -8,6 +8,8 @@ sides to force conflicts). No network. stdlib unittest only.
 Run:  python3 -m unittest discover scripts/tests -v
 """
 
+import argparse
+import contextlib
 import json
 import os
 import shutil
@@ -16,6 +18,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "sync_packages.py"
@@ -860,6 +863,196 @@ class TestVerifySuiteGate(SyncScriptTest):
         self.assertTrue(rec["ok"])
         self.assertIn("resolution_divergences", rec)
         self.assertEqual(rec["resolution_divergences"], [])
+
+
+class TestSilentNoOpGuard(unittest.TestCase):
+    """DMR-073: a push rc==0 is NOT evidence of a landing.
+
+    The DMR-071 hole: the patch-push success line printed the PRE-push tip and
+    nothing verified the remote actually moved, so the dojo (9-file) and
+    entity (4-file) deltas silently never left the monorepo while the session
+    and the cursors recorded success. These pins drive every branch of the
+    post-push guard at the unit level (module imported with stubbed plumbing;
+    the end-to-end happy path is covered by test_n2 above).
+    """
+
+    TIP = "1" * 40            # remote tip before the push
+    PUSHED = "2" * 40         # the worktree commit patch_push creates
+    FOREIGN = "3" * 40        # a concurrent push's commit
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, str(REPO_ROOT / "scripts"))
+        import sync_packages as sp
+        cls.sp = sp
+
+    def setUp(self):
+        self.sp = type(self).sp
+        # JSON_MODE off so info() goes to stdout and never breaks record parsing
+        self._json_mode = self.sp.JSON_MODE
+        self.sp.JSON_MODE = False
+        self.notes = []
+        self.warnings = []
+
+    def tearDown(self):
+        self.sp.JSON_MODE = self._json_mode
+
+    @contextlib.contextmanager
+    def _patched(self, *, upstream_heads, ahead_paths=(),
+                 staged_diff=" packages/x/a.txt | 1 +\n"):
+        """Stub the plumbing patch_push needs; git() dispatches on argv."""
+        sp = self.sp
+        heads = iter(upstream_heads)
+
+        def fake_upstream_head(url, branch):
+            try:
+                return next(heads)
+            except StopIteration:  # probe repeated (cursor write re-probes)
+                return upstream_heads[-1]
+
+        def fake_git(args, *, capture=True, binary=False):
+            class P:
+                def __init__(self, returncode=0, stdout="", stderr=""):
+                    self.returncode, self.stdout, self.stderr = returncode, stdout, stderr
+            if args[:2] == ["-C", mock.ANY] or args[0] == "-C":
+                if "push" in args:
+                    return P()
+                if "diff" in args:  # staged delta vs the worktree tip
+                    return P(stdout=staged_diff)
+                if "rev-parse" in args and "--short" not in args:
+                    return P(stdout=self.PUSHED)
+                return P()
+            if args[:2] == ["ls-tree", "-r"]:
+                entry = f"100644 blob {'a' * 40}\tpackages/{PKG}/a.txt"
+                out = (entry + "\0").encode() if binary else entry + "\0"
+                return P(stdout=out)
+            if args[:2] == ["cat-file", "blob"]:
+                return P(stdout=b"new content\n")
+            if args[:2] == ["rev-parse", "--short"]:
+                return P(stdout="abc1234")
+            return P()
+
+        with mock.patch.object(sp, "monorepo_deleted_paths", return_value=[]), \
+             mock.patch.object(sp, "unimported_upstream_paths", return_value={}), \
+             mock.patch.object(sp, "local_ahead_paths", return_value=list(ahead_paths)), \
+             mock.patch.object(sp, "upstream_head", side_effect=fake_upstream_head), \
+             mock.patch.object(sp, "git", side_effect=fake_git), \
+             mock.patch.object(sp, "info", side_effect=self.notes.append), \
+             mock.patch.object(sp, "warn", side_effect=self.warnings.append):
+            yield
+
+    def test_a_push_that_did_not_move_the_tip_is_verify_refusal(self):
+        # THE DMR-071 regression: push rc==0, remote tip unchanged → refuse.
+        with self._patched(upstream_heads=[self.TIP]):
+            code, rec = self.sp.patch_push(PKG, "https://fake/up.git", self.TIP, dry_run=False)
+        self.assertEqual(code, self.sp.E_VERIFY)
+        self.assertEqual(rec["error_class"], "verify")
+        self.assertFalse(rec["ok"])
+        self.assertIn("SILENT NO-OP", rec["remediation"])
+        self.assertEqual(rec["pushed_commit"], self.PUSHED[:12])
+        self.assertEqual(rec["landed_tip"], self.TIP[:12])
+        self.assertTrue(any("SILENT NO-OP GUARD" in n for n in self.warnings))
+
+    def test_b_push_that_lands_reports_post_tip_and_commit(self):
+        with self._patched(upstream_heads=[self.PUSHED]):
+            code, rec = self.sp.patch_push(PKG, "https://fake/up.git", self.TIP, dry_run=False)
+        self.assertEqual(code, self.sp.E_OK)
+        self.assertTrue(rec["ok"])
+        self.assertEqual(rec["landed_tip"], self.PUSHED[:12])
+        self.assertEqual(rec["pushed_commit"], self.PUSHED[:12])
+        self.assertTrue(any(self.PUSHED[:12] in n and "propagated" in n for n in self.notes))
+
+    def test_c_unreachable_remote_after_push_is_network(self):
+        with self._patched(upstream_heads=[None]):
+            code, rec = self.sp.patch_push(PKG, "https://fake/up.git", self.TIP, dry_run=False)
+        self.assertEqual(code, self.sp.E_NETWORK)
+        self.assertEqual(rec["error_class"], "network")
+        self.assertIn("cursor NOT advanced", rec["remediation"])
+
+    def test_d_foreign_post_tip_is_verify_refusal(self):
+        with self._patched(upstream_heads=[self.FOREIGN]):
+            code, rec = self.sp.patch_push(PKG, "https://fake/up.git", self.TIP, dry_run=False)
+        self.assertEqual(code, self.sp.E_VERIFY)
+        self.assertEqual(rec["landed_tip"], self.FOREIGN[:12])
+        self.assertIn("concurrent push", rec["remediation"])
+
+    def test_e_empty_delta_with_ahead_paths_is_extraction_mismatch(self):
+        # staged diff empty BUT the tree-level comparison says the monorepo is
+        # ahead → the blob extraction under-copied; refuse the no-delta claim.
+        with self._patched(upstream_heads=[self.TIP], ahead_paths=["a.txt", "b/c.txt"],
+                           staged_diff=""):
+            code, rec = self.sp.patch_push(PKG, "https://fake/up.git", self.TIP, dry_run=False)
+        self.assertEqual(code, self.sp.E_VERIFY)
+        self.assertIn("extraction mismatch", rec["remediation"])
+        self.assertEqual(rec["monorepo_ahead_paths"],
+                         [f"packages/{PKG}/a.txt", f"packages/{PKG}/b/c.txt"])
+
+    def test_f_true_empty_delta_still_succeeds_without_cursor(self):
+        with self._patched(upstream_heads=[self.TIP], staged_diff=""):
+            code, rec = self.sp.patch_push(PKG, "https://fake/up.git", self.TIP, dry_run=False)
+        self.assertEqual(code, self.sp.E_OK)
+        self.assertTrue(rec["ok"])
+        self.assertFalse(rec["cursor_updated"])
+        self.assertTrue(any("no content delta" in n for n in self.notes))
+
+    # --- subtree (non-patch) leg ------------------------------------------ #
+
+    def _cmd_args(self):
+        return argparse.Namespace(command="push", patch=False, dry_run=False,
+                                  verify_suite=False, package=None,
+                                  allow_dirty=False)
+
+    @contextlib.contextmanager
+    def _push_cmd_env(self, upstream_heads):
+        sp = self.sp
+        saved = {n: getattr(sp, n) for n in
+                 ("assert_clean_tree", "load_manifest", "selected_packages",
+                  "url_for", "git_foreground", "upstream_head", "save_manifest",
+                  "emit", "info", "warn")}
+        sp.assert_clean_tree = lambda *a, **k: None
+        sp.info = lambda msg: self.notes.append(msg)
+        sp.warn = lambda msg: self.warnings.append(msg)
+        sp.load_manifest = lambda *a, **k: {"version": 1, "packages": {}}
+        sp.selected_packages = lambda *a, **k: [PKG]
+        sp.url_for = lambda pkg: "https://fake/up.git"
+        sp.git_foreground = lambda args: subprocess.CompletedProcess(args, 0)
+        heads = iter(upstream_heads)
+        sp.upstream_head = lambda url, branch: (
+            next(heads) if not hasattr(sp, "_heads_exhausted") else upstream_heads[-1])
+        written = {}
+        sp.save_manifest = lambda m: written.setdefault("saved", True)
+        records = []
+        sp.emit = lambda rec: records.append(rec)
+        try:
+            yield records, written
+        finally:
+            for n, v in saved.items():
+                setattr(sp, n, v)
+
+    def test_g_subtree_push_already_contained_is_honest_noop(self):
+        # git verified containment (rc 0, remote unchanged) → E_OK with an
+        # explicit already-contained note, cursor re-baselined at the true tip.
+        with self._push_cmd_env([self.TIP, self.TIP]) as (records, written):
+            code = self.sp.cmd_push(self._cmd_args())
+        self.assertEqual(code, self.sp.E_OK)
+        self.assertTrue(written.get("saved"))
+        self.assertTrue(records[0]["ok"])
+        self.assertEqual(records[0]["landed_tip"], self.TIP[:12])
+        self.assertTrue(any("already contains" in n for n in self.notes))
+
+    def test_h_subtree_push_landing_names_the_post_tip(self):
+        with self._push_cmd_env([self.TIP, self.PUSHED]) as (records, written):
+            code = self.sp.cmd_push(self._cmd_args())
+        self.assertEqual(code, self.sp.E_OK)
+        self.assertEqual(records[0]["landed_tip"], self.PUSHED[:12])
+        self.assertTrue(any(self.PUSHED[:12] in n and "landed" in n for n in self.notes))
+
+    def test_i_subtree_push_unreachable_probe_is_network(self):
+        with self._push_cmd_env([self.TIP, None]) as (records, written):
+            code = self.sp.cmd_push(self._cmd_args())
+        self.assertEqual(code, self.sp.E_NETWORK)
+        self.assertFalse(written.get("saved"))
+        self.assertFalse(records[0]["ok"])
 
 
 if __name__ == "__main__":

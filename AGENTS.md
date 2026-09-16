@@ -309,10 +309,21 @@ per package, and re-baselines the cursors; follow with
 commit the cursor file. `patch_push` extracts committed blobs (`git ls-tree -r
 HEAD` + `git cat-file blob`) — uncommitted work never propagates (DMR-028).
 
-**Sync failures are diagnosed, never silent (DMR-064):** exit codes are
+**Sync failures are diagnosed, never silent (DMR-064, hardened DMR-073):**
+exit codes are
 0 ok / 1 network / 2 dirty-at-entry (or conflicts left in place via
 `--keep-conflicts`/`--allow-dirty`) / 3 merge conflict aborted cleanly /
 4 other git/internal failure (multi-package runs return the max severity).
+**A push is not trusted until its landing is proven (DMR-073):** `push
+--patch` verifies with a post-push `ls-remote` probe that the remote tip now
+equals the pushed worktree commit — an unchanged tip (the SILENT NO-OP class
+that hid the DMR-071 deltas), an unreachable remote, or a foreign concurrent
+tip refuses with exit 5/1 and leaves the cursor untouched; the success line
+names the POST-push tip and the pushed commit (never the stale pre-push
+probe). An empty staged diff is likewise cross-checked against the tree
+(`local_ahead_paths`): "empty diff while the monorepo is ahead" is an
+extraction-mismatch refusal (exit 5), not a trusted no-delta. Cursors
+re-baseline only after a verified landing.
 A conflicted `pull` is detected (MERGE_HEAD + `diff --diff-filter=U` +
 `ls-files -u` classification: both-modified/add/add/modify-delete), the
 worktree is **aborted back to its pre-pull state by default**, and a

@@ -1264,6 +1264,32 @@ def patch_push(package: str, url: str, tip: str, *, dry_run: bool,
         staged = git(["-C", str(tmp), "diff", "--cached", "--stat", "HEAD"])
         n_files = len([ln for ln in staged.stdout.splitlines() if "|" in ln])
         if not staged.stdout.strip() or n_files == 0:
+            # DMR-073: an empty staged diff is only trustworthy when the
+            # monorepo tree REALLY equals the upstream tip. The blob-extraction
+            # step above can under-copy (e.g. a pathspec plumbing failure), and
+            # an empty diff then masquerades as "nothing to propagate" — the
+            # second silent no-op class. Cross-check with the independent
+            # tree-level comparison status uses; a contradiction refuses.
+            if ahead := local_ahead_paths(tip, package):
+                rec = base_record(command, package)
+                rec.update(
+                    {
+                        "exit_code": E_VERIFY,
+                        "error_class": ERROR_CLASS[E_VERIFY],
+                        "remediation": "extraction mismatch: the patch worktree staged an empty "
+                                       "diff but the monorepo package tree differs from the "
+                                       "upstream tip — blob extraction under-copied; re-run, "
+                                       "and if it persists inspect the ls-tree pathspec "
+                                       "(cursor NOT advanced)",
+                        "monorepo_ahead_paths": [f"packages/{package}/{p}" for p in ahead[:10]],
+                        "upstream_tip": tip[:12],
+                    }
+                )
+                warn(f"!! {package}: EXTRACTION MISMATCH (DMR-073) — staged patch diff is "
+                     f"empty but {len(ahead)} path(s) differ from the upstream tip "
+                     f"(e.g. packages/{package}/{ahead[0]}); refusing the no-delta "
+                     "conclusion; cursor NOT advanced")
+                return E_VERIFY, rec
             info(f"== {package}: no content delta vs upstream tip {tip[:12]} — nothing to propagate")
             return E_OK, record_ok(command, package, cursor_updated=False)
         # DMR-070: --verify-suite gates the push on the touched package's own
@@ -1320,8 +1346,66 @@ def patch_push(package: str, url: str, tip: str, *, dry_run: bool,
             )
             warn(f"!! push failed: {push.stderr.strip()}")
             return code, rec
-        info(f"== {package}: propagated {n_files} file(s) to {url} (tip {tip[:12]})")
-        return E_OK, record_ok(command, package, cursor_updated=False)
+        # DMR-073: the push rc==0 is NOT evidence of a landing. Verify with a
+        # live ls-remote probe: the remote tip must now BE the commit we just
+        # pushed. Any other outcome (tip unchanged = the silent no-op class
+        # that hid the DMR-071 deltas, unreachable remote, or a foreign tip
+        # from a concurrent push) refuses with exit 5/1 and leaves the cursor
+        # untouched — cmd_push only re-baselines on E_OK.
+        pushed_commit = git(["-C", str(tmp), "rev-parse", "HEAD"]).stdout.strip()
+        landed_tip = upstream_head(url, DEFAULT_BRANCH)
+        if landed_tip is None:
+            rec = base_record(command, package)
+            rec.update(
+                {
+                    "exit_code": E_NETWORK,
+                    "error_class": ERROR_CLASS[E_NETWORK],
+                    "remediation": "push reported success but the post-push ls-remote probe "
+                                   "failed — verify the remote state by hand before re-running; "
+                                   "cursor NOT advanced",
+                    "pushed_commit": pushed_commit[:12],
+                    "landed_tip": None,
+                    "upstream_tip": tip[:12],
+                }
+            )
+            warn(f"!! {package}: push claimed success but the remote tip is unreachable "
+                 "for the post-push probe (DMR-073) — verify by hand; cursor NOT advanced")
+            return E_NETWORK, rec
+        if landed_tip != pushed_commit:
+            noop = landed_tip == tip
+            rec = base_record(command, package)
+            rec.update(
+                {
+                    "exit_code": E_VERIFY,
+                    "error_class": ERROR_CLASS[E_VERIFY],
+                    "remediation": (
+                        "SILENT NO-OP: push reported success but the remote tip did not "
+                        "move — do not trust this push; re-run (and check upstream-side "
+                        "hooks/CI that could reject it)" if noop else
+                        "push reported success but the remote tip is a different commit "
+                        "(concurrent push?) — our commit is NOT the remote tip; reconcile "
+                        "before re-running"
+                    ),
+                    "pushed_commit": pushed_commit[:12],
+                    "landed_tip": landed_tip[:12],
+                    "upstream_tip": tip[:12],
+                }
+            )
+            if noop:
+                warn(f"!! {package}: SILENT NO-OP GUARD (DMR-073) — push rc==0 but the "
+                     f"remote tip is still {tip[:12]} (pushed commit {pushed_commit[:12]} "
+                     "never landed); cursor NOT advanced")
+            else:
+                warn(f"!! {package}: post-push tip is {landed_tip[:12]}, not the pushed "
+                     f"commit {pushed_commit[:12]} (concurrent push?) (DMR-073); "
+                     "cursor NOT advanced")
+            return E_VERIFY, rec
+        info(f"== {package}: propagated {n_files} file(s) to {url} "
+             f"(tip {landed_tip[:12]}, commit {pushed_commit[:12]})")
+        rec = record_ok(command, package, cursor_updated=False)
+        rec["pushed_commit"] = pushed_commit[:12]
+        rec["landed_tip"] = landed_tip[:12]
+        return E_OK, rec
     finally:
         # DMR-064 leak hardening: verify the removal, prune stale registrations
         # on failure, and sweep the directory as a last resort.
@@ -1377,6 +1461,7 @@ def cmd_push(args: argparse.Namespace) -> int:
             info("== DRY RUN: no push performed")
             emit(record_ok(args.command, package, cursor_updated=False))
             continue
+        tip_before = upstream_head(url, DEFAULT_BRANCH)
         result = git_foreground(
             ["subtree", "push", f"--prefix=packages/{package}", url, DEFAULT_BRANCH],
         )
@@ -1405,14 +1490,43 @@ def cmd_push(args: argparse.Namespace) -> int:
             )
             worst = max(worst, code)
             continue
+        # DMR-073: report what actually landed, not what we hoped. A subtree
+        # push with an unchanged remote tip is a legitimate already-contained
+        # outcome (git verified containment), but it must be said plainly —
+        # and the success message names the POST-push tip, never the pre-push
+        # probe that hid the DMR-071 false-success class on the patch leg.
+        tip_after = upstream_head(url, DEFAULT_BRANCH)
+        if tip_after is None:
+            rec = base_record(args.command, package)
+            rec.update(
+                {
+                    "exit_code": E_NETWORK,
+                    "error_class": ERROR_CLASS[E_NETWORK],
+                    "remediation": "push reported success but the post-push ls-remote probe "
+                                   "failed — verify the remote state by hand before re-running; "
+                                   "cursor NOT advanced",
+                    "landed_tip": None,
+                }
+            )
+            emit(rec)
+            warn(f"!! {package}: push claimed success but the remote tip is unreachable "
+                 "for the post-push probe (DMR-073) — verify by hand; cursor NOT advanced")
+            worst = max(worst, E_NETWORK)
+            continue
+        if tip_after == tip_before:
+            info(f"== {package}: subtree push landed nothing — upstream tip "
+                 f"{tip_after[:12]} already contains the subtree split (already contained)")
+        else:
+            info(f"== {package}: subtree push landed (tip {tip_after[:12]})")
         entries[package] = {
             "url": url,
             "branch": DEFAULT_BRANCH,
-            "synced_sha": upstream_head(url, DEFAULT_BRANCH),
+            "synced_sha": tip_after,
             "synced_at": utc_now(),
         }
         save_manifest(manifest)
         rec = record_ok(args.command, package, cursor_updated=True)
+        rec["landed_tip"] = tip_after[:12]
         emit(rec)
     return worst
 

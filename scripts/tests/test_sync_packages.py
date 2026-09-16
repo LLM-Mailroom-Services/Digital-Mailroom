@@ -21,10 +21,25 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "sync_packages.py"
 PKG = "llm-dojo-scoring"  # a real member of the script's PACKAGES map
 
+# Hermetic git env: no prompt, no host/global/system config leaking into the
+# fixtures (and no anonymous-committer failures now that global config is gone).
+GIT_ENV = {
+    "GIT_TERMINAL_PROMPT": "0",
+    "GIT_CONFIG_GLOBAL": os.devnull,
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_AUTHOR_NAME": "DMR-064 Test",
+    "GIT_AUTHOR_EMAIL": "dmr064@test.invalid",
+    "GIT_COMMITTER_NAME": "DMR-064 Test",
+    "GIT_COMMITTER_EMAIL": "dmr064@test.invalid",
+}
+
 
 def git(cwd, *args, check=False):
+    env = dict(os.environ)
+    env.update(GIT_ENV)
     return subprocess.run(
-        ["git", *args], cwd=str(cwd), check=check, text=True, capture_output=True
+        ["git", *args], cwd=str(cwd), check=check, text=True,
+        capture_output=True, env=env, timeout=60,
     )
 
 
@@ -33,7 +48,12 @@ def sha_of(cwd, rev="HEAD"):
 
 
 class SyncScriptTest(unittest.TestCase):
-    """Base fixture: bare upstream + seed clone + monorepo clone with subtree add."""
+    """Base fixture: bare upstream + seed clone + monorepo clone with subtree add.
+
+    The base upstream tree carries a.txt (both-modified leg), b.txt (modify/
+    delete leg), r.txt (rename-vs-delete leg) and t.txt (delete-vs-rename leg);
+    `diverge()` uses only a.txt, `diverge_penta()` uses all four.
+    """
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="dmr064-test-"))
@@ -44,7 +64,10 @@ class SyncScriptTest(unittest.TestCase):
         self.src = self.tmp / "src"
         self.mono = self.tmp / "mono"
         git(self.tmp, "clone", str(self.origin), str(self.src), check=True)
-        (self.src / "a.txt").write_text("base\n")
+        (self.src / "a.txt").write_text("base a\n")
+        (self.src / "b.txt").write_text("base b\n")
+        (self.src / "r.txt").write_text("base r\n")
+        (self.src / "t.txt").write_text("base t\n")
         git(self.src, "add", "-A", check=True)
         git(self.src, "commit", "-m", "base", check=True)
         git(self.src, "push", "origin", "main", check=True)
@@ -59,6 +82,7 @@ class SyncScriptTest(unittest.TestCase):
 
     def run_script(self, *argv, env_extra=None, root=None, manifest=None):
         env = dict(os.environ)
+        env.update(GIT_ENV)
         if env_extra:
             env.update(env_extra)
         manifest = manifest or (self.tmp / "manifest.json")
@@ -66,7 +90,7 @@ class SyncScriptTest(unittest.TestCase):
         return subprocess.run(
             [sys.executable, str(SCRIPT), "--repo-root", str(root),
              "--manifest", str(manifest), *argv],
-            cwd=str(root), env=env, text=True, capture_output=True,
+            cwd=str(root), env=env, text=True, capture_output=True, timeout=60,
         )
 
     def json_record(self, res):
@@ -81,18 +105,66 @@ class SyncScriptTest(unittest.TestCase):
 
     def diverge(self):
         """Monorepo-ahead commit + upstream commit on the same file (conflict pair)."""
-        (self.mono / f"packages/{PKG}/a.txt").write_text("base\nmono change\n")
+        (self.mono / f"packages/{PKG}/a.txt").write_text("base a\nmono change\n")
         git(self.mono, "add", "-A", check=True)
         git(self.mono, "commit", "-m", "mono ahead", check=True)
-        (self.src / "a.txt").write_text("base\nupstream change\n")
+        (self.src / "a.txt").write_text("base a\nupstream change\n")
         git(self.src, "add", "-A", check=True)
         git(self.src, "commit", "-m", "upstream change", check=True)
+        git(self.src, "push", "origin", "main", check=True)
+        return sha_of(self.src)
+
+    def diverge_penta(self):
+        """Five-kind divergence pair (pins classification + resolution ladder):
+          a.txt    both-modified   (both sides edit)
+          b.txt    modify-delete   (ours modifies, upstream deletes)
+          both.txt add/add         (both sides add, different content)
+          r.txt    rename/delete   (ours renames -> r2.txt, upstream deletes)
+          t.txt    delete/rename   (ours deletes, upstream renames -> t3.txt)
+        """
+        p = f"packages/{PKG}"
+        (self.mono / f"{p}/a.txt").write_text("base a\nmono a\n")
+        (self.mono / f"{p}/b.txt").write_text("base b\nmono b\n")
+        (self.mono / f"{p}/both.txt").write_text("mono both\n")
+        git(self.mono, "mv", f"{p}/r.txt", f"{p}/r2.txt", check=True)
+        git(self.mono, "rm", "-q", f"{p}/t.txt", check=True)
+        git(self.mono, "add", "-A", check=True)
+        git(self.mono, "commit", "-m", "mono penta", check=True)
+        (self.src / "a.txt").write_text("base a\nup a\n")
+        git(self.src, "rm", "-q", "b.txt", "r.txt")
+        (self.src / "both.txt").write_text("up both\n")
+        git(self.src, "mv", "t.txt", "t3.txt")
+        git(self.src, "add", "-A", check=True)
+        git(self.src, "commit", "-m", "up penta", check=True)
         git(self.src, "push", "origin", "main", check=True)
         return sha_of(self.src)
 
     @property
     def origin_env(self):
         return {"SYNC_PACKAGES_ORIGIN": str(self.upstreams)}
+
+    def make_fake_gh(self, log_path, *, exit_code=0, stderr_url=False):
+        """Fake `gh` on a PATH dir: logs each argv line to log_path, then emits
+        a PR URL (stdout, or stderr when stderr_url) and exits `exit_code`."""
+        bin_dir = self.tmp / "ghbin"
+        bin_dir.mkdir(exist_ok=True)
+        sh = bin_dir / "gh"
+        body = (
+            "#!/bin/sh\n"
+            f'printf \'%s\\n\' "$@" >> "{log_path}"\n'
+        )
+        if exit_code == 0:
+            url_line = (
+                'echo "https://github.com/example/mono/pull/42" >&2\n'
+                if stderr_url
+                else 'echo "https://github.com/example/mono/pull/42"\n'
+            )
+            body += url_line + "exit 0\n"
+        else:
+            body += 'echo "auth required" >&2\n' + f"exit {exit_code}\n"
+        sh.write_text(body)
+        os.chmod(sh, 0o755)
+        return bin_dir
 
 
 # --------------------------------------------------------------------------- #
@@ -135,11 +207,14 @@ class TestConflictHandling(SyncScriptTest):
         rec = self.json_record(res)
         self.assertEqual(rec["exit_code"], 2)
         self.assertEqual(rec["error_class"], "conflict")
+        self.assertFalse(rec["aborted"])
         self.assertIn("abort", res.stderr)
         # merge left in place
         self.assertEqual(git(self.mono, "rev-parse", "-q", "--verify", "MERGE_HEAD").returncode, 0)
         status = git(self.mono, "status", "--porcelain").stdout
         self.assertIn("UU", status)
+        # cursor NOT advanced
+        self.assertNotIn(PKG, self.read_manifest().get("packages", {}))
 
     def test_b_already_contained_fast_path(self):
         head = sha_of(self.src)
@@ -243,24 +318,12 @@ class TestFailureClasses(SyncScriptTest):
 
 
 # --------------------------------------------------------------------------- #
-# PR branch flow (g) with a fake `gh` recorded on PATH, and gh-missing (h)
+# PR branch flow: gh failure fail-closed (g2), stderr URL parse (g2b),
+# resolution ladder (i), classification kinds (l)
 # --------------------------------------------------------------------------- #
 
 
 class TestPrFlow(SyncScriptTest):
-    def make_fake_gh(self, log_path):
-        bin_dir = self.tmp / "ghbin"
-        bin_dir.mkdir()
-        sh = bin_dir / "gh"
-        sh.write_text(
-            "#!/bin/sh\n"
-            f'printf \'%s\\n\' "$@" >> "{log_path}"\n'
-            'echo "https://github.com/example/mono/pull/42"\n'
-            "exit 0\n"
-        )
-        os.chmod(sh, 0o755)
-        return bin_dir
-
     def test_g_open_pr_imports_via_branch_and_opens_pr(self):
         tip = self.diverge()
         log = self.tmp / "gh.log"
@@ -313,12 +376,64 @@ class TestPrFlow(SyncScriptTest):
         # cursor untouched
         self.assertNotIn(PKG, self.read_manifest().get("packages", {}))
 
-    def test_h_gh_missing_reports_manual_command_exit_4(self):
+    def test_g2a_gh_create_failure_is_fail_closed(self):
+        tip = self.diverge()
+        mono_head_before = sha_of(self.mono)
+        log = self.tmp / "gh.log"
+        bin_dir = self.make_fake_gh(log, exit_code=1)
+        env = {
+            **self.origin_env,
+            "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+            "FAKE_GH_LOG": str(log),
+        }
+        res = self.run_script("pull", "--open-pr", "--package", PKG, "--json", env_extra=env)
+        self.assertEqual(res.returncode, 4, res.stderr + res.stdout)
+        rec = self.json_record(res)
+        self.assertEqual(rec["error_class"], "git")
+        self.assertEqual(rec["exit_code"], 4)
+        self.assertIn("gh pr create", rec["remediation"] or "")
+        self.assertIn("auth required", res.stderr)
+        self.assertIn("gh pr create failed", res.stderr)
+        # gh WAS invoked with the right contract before failing (fail-closed)
+        argv = log.read_text().splitlines()
+        self.assertEqual(argv[argv.index("--base") + 1], "main")
+        self.assertEqual(argv[argv.index("--head") + 1], f"sync/{PKG}/import-{tip[:12]}")
+        # teardown: back on main, local branch removed, pushed remote branch stays
+        self.assertEqual(sha_of(self.mono), mono_head_before)
+        self.assertEqual(git(self.mono, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip(), "main")
+        self.assertEqual(git(self.mono, "branch", "--list", "sync/*").stdout.strip(), "")
+        self.assertEqual(git(self.mono, "status", "--porcelain").stdout.strip(), "")
+        self.assertIn(f"sync/{PKG}/import-{tip[:12]}",
+                      git(self.origin, "branch", "--list", "sync/*").stdout)
+        # cursor untouched
+        self.assertNotIn(PKG, self.read_manifest().get("packages", {}))
+
+    def test_g2b_pr_url_parsed_from_stderr_only(self):
         self.diverge()
+        log = self.tmp / "gh.log"
+        bin_dir = self.make_fake_gh(log, stderr_url=True)
+        env = {
+            **self.origin_env,
+            "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+            "FAKE_GH_LOG": str(log),
+        }
+        res = self.run_script("pull", "--open-pr", "--package", PKG, "--json", env_extra=env)
+        self.assertEqual(res.returncode, 0, res.stderr + res.stdout)
+        rec = self.json_record(res)
+        self.assertTrue(rec["ok"])
+        self.assertEqual(rec["pr_url"], "https://github.com/example/mono/pull/42")
+
+    def test_h_gh_missing_reports_manual_command_exit_4(self):
+        tip = self.diverge()
         path = os.pathsep.join(
             d for d in os.environ.get("PATH", "").split(os.pathsep)
             if d and not os.path.exists(os.path.join(d, "gh"))
         )
+        # never starve the harness of git itself when a dir holds both binaries
+        if not shutil.which("git", path=path):
+            git_dirs = [d for d in os.environ.get("PATH", "").split(os.pathsep)
+                        if d and os.path.exists(os.path.join(d, "git"))]
+            path = os.pathsep.join([path] + git_dirs) if path else os.pathsep.join(git_dirs)
         env = {**self.origin_env, "PATH": path}
         mono_head_before = sha_of(self.mono)
         res = self.run_script("pull", "--open-pr", "--package", PKG, "--json", env_extra=env)
@@ -327,12 +442,215 @@ class TestPrFlow(SyncScriptTest):
         self.assertEqual(rec["error_class"], "git")
         self.assertIn("gh", rec["remediation"] or "")
         self.assertIn("gh pr create", res.stderr)
+        self.assertEqual(rec["branch"], f"sync/{PKG}/import-{tip[:12]}")
         # branch still pushed upstream for a manual PR; local worktree restored
         branches = git(self.origin, "branch", "--list", "sync/*").stdout
         self.assertIn(f"sync/{PKG}/import-", branches)
         self.assertEqual(sha_of(self.mono), mono_head_before)
         self.assertEqual(git(self.mono, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip(), "main")
         self.assertEqual(git(self.mono, "status", "--porcelain").stdout.strip(), "")
+
+
+class TestResolutionLadder(SyncScriptTest):
+    """Pins the manual-resolution ladder (`resolve_remaining_ours_theirs` and
+    the strategy-merge conflict branch in pr_branch_flow): `-X ours|theirs`
+    auto-resolves both-modified + add/add but leaves modify/delete and
+    rename/delete conflicts unmerged — those must be taken by the ladder."""
+
+    def test_i_theirs_resolution_ladder_runs(self):
+        tip = self.diverge_penta()
+        log = self.tmp / "gh.log"
+        bin_dir = self.make_fake_gh(log)
+        env = {
+            **self.origin_env,
+            "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+            "FAKE_GH_LOG": str(log),
+        }
+        mono_head_before = sha_of(self.mono)
+        res = self.run_script("pull", "--open-pr", "--resolve", "theirs",
+                              "--package", PKG, "--json", env_extra=env)
+        self.assertEqual(res.returncode, 0, res.stderr + res.stdout)
+        rec = self.json_record(res)
+        self.assertTrue(rec["ok"])
+        branch = f"sync/{PKG}/import-{tip[:12]}"
+        self.assertEqual(rec["branch"], branch)
+        self.assertEqual(rec["resolution"], "theirs")
+        # THE LADDER RAN (pins both its branches): git rm kept the deletions,
+        # checkpoint --theirs restored their renamed file
+        self.assertIn(f"resolved packages/{PKG}/b.txt: kept deletion under theirs", res.stderr)
+        self.assertIn(f"resolved packages/{PKG}/r2.txt: kept deletion under theirs", res.stderr)
+        self.assertIn(f"resolved packages/{PKG}/t3.txt: took theirs version", res.stderr)
+        # merged branch content on the pushed upstream ref
+        def tree_has(path):
+            return git(self.origin, "cat-file", "-e", f"{branch}:{path}").returncode == 0
+
+        self.assertFalse(tree_has(f"packages/{PKG}/b.txt"))    # upstream deletion kept (git rm)
+        self.assertFalse(tree_has(f"packages/{PKG}/r2.txt"))   # rename target deleted (theirs)
+        self.assertTrue(tree_has(f"packages/{PKG}/a.txt"))
+        self.assertEqual(
+            git(self.origin, "show", f"{branch}:packages/{PKG}/a.txt").stdout, "base a\nup a\n"
+        )
+        self.assertEqual(
+            git(self.origin, "show", f"{branch}:packages/{PKG}/both.txt").stdout, "up both\n"
+        )
+        self.assertEqual(
+            git(self.origin, "show", f"{branch}:packages/{PKG}/t3.txt").stdout, "base t\n"
+        )
+        # the merge commit lands the DMR-064 subject; no unmerged paths remain
+        subject = git(self.origin, "log", "-1", "--format=%s", branch).stdout.strip()
+        self.assertIn("DMR-064 branch flow", subject)
+        # PR body names the conflicted paths + kinds
+        argv = log.read_text().splitlines()
+        body = "\n".join(argv[argv.index("--body") + 1:])
+        self.assertIn(f"packages/{PKG}/b.txt", body)
+        self.assertIn(f"packages/{PKG}/both.txt", body)
+        self.assertIn("modify-delete", body)
+        self.assertIn("add/add", body)
+        # worktree restored to main; local branch gone; cursor untouched
+        self.assertEqual(sha_of(self.mono), mono_head_before)
+        self.assertEqual(git(self.mono, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip(), "main")
+        self.assertEqual(git(self.mono, "status", "--porcelain").stdout.strip(), "")
+        self.assertEqual(git(self.mono, "branch", "--list", "sync/*").stdout.strip(), "")
+        self.assertNotIn(PKG, self.read_manifest().get("packages", {}))
+
+    def test_l_classification_pins_all_kinds(self):
+        self.diverge_penta()
+        res = self.run_script("pull", "--package", PKG, "--json", env_extra=self.origin_env)
+        self.assertEqual(res.returncode, 3, res.stderr + res.stdout)
+        rec = self.json_record(res)
+        self.assertEqual(rec["error_class"], "conflict")
+        kinds = {(c["path"], c["kind"]) for c in rec["conflicted_paths"]}
+        self.assertIn((f"packages/{PKG}/a.txt", "both-modified"), kinds)
+        self.assertIn((f"packages/{PKG}/b.txt", "modify-delete"), kinds)
+        self.assertIn((f"packages/{PKG}/both.txt", "add/add"), kinds)
+        # rename/delete surfaces at the rename target, classified modify-delete
+        self.assertIn((f"packages/{PKG}/r2.txt", "modify-delete"), kinds)
+        self.assertIn((f"packages/{PKG}/t3.txt", "modify-delete"), kinds)
+        # aborted cleanly, cursor untouched
+        self.assertTrue(rec["aborted"])
+        self.assertNotIn(PKG, self.read_manifest().get("packages", {}))
+
+
+# --------------------------------------------------------------------------- #
+# multi-package severity law (j), dirty-entry semantics (k/k2)
+# --------------------------------------------------------------------------- #
+
+
+class TestSeverityAndDirty(SyncScriptTest):
+    def test_j_multi_package_severity_law(self):
+        # second package (llm-mailroom-graph) stays in sync -> fast path
+        origin2 = self.upstreams / "llm-mailroom-graph.git"
+        src2 = self.tmp / "src2"
+        git(self.tmp, "init", "--bare", "-b", "main", str(origin2), check=True)
+        git(self.tmp, "clone", str(origin2), str(src2), check=True)
+        (src2 / "f.txt").write_text("f\n")
+        git(src2, "add", "-A", check=True)
+        git(src2, "commit", "-m", "base2", check=True)
+        git(src2, "push", "origin", "main", check=True)
+        git(self.mono, "subtree", "add", "--prefix=packages/llm-mailroom-graph",
+            str(origin2), "main", check=True)
+        self.diverge()  # llm-dojo-scoring now conflicts
+        res = self.run_script("pull", "--all", "--json", env_extra=self.origin_env)
+        # max severity across packages: conflict(3) beats network(1)
+        self.assertEqual(res.returncode, 3, res.stderr + res.stdout)
+        recs = {}
+        for line in res.stdout.splitlines():
+            rec = json.loads(line)
+            recs[rec["package"]] = rec
+        self.assertEqual(set(recs), {
+            "Enron-Evaluation-Environment", "The-Mailroom", "agent-mailroom",
+            "claims-data-eda", "llm-dojo-scoring", "llm-entity-extraction",
+            "llm-mailroom", "llm-mailroom-graph", "local-mailroom-sandbox",
+            "mailroom-corpus-eda",
+        })
+        self.assertEqual(recs[PKG]["error_class"], "conflict")
+        self.assertEqual(recs[PKG]["exit_code"], 3)
+        self.assertFalse(recs[PKG]["cursor_updated"])
+        self.assertEqual(recs["llm-mailroom-graph"]["error_class"], "ok")
+        self.assertTrue(recs["llm-mailroom-graph"]["cursor_updated"])
+        self.assertEqual(recs["agent-mailroom"]["error_class"], "network")
+        # cursor advanced ONLY for the fast-path package
+        self.assertEqual(set(self.read_manifest().get("packages", {})), {"llm-mailroom-graph"})
+
+    def test_k_allow_dirty_conflict_leaves_merge_in_place(self):
+        self.diverge()
+        scratch = self.mono / "user-scratch.txt"
+        scratch.write_text("user work\n")
+        res = self.run_script("pull", "--allow-dirty", "--package", PKG, "--json",
+                              env_extra=self.origin_env)
+        self.assertEqual(res.returncode, 2, res.stderr + res.stdout)
+        rec = self.json_record(res)
+        self.assertEqual(rec["exit_code"], 2)
+        self.assertEqual(rec["error_class"], "conflict")  # conflict kind, dirty exit code
+        self.assertFalse(rec["aborted"])
+        # the auto-abort was blocked: MERGE_HEAD + UU remain, dirt untouched
+        self.assertEqual(git(self.mono, "rev-parse", "-q", "--verify", "MERGE_HEAD").returncode, 0)
+        self.assertIn("UU", git(self.mono, "status", "--porcelain").stdout)
+        self.assertEqual(scratch.read_text(), "user work\n")
+        self.assertNotIn(PKG, self.read_manifest().get("packages", {}))
+
+    def test_k2_plain_dirty_entry_refusal(self):
+        scratch = self.mono / "user-scratch.txt"
+        scratch.write_text("user work\n")
+        head_before = sha_of(self.mono)
+        res = self.run_script("pull", "--package", PKG, "--json", env_extra=self.origin_env)
+        self.assertEqual(res.returncode, 2, res.stderr + res.stdout)
+        rec = self.json_record(res)
+        self.assertEqual(rec["exit_code"], 2)
+        self.assertEqual(rec["error_class"], "dirty")
+        self.assertIn("worktree is dirty", res.stderr)
+        self.assertIn("--allow-dirty", rec["remediation"] or "")
+        # no auto-cleanup: dirt survives, nothing committed, no merge state
+        self.assertEqual(scratch.read_text(), "user work\n")
+        self.assertEqual(sha_of(self.mono), head_before)
+        self.assertEqual(git(self.mono, "status", "--porcelain").stdout.strip(),
+                         "?? user-scratch.txt")
+        self.assertNotEqual(
+            git(self.mono, "rev-parse", "-q", "--verify", "MERGE_HEAD").returncode, 0
+        )
+
+
+# --------------------------------------------------------------------------- #
+# cheap pins: non-dict manifest (m), unknown package (n), status row contract (o)
+# --------------------------------------------------------------------------- #
+
+
+class TestEntryGuardPins(SyncScriptTest):
+    def test_m_non_dict_manifest_exits_4(self):
+        mf = self.tmp / "manifest.json"
+        mf.write_text("[1, 2, 3]\n")
+        res = self.run_script("pull", "--package", PKG, "--json", env_extra=self.origin_env)
+        self.assertEqual(res.returncode, 4, res.stderr + res.stdout)
+        rec = self.json_record(res)
+        self.assertEqual(rec["exit_code"], 4)
+        self.assertEqual(rec["error_class"], "git")
+        self.assertIn("not a JSON object", res.stderr)
+        # non-dict manifest never overwritten
+        self.assertEqual(mf.read_text(), "[1, 2, 3]\n")
+
+    def test_n_unknown_package_exits_4(self):
+        res = self.run_script("pull", "--package", "no-such-package", "--json",
+                              env_extra=self.origin_env)
+        self.assertEqual(res.returncode, 4, res.stderr + res.stdout)
+        rec = self.json_record(res)
+        self.assertEqual(rec["exit_code"], 4)
+        self.assertEqual(rec["error_class"], "git")
+        self.assertIn("unknown package", res.stderr)
+        self.assertIn("llm-dojo-scoring", res.stderr)  # lists valid packages
+
+    def test_o_status_json_row_contract(self):
+        res = self.run_script("status", "--package", PKG, "--json", env_extra=self.origin_env)
+        self.assertEqual(res.returncode, 0, res.stderr + res.stdout)
+        rows = json.loads(res.stdout)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(set(rows[0].keys()), {
+            "package", "prefix", "upstream", "branch", "upstream_head",
+            "synced_sha", "synced_at", "new_upstream_commits", "up_to_date",
+            "cursor_gap", "cursor_gap_sample", "local_ahead_files",
+        })
+        self.assertEqual(rows[0]["package"], PKG)
+        self.assertEqual(rows[0]["upstream_head"], sha_of(self.src))
+        self.assertEqual(rows[0]["prefix"], f"packages/{PKG}")
 
 
 # --------------------------------------------------------------------------- #

@@ -8,8 +8,8 @@ description: Deploy and cut over to Modal-hosted vLLM for local-mailroom-sandbox
 **When:** No suitable local GPU, user asks for Modal, or profile `modal-vllm`.  
 **Prefer Ollama** for everyday local/CPU smoke ([ollama](../ollama/SKILL.md)). Local NVIDIA compose uses profile `vllm-local` + compose `vllm` (not Modal).
 
-Pinned: Modal SDK **1.5.5** (`[deploy]` extra) + vLLM **v0.28.0**
-(`vllm/vllm-openai:v0.28.0`, matching the local compose pin). Full workflow:
+Pinned: Modal SDK **1.5.5** (`[deploy]` extra) + vLLM **v0.29.0**
+(`vllm/vllm-openai:v0.29.0`, matching the local compose pin). Full workflow:
 [`deploy/README.md`](../../../deploy/README.md).
 
 ## Deploy
@@ -55,11 +55,11 @@ Compose for Modal profile only starts **langfuse** (no local vLLM container).
 | --- | --- |
 | `MODAL_VLLM_MODEL` | `Qwen/Qwen3-8B` |
 | `MODAL_VLLM_GPU` | `L4` |
-| `MODAL_VLLM_MAX_MODEL_LEN` | `16384` (DMR-056: boot-valid cap for L4-bf16 8B rows — v0.28.0 raises at 32768; AWQ/FP8 rows set 32768) |
+| `MODAL_VLLM_MAX_MODEL_LEN` | `16384` (DMR-056: boot-valid cap for L4-bf16 8B rows — v0.29.0 raises at 32768; AWQ/FP8 rows set 32768) |
 | `MODAL_VLLM_ATTENTION_BACKEND` | empty (`flashinfer` for throughput runs — Modal vllm_throughput exemplar) |
 | `MODAL_VLLM_ASYNC_SCHEDULING` | empty (`1` enables the async scheduler; not all vLLM features supported under it) |
 | `MODAL_VLLM_QUANTIZATION` | empty |
-| `MODAL_VLLM_IMAGE_TAG` | `v0.28.0` (pin; never `latest`) |
+| `MODAL_VLLM_IMAGE_TAG` | `v0.29.0` (pin; never `latest`) |
 | `MODAL_VLLM_REVISION` | empty (HF revision) |
 | `MODAL_VLLM_TP_SIZE` | from GPU `:N` suffix (1 single-GPU) — must match `MODAL_VLLM_GPU="A100-80GB:2"` for 70B-class |
 | `MODAL_VLLM_API_TOKEN` | empty (bearer) |

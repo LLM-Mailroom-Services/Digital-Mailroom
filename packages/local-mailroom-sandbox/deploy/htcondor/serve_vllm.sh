@@ -16,7 +16,7 @@ MODEL="${MODEL:-Qwen/Qwen3-8B}"
 PORT=8000
 VLLM_API_KEY="${VLLM_API_KEY:-}"
 # Engine parity knobs (compose/Modal contract), overridable per submission.
-# DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.28.0
+# DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.29.0
 # raises at boot); AWQ rows set 32768 explicitly.
 MAX_MODEL_LEN="${MAX_MODEL_LEN:-16384}"
 GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-0.90}"

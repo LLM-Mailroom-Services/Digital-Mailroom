@@ -56,9 +56,9 @@ engine:
   model: Qwen/Qwen3-8B
   vllm: {max_model_len: 16384, gpu_memory_utilization: 0.90,
          max_num_seqs: 256, quantization: "", revision: ""}
-  # DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.28.0
+  # DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.29.0
   # raises at boot when the KV pool can't fit one request); AWQ rows set 32768.
-  modal: {app: sandbox-vllm, gpu: L4, image_tag: v0.28.0,
+  modal: {app: sandbox-vllm, gpu: L4, image_tag: v0.29.0,
           scaledown_seconds: 900, max_containers: 1, prewarm: true}
 
 job:
@@ -104,7 +104,7 @@ Exit codes: `0` done · `1` failed · `2` paused · `3` drift refused.
    deterministic subsetting (sorted by filename/id, per-stratum sub-seed
    draws, union, re-sort, `limit`). `file://` paths short-circuit all Hub
    calls. Idempotent: same spec → byte-identical `dataset.jsonl`.
-3. **engine** — vLLM field/range guards (DMR-022 flags, v0.28.0 rules) +
+3. **engine** — vLLM field/range guards (DMR-022 flags, v0.29.0 rules) +
    optional live `/v1/models` probe (`data[0].id == spec.model`) with `--live`.
    `run start --job-mode modal` probes the engine before firing (DMR-048).
 4. **modal** — GPU/image/`max_containers` guards.

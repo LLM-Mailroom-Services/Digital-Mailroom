@@ -201,13 +201,194 @@ def _derive_expected_fields(row: dict[str, Any]) -> dict[str, Any]:
     return {k: row.get(k) for k in keys if row.get(k) not in (None, "")}
 
 
+def _normalize_subclass(doc_class: str, value: str) -> str:
+    """Canonical subclass token via the vendored dojo normalizer (DMR-066).
+
+    ``normalize_corpus_subclass`` already maps the corpus's raw surface
+    spellings (CUAD folder forms like ``License_Agreements`` /
+    ``Consulting Agreements``) onto the 25-key snake_case catalog for
+    contract rows. Fallback = identity only when the vendored dojo tree is
+    unavailable (BASE installs) — the DMR-066 guards then compare raw
+    strings, which is the pre-fix behavior.
+    """
+    try:
+        from llm_dojo_scoring.corpus import normalize_corpus_subclass
+
+        return normalize_corpus_subclass(doc_class, value)
+    except Exception:  # noqa: BLE001 — vendored tree absent / unknown token
+        return value
+
+
+def _row_stratum_value(row: dict[str, Any], field: str) -> str:
+    v = str(row.get(field) or "")
+    if field == "expected_subclass":
+        return _normalize_subclass(str(row.get("expected_doc_class") or ""), v)
+    return v
+
+
+def _subclass_matches(row: dict[str, Any], requested: str) -> bool:
+    """Raw-or-normalized subclass match, normalized per-row class (DMR-066).
+
+    A requested ``license`` matches a raw ``License_Agreements`` row; a raw
+    ``License_Agreements`` request also matches — the comparison always
+    normalizes BOTH sides through the row's own doc class, so canonical
+    requests work against surface spellings and vice versa.
+
+    Guard: a normalized equality is only a match when the normalized value
+    is not the unknown-token fallback (``other``) — otherwise every row of
+    every *other* doc class would collapse to ``other == other`` and match
+    any requested subclass (the DMR-066 candidate-inflation bug). An
+    explicit raw ``other`` request still matches raw ``other`` rows via the
+    exact-string branch above.
+    """
+    row_val = str(row.get("expected_subclass") or "")
+    if requested == row_val:
+        return True
+    doc_class = str(row.get("expected_doc_class") or "")
+    norm_req = _normalize_subclass(doc_class, requested)
+    norm_row = _normalize_subclass(doc_class, row_val)
+    if norm_req == "other" or norm_row == "other":
+        return False
+    return norm_req == norm_row
+
+
+def strata_field(strata: dict[str, Any] | None) -> str:
+    """The effective stratum field for a strata block (DMR-066).
+
+    ``field`` wins when given; the ``values`` form defaults to
+    ``expected_subclass`` (the subclass-stratified surface); legacy
+    ``expected:``/``expected_subclass:`` filters imply their own field.
+    """
+    strata = strata or {}
+    if strata.get("field"):
+        return str(strata["field"])
+    if "values" in strata:
+        return "expected_subclass"
+    if "expected_subclass" in strata:
+        return "expected_subclass"
+    return "expected_doc_class"
+
+
+def _strata_requested(strata: dict[str, Any] | None) -> set[tuple[str, str]]:
+    """Requested (field, raw-value) pairs for a strata block (raw, unnormalized)."""
+    strata = strata or {}
+    out: set[tuple[str, str]] = set()
+    if "buckets" in strata:
+        for b in strata["buckets"]:
+            dc = str(b.get("doc_class") or "")
+            sc = str(b.get("subclass") or "")
+            if dc:
+                out.add(("expected_doc_class", dc))
+            if sc:
+                out.add(("expected_subclass", sc))
+        return out
+    field = strata_field(strata)
+    if "values" in strata:
+        values = list(strata.get("values") or [])
+    elif field == "expected_doc_class":
+        values = list(strata.get("expected") or [])
+    else:
+        values = list(strata.get("expected_subclass") or [])
+    for v in values:
+        out.add((field, v))
+    return out
+
+
+def _strata_present(
+    rows: list[dict[str, Any]], strata: dict[str, Any] | None
+) -> dict[tuple[str, str], list[dict[str, Any]]]:
+    """Map (field, raw-value) -> sample rows carrying it (class-aware for subclass)."""
+    out: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for r in rows:
+        for field in ("expected_doc_class", "expected_subclass"):
+            v = r.get(field)
+            if not v:
+                continue
+            out.setdefault((field, str(v)), []).append(r)
+    return out
+
+
+def _requested_satisfied(
+    requested: tuple[str, str], present: dict[tuple[str, str], list[dict[str, Any]]]
+) -> bool:
+    """Is the requested (field, value) present — exact or subclass-normalized?"""
+    field, value = requested
+    for (p_field, p_value), sample_rows in present.items():
+        if p_field != field:
+            continue
+        if value == p_value:
+            return True
+        if field == "expected_subclass":
+            if any(_subclass_matches(r, value) for r in sample_rows):
+                return True
+    return False
+
+
+def strata_guard(rows: list[dict[str, Any]], strata: dict[str, Any] | None) -> None:
+    """Loud strata sanity (DMR-066): never silently collapse or truncate.
+
+    Hard-fails (ValueError) when: (1) a requested stratum value is absent
+    from the prepared rows; (2) the stratum field is constant while more
+    than one value was requested (the old ``expected:`` list on a constant
+    field silently produced a single-class subset); (3) after the draw +
+    ``limit``, a requested stratum was dropped entirely.
+    """
+    if not strata:
+        return
+    requested = _strata_requested(strata)
+    if not requested:
+        return
+    present = _strata_present(rows, strata)
+    # (2) constant-field check FIRST: it explains the run-50 trap exactly —
+    # a >1-value request on a constant field implies the other values are
+    # absent, so the dedicated message wins over the generic missing-list.
+    present_fields = {f for f, _ in present}
+    for field in sorted(present_fields):
+        present_vals = {v for f, v in present if f == field}
+        requested_vals = {v for f, v in requested if f == field}
+        if len(present_vals) == 1 and len(requested_vals) > 1:
+            raise ValueError(
+                f"strata field {field!r} is constant across prepared rows "
+                f"(value={sorted(present_vals)!r}); cannot stratify on "
+                f"requested values {sorted(requested_vals)}"
+            )
+    # (1) genuinely absent requested values (no constant field involved).
+    missing = sorted(
+        req for req in requested if not _requested_satisfied(req, present)
+    )
+    if missing:
+        raise ValueError(
+            "strata requested value(s) absent from prepared rows: "
+            f"{missing} (present: {sorted(present)})"
+        )
+
+
+def strata_draw_guard(
+    drawn: list[dict[str, Any]], strata: dict[str, Any] | None
+) -> None:
+    """Post-draw coverage check: a requested stratum must survive the draw."""
+    if not strata:
+        return
+    requested = _strata_requested(strata)
+    if not requested:
+        return
+    present = _strata_present(drawn, strata)
+    dropped = sorted(req for req in requested if not _requested_satisfied(req, present))
+    if dropped:
+        present_vals = {v for f, v in present}
+        raise ValueError(
+            f"strata: draw/limit dropped requested strata {dropped} "
+            f"(drawn: {sorted(present_vals)})"
+        )
+
+
 def filter_rows(rows: list[dict[str, Any]], spec: DatasetSpec) -> list[dict[str, Any]]:
     if spec.exclude_expected:
         rows = [r for r in rows if r["expected_doc_class"] not in set(spec.exclude_expected)]
     strata = spec.strata or {}
     if not strata:
         return rows
-    if "buckets" in strata:
+    if "buckets" in strata or "values" in strata:
         return rows
     expected_set = set(strata.get("expected") or [])
     subclass_set = set(strata.get("expected_subclass") or [])
@@ -215,8 +396,49 @@ def filter_rows(rows: list[dict[str, Any]], spec: DatasetSpec) -> list[dict[str,
         r
         for r in rows
         if (not expected_set or r["expected_doc_class"] in expected_set)
-        and (not subclass_set or r["expected_subclass"] in subclass_set)
+        and (not subclass_set or any(_subclass_matches(r, s) for s in subclass_set))
     ]
+
+
+def _bucket_candidates(
+    rows: list[dict[str, Any]], *, field: str, value: str | None
+) -> list[dict[str, Any]]:
+    if field == "expected_subclass":
+        return [
+            r for r in rows if value is None or _subclass_matches(r, value)
+        ]
+    return [r for r in rows if value is None or r["expected_doc_class"] == value]
+
+
+def _draw_buckets(
+    rows: list[dict[str, Any]],
+    buckets: list[dict[str, Any]],
+    *,
+    field: str,
+    sample_seed: int | None,
+) -> list[dict[str, Any]]:
+    """Per-stratum sub-seeded draws; union; stable-key preserved."""
+    keep: set[tuple[str, str]] = set()
+    for bucket in buckets:
+        value = bucket.get("value") or bucket.get("subclass")
+        if field == "expected_doc_class":
+            value = bucket.get("doc_class") or bucket.get("value")
+        count = bucket.get("count")
+        candidates = _bucket_candidates(rows, field=field, value=value)
+        if not candidates:
+            raise ValueError(
+                f"strata bucket {field}={value!r}: no candidate rows in prepared set"
+            )
+        if count is not None and count < len(candidates):
+            if sample_seed is None:
+                raise ValueError("sample_seed required for stratified draws")
+            bucket_key = f"{field}::{value}"
+            sub_seed = int(hashlib.sha256(f"{sample_seed}:{bucket_key}".encode()).hexdigest()[:16], 16)
+            drawn = random.Random(sub_seed).sample(candidates, k=count)
+        else:
+            drawn = candidates
+        keep.update(_stable_key(r) for r in drawn)
+    return [r for r in rows if _stable_key(r) in keep]
 
 
 def select_rows(
@@ -229,8 +451,18 @@ def select_rows(
     """Deterministic selection: canonical sort, per-stratum sub-seed draws, union, limit."""
     rows = sorted(rows, key=_stable_key)
     strata = strata or {}
-    if "buckets" not in strata:
-        chosen = rows
+    if "buckets" in strata:
+        chosen = _draw_buckets(rows, strata["buckets"], field="expected_doc_class", sample_seed=sample_seed)
+    elif "values" in strata:
+        field = strata_field(strata)
+        counts = strata.get("counts") or [None] * len(strata["values"])
+        if len(counts) != len(strata["values"]):
+            raise ValueError("strata.counts length must match strata.values")
+        buckets = [
+            {"value": v, "count": c}
+            for v, c in zip(strata["values"], counts)
+        ]
+        chosen = _draw_buckets(rows, buckets, field=field, sample_seed=sample_seed)
     else:
         keep: set[tuple[str, str]] = set()
         for bucket in strata["buckets"]:
@@ -299,10 +531,14 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
 
     rows = normalize_rows(rows)
     rows = filter_rows(rows, spec)
+    # DMR-066: refuse silent strata collapse BEFORE the draw…
+    strata_guard(rows, spec.strata)
     for r in rows:
         r.setdefault("source_revision", source_meta.get("revision", ""))
         r["expected_fields"] = r.get("expected_fields") or _derive_expected_fields(r)
     chosen = select_rows(rows, strata=spec.strata, sample_seed=spec.sample_seed, limit=spec.limit)
+    # …and refuse a draw/limit that dropped a requested stratum AFTER it.
+    strata_draw_guard(chosen, spec.strata)
 
     payload = "".join(_cache_line(r) for r in chosen)
     dest.write_text(payload, encoding="utf-8")

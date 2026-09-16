@@ -34,6 +34,50 @@ def _run_spec(tmp_path, *, rows=2, limit=2, run_id="pf-1") -> RunSpec:
     )
 
 
+class _FakeResp:
+    def __init__(self, status_code, payload=None):
+        self.status_code = status_code
+        self._payload = payload or {"data": [{"id": "Qwen/Qwen3-8B"}]}
+
+    def json(self):
+        return self._payload
+
+
+def test_engine_probe_url_seam_normalizes_v1_suffix(monkeypatch, tmp_path):
+    """DMR-062: VLLM_BASE_URL / profile base_url carry the OpenAPI '/v1'
+    seam (family contract), so the probe must NOT append '/v1/models' to an
+    already-seamed base — that produced .../v1/v1/models and a live 404."""
+    seen: list[str] = []
+
+    def fake_get(url, headers=None, timeout=None):
+        seen.append(url)
+        return _FakeResp(200)
+
+    monkeypatch.setattr("httpx.get", fake_get)
+    monkeypatch.setenv("VLLM_API_KEY", "tok")
+
+    # Seamed base (the documented contract: https://…-serve.modal.run/v1)
+    monkeypatch.setenv(
+        "VLLM_BASE_URL", "https://exios66--sandbox-vllm-serve.modal.run/v1"
+    )
+    spec = _run_spec(tmp_path)
+    result = preflight.probe_engine(spec)
+    assert result["ok"] is True
+    assert seen == ["https://exios66--sandbox-vllm-serve.modal.run/v1/models"]
+
+    # Un-seamed base (engine_base_url's modal-vllm fallback) still gets /v1
+    seen.clear()
+    monkeypatch.setenv("VLLM_BASE_URL", "https://exios66--sandbox-vllm-serve.modal.run")
+    result = preflight.probe_engine(spec)
+    assert result["ok"] is True
+    assert seen == ["https://exios66--sandbox-vllm-serve.modal.run/v1/models"]
+
+    # 401 keeps its bearer hint (DMR-048 regression)
+    monkeypatch.setattr("httpx.get", lambda *a, **k: _FakeResp(401))
+    result = preflight.probe_engine(spec)
+    assert result["ok"] is False and "VLLM_API_KEY" in result["reason"]
+
+
 def _store(report):
     from mailroom_sandbox.job.checkpoint import RunStore
 

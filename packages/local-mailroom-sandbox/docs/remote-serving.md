@@ -18,12 +18,12 @@ sandbox up --compose-profile vllm        # docker compose, needs NVIDIA GPU
 sandbox health --profile vllm-local
 ```
 
-The compose service pins `vllm/vllm-openai:v0.28.0` — the same engine
+The compose service pins `vllm/vllm-openai:v0.29.0` — the same engine
 version as the Modal app — and sends the shared test-sandbox argv:
 `--host 0.0.0.0 --port 8000 --max-model-len 16384
 --gpu-memory-utilization 0.90 --max-num-seqs 256
 --no-enable-log-requests` (DMR-056: 16384 is the boot-valid cap for
-L4-bf16 8B-class rows — v0.28.0 raises at boot rather than shrinking the KV
+L4-bf16 8B-class rows — v0.29.0 raises at boot rather than shrinking the KV
 pool; AWQ rows opt up to 32768). Compose substitution reads your shell env or
 `deploy/.env` (the compose project directory):
 
@@ -50,7 +50,7 @@ The Modal app exposes both as deploy knobs (`MODAL_VLLM_QUANTIZATION`,
 
 ## Modal
 
-Modal SDK **1.5.5** (pinned in the `[deploy]` extra) + vLLM **v0.28.0**
+Modal SDK **1.5.5** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**
 (the newest upstream stable, v0.29.0, flips the engine core — bump both pins
 after a parity run); full workflow (knobs, costs, security, troubleshooting)
 in [`deploy/README.md`](../deploy/README.md).
@@ -139,7 +139,7 @@ Every path converges on the same probes: `sandbox health` GETs
 `{base}/v1/models` and posts a 1-token `json_object` chat; structured-output
 gaps surface as `json_object_ok: false` (vLLM ≥0.8 and Modal's image pass).
 
-Bearer semantics (vLLM v0.28.0): `VLLM_API_KEY` (or `--api-key`) makes the
+Bearer semantics (vLLM v0.29.0): `VLLM_API_KEY` (or `--api-key`) makes the
 server require `Authorization: Bearer <token>` on the `/v1`, `/v2`,
 `/inference`, and `/cohere` path prefixes. `/health` is a liveness endpoint
 and is deliberately **unauthenticated** — `sandbox health` validates the

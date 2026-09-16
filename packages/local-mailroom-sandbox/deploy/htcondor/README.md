@@ -142,7 +142,7 @@ L4-class bf16 8B rows; override per submission via the `.sub`
 `QUANTIZATION`/`REVISION` for pre-quantized/pinned checkpoints), waits
 for `/v1/models` (hard failure on death or a 20-minute timeout; the probe is
 bounded with `--max-time 5` and forwards the bearer when `VLLM_API_KEY` is
-set — v0.28.0 enforces it automatically, a keyless probe would 401 forever),
+set — v0.29.0 enforces it automatically, a keyless probe would 401 forever),
 then runs `sandbox eval sorter --local` / `eval extract --local` with
 `SANDBOX_PROFILE=vllm-local` and `--model "$MODEL"` so the agents always
 request the served model. A final **live-or-loud guard** fails the job if any

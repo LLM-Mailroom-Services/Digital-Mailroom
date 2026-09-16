@@ -219,3 +219,109 @@ def test_resolve_revision_raises_on_bad_tag(monkeypatch, tmp_path):
     monkeypatch.setattr(huggingface_hub.HfApi, "dataset_info", _boom)
     with pytest.raises(RuntimeError, match="cannot resolve"):
         _resolve_revision("some/repo", "some-tag")
+
+# --- DMR-066: subclass-stratified draws + loud strata guards -----------------
+
+def _subclass_rows():
+    """Contract rows across raw surfaces incl. CUAD folder spellings."""
+    raw = [
+        ("d-service-1", "service"),
+        ("d-service-2", "service"),
+        ("d-supply-1", "supply"),
+        ("d-license-1", "License_Agreements"),   # raw surface -> catalog 'license'
+        ("d-license-2", "License_Agreements"),
+        ("d-ip-1", "IP"),
+    ]
+    out = []
+    for i, (rid, sub) in enumerate(raw):
+        out.append(
+            {
+                "id": rid,
+                "filename": f"{rid}.txt",
+                "doc_text": f"text {rid}",
+                "expected": "contract",
+                "expected_doc_class": "contract",
+                "expected_subclass": sub,
+            }
+        )
+    return out
+
+
+def test_values_strata_draws_normalized_subclass_buckets(tmp_path):
+    src = _rows_fixture(tmp_path, _subclass_rows())
+    dest = tmp_path / "d.jsonl"
+    prov = prepare_subset(
+        DatasetSpec(
+            local_path=src,
+            strata={
+                "field": "expected_subclass",
+                "values": ["service", "license", "ip"],
+                "counts": [2, 1, 1],
+            },
+            sample_seed=42,
+        ),
+        dest,
+    )
+    rows = [json.loads(l) for l in dest.read_text().splitlines() if l]
+    assert prov["rows"] == 4
+    # 'license' requested as a catalog token must match the raw 'License_Agreements'
+    assert len(rows) == 4
+    ids = sorted(r["id"] for r in rows)
+    assert ids == sorted(
+        ["d-service-1", "d-service-2", "d-license-1", "d-ip-1"]
+    )
+
+
+def test_values_strata_is_deterministic(tmp_path):
+    src = _rows_fixture(tmp_path, _subclass_rows())
+    strata = {"field": "expected_subclass", "values": ["service", "supply"], "counts": [1, 1]}
+    a = select_rows(normalize_rows(_subclass_rows()), strata=strata, sample_seed=7, limit=None)
+    b = select_rows(normalize_rows(_subclass_rows()), strata=strata, sample_seed=7, limit=None)
+    assert [r["id"] for r in a] == [r["id"] for r in b]
+
+
+def test_strata_guard_constant_field_raises(tmp_path):
+    # All rows contract; requesting >1 doc-class strata on a constant field
+    # must FAIL loudly (the old behavior silently drew contract x N).
+    src = _rows_fixture(tmp_path, _subclass_rows())
+    spec = DatasetSpec(
+        local_path=src,
+        strata={"expected": ["contract", "insurance_claim"]},
+        sample_seed=42,
+    )
+    with pytest.raises(ValueError, match="constant"):
+        prepare_subset(spec, tmp_path / "y.jsonl")
+
+
+def test_strata_guard_missing_value_raises(tmp_path):
+    src = _rows_fixture(tmp_path, _subclass_rows())
+    spec = DatasetSpec(
+        local_path=src,
+        strata={"field": "expected_subclass", "values": ["service", "reseller"]},
+        sample_seed=42,
+    )
+    with pytest.raises(ValueError, match="absent from prepared rows"):
+        prepare_subset(spec, tmp_path / "z.jsonl")
+
+
+def test_strata_guard_draw_drop_raises(tmp_path):
+    # limit truncation that drops a requested stratum must fail loudly.
+    src = _rows_fixture(tmp_path, _subclass_rows())
+    spec = DatasetSpec(
+        local_path=src,
+        strata={"field": "expected_subclass", "values": ["service", "supply"], "counts": [1, 1]},
+        limit=1,
+        sample_seed=42,
+    )
+    with pytest.raises(ValueError, match="draw/limit dropped requested strata"):
+        prepare_subset(spec, tmp_path / "w.jsonl")
+
+
+def test_values_strata_draw_needs_seed(tmp_path):
+    src = _rows_fixture(tmp_path, _subclass_rows())
+    spec = DatasetSpec(
+        local_path=src,
+        strata={"field": "expected_subclass", "values": ["service"], "counts": [1]},
+    )
+    with pytest.raises(ValueError, match="sample_seed required"):
+        prepare_subset(spec, tmp_path / "v.jsonl")

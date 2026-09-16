@@ -45,7 +45,7 @@ map:
 # GPU notes (DMR-045 + DMR-051 + DMR-056, 2026-09-10, vllm-specialist verified):
 #   - L4 24GB @ 0.90 util = ~21.6GB usable. 8B AWQ is the sweet spot; 14B AWQ
 #     fits; 14B bf16 does NOT (29GB > 21.6GB — the "14B trap").
-#   - v0.28.0 RAISES at boot ("To serve at least one request with the model's
+#   - v0.29.0 RAISES at boot ("To serve at least one request with the model's
 #     max seq len (32768)...") when the KV pool cannot hold ONE request at
 #     max_model_len — it does NOT shrink-and-warn. The auto-fit path exists
 #     only when --max-model-len is left at -1. So every row below whose pool
@@ -82,7 +82,7 @@ modal_models:
     max_model_len: 16384
     tp_size: 1
     notes: Default workhorse (app default). ~16GB bf16 fits L4 but the KV pool
-      is only ~3.4GB — 32768 RAISES at boot (v0.28.0 admission check); 16384
+      is only ~3.4GB — 32768 RAISES at boot (v0.29.0 admission check); 16384
       is the boot-valid cap. Prefer AWQ for 32768 contexts.
   Qwen/Qwen3-8B-FP8:
     gpu: H100

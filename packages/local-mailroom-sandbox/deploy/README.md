@@ -46,8 +46,8 @@ Dedicated notebooks:
 
 ## Modal vLLM (remote GPU)
 
-Modal SDK **1.5.5** (pinned in the `[deploy]` extra) + vLLM **v0.28.0**
-(`vllm/vllm-openai:v0.28.0`, matching the local compose pin). Same knob
+Modal SDK **1.5.5** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**
+(`vllm/vllm-openai:v0.29.0`, matching the local compose pin). Same knob
 contract as llm-mailroom KANBAN-064 / entity-extraction KANBAN-096, plus
 sandbox-local cost/scale knobs.
 
@@ -93,14 +93,14 @@ For evals: `SANDBOX_PROFILE=modal-vllm` + `DEFAULT_PROVIDER=vllm` (see
 | --- | --- | --- |
 | `MODAL_VLLM_MODEL` | `Qwen/Qwen3-8B` | HF repo id |
 | `MODAL_VLLM_GPU` | `L4` | 24 GB VRAM |
-| `MODAL_VLLM_MAX_MODEL_LEN` | `16384` | context cap (KV-cache budget). DMR-056: v0.28.0 RAISES at boot when the pool can't hold one request — L4-bf16 8B rows cap at 16384; AWQ/FP8 rows set 32768 |
+| `MODAL_VLLM_MAX_MODEL_LEN` | `16384` | context cap (KV-cache budget). DMR-056: v0.29.0 RAISES at boot when the pool can't hold one request — L4-bf16 8B rows cap at 16384; AWQ/FP8 rows set 32768 |
 | `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | fraction of GPU memory; vLLM's default is `0.92` |
 | `MODAL_VLLM_MAX_NUM_SEQS` | `256` | concurrency cap; vLLM's own L4/OpenAI-server default |
 | `MODAL_VLLM_ATTENTION_BACKEND` | empty | `flashinfer` for throughput runs (Modal vllm_throughput exemplar); empty = vLLM engine default (parity + reproducible posture) |
 | `MODAL_VLLM_ASYNC_SCHEDULING` | empty | `1`/`true` enables the async batch scheduler (exemplar throughput knob). Not every vLLM feature is supported under it — keep off when a run depends on structured outputs |
 | `MODAL_VLLM_QUANTIZATION` | empty | `awq` / `gptq` / … |
 | `MODAL_VLLM_TP_SIZE` | from GPU suffix | tensor-parallel size; default derived from `:N` in `MODAL_VLLM_GPU` (1 for single GPU). Set explicitly for 70B-class (`A100-80GB:2` → `2`). Travels via the deploy Secret. |
-| `MODAL_VLLM_IMAGE_TAG` | `v0.28.0` | pin; tag or `@sha256:` digest |
+| `MODAL_VLLM_IMAGE_TAG` | `v0.29.0` | pin; tag or `@sha256:` digest |
 | `MODAL_VLLM_REVISION` | empty | HF revision (recommended for runs; travels via the deploy Secret) |
 | `MODAL_VLLM_API_TOKEN` | empty | maps to `VLLM_API_KEY` (bearer) |
 | `HF_TOKEN` | empty | gated/private weights |
@@ -109,17 +109,22 @@ For evals: `SANDBOX_PROFILE=modal-vllm` + `DEFAULT_PROVIDER=vllm` (see
 | `MODAL_VLLM_MIN_CONTAINERS` | `0` | scale-to-zero |
 | `MODAL_VLLM_STARTUP_TIMEOUT_SECONDS` | `1200` | first-boot budget |
 
-Image pin: v0.28.0 tracks the local compose pin so offline and Modal runs
-speak the same engine version. v0.29.0 is the newest upstream stable
-(released 2026-09-09) but flips Model Runner V2 to the default for all
-models — bump **both** pins together only after a live parity run.
+Image pin: **v0.29.0** everywhere (Modal app, local compose, HTCondor
+templates) — bumped together in DMR-062 after the **live parity pilot**
+(2026-09-16: 7/7 sorter rows F1=1.0 on `Qwen/Qwen3-8B` L4 via the deployed
+endpoint, `json_object` structured outputs verified). The v0.29.0 flag set
+was docs-verified by vllm-specialist (2026-09-16): same boot-valid pylons as
+v0.28.0 (`--max-model-len 16384`, `--gpu-memory-utilization 0.90`,
+`--max-num-seqs 256`, `--no-enable-log-requests`); Model Runner V2 is the
+v0.29.0 default and keeps the KV admission check (16384 still fits
+L4-bf16-8B; 32768 still RAISES at boot).
 
 ### Model matrix (DMR-045)
 
 `config/models.yaml` carries the per-model deploy matrix
 (`modal_models:`): exact HF repo id, recommended GPU, quantization, context
-cap, and tensor-parallel size. Rules of thumb (verified against v0.28.0,
-2026-09-10):
+cap, and tensor-parallel size. Rules of thumb (verified against v0.29.0,
+2026-09-16):
 
 - **L4 24 GB** (default): 8B bf16 (16K context) or AWQ (32K) is the sweet
   spot; 14B **AWQ** fits, 14B **bf16 does not** (~29 GB > ~21.6 GB usable —
@@ -138,12 +143,12 @@ cap, and tensor-parallel size. Rules of thumb (verified against v0.28.0,
   online FP8 on the bf16 weights OOMs at load (~70.5 GB/GPU vs 72 GB
   budget). The TP knob is load-bearing — without it vLLM uses 1 GPU and OOMs.
 - **Gated repos** (`meta-llama/*`): set `HF_TOKEN` in the deploy env.
-- `json_object` structured outputs work with xgrammar on v0.28.0 (no
+- `json_object` structured outputs work with xgrammar on v0.29.0 (no
   `--guided-decoding-backend` needed — that flag is gone).
 - Swap models by re-exporting the knobs + `modal deploy --strategy recreate`
   (a rolling redeploy keeps the old model warm for the scaledown window).
 
-### Engine posture (v0.28.0, docs-verified 2026-09-09)
+### Engine posture (v0.29.0, docs-verified 2026-09-16)
 
 The local compose service (`deploy/docker-compose.yml`) and this app send
 the same `vllm serve` argv:
@@ -151,7 +156,7 @@ the same `vllm serve` argv:
 | Flag | Value | Why |
 | --- | --- | --- |
 | `--host` / `--port` | `0.0.0.0` / `8000` | reachable from the compose network / Modal proxy |
-| `--max-model-len` | `16384` (knob) | DMR-056: boot-valid default for L4-bf16 8B rows — v0.28.0 RAISES (not warns) when the KV pool can't hold one request at the cap; AWQ rows use 32768 |
+| `--max-model-len` | `16384` (knob) | DMR-056: boot-valid default for L4-bf16 8B rows — v0.29.0 RAISES (not warns) when the KV pool can't hold one request at the cap; AWQ rows use 32768 |
 | `--gpu-memory-utilization` | `0.90` (knob) | vLLM's default is `0.92`; 0.90 keeps headroom on a 24 GB L4 and on shared local GPUs |
 | `--max-num-seqs` | `256` (knob) | vLLM's own L4/OpenAI-server default, pinned so local and Modal schedule the same concurrency on any GPU |
 | `--no-enable-log-requests` | on | v0.28.0 made request logging opt-in (`--enable-log-requests`); the pre-0.28 `--disable-log-requests` flag no longer exists |
@@ -160,7 +165,7 @@ the same `vllm serve` argv:
 | `--tensor-parallel-size` | `N` when `MODAL_VLLM_TP_SIZE` ≠ 1 | multi-GPU containers must pass this or vLLM uses only 1 GPU and OOMs (70B-class on `A100-80GB:2`) |
 | `--revision` / `--quantization` | optional | weight pin / quantized checkpoints (Modal knobs; compose overrides via a command override) |
 
-Deliberately **not** set — the v0.28.0 defaults are already the safe test
+Deliberately **not** set — the v0.29.0 defaults are already the safe test
 posture:
 
 - **Chunked prefill** — on by default (`SchedulerConfig.enable_chunked_prefill=True`).
@@ -180,7 +185,7 @@ posture:
   (backend default `auto`, xgrammar); `response_format={"type":
   "json_object"}` works unflagged.
 - **`--swap-space`** — removed with the V1 engine; CPU swap is not a
-  v0.28.0 knob.
+  v0.29.0 knob.
 
 ### Throughput runs (Modal `vllm_throughput` exemplar, 2026-09)
 
@@ -232,12 +237,32 @@ runner (concurrency) and the server (`--max-num-seqs`).
   free) and persist weights + compile artifacts across deploys.
 - Spend check: `modal billing summary` / `modal billing rates` (SDK 1.5.3+).
 
-### Teardown
+### Teardown + resource safeguards (DMR-063)
 
 ```bash
-modal app stop sandbox-vllm          # stop serving (Volumes persist)
+./deploy/teardown_vllm.sh              # stop + VERIFY zero containers + spend check
+modal app stop sandbox-vllm          # manual fallback (Volumes persist)
 modal volume ls sandbox-hf-cache     # weights survive
 modal volume ls sandbox-vllm-cache   # vLLM JIT/CUDA-graph cache
+```
+
+Guard matrix — nothing may run unchecked:
+
+| Guard | Knob / command | Default | Enforced by |
+| --- | --- | --- | --- |
+| Replica cap (cost guard) | `MODAL_VLLM_MAX_CONTAINERS` | `1` — raise deliberately (4 for the DMR-063 scale-out run) | deploy env; preflight `modal_spec` guard |
+| Scale-to-zero | `MODAL_VLLM_MIN_CONTAINERS` | `0` | deploy env |
+| Idle burn window | `MODAL_VLLM_SCALEDOWN_SECONDS` | `900` (600 for scale-out runs) | deploy env |
+| Loud teardown after any run | `./deploy/teardown_vllm.sh` | run it after every completed/cancelled run | this script exits 1 if a deployment is still running after 30 polls |
+| Boot-time budget | `MODAL_VLLM_STARTUP_TIMEOUT_SECONDS` | `1200` | deploy env; fail-loud in `serve()` |
+| Spend visibility | `modal billing summary` / `modal billing rates` | — | teardown script step 4 (best-effort) |
+
+Deploy-time knobs for a scale-out run (multiple replicas, tight idle):
+
+```bash
+export MODAL_VLLM_MAX_CONTAINERS=4      # 4 × L4 replicas (documented raise)
+export MODAL_VLLM_SCALEDOWN_SECONDS=600 # 10 min idle max before scale-to-zero
+modal deploy deploy/modal_vllm.py
 ```
 
 ### Security model
@@ -249,7 +274,9 @@ modal volume ls sandbox-vllm-cache   # vLLM JIT/CUDA-graph cache
   prefixes; `/health` (and `/metrics`) stay unauthenticated by design. So
   `sandbox health` proves the token on `/v1/models` — a 200 from `/health`
   only means the process is up.
-- Secrets are built at deploy time from local env (`Secret.from_dict`); only
+- Secrets: the named Modal secret `huggingface-secret` (HF token, configured
+  in the Modal dashboard) is attached via `Secret.from_name`; deploy-time
+  `MODAL_VLLM_*` knobs travel via a `Secret.from_dict` fallback. Only
   variable names appear in the repo. The app prints argv, never token values.
 - Do **not** set `requires_proxy_auth=True`: the OpenAI client seam speaks
   `Authorization: Bearer`, not `Modal-Key`/`Modal-Secret` headers.

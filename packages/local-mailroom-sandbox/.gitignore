@@ -61,3 +61,6 @@ htmlcov/
 
 # Docker
 docker/volumes/
+
+# Runtime agent memory churn (DMR-063 hygiene)
+data/memory/

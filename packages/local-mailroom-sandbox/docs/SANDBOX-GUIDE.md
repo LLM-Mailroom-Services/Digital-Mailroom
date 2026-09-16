@@ -369,7 +369,7 @@ engine:
   kind: modal-vllm
   model: Qwen/Qwen3-8B
   vllm: {max_model_len: 16384, gpu_memory_utilization: 0.90}
-  # DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.28.0
+  # DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.29.0
   # raises at boot); AWQ rows set 32768 explicitly.
 
 trace:
@@ -440,11 +440,11 @@ sandbox health --profile modal-vllm
 |---|---|---|
 | `MODAL_VLLM_MODEL` | `Qwen/Qwen3-8B` | HF model id |
 | `MODAL_VLLM_GPU` | `L4` | GPU type |
-| `MODAL_VLLM_MAX_MODEL_LEN` | `16384` | Context cap — DMR-056: boot-valid default (v0.28.0 raises when the KV pool can't hold one request); AWQ/FP8 rows use 32768 |
+| `MODAL_VLLM_MAX_MODEL_LEN` | `16384` | Context cap — DMR-056: boot-valid default (v0.29.0 raises when the KV pool can't hold one request); AWQ/FP8 rows use 32768 |
 | `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | GPU memory fraction |
 | `MODAL_VLLM_MAX_NUM_SEQS` | `256` | Concurrency cap |
 | `MODAL_VLLM_TP_SIZE` | GPU `:N` suffix (1 single-GPU) | Tensor-parallel size — must match `MODAL_VLLM_GPU="A100-80GB:2"` for 70B-class |
-| `MODAL_VLLM_IMAGE_TAG` | `v0.28.0` | vLLM version pin |
+| `MODAL_VLLM_IMAGE_TAG` | `v0.29.0` | vLLM version pin |
 | `MODAL_VLLM_REVISION` | empty | HF revision pin |
 | `MODAL_VLLM_SCALEDOWN_SECONDS` | `900` | Idle warm window |
 | `MODAL_VLLM_MAX_CONTAINERS` | `1` | Cost guard |
@@ -560,7 +560,7 @@ python scripts/reporting/render_experiment_log.py
 | `401` on `/v1/models` | Bearer token mismatch | Ensure `VLLM_API_KEY == MODAL_VLLM_API_TOKEN` |
 | First request slow | Cold start (Modal) | Pre-warm weights or raise `MODAL_VLLM_SCALEDOWN_SECONDS` |
 | CUDA OOM at boot | Model too large for GPU | Lower `MAX_MODEL_LEN`, quantize, or use bigger GPU |
-| `unrecognized arguments: --disable-log-requests` | Pre-0.28 vLLM flag | Use `--no-enable-log-requests` (v0.28.0+) |
+| `unrecognized arguments: --disable-log-requests` | Pre-0.28 vLLM flag | Use `--no-enable-log-requests` (v0.28.0+) — the rename landed in v0.28.0 |
 | `deploy import error on from_local` | Stale Modal SDK | SDK 1.5.5 removed it; this repo uses `from_dict` |
 | `sandbox health` shows `json_object_ok: false` | Engine lacks structured output | Use a vLLM/Ollama version that supports `response_format` |
 | Compose won't start | Port conflict | Check `docker compose ps` for conflicting services |

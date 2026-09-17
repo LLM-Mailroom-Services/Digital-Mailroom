@@ -88,5 +88,6 @@ pythonpath = ["src", "."]
 
 # Monorepo dev: resolve the shared scoring engine from the workspace instead
 # of the release git pin above. Plain `pip install .` keeps using the pin.
+# (uv hard-requires workspace members to use `{ workspace = true }` here.)
 [tool.uv.sources]
 llm-dojo-scoring = { workspace = true }

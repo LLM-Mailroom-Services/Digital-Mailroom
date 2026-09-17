@@ -9,34 +9,54 @@
 # workspace-pins law. Dependency freshness for the family is therefore
 # handled per-package in the standalone repos; this config covers the hub
 # itself plus the actively maintained sandbox deploy surface.
+#
+# Auto-merge: patch/minor Dependabot PRs are squash-merged when CI is green
+# via .github/workflows/dependabot-auto-merge.yml. Majors stay manual.
 
 version: 2
 updates:
-  # Hub workspace: root pyproject.toml dev group + uv.lock (Dependabot
-  # supports uv via the pip ecosystem). Group dev deps so routine bumps
-  # arrive as one reviewable PR; PRs should keep `uv lock --check` green.
+  # Hub workspace: root pyproject.toml + uv.lock (pip ecosystem covers uv).
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+      day: "monday"
+      time: "08:00"
+      timezone: "America/Chicago"
+    open-pull-requests-limit: 10
     groups:
       hub-dev-deps:
         applies-to: version-updates
         dependency-type: "development"
+      hub-prod-deps:
+        applies-to: version-updates
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
 
-  # Hub CI: action refs in .github/workflows/ (checkout, setup-python, …).
+  # Hub CI: action refs in .github/workflows/
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+      day: "monday"
+      time: "08:00"
+      timezone: "America/Chicago"
+    open-pull-requests-limit: 10
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   # Offline sandbox image (HUB-015 pins doctrine): base-image bumps land as
-  # monorepo-side changes and ride the HUB-005 release train upstream.
-  # Other packages' Dockerfiles are excluded — same mirror rationale as above.
+  # monorepo-side changes. Other packages' Dockerfiles are excluded — same
+  # mirror rationale as above.
   - package-ecosystem: "docker"
     directory: "/packages/local-mailroom-sandbox/deploy"
     schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 3
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "America/Chicago"
+    open-pull-requests-limit: 5

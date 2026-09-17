@@ -12,7 +12,7 @@
 # extra is installed, so vendored evals (`sandbox eval ... --local`) run
 # in-image; Modal deploys run from the host.
 
-FROM python:3.13-slim-bookworm
+FROM python:3.14-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

@@ -2,7 +2,7 @@
 
 # 🏛️ LLM-Mailroom Constellation
 
-**A governed monorepo housing the full LLM-Mailroom ecosystem — one checkout, one virtualenv, ten packages, zero cross-repo import friction.**
+**A monorepo housing the full LLM-Mailroom ecosystem — one checkout, one virtualenv, ten packages, zero cross-repo import friction.**
 
 Multi-agent legal-document pipeline · Prompt-experiment loop · Deterministic scoring · Pixel-art visualizer · Walking-office-floor mailroom · Corpus EDA
 
@@ -187,6 +187,6 @@ The monorepo is the development source of truth. Upstream repositories remain th
 **[The-Mailroom](https://github.com/Exios66/The-Mailroom)** ·
 **[agent-mailroom](https://github.com/Exios66/agent-mailroom)**
 
-<sub>Built by the governed evaluation family under <a href="https://github.com/LLM-Mailroom-Services">LLM-Mailroom-Services</a> (Exios66 · grantmooslin) · 2026</sub>
+<sub>Built by the governed evaluation family under <a href="https://github.com/LLM-Mailroom-Services">LLM-Mailroom-Services</a> (@Exios66 · @grantmooslin) · 2026</sub>
 
 </div>

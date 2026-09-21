@@ -372,6 +372,7 @@ class SorterAgent(BaseAgent):
         doc_text: str,
         subtype_focus: bool = False,
         pages: list[str] | None = None,  # MAILROOM PATCH: page-image data-URIs
+        max_tokens: int | None = None,  # #108: Tier-1 scoped completion budget
     ) -> dict:
         """Classify and return the raw structured dict (used by eval loops).
 
@@ -391,6 +392,7 @@ class SorterAgent(BaseAgent):
             json_schema=_sorter_schema(),
             temperature=0.1,
             pages=pages,  # MAILROOM PATCH
+            max_tokens=max_tokens,  # #108: scoped lane budget (2048 -> 1024)
         )
         if result.get("_parse_error"):
             logger.error("sorter_parse_error")

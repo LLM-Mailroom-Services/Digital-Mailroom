@@ -543,8 +543,12 @@ def after_intake(state: dict) -> Literal["classify", "review_classify", "extract
     - BERT ``route != fast_path`` AND mode == shadow -> ``classify``;
     - BERT ``route == fast_path`` AND mode == skip AND class allowlisted AND
       ``evaluate_intake_gate(...).eligible_for_sorter_skip`` -> ``extract``
-      (``bert_intake`` — no ``SorterAgent`` constructed);
-    - everything else -> ``classify`` (fail-open: the sorter stays authority).
+      (``bert_intake`` — no ``SorterAgent`` constructed; Tier 0);
+    - everything else -> ``classify`` (fail-open: the sorter stays
+      authority). Tier 1 (doc_type passed, subclass left open) lands in
+      ``classify`` via this row and is recognized there by
+      ``_bert_triage_scoped`` — the router cannot mutate state, so the
+      ``bert_scoped`` flag is stamped by classify_node from the handoff.
 
     The gate call is lazy-guarded (mailroom-ml is an undeclared sibling) and
     fail-open by construction — a missing package or a gate exception routes

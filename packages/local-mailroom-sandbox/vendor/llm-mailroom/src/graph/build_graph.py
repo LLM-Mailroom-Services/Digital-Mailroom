@@ -771,6 +771,25 @@ def intake_node(state: DocumentState) -> dict[str, Any]:
     return intake_state
 
 
+def _bert_triage_scoped(state: DocumentState) -> bool:
+    """#108 Tier-1 predicate: BERT doc_type head PASSED (route fast_path +
+    doc_type_pass) — the sorter's residual job is subclass verification.
+
+    Mirrors the tier table: Tier 0 (full skip) never reaches classify;
+    Tier 2 (gate fail / missing lane) yields False (no BERT steer); Tier 1
+    yields True and the node composes the verified-type prior + scoped
+    completion budget. The flag rides state so retries and the manifest
+    stay consistent.
+    """
+    handoff = state.get("intake_handoff") or {}
+    if not handoff.get("available") or handoff.get("method") != "bert":
+        return False
+    if handoff.get("route") != "fast_path":
+        return False
+    doc_type_pass = handoff.get("doc_type_pass", True)
+    return bool(doc_type_pass and handoff.get("doc_type"))
+
+
 def classify_node(state: DocumentState) -> dict[str, Any]:
     doc_text = state.get("doc_text", "")
     if not doc_text or not doc_text.strip():
@@ -814,11 +833,16 @@ def classify_node(state: DocumentState) -> dict[str, Any]:
         bert_prior = format_bert_type_prior(state.get("bert_triage") or None)
         if bert_prior:
             intake_prior = "\n\n".join(p for p in (intake_prior, bert_prior) if p)
+        # #108 Tier-1: scoped docs get the verified-type prior (composed
+        # above) + a capped completion budget (2048 -> 1024); Tier-2 keeps
+        # the full budget from taxonomy.yaml.
+        scoped = _bert_triage_scoped(state)
         # Structured classify includes per-class doc_subclass (dojo catalogs).
         classified = sorter.classify_json(
             doc_text,
             pages=state.get("doc_pages"),
             intake_prior=intake_prior,
+            max_tokens=1024 if scoped else None,
         )
         doc_type = classified.get("doc_type") or ""
         contract_subtype = classified.get("contract_subtype")
@@ -911,6 +935,7 @@ def classify_node(state: DocumentState) -> dict[str, Any]:
         confidence=confidence,
         attempts=attempts,
     )
+    scoped = _bert_triage_scoped(state)
     result = {
         "doc_type": doc_type,
         "contract_subtype": contract_subtype,
@@ -918,9 +943,12 @@ def classify_node(state: DocumentState) -> dict[str, Any]:
         "classification_confidence": confidence,
         "classification_attempts": attempts,
         "classification_guardrail": guard["issues"],
-        # #85 M6b (#99): the sorter ran — the manifest's classification_method
-        # distinguishes this from the BERT fast path (bert_intake).
-        "classification_method": "llm_sorter",
+        # #85 M6b (#99) + M6e (#108): classification_method distinguishes the
+        # BERT fast path (bert_intake), the Tier-1 prior-scoped lane
+        # (bert_scoped — BERT verified the type, sorter resolved the
+        # subclass), and the full sorter (llm_sorter).
+        "classification_method": "bert_scoped" if scoped else "llm_sorter",
+        "bert_scoped": scoped,
         "stage": PipelineStage.CLASSIFIED.value,
         "escalation_reason": reasoning
         if confidence < get_confidence_thresholds().get("high", 0.95)
@@ -960,14 +988,25 @@ def retry_classify_node(state: DocumentState) -> dict[str, Any]:
         preamble = f"{preamble}\n\n{memory}"
     from agents.intake import format_intake_prior
 
+    scoped = _bert_triage_scoped(state)
     try:
         # HUB-038: no truncation — the retry reads the FULL document through
         # sliding windows (preamble + advisory intake prior on every window).
+        # #108: a Tier-1 scoped retry KEEPS the verified-type BERT prior (the
+        # sorter re-resolves the subclass, not the type it was steered to);
+        # the scoped completion budget applies for the same reason.
+        retry_prior = format_intake_prior(state.get("intake_prep") or None)
+        from agents.bert_intake import format_bert_type_prior
+
+        bert_prior = format_bert_type_prior(state.get("bert_triage") or None)
+        if bert_prior:
+            retry_prior = "\n\n".join(p for p in (retry_prior, bert_prior) if p)
         classified = sorter.classify_json(
             doc_text,
             pages=state.get("doc_pages"),
             prefix=preamble,
-            intake_prior=format_intake_prior(state.get("intake_prep") or None),
+            intake_prior=retry_prior,
+            max_tokens=1024 if scoped else None,
         )
         doc_type = classified.get("doc_type") or ""
         contract_subtype = classified.get("contract_subtype")
@@ -1041,6 +1080,9 @@ def retry_classify_node(state: DocumentState) -> dict[str, Any]:
         "classification_attempts": attempts,
         "retry_count": state.get("retry_count", 0) + 1,
         "classification_guardrail": guard["issues"],
+        # #108: keep the lane method consistent across the retry.
+        "classification_method": "bert_scoped" if scoped else "llm_sorter",
+        "bert_scoped": scoped,
         "stage": PipelineStage.CLASSIFIED.value,
         "escalation_reason": reasoning
         if confidence < get_confidence_thresholds().get("high", 0.95)

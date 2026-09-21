@@ -18,8 +18,9 @@ Keys:
 - ``attorney_demand``  — demands sent by an attorney or law firm (the attorney-demand class)
 - ``press_release``    — press/news releases distributed over email
 - ``meeting_request``  — calendar invitations / meeting requests
-- ``voicemail``        — voicemail transcriptions
-- ``other``            — unparseable / not an email message
+- ``other``            — unparseable / not an email message; also the HUB-041
+  fallback for voicemail transcriptions (voicemail abolished from the
+  canonical taxonomy — 0 rows by construction, #66 adjudication)
 
 Labeling is deterministic (pure function of the index row) so rebuilds and
 the spot-check sample agree byte-for-byte.
@@ -254,7 +255,6 @@ SUBCLASS_KEYS = [
     "attorney_demand",
     "press_release",
     "meeting_request",
-    "voicemail",
     "other",
 ]
 SUBCLASS_LABELS = {
@@ -266,7 +266,6 @@ SUBCLASS_LABELS = {
     "attorney_demand": "Attorney Demand",
     "press_release": "Press Release",
     "meeting_request": "Meeting Request",
-    "voicemail": "Voicemail",
     "other": "Other",
 }
 
@@ -387,7 +386,10 @@ def label_correspondence(row: dict) -> tuple[str, str]:
         return "meeting_request", "calendar content-type or meeting markers"
 
     if _has_any(own_head, _OPENERS_RE["voicemail"]):
-        return "voicemail", "voicemail transcription markers"
+        # HUB-041 (#66): voicemail is not a canonical class — detection still
+        # runs so legacy transcripts land in the sanctioned fallback, never
+        # an invented class.
+        return "other", "voicemail transcription markers (→ other, HUB-041)"
 
     if _has_any(own_head, _OPENERS_RE["press"]):
         return "press_release", "press-release forms"

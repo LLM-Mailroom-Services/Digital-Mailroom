@@ -15,7 +15,8 @@ Every row carries:
 - ``text``               the cleaned email body (text/plain or HTML-stripped)
 - ``subject``            decoded subject header
 - ``expected``           ``correspondence`` (family doc_type)
-- ``expected_subclass``  ground truth from the SHARED labeler (10-key taxonomy)
+- ``expected_subclass``  ground truth from the SHARED labeler (9-key taxonomy:
+  8 canonical classes + ``other`` fallback — voicemail abolished HUB-041)
 - ``label_evidence``     why the labeler fired (audit trail, on-row)
 - ``split``              md5(filename) % 10 == 0 -> test (~10%) — SAME rule as
                          the whole Lucius-Morningstar dataset family
@@ -138,7 +139,8 @@ spot checks in the source repo) — not hand annotations. They are exactly the
 labels the production pipeline scores against; `other` means no specific
 marker matched. Known honest gaps (from the source repo's AGENTS.md):
 attorney detection relies on domain/name lists and is not exhaustive;
-`voicemail` cannot occur in this text-only corpus (0% by construction);
+`voicemail` is not a class (abolished HUB-041 — detected transcripts map to
+`other`, and none exist in this text-only corpus by construction);
 cross-custodian duplicate copies of the same message are NOT merged — use
 `metadata.message_id` to group or dedupe.
 

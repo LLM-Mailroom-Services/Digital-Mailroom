@@ -11,7 +11,7 @@ Guards three things:
    the docclass context block.
 """
 
-EXPECTED_DOCCLASS_KEY_COUNT = 75  # 74 + 1 hub#43 (judge_classification_docclass_pilot_v1 pilot-rules repair)
+EXPECTED_DOCCLASS_KEY_COUNT = 76  # 75 + 1 #68A (sorter_mailroom_v0 6-token insurance promotion)
 
 
 def _doc():

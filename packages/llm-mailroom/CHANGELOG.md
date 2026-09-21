@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **ModernBERT intake fast path (#98 M6a, hub-tracked at `7d6bde2c`)**: procedural
+  BERT triage in intake — `agents/bert_intake.py` (fail-open by construction:
+  flag off by default, undeclared-sibling package, missing bundle, or model error
+  all degrade to the deterministic clerk), always-emitted `intake_handoff` state
+  + manifest `intake.bert` block, `intake-ml-triage` span with curated provenance.
+- **`after_intake` conditional edge (#99 M6b, `2ccfbf8b`)**: intake exit splits on
+  the handoff — BERT fast-path skip (gate PASS + allowlisted + `BERT_INTAKE_MODE=skip`)
+  → `extract` as `bert_intake`; gate-failed + verify/skip modes → the reviewer
+  guard; everything else → the sorter. `classification_method` on state + manifest.
+- **Reviewer as BERT verification guard (#100 M5a)**: `review_classify` gains the
+  guard arm — the reviewer classifies blind, agreement computed in code
+  (`review_reference: bert|sorter`), agree-high → `extract` with
+  `classification_method=bert_intake`; override/conflict/low/guard-exhaustion/error
+  → `classify` (fail-open: the doc never skips the sorter). `classify` route added
+  to the `review_classify` edge map.
+
+### Changed
+
+- `after_review_classify` routes by `review_reference` — the KANBAN-062 medium-band
+  path is byte-identical when the field is absent.
+
 ## [v0.7.1] - 2026-09-13
 
 ### Changed

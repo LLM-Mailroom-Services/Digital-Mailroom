@@ -176,6 +176,224 @@ class TestReviewClassifyNode:
         assert updates["review_verdict"] == "reviewer_error"
         assert updates["transient_error"] is False
 
+    # --- #85 M5a (#100): reviewer as BERT verification guard -----------------
+
+    @staticmethod
+    def _bert_guard_state(**overrides):
+        # Guard entry: no sorter ran (doc_type unset) + BERT intake handoff.
+        return _base_state(
+            doc_type=None,
+            intake_handoff={
+                "available": True,
+                "method": "bert",
+                "status": "ok",
+                "route": "not_fast_path",
+                "doc_type": "contract",
+                "confidence": 0.93,
+            },
+            **overrides,
+        )
+
+    def test_bert_guard_agree_sets_bert_intake_method(self, monkeypatch):
+        class FakeReviewer:
+            def __init__(self):
+                pass
+
+            def review(self, doc_text, pages=None, **kw):
+                return {
+                    "doc_type": "contract",
+                    "contract_subtype": "other",
+                    "doc_subclass": None,
+                    "confidence": 0.99,
+                    "reasoning": "verified",
+                }
+
+        monkeypatch.setattr("agents.sorter_reviewer.SorterReviewerAgent", FakeReviewer)
+        updates = bg.review_classify_node(self._bert_guard_state())
+        assert updates["review_reference"] == "bert"
+        assert updates["review_verdict"] == "reviewer_agrees_high"
+        assert updates["doc_type"] == "contract"
+        assert updates["classification_method"] == "bert_intake"
+        # The reference label is the BERT triage's, not a sorter's.
+        assert "sorter=" not in updates["escalation_reason"]
+        assert "bert triage=" in updates["escalation_reason"]
+
+    def test_bert_guard_conflict_keeps_no_label(self, monkeypatch):
+        class DisagreeReviewer:
+            def __init__(self):
+                pass
+
+            def review(self, doc_text, pages=None, **kw):
+                return {
+                    "doc_type": "insurance_claim",
+                    "contract_subtype": None,
+                    "doc_subclass": None,
+                    "confidence": 0.80,
+                    "reasoning": "looks like a claim",
+                }
+
+        monkeypatch.setattr("agents.sorter_reviewer.SorterReviewerAgent", DisagreeReviewer)
+        updates = bg.review_classify_node(self._bert_guard_state())
+        assert updates["review_reference"] == "bert"
+        assert updates["review_verdict"] == "reviewer_conflicts"
+        # No winning verdict → no label applied, no method claimed.
+        assert "doc_type" not in updates
+        assert "classification_method" not in updates
+
+    def test_reviewer_stays_blind_to_reference_label(self, monkeypatch):
+        # Independence invariant (both paths): the reviewer's call must carry
+        # ONLY the document + label vocabulary — never the reference answer
+        # as a hint (no doc_type/hint/reference kwarg; raw doc_text only).
+        calls = {}
+
+        class SpyingReviewer:
+            def __init__(self):
+                pass
+
+            def review(self, doc_text, pages=None, **kw):
+                calls["doc_text"] = doc_text
+                calls["kwargs"] = kw
+                return {
+                    "doc_type": "contract",
+                    "contract_subtype": "other",
+                    "doc_subclass": None,
+                    "confidence": 0.99,
+                    "reasoning": "verified",
+                }
+
+        monkeypatch.setattr("agents.sorter_reviewer.SorterReviewerAgent", SpyingReviewer)
+        bg.review_classify_node(self._bert_guard_state())
+        assert calls["doc_text"] == "This is a test document body."
+        # Only the documented call surface — no slot for a reference hint.
+        assert set(calls["kwargs"]) == {"valid_doc_types", "contract_subtypes"}
+        # The triage label must not be smuggled in via the document either.
+        assert "contract" not in calls["doc_text"]
+
+    def test_reviewer_sees_no_reference_via_pages(self, monkeypatch):
+        # The pages channel is part of the reviewer call — the reference label
+        # must never ride it either (blind-reviewer invariant, extended).
+        calls = {}
+
+        class SpyingReviewer:
+            def __init__(self):
+                pass
+
+            def review(self, doc_text, pages=None, **kw):
+                calls["pages"] = pages
+                calls["kwargs"] = kw
+                return {
+                    "doc_type": "contract",
+                    "contract_subtype": "other",
+                    "doc_subclass": None,
+                    "confidence": 0.99,
+                    "reasoning": "verified",
+                }
+
+        monkeypatch.setattr("agents.sorter_reviewer.SorterReviewerAgent", SpyingReviewer)
+        bg.review_classify_node(
+            self._bert_guard_state(doc_pages=["pg1", "pg2"])
+        )
+        # The reviewer sees the document's OWN pages — never the triage label
+        # (the kwargs surface is pinned by test_reviewer_stays_blind_to_reference_label).
+        assert calls["pages"] == ["pg1", "pg2"]
+
+    def test_sorter_path_agree_preserves_llm_sorter_method(self, monkeypatch):
+        # KANBAN-062 regression: the sorter path must NOT claim bert_intake —
+        # classification_method is set by classify_node and left untouched.
+        class FakeReviewer:
+            def __init__(self):
+                pass
+
+            def review(self, doc_text, pages=None, **kw):
+                return {
+                    "doc_type": "contract",
+                    "contract_subtype": "other",
+                    "doc_subclass": None,
+                    "confidence": 0.99,
+                    "reasoning": "agree",
+                }
+
+        monkeypatch.setattr("agents.sorter_reviewer.SorterReviewerAgent", FakeReviewer)
+        state = _base_state(classification_method="llm_sorter")
+        updates = bg.review_classify_node(state)
+        assert updates["review_reference"] == "sorter"
+        assert updates["review_verdict"] == "reviewer_agrees_high"
+        assert "classification_method" not in updates
+
+    def test_guard_agree_high_boundary_exact_and_below(self, monkeypatch):
+        # Class-aware agree threshold: contract by_class high == 0.98 — exactly
+        # at the boundary wins; a hair below does not.
+        for conf, expected in [(0.98, "reviewer_agrees_high"), (0.9799, "reviewer_agrees_low")]:
+            class FakeReviewer:
+                def __init__(self):
+                    pass
+
+                def review(self, doc_text, pages=None, **kw):
+                    return {
+                        "doc_type": "contract",
+                        "contract_subtype": "other",
+                        "doc_subclass": None,
+                        "confidence": conf,
+                        "reasoning": "agree",
+                    }
+
+            monkeypatch.setattr(
+                "agents.sorter_reviewer.SorterReviewerAgent", FakeReviewer
+            )
+            updates = bg.review_classify_node(self._bert_guard_state())
+            assert updates["review_verdict"] == expected, f"conf={conf}"
+
+    def test_guard_transient_exhaustion_routes_sorter_via_real_node(self, monkeypatch):
+        # #100 fail-open contract, end to end: a guard-path reviewer that keeps
+        # wobbling must exhaust its own budget and route to the SORTER
+        # (classify) — never to human review (which would skip the sorter).
+        class WobblyReviewer:
+            def __init__(self):
+                pass
+
+            def review(self, doc_text, pages=None, **kw):
+                raise openai.APIConnectionError(request=None)
+
+        monkeypatch.setattr("agents.sorter_reviewer.SorterReviewerAgent", WobblyReviewer)
+        state = self._bert_guard_state()
+        for _ in range(3):
+            updates = bg.review_classify_node(state)
+            assert updates["transient_error"] is True
+            assert updates["review_reference"] == "bert"
+            state = {**state, **updates}
+        assert state["transient_retries_review_classify"] == 3
+        assert after_review_classify(state) == "classify"
+
+    def test_guard_reviewer_error_routes_sorter_via_real_node(self, monkeypatch):
+        # A guard-path reviewer hard-failure must fail OPEN to the sorter.
+        class BoomReviewer:
+            def __init__(self):
+                raise RuntimeError("reviewer exploded")
+
+        monkeypatch.setattr("agents.sorter_reviewer.SorterReviewerAgent", BoomReviewer)
+        updates = bg.review_classify_node(self._bert_guard_state())
+        assert updates["review_verdict"] == "reviewer_error"
+        assert updates["review_reference"] == "bert"
+        assert "sorter" in updates["escalation_reason"]
+        assert after_review_classify(updates) == "classify"
+
+    def test_review_classify_edge_map_contains_classify(self, monkeypatch):
+        # Graph-wiring witness: the review_classify conditional-edge map must
+        # carry the M5a guard route — a rejected triage reaches the sorter,
+        # it is never dropped at the boundary.
+        recorded = {}
+
+        class RecordingStateGraph(bg.StateGraph):
+            def add_conditional_edges(self, node, condition, mapping, **kw):
+                if node == "review_classify":
+                    recorded["mapping"] = mapping
+                return super().add_conditional_edges(node, condition, mapping, **kw)
+
+        monkeypatch.setattr(bg, "StateGraph", RecordingStateGraph)
+        bg.build_graph()
+        assert "classify" in recorded["mapping"]
+        assert recorded["mapping"]["classify"] == "classify"
+
 
 # --- extract (node 5) --------------------------------------------------------
 

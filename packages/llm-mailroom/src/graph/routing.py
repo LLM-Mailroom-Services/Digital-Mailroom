@@ -400,20 +400,35 @@ def after_human_review(state: dict) -> Literal["extract", "failed"]:
     return "failed"
 
 
-def after_review_classify(state: dict) -> Literal["review_classify", "extract", "human_review"]:
-    """KANBAN-062 (Lane A) outcome router.
+def after_review_classify(state: dict) -> Literal["review_classify", "extract", "human_review", "classify"]:
+    """KANBAN-062 (Lane A) outcome router — plus the #85 M5a (#100) BERT-guard arm.
 
-    The reviewer's high-confidence label wins (extract — with the reviewer's
-    type applied by the node); anything else (reviewer unsure, labels
-    conflicting at low confidence, or reviewer confirming genuine ambiguity)
-    escalates to human review with BOTH opinions recorded on state. The lane
-    is strictly fail-safe: every path it can take existed before the lane.
-    Transient provider errors self-loop on the review node's OWN per-node
-    budget (L-13) before escalating.
+    **Sorter path** (``review_reference == "sorter"``, KANBAN-062): the
+    reviewer's high-confidence label wins (extract — with the reviewer's type
+    applied by the node); anything else (reviewer unsure, labels conflicting
+    at low confidence, or reviewer confirming genuine ambiguity) escalates to
+    human review with BOTH opinions recorded on state. The lane is strictly
+    fail-safe: every path it can take existed before the lane. Transient
+    provider errors self-loop on the review node's OWN per-node budget (L-13)
+    before escalating.
+
+    **BERT-guard path** (``review_reference == "bert"``, M5a): the reviewer
+    verified the BERT triage (no sorter has run). Reviewer agrees at high
+    confidence → extract with the BERT label (``classification_method`` was
+    set to ``bert_intake`` by the node). Anything else — including a
+    high-confidence reviewer override — → ``classify``: the full sorter is
+    the authority and gets to decide. Transient exhaustion also → ``classify``
+    (fail-open; the doc must not skip the sorter just because the guard
+    wobbled).
     """
     if state.get("transient_error"):
         if _transient_decision(state, retry_target="review_classify") == "retry":
             return "review_classify"
+        # Exhausted: the guard's failure must not strand the doc — the sorter
+        # decides (M5a), human review (KANBAN-062, where the sorter already
+        # answered and the human is the only remaining authority).
+        if state.get("review_reference") == "bert":
+            return "classify"
         return "human_review"
     verdict = state.get("review_verdict")
     confidence = state.get("reviewer_confidence")
@@ -426,6 +441,27 @@ def after_review_classify(state: dict) -> Literal["review_classify", "extract", 
         and confidence >= high
         and is_extractable_doc_type(doc_type)
     ):
+        # M5a guard: only a plain agree may fast-path extract — an override
+        # means the triage label did NOT survive verification, so the full
+        # sorter decides (the reviewer's opinion is preserved on state for
+        # the sorter's prompt context).
+        if state.get("review_reference") == "bert":
+            if verdict == "reviewer_agrees_high":
+                logger.info(
+                    "bert_guard_accepted",
+                    confidence=confidence,
+                    doc_type=doc_type,
+                    doc_id=state.get("doc_id"),
+                )
+                return "extract"
+            logger.info(
+                "bert_guard_override_to_sorter",
+                verdict=verdict,
+                confidence=confidence,
+                doc_type=doc_type,
+                doc_id=state.get("doc_id"),
+            )
+            return "classify"
         from pipeline.reconsideration import class_misses_ground_truth
 
         if class_misses_ground_truth(state, reviewer=True):
@@ -445,6 +481,16 @@ def after_review_classify(state: dict) -> Literal["review_classify", "extract", 
             doc_id=state.get("doc_id"),
         )
         return "extract"
+    # Guard path: any non-winning outcome (low-confidence agree, conflict,
+    # reviewer_error) → the sorter decides. Sorter path: human review.
+    if state.get("review_reference") == "bert":
+        logger.info(
+            "bert_guard_rejected_to_sorter",
+            verdict=verdict,
+            confidence=confidence,
+            doc_id=state.get("doc_id"),
+        )
+        return "classify"
     logger.info(
         "review_classify_escalated",
         verdict=verdict,

@@ -58,8 +58,8 @@ The Sorter is a **vendored LangChain agent** (`agents/sorter.py` re-exports `lan
 | Attribute | Value |
 |---|---|
 | **Node** | `review_classify` (Lane A) |
-| **Trigger** | Medium-band classification that survived `retry_classify` |
-| **Input** | Document text (+ page images); **blind** to the sorter's answer |
+| **Trigger** | Medium-band classification that survived `retry_classify`; ALSO the M5a BERT verification guard on gate-failed BERT triages from `after_intake` (#100) |
+| **Input** | Document text (+ page images); **blind** to the sorter's AND the BERT triage's answer (independence is the invariant — `review_reference: bert|sorter` records which path fired) |
 | **Output** | Independent `doc_type` + `contract_subtype` + `doc_subclass` + `confidence` |
 | **Personality** | Independent second opinion; agreement is computed by the graph, not the model |
 

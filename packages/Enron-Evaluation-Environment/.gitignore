@@ -24,6 +24,10 @@ venv/
 htmlcov/
 *.log
 
+# Build outputs
+dist/
+build/
+
 # OS / editor
 .DS_Store
 Thumbs.db

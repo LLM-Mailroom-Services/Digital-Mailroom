@@ -3,8 +3,10 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .eggs/
-build/
-dist/
+# Anchored to package roots: bare build/ would also mask tracked sources
+# under legitimately-named dirs (e.g. packages/*/scripts/build/*.py).
+packages/*/build/
+packages/*/dist/
 .venv/
 venv/
 .pytest_cache/

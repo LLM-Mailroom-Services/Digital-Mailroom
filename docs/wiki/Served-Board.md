@@ -111,10 +111,32 @@ and is recorded on lane-move comments.
 ### Create — `POST /api/board`
 
 Creates a new card as a `kanban` issue (title + body sections + labels), so
-the site can spawn a card without leaving the board. The write path is proven
-end-to-end: DMR-007 was created through `POST /api/board`, landed as a kanban
-issue in this repo, displayed live, and its lane was corrected through the
-PATCH leg.
+the site can spawn a card without leaving the board. Request body
+(`application/json`, headers `Content-Type` + `X-Mailroom-Actor`; max 1 MB):
+
+| Field | Required | Enforced behavior |
+| :--- | :--- | :--- |
+| `title` | **yes** | trimmed; missing/empty → `400 {"error":"title is required"}` |
+| `desc` | no | task description → the issue's `### Task` body section |
+| `lane` | no (default `unassigned`) | **must be `unassigned` or `assigned`** — the two queue lanes (triage / claimed). Enforced before any GitHub call: anything else → `400 {"error":"invalid lane","allowed":["unassigned","assigned"]}`. Work lanes (`in-progress` → `done`) are reached by lane MOVES on existing cards (`PATCH /api/board/DMR-0NN`), never by create — a client cannot mint a card straight into a work lane. |
+| `priority` | no (default `medium`) | must be `critical` \| `high` \| `medium` \| `low`; anything else → `400 {"error":"invalid priority"}` |
+| `agents` | no | array of agent/persona/harness names → the issue's `### Owner` body section (never GitHub assignees). No agents → lane forced to `unassigned`; with agents → the passed lane (`unassigned` or `assigned`) |
+
+Responses — every response (including errors) is served with
+`Cache-Control: no-store`:
+
+- `201` — the created card object (same shape as a `GET /api/board` card:
+  `id`, `lane`, `priority`, `desc`, `evidence`, `agents`, `title`,
+  `issueNumber`, `archived`, `createdAt`, `updatedAt`, `htmlUrl`).
+- `400` — validation failures, body `{"error": "…"}` plus `allowed` on the
+  lane/priority guards; malformed JSON → `{"error":"invalid JSON body"}`.
+- `413` — payload over 1 MB → `{"error":"payload too large"}`.
+- `405` — any method other than `POST`/`OPTIONS` →
+  `{"error":"method not allowed"}` (`OPTIONS` preflight → `204`).
+
+The write path is proven end-to-end: DMR-007 was created through
+`POST /api/board`, landed as a kanban issue in this repo, displayed live, and
+its lane was corrected through the PATCH leg.
 
 ## Body sections are the data store
 

@@ -322,9 +322,24 @@ const App = (() => {
     return next;
   }
 
+  // #111: BERT lane panels — reductions over the same live run list the
+  // trays render. The module is DOM-free and optional: if bert_panels.js
+  // failed to load the section says so instead of guessing numbers.
+  function renderBertPanels(list) {
+    const el = need("bert-panels-body");
+    if (!el) return;
+    const P = window.BERTPanels;
+    if (!P || typeof P.render !== "function") {
+      el.innerHTML = `<p class="empty">BERT lane panels unavailable — bert_panels.js did not load.</p>`;
+      return;
+    }
+    el.innerHTML = P.render(Array.isArray(list) ? list : []);
+  }
+
   function applyRuns(next) {
     runs = overlayReplay(Array.isArray(next) ? next : []);
     renderBoard();
+    renderBertPanels(runs);
   }
 
   function table(caption, headers, rows) {

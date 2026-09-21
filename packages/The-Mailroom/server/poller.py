@@ -47,6 +47,7 @@ def floor_payload(run: PipelineRun) -> dict[str, Any]:
         "intake_changed": run.intake_changed,
         "intake_method": run.intake_method,
         "intake_chars": run.intake_chars,
+        "intake_bert": run.intake_bert,
         "classification_confidence": run.classification_confidence,
         "extraction_confidence": run.extraction_confidence,
         "review_decision": run.review_decision,

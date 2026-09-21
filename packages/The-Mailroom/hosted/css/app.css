@@ -693,3 +693,59 @@ dialog::backdrop { background: rgba(20, 16, 12, 0.55); }
   html { scroll-behavior: auto; }
   .card, .view-nav a, .btn { transition: none; }
 }
+
+/* #111: BERT lane panels — reduces terminal manifests (intake.bert). */
+.bert-panels {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--rule);
+}
+
+.bert-panels h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0.6rem 0 0.3rem;
+}
+
+.bert-note {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  margin: 0.2rem 0 0.5rem;
+}
+
+.bert-note code, .bert-fields code {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+}
+
+.bert-card {
+  min-height: 0;
+}
+
+.bert-desc {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  margin: 0.3rem 0;
+}
+
+.bert-fields {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  margin: 0.35rem 0 0;
+}
+
+.bert-rev {
+  margin: 0.4rem 0 0;
+}
+
+.bert-rev dt {
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.bert-rev dd {
+  margin: 0.05rem 0 0;
+  font-weight: 600;
+  font-size: 0.9rem;
+}

@@ -305,13 +305,26 @@ def _lift_ground_truth(
     return expected_hf, expected_subclass
 
 
-def _lift_intake(spans: list[NodeSpan]) -> dict[str, Any]:
+def _lift_intake(
+    spans: list[NodeSpan],
+    trace_output: Optional[dict] = None,
+) -> dict[str, Any]:
     empty = {
         "intake_messy": None,
         "intake_changed": None,
         "intake_method": None,
         "intake_chars": None,
+        # #111: the terminal manifest's ``intake`` block rides the trace
+        # output and carries the BERT intake handoff (+ ``gate_outcome``)
+        # the Observatory BERT lane panels read. Kept as-is (whitelisted
+        # upstream in llm-mailroom bert_intake.py / _attach_gate_outcome);
+        # None when the manifest predates the lane.
+        "intake_bert": None,
     }
+    intake_meta = _as_dict((trace_output or {}).get("intake"))
+    bert = intake_meta.get("bert")
+    if isinstance(bert, dict) and bert:
+        empty["intake_bert"] = _as_dict(bert)
     for span in spans:
         if span.name != "normalize-intake":
             continue
@@ -329,6 +342,7 @@ def _lift_intake(spans: list[NodeSpan]) -> dict[str, Any]:
             "intake_changed": bool(changed) if changed is not None else None,
             "intake_method": _clean(out.get("method")),
             "intake_chars": _int(chars),
+            "intake_bert": empty["intake_bert"],
         }
     return empty
 
@@ -712,7 +726,7 @@ def interpret_trace(
                 or _clean(t_input.get("doc_type")))
     doc_subclass, contract_subtype = _lift_subclass(t_output, spans, generations)
     expected_hf_class, expected_subclass = _lift_ground_truth(t_input, t_output, metadata)
-    intake = _lift_intake(spans)
+    intake = _lift_intake(spans, t_output)
     attempt = _pick(t_input, "attempt", "run_attempt")
     if attempt is None:
         attempt = metadata.get("attempt")
@@ -799,6 +813,7 @@ def interpret_trace(
         intake_changed=intake["intake_changed"],
         intake_method=intake["intake_method"],
         intake_chars=intake["intake_chars"],
+        intake_bert=intake["intake_bert"],
         classification_confidence=_float(score_map.get("classification_confidence"))
         or _float(t_output.get("classification_confidence"))
         or _float(sorter_out.get("confidence")),

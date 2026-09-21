@@ -7,7 +7,7 @@
 <meta name="description" content="Mailroom Observatory: a live, accessible view of the llm-mailroom legal-document pipeline. Watch runs in real time or replay a stored Langfuse trace.">
 <title>Mailroom Observatory</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%236b2d32'/%3E%3Crect x='7' y='8' width='18' height='16' fill='%23f6f1e8'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="/live/static/css/app.css?v=0.3.13">
+<link rel="stylesheet" href="/live/static/css/app.css?v=0.3.14">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to main content</a>
@@ -75,6 +75,9 @@
       </form>
     </section>
     <div id="pipeline-board" class="board" aria-live="off"></div>
+    <section id="bert-panels" class="bert-panels" aria-labelledby="bert-panels-heading">
+      <div id="bert-panels-body" aria-live="polite"></div>
+    </section>
   </section>
 
   <section id="view-review" class="view" hidden aria-labelledby="review-heading">
@@ -146,8 +149,9 @@
   <p id="edition-note"><a href="/">Local pixel console</a> (this host, when the process is <code>mailroom-web</code>) · GitHub Pages is a separate static snapshot and is not this site.</p>
 </footer>
 
-<script src="/live/static/js/debug.js?v=0.3.13"></script>
-<script src="/live/static/js/client.js?v=0.3.13"></script>
-<script src="/live/static/js/app.js?v=0.3.13"></script>
+<script src="/live/static/js/debug.js?v=0.3.14"></script>
+<script src="/live/static/js/client.js?v=0.3.14"></script>
+<script src="/live/static/js/bert_panels.js?v=0.3.14"></script>
+<script src="/live/static/js/app.js?v=0.3.14"></script>
 </body>
 </html>

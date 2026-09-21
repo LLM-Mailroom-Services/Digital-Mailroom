@@ -56,6 +56,12 @@ module.exports = async function handler(req, res) {
     if (want.priority !== undefined && !ghx.PRI_LABELS.includes(`priority/${want.priority}`)) {
       return sendJson(res, 400, { error: "invalid priority" });
     }
+    // #69: lane-axis twin of the priority guard — an unknown lane must be
+    // rejected, not silently left label-less while the body's "### Lane"
+    // section diverges from the stage/* labels (200 with corruption).
+    if (want.lane !== undefined && !ghx.LANES.some((l) => l.id === want.lane)) {
+      return sendJson(res, 400, { error: "invalid lane", allowed: ghx.LANES.map((l) => l.id) });
+    }
 
     const actor = ghx.actor(req);
     const me = new Date().toISOString().slice(0, 10);
@@ -145,11 +151,16 @@ module.exports = async function handler(req, res) {
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let data = "";
+    let aborted = false;
     req.on("data", (chunk) => {
+      if (aborted) return;
       data += chunk;
       if (data.length > 250_000) {
+        // #69/#70: see api/board.js — the 413 response ends the exchange;
+        // req.destroy() is an optional adapter hook, probe before calling.
+        aborted = true;
         reject(new ghx.HttpError(413, "payload too large"));
-        req.destroy();
+        if (typeof req.destroy === "function") req.destroy();
       }
     });
     req.on("end", () => {

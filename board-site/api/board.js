@@ -7,6 +7,12 @@
 
 const ghx = require("../lib/gh.js");
 
+// #69: a brand-new card may only be created into the triage queue or the
+// claimed queue. The work lanes (in-progress → done) are reached by LANE
+// MOVES on existing cards, never by create — otherwise a client could mint
+// a card straight into done/needs-attention and skip the board's laws.
+const CREATE_LANES = new Set(["unassigned", "assigned"]);
+
 function sendJson(res, status, obj) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -45,6 +51,12 @@ module.exports = async function handler(req, res) {
       // labels so a bad value returns a helpful 400 instead of a GitHub 422.
       if (!ghx.PRI_LABELS.includes(`priority/${priority}`)) {
         return sendJson(res, 400, { error: "invalid priority" });
+      }
+      // #69: lane-axis twin of the priority guard — the board's own lanes,
+      // validated against the canonical set so a bad create cannot silently
+      // fall into ghx.LANES[0] or mint a card in a work lane.
+      if (body.lane !== undefined && !CREATE_LANES.has(lane)) {
+        return sendJson(res, 400, { error: "invalid lane", allowed: [...CREATE_LANES] });
       }
 
       // Route: cards with NO agents → unassigned; cards WITH agents → assigned
@@ -95,11 +107,17 @@ module.exports = async function handler(req, res) {
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let data = "";
+    let aborted = false;
     req.on("data", (chunk) => {
+      if (aborted) return;
       data += chunk;
       if (data.length > 1_000_000) {
+        // #69/#70: the 413 response is what ends this exchange — req.destroy()
+        // is not a Vercel/Node IncomingMessage method, only an optional
+        // serverless-adapter abort hook, so it must be probed before calling.
+        aborted = true;
         reject(new ghx.HttpError(413, "payload too large"));
-        req.destroy();
+        if (typeof req.destroy === "function") req.destroy();
       }
     });
     req.on("end", () => {

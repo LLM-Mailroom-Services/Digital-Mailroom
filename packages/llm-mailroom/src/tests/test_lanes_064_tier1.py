@@ -348,8 +348,11 @@ class TestAgreementTelemetry:
         import types
 
         monkeypatch.setenv("MAILROOM_BERT_INTAKE", "1")
+        captured = {}
 
         def _fake_runner(doc_text, filename=None):
+            captured["doc_text"] = doc_text
+            captured["filename"] = filename
             return {
                 "status": "success",
                 "route": "fast_path",
@@ -365,12 +368,54 @@ class TestAgreementTelemetry:
                 "guard_failures": [],
             }
 
+        # the M6a seam (classify_document_default) is preferred when present
         fake_module = types.SimpleNamespace(
-            inference=types.SimpleNamespace(classify_document=_fake_runner)
+            inference=types.SimpleNamespace(
+                classify_document_default=_fake_runner,
+                classify_document=None,
+            )
         )
         with patch("agents.bert_intake._load_mailroom_ml",
                 return_value=(fake_module, None)):
             handoff = run_bert_intake("doc text here", filename="x.txt")
 
+        assert captured["doc_text"] == "doc text here"
+        assert captured["filename"] == "x.txt"
         assert handoff["doc_type_pass"] is True  # route == fast_path
         assert handoff["subclass_pass"] is False  # runner silent -> conservative
+
+    def test_legacy_module_without_seam_falls_back(self, monkeypatch):
+        """Older mailroom-ml (no classify_document_default) keeps working."""
+        from agents.bert_intake import run_bert_intake
+
+        import types
+
+        monkeypatch.setenv("MAILROOM_BERT_INTAKE", "1")
+
+        def _legacy(doc_text, filename=None):
+            return {
+                "status": "success",
+                "route": "fast_path",
+                "doc_type": "contract",
+                "subclass": "binder",
+                "score": 0.8,
+                "calibrated_confidence": 0.8,
+                "quality": {"messy": False, "coverage": 1.0},
+                "guard_failures": [],
+            }
+
+        def _legacy_no_filename(doc_text):
+            return _legacy(doc_text, filename=None)
+
+        fake_module = types.SimpleNamespace(
+            inference=types.SimpleNamespace(
+                classify_document_default=None,  # seam absent
+                classify_document=_legacy_no_filename,  # TypeError dance target
+            )
+        )
+        with patch("agents.bert_intake._load_mailroom_ml",
+                return_value=(fake_module, None)):
+            handoff = run_bert_intake("doc text here", filename="x.txt")
+
+        assert handoff["available"] is True
+        assert handoff["doc_type"] == "contract"

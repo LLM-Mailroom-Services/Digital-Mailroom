@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   flag off by default, undeclared-sibling package, missing bundle, or model error
   all degrade to the deterministic clerk), always-emitted `intake_handoff` state
   + manifest `intake.bert` block, `intake-ml-triage` span with curated provenance.
+- **Tier-1 prior-scoped sorter lane (#108 M6e)**: fast-path handoffs whose
+  doc_type head PASSED route into `classify` with the verified-type BERT
+  prior composed onto the existing `intake_prior=` channel — the sorter's
+  residual job is subclass verification (subclass UNVERIFIED, overrulable
+  with cited evidence). `classification_method=bert_scoped`, `bert_scoped`
+  state flag, scoped completion budget (2048→1024) and scoped retries
+  retain the prior (type not re-litigated); `doc_type_pass` /
+  `subclass_pass` booleans on the handoff + `bert_sorter_agreement`
+  computation seam (#106). Tier-0 full skip and Tier-2 full sorter are
+  unchanged; flag-off runs are byte-identical (no prior, no budget).
 - **`after_intake` conditional edge (#99 M6b, `2ccfbf8b`)**: intake exit splits on
   the handoff — BERT fast-path skip (gate PASS + allowlisted + `BERT_INTAKE_MODE=skip`)
   → `extract` as `bert_intake`; gate-failed + verify/skip modes → the reviewer

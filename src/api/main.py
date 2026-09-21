@@ -6,6 +6,7 @@ import structlog
 from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Form, Request, Depends
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from contextlib import asynccontextmanager
 
 from pipeline.env import load_env
@@ -26,7 +27,7 @@ from observability.tracing import install_on_dropped
 install_on_dropped()  # O-3: dropped trace events log a warning, never vanish
 
 warmup_score_configs(blocking=False)
-from observability.field_scoring import warm_embedding_model
+from llm_dojo_scoring import warm_embedding_model
 
 warm_embedding_model(blocking=False)  # O-10: load embeddings off the document path
 
@@ -200,6 +201,9 @@ async def health():
     tracing_health = flush_health()
     heartbeat_age = watcher_heartbeat_age()
     lamp = watcher_lamp(heartbeat_age)
+    from pipeline.gmail_intake import status as gmail_intake_status
+
+    gmail = gmail_intake_status()
     overall = "ok" if (llm["status"] == "ok" and db["status"] == "ok") else "degraded"
     if paused or not tracing_health["healthy"]:
         overall = "degraded"
@@ -223,8 +227,43 @@ async def health():
             "inbox_pending": count_inbox_pending(),
             "watcher_heartbeat_seconds_ago": heartbeat_age,
             "observability": tracing_health,
+            "gmail_intake": gmail,
         },
     }
+
+
+@app.get("/api/relations/mode", dependencies=[Depends(_require_token)])
+async def get_relations_mode():
+    """Relations clerk mode readout (HUB-052) — the effective live/pilot
+    posture plus every knob that can block or shape it."""
+    from pipeline.relations_mode import mode_status
+
+    return mode_status()
+
+
+class RelationsModeRequest(BaseModel):
+    mode: str
+    model: str | None = None
+
+
+@app.post("/api/relations/mode", dependencies=[Depends(_require_token)])
+async def post_relations_mode(req: RelationsModeRequest):
+    """Flip the relations clerk mode (HUB-052) — pilot (deterministic-only)
+    or live (LLM judgment on). Edits taxonomy + clears the in-process config
+    caches, so the embedded watcher honors the flip with NO restart."""
+    from pipeline.relations_mode import set_mode
+
+    try:
+        result = set_mode(req.mode, req.model)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    result["restart_required"] = False
+    result["note"] = (
+        "applied in-process — the embedded watcher shares this process and "
+        "picks the flip up immediately; standalone watchers read it on their "
+        "next restart (python -m pipeline.relations_mode live --restart-watcher)"
+    )
+    return result
 
 
 @app.post("/upload", dependencies=[Depends(_require_token)])
@@ -437,7 +476,8 @@ async def lookup_document_endpoint(
             for path in mdir.glob("*.json"):
                 try:
                     data = _json.loads(path.read_text())
-                except Exception:
+                except (OSError, _json.JSONDecodeError):
+                    logger.warning("manifest_unreadable", path=str(path))
                     continue
                 if data.get("original_filename") == filename:
                     manifest = load_manifest(data["doc_id"])
@@ -473,7 +513,8 @@ async def review_queue():
         for path in mdir.glob("*.json"):
             try:
                 data = _json.loads(path.read_text())
-            except Exception:
+            except (OSError, _json.JSONDecodeError):
+                logger.warning("manifest_unreadable", path=str(path))
                 continue
             if data.get("stage") != PipelineStage.REVIEW.value:
                 continue

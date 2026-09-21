@@ -64,7 +64,7 @@ confidence:
   conflict_threshold: 0.3  # unused; conflicts are field-value comparison
   by_class:
     contract: { severity: critical, high: 0.98, low: 0.90, judge_band_high: 0.97 }
-    # … merger_agreement, insurance_claim, compliance_filing, corporate_record, correspondence
+    # … merger_agreement, insurance_claim, corporate_record, correspondence
 ```
 
 ### `doc_classes`
@@ -121,12 +121,6 @@ doc_classes:
       intent: name
       subject_matter: free_text
       keywords: entity_list:name
-
-  - key: compliance_filing
-    label: "Compliance Filing"
-    schema: ComplianceFilingExtraction
-    specialist: compliance_specialist
-    description: "SEC filings, state registrations, regulatory submissions, annual reports"
 
   - key: insurance_claim
     label: "Insurance Claim"
@@ -315,11 +309,6 @@ See `.env.example` for the complete list:
 | `MAILROOM_UPLOAD_RATE` | No | `20` | Uploads allowed per 60 s window |
 | `MAILROOM_API_HOST` | No | `127.0.0.1` | Bind address. `0.0.0.0` requires a live token. Container/Space images set this. |
 | `MAILROOM_API_PORT` | No | `8000` (image: `7860`) | Image/local listen port. When the platform injects `PORT` (Railway / Fly / Render / Heroku), **`PORT` wins** so the edge proxy can reach the process. |
-
-The-Mailroom (not this process) reads `MAILROOM_PIPELINE_URL`,
-`MAILROOM_PIPELINE_TOKEN`, and `MAILROOM_PIPELINE_API_PREFIX=/v1`. A Space
-Observatory must use the public producer Space URL — see
-[`deploy/space/PAIRING.md`](../deploy/space/PAIRING.md).
 | `WATCHER_STALE_SECONDS` | No | `15` | `/health` `checks.watcher` lamp: heartbeat older than this is `stale` |
 | `OPS_MONITOR_INTERVAL_SECONDS` | No | `300` | Ops monitor sweep interval |
 | `MAILROOM_VISION_ENABLED` | No | `true` | Enable/disable vision ingestion (overrides `vision.enabled` in taxonomy.yaml) |
@@ -328,7 +317,103 @@ Observatory must use the public producer Space URL — see
 | `MAILROOM_PILOT_COST_ABORT` | No | `2.00` (HF pilot) / `0.20` (committed-sample `run_pilot.py`) | Cumulative USD cap; abort the pilot when exceeded |
 | `MAILROOM_DOCCLASS_PROMPTS` | No | off | Opt-in KANBAN-090 docclass prompt arm (`1`/`true`/`yes`/`on`). Runtime fetches `mailroom-docclass-<key>` with the in-repo append as fallback; production `mailroom-<agent>` templates are unchanged. `run_hf_pilot.py --docclass` sets this. |
 
+The-Mailroom (not this process) reads `MAILROOM_PIPELINE_URL`,
+`MAILROOM_PIPELINE_TOKEN`, and `MAILROOM_PIPELINE_API_PREFIX=/v1`. A Space
+Observatory must use the public producer Space URL — see
+[`deploy/space/PAIRING.md`](../deploy/space/PAIRING.md).
+
+### Gmail intake channel (HUB-037)
+
+The agent mailbox (`llmmailroom@gmail.com`) is a second intake route: an
+IMAP poller (running inside the watcher process) drops accepted attachments
+into the SAME inbox the watcher drains. The full operator guide — subject-line
+contract, upload best practices, every pathway a document takes from Gmail
+into the pipeline (free single-document triage lane, capability handoff,
+multi-document full pipeline), completion echoes, and troubleshooting — is
+[`docs/gmail-intake.md`](gmail-intake.md).
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `MAILROOM_GMAIL_ENABLED` | No | off | Gmail intake channel (HUB-037): poll the agent mailbox and drop accepted attachments into the inbox. Explicit opt-in (`1`/`true`/`yes`/`on`); needs `GMAIL_ADDRESS` + `GMAIL_APP_PASSWORD`. Runs inside the watcher; `/health` reports `checks.gmail_intake` |
+| `GMAIL_ADDRESS` | Yes (when channel on) | — | Mailbox address (e.g. `llmmailroom@gmail.com`). Secret — `.env` only |
+| `GMAIL_APP_PASSWORD` | Yes (when channel on) | — | Gmail 2FA app password (16 chars; display spaces tolerated/stripped). Secret — `.env` only |
+| `MAILROOM_GMAIL_IMAP_HOST` | No | `imap.gmail.com` | IMAP SSL host |
+| `MAILROOM_GMAIL_IMAP_PORT` | No | `993` | IMAP SSL port |
+| `MAILROOM_GMAIL_FOLDER` | No | `INBOX` | Mailbox folder polled |
+| `MAILROOM_GMAIL_POLL_SECONDS` | No | `60` | Seconds between sweeps |
+| `MAILROOM_GMAIL_DEFAULT_MATTER_ID` | No | `DEFAULT` | Matter used when the subject has no `[M:<matter_id>]` tag |
+| `MAILROOM_GMAIL_MAX_ATTACHMENT_MB` | No | `50` | Per-attachment size cap (larger attachments are skipped, message still marked seen) |
+| `MAILROOM_GMAIL_ALLOWED_SENDERS` | No | — | CSV allowlist of sender addresses (lowercased); empty = accept all |
+| `MAILROOM_GMAIL_REACTIONS` | No | `1` | When the watcher claims a Gmail-channel attachment, react to the source email with the check emoji (a Gmail label via IMAP `X-GM-LABELS`) — the "picked up for processing" ack. Best-effort: a reaction failure never disturbs the claim. Set `0` to disable |
+| `MAILROOM_GMAIL_REACTION_LABEL` | No | `✅` | The emoji-named Gmail label applied as the reaction (auto-created best-effort) |
+| `MAILROOM_GMAIL_ECHOES` | No | `1` (with channel on) | When a Gmail-intake document reaches a terminal stage (archived/review/failed), reply on the source email thread with the completion report: status, classification, extraction, archive entry (path + sha256) and the verified audit chain |
+| `MAILROOM_GMAIL_TRIAGE` | No | `1` (with channel on) | Single-document triage lane (HUB-037): an email carrying exactly ONE accepted attachment is handled by the FREE OpenRouter lane — the Free Models Router (`openrouter/free`, auto-selects the best free model per request) — core pipeline steps (deterministic prep, triage classification, auditable-hash archive with its own `triage_*` audit section, completion echo) without the paid agents, after a deterministic capability pre-check. Documents beyond the free team's reach (image-only, scanned PDFs, or longer than the free `max_input_chars` budget — merger agreements typically exceed it) are HONESTLY handed off to the full paid pipeline (`intake.triage_handoff` records the reason). Emails with 2+ accepted attachments drop the triage approach and run the FULL paid pipeline. Advisory; fails soft; set `0` to disable the lane (single-doc emails then take the full pipeline) |
+| `MAILROOM_LLM_INTAKE` | No | `1` | LLM-assisted intake pass (HUB-038): the intake agent (`agents/intake.py`) adds a fused TRIAGE (advisory read → manifest `intake.triage` + sorter prior), CLEAN (structural repair of messy text, re-normalized deterministically), and PREPARE (section map) pass on top of the deterministic clerk. **No-truncation doctrine:** documents are never truncated — over-budget documents are processed in overlapping sliding windows and merged. The LLM pass fires ONLY for messy or over-sorter-budget documents (clean short docs pay zero); set `0` to disable (fully deterministic intake) |
+| `MAILROOM_GMAIL_SMTP_HOST` | No | `smtp.gmail.com` | SMTP host for the echo replies (same app password) |
+| `MAILROOM_GMAIL_SMTP_PORT` | No | `465` | SMTP SSL port for the echo replies |
+| `MAILROOM_RELATIONS` | No | `1` | Relations layer (HUB-040) master kill-switch (also `relations.enabled` in taxonomy): the post-archive association pass + background archive sweep + the own hash-chained relations ledger |
+| `MAILROOM_RELATIONS_SCAN_SECONDS` | No | `300` | Seconds between background archive sweeps (watermark-incremental — never rescans known documents) |
+| `MAILROOM_RELATIONS_CONTEXT` | No | `1` | Advisory RELATED context block for the sorter/specialist handoff + the Gmail completion echo (from the relations ledger) |
+| `MAILROOM_RELATIONS_LLM` | No | `1` (and `relations.llm` off in pilot) | LLM judgment pass over ambiguous relation candidates — taxonomy `relations.llm: false` keeps the pilot deterministic-only |
+| `MAILROOM_RELATIONS_EMBEDDINGS` | No | `1` | Embedding cosine signal (dojo sentence-transformers / remote fallback; HUB-040 hang-proofing: 90s bounded load). `0` skips the cosine signal only — the other signals flow |
+| `MAILROOM_LLM_FREE_ONLY` | No | off | Free-only pilot guardrail (HUB-039): when on (`1`/`true`/`yes`/`on`), `get_llm` refuses to resolve any **OpenRouter** model that is not free — `cost_models` prices both 0.0, or unregistered with an OpenRouter `:free` suffix; self-hosted providers (`vllm`/`ollama`/`generic`) are exempt — there is no per-token price to bound (DMR-052). A paid-model resolution raises BEFORE any client exists, so documents fail-soft park instead of spending; the free triage lane is unaffected. Unset/`0` in full production, where paid agents handle multi-document emails and inbox/CLI uploads |
+
+#### Emailing the mailroom (Gmail intake format contract)
+
+There is **no subject keyword to trigger pickup** — every email arriving at
+the mailbox is swept automatically (every `MAILROOM_GMAIL_POLL_SECONDS`,
+default 60). `RE:` / `FWD:` prefixes are irrelevant. The format rules that
+DO matter:
+
+| Rule | Detail |
+|---|---|
+| **Attach the document** | Only attachments are processed — the email body is never read. Body-only emails are marked seen and skipped (logged as `gmail_message_no_processable_attachments`) |
+| **Accepted extensions** | `file_extensions` in `config/taxonomy.yaml`: `.pdf`, `.txt`, `.docx`, `.md`, `.jpg`, `.jpeg`, `.png`, `.gif` (anything else is skipped, message still acknowledged) |
+| **Size** | ≤ `MAILROOM_GMAIL_MAX_ATTACHMENT_MB` (default 50 MB) per attachment |
+| **Matter routing (optional)** | Put `[M:<matter_id>]` in the subject — e.g. `Hail damage FNOL [M:MORNINGSTAR-001]`. Allowed chars: `A-Z a-z 0-9 _ . -` (≤64). Without the tag the document files under `MAILROOM_GMAIL_DEFAULT_MATTER_ID` (default `DEFAULT`) |
+| **Single vs bundle routing** | ONE accepted attachment = a **single-document upload**: handled by the FREE OpenRouter triage team (core pipeline steps — deterministic prep, triage classification, auditable-hash archive with its own `triage_*` audit section, completion echo — no paid agents), after a capability pre-check; documents beyond the free models' reach (image-only, scanned PDFs, or longer than the free input budget, e.g. most merger agreements) are **honestly handed off to the full paid pipeline** (`intake.triage_handoff` records the reason). TWO OR MORE accepted attachments = a **multi-document upload**: the triage approach is dropped and every attachment runs the **full paid pipeline** |
+| **Multiple attachments** | Each accepted attachment becomes its own document under the same matter; one email per document is cleanest for traceability |
+
+Worked example:
+
+```
+To:      llmmailroom@gmail.com
+Subject: Hail damage FNOL [M:MORNINGSTAR-001]
+Attach:  claim_2026-03-14.pdf
+```
+
+What you get back: the ✅ label appears on the email the moment the watcher
+claims the attachment for processing (the intake acknowledgement). A
+**single-document email** is then handled entirely by the free-triage lane:
+the triage read (primary class, subclass, confidence, gist, keywords) becomes
+the terminal manifest's `intake.triage`, the document is archived in the
+auditable hash archive with its own `triage_*` audit entries, and the mailroom
+replies on the thread with a completion report carrying the **INTAKE TRIAGE
+(pre-pipeline)** section — no paid pipeline agents are invoked — UNLESS the
+deterministic capability pre-check rejects the document (longer than the free
+model's input budget, image-only, or a scanned PDF): it is then honestly
+handed off to the full paid pipeline, with `intake.triage_handoff` recording
+the reason and the completion report noting "triage handoff: … — handled by
+the full pipeline". A **multi-document email** drops the triage approach:
+every attachment flows inbox → classify → extract → archive/review like any
+upload, with `intake.source: gmail` + `intake.route: pipeline` + the
+sender/subject recorded on the manifest for audit. Terminal-stage pipeline
+documents get the completion report on the same thread — STATUS, doc_id/
+matter, classification + confidence, the extraction report, the archive entry
+(path + sha256 for archived documents, or the failure/review reason), and the
+full audit trail with the hash-chain verification verdict — so the email
+thread itself is the notification surface.
+
 ## Provider Configuration
+
+> **Scope (mailroom-issues directive 2026-09-14):** the default and primary
+> provider is **OpenRouter**. **vLLM and Modal are used only for local
+> deployments** — the `local-mailroom-sandbox` and self-hosted/local-model
+> serving — and are never the default for production runs. In particular,
+> **Gmail triage has no vLLM implementation**: the triage lane resolves
+> through `openrouter/free`. vLLM/Modal engage only when an operator
+> explicitly selects a local sandbox profile (`DEFAULT_PROVIDER=vllm` +
+> `VLLM_BASE_URL` in the sandbox config).
 
 ### OpenRouter (Primary)
 
@@ -355,6 +440,13 @@ OLLAMA_BASE_URL=http://localhost:11434/v1
 DEFAULT_PROVIDER=vllm
 VLLM_BASE_URL=http://localhost:8000/v1
 ```
+
+With `DEFAULT_PROVIDER=vllm`, `taxonomy.yaml: vllm_model_map` rewrites
+champion slugs to the served HF ids; a missing `VLLM_BASE_URL` warns and falls
+back to localhost. `VLLM_API_KEY` is sent as an optional bearer (the Modal
+deploy app enforces one). A `503` from a `*.modal.run` endpoint is a
+scale-to-zero cold start — `retry_chat_completion` uses a long bounded backoff
+(90s base / 240s cap, DMR-052).
 
 ### Generic OpenAI-Compatible
 

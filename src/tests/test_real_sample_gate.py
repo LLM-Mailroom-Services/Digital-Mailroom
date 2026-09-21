@@ -8,6 +8,8 @@ Pile of Law court opinions remain on disk but are not in the live manifest
 """
 
 import csv
+
+import pytest
 import os
 import subprocess
 import sys
@@ -15,6 +17,14 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent  # repo root
 MANIFEST = REPO_ROOT / "docs" / "examples" / "samples" / "manifest.csv"
+
+# docs/examples/ is a pruned heavy asset in the monorepo (sample PDFs +
+# manifest). The upstream llm-mailroom repo is the reference for these.
+pytestmark = pytest.mark.skipif(
+    not MANIFEST.is_file(),
+    reason="docs/examples/samples/manifest.csv absent (pruned heavy asset; see upstream repo)",
+)
+
 
 
 def _rows():
@@ -37,10 +47,12 @@ def test_manifest_split_real_vs_synthetic():
         "legalbench_01", "legalbench_02", "legalbench_03", "legalbench_04",
         "legalbench_05", "legalbench_06",
     }, [r["id"] for r in real]
-    # The 10 remaining repo-written synthetic samples are mock-only
-    # (7 original classes + 3 insurance_claim contrast letters).
+    # The 8 remaining repo-written synthetic samples are mock-only
+    # (5 live-class stand-ins + 3 insurance_claim contrast letters).
+    # compliance_01/02 left the roster with the retired compliance agent
+    # (DMR-057/072): prepare_samples.py no longer generates them and they
+    # are NOT expected back — the negative guard below keeps them blocked.
     assert {r["id"] for r in synthetic} == {
-        "compliance_01", "compliance_02",
         "corporate_01", "corporate_02",
         "correspondence_01", "correspondence_02",
         "ambiguous_01",
@@ -53,7 +65,7 @@ def test_filter_real_samples_keeps_all_for_mock():
 
     rows = _rows()
     assert filter_real_samples(rows, mock_mode=True) == rows
-    assert len(filter_real_samples(rows, mock_mode=True)) == 25
+    assert len(filter_real_samples(rows, mock_mode=True)) == 23
 
 
 def test_filter_real_samples_blocks_synthetic_for_real():

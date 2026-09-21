@@ -53,10 +53,9 @@ def test_class_packs_cover_every_taxonomy_class():
 
     keys = [c["key"] for c in load_config()["doc_classes"]]
     assert set(CLASS_PACKS) == set(keys)
-    assert len(LEGACY_SPECIALIST_CANNED) == 4  # live classes except langchain contract + merger
+    assert len(LEGACY_SPECIALIST_CANNED) == 3  # live classes except langchain contract + merger
     assert CLASS_PACKS["contract"]["source"].startswith("huggingface")
     assert CLASS_PACKS["merger_agreement"]["source"].startswith("huggingface")
-    assert CLASS_PACKS["compliance_filing"]["source"] == "local-fixture"
     for key in ("contract", "merger_agreement", "corporate_record",
                 "correspondence", "insurance_claim"):
         assert CLASS_PACKS[key]["source"].startswith("huggingface")
@@ -72,7 +71,7 @@ def test_class_subclass_examples_pack_is_v5_pilot():
     from notebooks.huggingface_lab import class_subclass_examples
 
     pack = class_subclass_examples()
-    assert pack["parent"] == "Lucius-Morningstar/docclass-merged"
+    assert pack["parent"] == "Lucius-Morningstar/mailroom-dataset"
     assert pack["schema"] == "v5"
     assert pack["n_strata"] == 48
     assert len(pack["examples"]) == 48

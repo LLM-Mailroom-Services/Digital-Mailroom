@@ -28,14 +28,13 @@ class TestPromptTemplates:
         from llm.prompts import prompt_templates
 
         templates = prompt_templates()
-        assert len(templates) == 15
+        assert len(templates) == 17  # 15 agents + judge-classification/correctness + relations (HUB-040)
         for agent in (
             "sorter",
             "sorter_reviewer",
             "contracts_specialist",
             "corporate_records_specialist",
             "correspondence_specialist",
-            "compliance_specialist",
             "insurance_claims_specialist",
             "boss",
             "reporter",
@@ -45,6 +44,8 @@ class TestPromptTemplates:
             "judge-classification",
             "judge-correctness",
             "arbiter",
+            "gmail_triage",
+            "intake",
         ):
             assert agent in templates
             assert templates[agent].strip()

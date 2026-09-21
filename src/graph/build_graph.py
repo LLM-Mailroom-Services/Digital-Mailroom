@@ -255,7 +255,7 @@ def _extract_text_from_pdf(file_path: Path) -> tuple[str, bool]:
 def entry_route(state: dict) -> str:
     """Entry router: a review-resume re-invocation starts at fresh extraction
     (doc_type already known from the manifest); everything else goes through
-    normal ingest → classify.
+    normal intake → classify.
 
     The `review_decision == "approved"` guard is deliberate: only the
     resume-from-review path sets it, so a crashed/partial run can never be
@@ -269,7 +269,7 @@ def entry_route(state: dict) -> str:
         and state.get("doc_type")
     ):
         return "extract"
-    return "ingest"
+    return "intake"
 
 
 def _build_handoff_context(state: DocumentState) -> str | None:
@@ -295,7 +295,7 @@ def _build_handoff_context(state: DocumentState) -> str | None:
         if extract_class and extract_class != doc_type:
             context += f" extract_class={extract_class}"
     except Exception:
-        logger.debug("extract_class_resolve_failed", doc_type=doc_type, exc_info=True)
+        logger.warning("extract_class_resolve_failed", doc_type=doc_type, exc_info=True)
     contract_subtype = state.get("contract_subtype")
     doc_subclass = state.get("doc_subclass")
     subtype = contract_subtype or doc_subclass
@@ -320,6 +320,18 @@ def _build_handoff_context(state: DocumentState) -> str | None:
     confidence = state.get("classification_confidence")
     if confidence is not None:
         context += f" confidence={float(confidence):.2f}"
+    # Relations clerk (HUB-040): the archive's advisory RELATED block — what
+    # this document/matter is already known to relate to (zero-shot lift).
+    try:
+        from pipeline.relations import context_block
+
+        related = context_block(
+            matter_id=state.get("matter_id"), doc_id=state.get("doc_id")
+        )
+        if related:
+            context += "\n" + related
+    except Exception:
+        logger.warning("relations_handoff_context_failed")
     if state.get("arbiter_retry_count"):
         findings = list(state.get("judge_findings") or [])
         to_fix = [str(f) for f in (state.get("arbiter_fields_to_fix") or []) if f]
@@ -377,7 +389,6 @@ def _specialist_extractor_map():
         "contracts_specialist": _extract_contracts,
         "corporate_records_specialist": _extract_corporate_records,
         "correspondence_specialist": _extract_correspondence,
-        "compliance_specialist": _extract_compliance,
         "insurance_claims_specialist": _extract_insurance_claims,
     }
 
@@ -526,7 +537,27 @@ def _run_chunked_extraction(agent_fn, doc_text, pages, handoff_context):
         return agent.extract(doc_text, pages=pages)
 
 
-def ingest_node(state: DocumentState) -> dict[str, Any]:
+def intake_node(state: DocumentState) -> dict[str, Any]:
+    """The intake node — the FIRST node of the pipeline (HUB-038).
+
+    The INTAKE agent IS the ingest specialist: "ingest" and "intake" are the
+    same step (the split was an unintentional naming mistake — unified
+    2026-09-03). This one node performs the full ingest + intake work:
+
+    1. Claim + transcribe the file (``_read_file_text``).
+    2. Run the deterministic intake clerk (``apply_intake`` — the dojo gold
+       baseline, never skipped).
+    3. Run the LLM-assisted intake agent (``IntakeAgent``) when gated
+       (messy / over-sorter-budget): TRIAGE (advisory read), CLEAN
+       (structural repair, re-normalized), PREPARE (section map) — sliding
+       windows, never truncated.
+    4. Write the processing manifest + catalog record + the ``ingested``
+       compliance audit event (A-1/A-7).
+
+    The intake work product is what the sorter depends on: the advisory
+    triage rides ``state.intake_prep`` and is fed to ``classify`` as a labeled
+    prior; cleaning and section maps refine the text the sorter reads.
+    """
     _ensure_dirs()
     worker_id = get_worker_id()
 
@@ -549,30 +580,125 @@ def ingest_node(state: DocumentState) -> dict[str, Any]:
         file_path = claim_file(file_path, worker_id)
 
     doc_text, text_ok = _read_file_text(file_path)
-    from agents.intake import apply_intake
+    from agents.intake import apply_intake, llm_intake_enabled, should_llm_intake
 
     raw_text = doc_text
     doc_text, intake_stats = apply_intake(doc_text, filename=file_path.name)
+    # #85 M6a (#98): ModernBERT fast-path triage — deterministic local-model
+    # classification, fail-open by construction. The handoff is ALWAYS
+    # emitted (flag off -> {available: false, reason: flag_off}) so downstream
+    # lanes (#99 router, #108 Tier-1 prior) can rely on its presence; the
+    # span is a SPAN (no LLM call) with curated provenance metadata, never
+    # the document text.
+    bert_triage = None
+    intake_handoff = None
+    try:
+        from agents.bert_intake import run_bert_intake
+        from observability.tracing import observation
+
+        _t0 = time.monotonic()
+        with observation(
+            "intake-ml-triage",
+            as_type="span",
+            input={"file": file_path.name, "chars": len(doc_text)},
+        ) as span:
+            bert_triage = run_bert_intake(doc_text, filename=file_path.name)
+            if span is not None:
+                span.update(
+                    output={
+                        "available": bool(bert_triage.get("available")),
+                        "reason": bert_triage.get("reason"),
+                        "route": bert_triage.get("route"),
+                        "triage_class": bert_triage.get("doc_type"),
+                        "confidence": bert_triage.get("calibrated_confidence")
+                        or bert_triage.get("confidence"),
+                        "latency_ms": round((time.monotonic() - _t0) * 1000.0, 2),
+                    }
+                )
+        intake_handoff = dict(bert_triage)
+    except Exception:
+        logger.exception("bert_intake_failed", file=file_path.name)
+        intake_handoff = {
+            "available": False,
+            "reason": "error",
+            "method": "deterministic",
+            "routing_path": "clerk_only",
+        }
+    # HUB-038: LLM-assisted intake (triage + clean + prepare) — gated to
+    # messy / over-sorter-budget documents; sliding windows, NEVER truncates.
+    intake_prep = None
+    try:
+        if should_llm_intake(doc_text, intake_stats) and llm_intake_enabled():
+            from agents.intake import IntakeAgent
+            from observability.tracing import observation
+
+            intake_agent = IntakeAgent()
+            with observation(
+                "intake-llm-prep",
+                as_type="span",
+                input={"file": file_path.name, "chars": len(doc_text)},
+            ) as span:
+                intake_prep = intake_agent.intake_run(doc_text, filename=file_path.name)
+                if span is not None:
+                    triage = intake_prep.get("triage") or {}
+                    span.update(
+                        output={
+                            "triage_class": triage.get("primary_doc_class"),
+                            "triage_confidence": triage.get("confidence"),
+                            "sections": len(intake_prep.get("sections") or []),
+                            "windows": intake_prep.get("windows", 1),
+                            "cleaned": bool(intake_prep.get("cleaned")),
+                            "changed": bool(intake_prep.get("changed")),
+                        }
+                    )
+            if intake_prep.get("cleaned"):
+                from llm_dojo_scoring.intake import looks_messy as _looks_messy
+
+                doc_text = intake_prep["cleaned"]
+                intake_stats = dict(intake_prep["clean_stats"])
+                intake_stats["messy"] = _looks_messy(doc_text, intake_stats)
+                intake_stats["method"] = "llm"
+    except Exception:
+        logger.exception("intake_llm_failed", file=file_path.name)
+        intake_prep = None
     try:
         from observability.suite_scoring import score_and_log_intake
 
         score_and_log_intake(raw_text, doc_text, intake_stats)
     except Exception:
-        logger.debug("intake_suite_score_failed", exc_info=True)
+        logger.warning("intake_suite_score_failed", exc_info=True)
     doc_pages = _render_doc_pages(file_path)
 
     matter_id = state.get("matter_id", "DEFAULT")
+    intake_meta = state.get("intake_meta") or None
+    if intake_meta is not None:
+        intake_meta = dict(intake_meta)
+        if intake_prep:
+            if intake_prep.get("triage"):
+                intake_meta["triage"] = intake_prep["triage"]
+            if intake_prep.get("sections") is not None:
+                intake_meta["prep"] = {
+                    "section_count": len(intake_prep.get("sections") or []),
+                    "roles": sorted({s["role"] for s in intake_prep.get("sections") or []}),
+                    "windows": intake_prep.get("windows", 1),
+                }
+        # #85 M6a (#98): the BERT handoff merges UNCONDITIONALLY (independent
+        # of intake_prep — a BERT-only run has no LLM prep, and the fixed
+        # `intake_prep` gate used to drop the block before the manifest write).
+        if intake_handoff:
+            intake_meta["bert"] = intake_handoff
     manifest = DocumentManifest(
         matter_id=matter_id,
         original_filename=file_path.name,
         stage=PipelineStage.PROCESSING,
         trace_id=state.get("trace_id"),
+        intake=intake_meta or None,
     )
     manifest.touch()
     save_manifest(manifest)
 
     logger.info(
-        "ingest",
+        "intake",
         doc_id=manifest.doc_id,
         file=file_path.name,
         chars=len(doc_text),
@@ -607,7 +733,7 @@ def ingest_node(state: DocumentState) -> dict[str, Any]:
     )
     # Carry the hash in state so archive verification + provenance persistence
     # can compare against it (A-7).
-    ingest_state = {
+    intake_state = {
         "doc_id": manifest.doc_id,
         "matter_id": matter_id,
         "original_filename": file_path.name,
@@ -617,6 +743,11 @@ def ingest_node(state: DocumentState) -> dict[str, Any]:
         "doc_pages": doc_pages,
         "intake_messy": bool(intake_stats.get("messy")),
         "intake_changed": bool(intake_stats.get("changed")),
+        "intake_prep": intake_prep,
+        # #85 M6a (#98): ModernBERT fast-path triage + always-emitted handoff
+        # (fail-open; downstream lanes read these, never the raw module).
+        "bert_triage": bert_triage,
+        "intake_handoff": intake_handoff,
         "classification_attempts": 0,
         "extraction_attempts": 0,
         "retry_count": 0,
@@ -636,7 +767,7 @@ def ingest_node(state: DocumentState) -> dict[str, Any]:
         },
         stage=PipelineStage.PROCESSING.value,
     )
-    return ingest_state
+    return intake_state
 
 
 def classify_node(state: DocumentState) -> dict[str, Any]:
@@ -665,9 +796,28 @@ def classify_node(state: DocumentState) -> dict[str, Any]:
     sorter = SorterAgent()
     attempts = state.get("classification_attempts", 0)
     try:
+        # HUB-038: the advisory intake read rides as a labeled prior — the
+        # sorter verifies independently (the vendored sorter_v14 prompt is
+        # never mutated). Over-budget documents slide through windows inside
+        # the sorter subclass — never truncated.
+        from agents.intake import format_intake_prior
+
+        intake_prior = format_intake_prior(state.get("intake_prep") or None)
+        # #85 M6e (#108) Tier-1: when the ModernBERT fast-path verified the
+        # primary class (route=fast_path), its prior rides the SAME channel —
+        # the sorter's residual job becomes subclass verification. Advisory
+        # only: the sorter overrules with cited evidence, and nothing is
+        # added when the lane was flag-off/clerk-only ("").
+        from agents.bert_intake import format_bert_type_prior
+
+        bert_prior = format_bert_type_prior(state.get("bert_triage") or None)
+        if bert_prior:
+            intake_prior = "\n\n".join(p for p in (intake_prior, bert_prior) if p)
         # Structured classify includes per-class doc_subclass (dojo catalogs).
         classified = sorter.classify_json(
-            doc_text, pages=state.get("doc_pages")
+            doc_text,
+            pages=state.get("doc_pages"),
+            intake_prior=intake_prior,
         )
         doc_type = classified.get("doc_type") or ""
         contract_subtype = classified.get("contract_subtype")
@@ -798,15 +948,22 @@ def retry_classify_node(state: DocumentState) -> dict[str, Any]:
         memory = recent_context("sorter", doc_type=prev_type or "", k=3)
     except Exception:
         memory = ""
-    augmented_text = (
+    preamble = (
         f"RE-EVALUATION REQUESTED - previous classification was '{prev_type}' with "
-        f"confidence {prev_confidence:.2f}. Please re-examine this document independently:\n\n"
-        f"{doc_text[:12000]}"
-        + (f"\n\n{memory}" if memory else "")
+        f"confidence {prev_confidence:.2f}. Please re-examine this document independently:"
     )
+    if memory:
+        preamble = f"{preamble}\n\n{memory}"
+    from agents.intake import format_intake_prior
+
     try:
+        # HUB-038: no truncation — the retry reads the FULL document through
+        # sliding windows (preamble + advisory intake prior on every window).
         classified = sorter.classify_json(
-            augmented_text, pages=state.get("doc_pages")
+            doc_text,
+            pages=state.get("doc_pages"),
+            prefix=preamble,
+            intake_prior=format_intake_prior(state.get("intake_prep") or None),
         )
         doc_type = classified.get("doc_type") or ""
         contract_subtype = classified.get("contract_subtype")
@@ -934,11 +1091,14 @@ def review_classify_node(state: DocumentState) -> dict[str, Any]:
             }
         # Reviewer hard-failed: escalate with the sorter's original answer
         # intact (fail-safe — same destination the doc had before this lane).
+        # HUB-043: the exception TEXT rides the reason so the completion echo
+        # can translate the actual cause for the recipient (an opaque
+        # "(RuntimeError)" alone told the sender nothing).
         logger.exception("review_classify_failed", doc_id=state.get("doc_id"))
         return {
             "review_verdict": "reviewer_error",
             "stage": PipelineStage.CLASSIFIED.value,
-            "escalation_reason": f"sorter reviewer failed ({type(exc).__name__}) — routing to human review",
+            "escalation_reason": f"sorter reviewer failed ({type(exc).__name__}: {str(exc)[:160]}) — routing to human review",
             "transient_error": False,
         }
 
@@ -1056,7 +1216,7 @@ def _normalized_compare(a, b) -> bool:
 
 def _norm_str(v) -> str:
     try:
-        from observability.field_scoring import normalize_text
+        from llm_dojo_scoring import normalize_text
 
         return normalize_text(v)
     except Exception:
@@ -1255,13 +1415,6 @@ def _extract_correspondence(
 ) -> dict:
     from agents.correspondence_specialist import CorrespondenceSpecialist
     return _run_chunked_extraction(CorrespondenceSpecialist, doc_text, pages, handoff_context)
-
-
-def _extract_compliance(
-    doc_text: str, pages: list[str] | None = None, handoff_context: str | None = None
-) -> dict:
-    from agents.compliance_specialist import ComplianceSpecialist
-    return _run_chunked_extraction(ComplianceSpecialist, doc_text, pages, handoff_context)
 
 
 def _extract_insurance_claims(
@@ -1674,6 +1827,7 @@ def human_review_node(state: DocumentState) -> dict[str, Any]:
             extraction_attempts=state.get("extraction_attempts", 0),
             review_decision="pending_review",
             checkpoint_thread_id=thread_id or None,
+            intake=state.get("intake_meta") or None,
             **_lane_b_manifest_fields(state),
         )
         dest, newly_parked = park_for_review(Path(file_path_str), manifest)
@@ -1716,6 +1870,19 @@ def human_review_node(state: DocumentState) -> dict[str, Any]:
                 **{k: v for k, v in _lane_b_manifest_fields(state).items() if v not in (None, [], 0)},
             },
         )
+
+    # Completion echo (HUB-037): a Gmail-intake document parked for review
+    # still reports its outcome on the source email thread — dispatched AFTER
+    # the routed_to_review audit entry so the echo's audit trail is complete.
+    from pipeline.gmail_intake import dispatch_intake_echo
+
+    dispatch_intake_echo(manifest.model_dump(mode="json"))
+
+    # Relations clerk (HUB-040): the post-archive association pass — off the
+    # document path (daemon thread), advisory, fail-soft.
+    from pipeline.relations import dispatch_relations_scan
+
+    dispatch_relations_scan(manifest.model_dump(mode="json"))
 
     payload = {
         "action": "human_review",
@@ -2022,6 +2189,7 @@ def archive_node(state: DocumentState) -> dict[str, Any]:
         review_decision=state.get("review_decision"),
         classification_attempts=state.get("classification_attempts", 0),
         extraction_attempts=state.get("extraction_attempts", 0),
+        intake=state.get("intake_meta") or None,
         **_lane_b_manifest_fields(state),
     )
 
@@ -2056,7 +2224,7 @@ def archive_node(state: DocumentState) -> dict[str, Any]:
 
     _write_audit_log(audit_entry)
 
-    # Final conveyor position: the catalog record (created at ingest/catalog
+    # Final conveyor position: the catalog record (created at intake/catalog
     # write) must show archived, not classified — archive is the terminal stage.
     _catalog_upsert(
         {
@@ -2078,6 +2246,17 @@ def archive_node(state: DocumentState) -> dict[str, Any]:
     )
 
     logger.info("pipeline_complete", doc_id=manifest.doc_id, archive=str(archive_path))
+    # Completion echo (HUB-037): Gmail-intake documents get the outcome
+    # (archive entry + audit chain) replied onto their source email thread.
+    from pipeline.gmail_intake import dispatch_intake_echo
+
+    dispatch_intake_echo(manifest.model_dump(mode="json"))
+
+    # Relations clerk (HUB-040): the post-archive association pass — off the
+    # document path (daemon thread), advisory, fail-soft.
+    from pipeline.relations import dispatch_relations_scan
+
+    dispatch_relations_scan(manifest.model_dump(mode="json"))
     _maybe_export_warehouse(manifest.doc_id)
     return {"stage": PipelineStage.ARCHIVED.value}
 
@@ -2357,7 +2536,7 @@ def build_graph(checkpointer=None):
     # Node names stay stable (best practice); per-run values go in metadata.
     # Every node is bounded: the run deadline and token budget are enforced at
     # each boundary so a stuck run is cut off as soon as its budget is spent.
-    workflow.add_node("ingest", traced_node("ingest-document")(_bounded(ingest_node)))
+    workflow.add_node("intake", traced_node("intake-document")(_bounded(intake_node)))
     workflow.add_node("classify", traced_node("classify-document")(_bounded(classify_node)))
     workflow.add_node("retry_classify", traced_node("classify-document")(_bounded(retry_classify_node)))
     # KANBAN-062 (Lane A): agent second opinion on exhausted medium-band
@@ -2376,10 +2555,10 @@ def build_graph(checkpointer=None):
     workflow.add_node("archive", traced_node("archive-document")(_bounded(archive_node)))
 
     workflow.add_conditional_edges(START, entry_route, {
-        "ingest": "ingest",
+        "intake": "intake",
         "extract": "extract",
     })
-    workflow.add_edge("ingest", "classify")
+    workflow.add_edge("intake", "classify")
 
     workflow.add_conditional_edges("classify", after_classify, {
         "classify": "classify",  # transient-error self-loop (same node, LLM-level retry)
@@ -2461,10 +2640,10 @@ def build_graph(checkpointer=None):
 def _existing_processing_doc_id(original_filename: str) -> str | None:
     """Find the doc_id of an in-flight manifest for this filename.
 
-    A run that crashed after ingest already saved a processing-stage manifest
+    A run that crashed after intake already saved a processing-stage manifest
     (and a catalog row); the abort path must reuse that doc_id so the failed
     manifest/catalog record supersede the same document instead of orphaning
-    the ingest manifest and minting a second identity.
+    the intake manifest and minting a second identity.
     """
     if not original_filename:
         return None
@@ -2501,7 +2680,7 @@ def _finalize_aborted(initial_state: dict, reason: str, *, failure_class: str | 
     from schemas.manifest import DocumentManifest, PipelineStage
 
     state = dict(initial_state)
-    # Reuse the ingest manifest's doc_id when the run crashed after ingest, so
+    # Reuse the intake manifest's doc_id when the run crashed after intake, so
     # the aborted manifest supersedes the processing manifest (same identity).
     # Passed explicitly — DocumentManifest would otherwise mint a fresh UUID.
     aborted_doc_id = state.get("doc_id") or _existing_processing_doc_id(
@@ -2521,6 +2700,7 @@ def _finalize_aborted(initial_state: dict, reason: str, *, failure_class: str | 
         extraction_attempts=state.get("extraction_attempts", 0),
         escalation_reason=f"run aborted: {reason}",
         trace_id=state.get("trace_id"),
+        intake=state.get("intake_meta") or None,
     )
     if aborted_doc_id:
         manifest_kwargs["doc_id"] = aborted_doc_id
@@ -2561,6 +2741,17 @@ def _finalize_aborted(initial_state: dict, reason: str, *, failure_class: str | 
         )
     except Exception:
         logger.exception("abort_audit_write_error", doc_id=manifest.doc_id)
+    # Completion echo (HUB-037): failed Gmail-intake runs report on-thread
+    # too — AFTER the run_aborted audit entry so the trail is complete.
+    from pipeline.gmail_intake import dispatch_intake_echo
+
+    dispatch_intake_echo(manifest.model_dump(mode="json"))
+
+    # Relations clerk (HUB-040): the post-archive association pass — off the
+    # document path (daemon thread), advisory, fail-soft.
+    from pipeline.relations import dispatch_relations_scan
+
+    dispatch_relations_scan(manifest.model_dump(mode="json"))
     _maybe_export_warehouse(manifest.doc_id)
     return state
 
@@ -2631,7 +2822,7 @@ def _emit_pipeline_result(root, result: dict, state: dict, judge_required: bool 
       text so it can verify grounding by rubric alone.
 
     Judge gating (issues #4/#5): for grounded runs the deterministic
-    field-type-aware scorer (`observability/field_scoring.py`) runs first.
+    field-type-aware scorer (`llm_dojo_scoring.field_scoring`) runs first.
     When its verdict is unambiguous — every scored field clearly correct
     (above the ambiguous band) OR clearly wrong (below it) — `judge_required`
     is False and the generation is NOT emitted, so neither evaluator rule
@@ -2713,7 +2904,7 @@ def _emit_pipeline_result(root, result: dict, state: dict, judge_required: bool 
         if honesty:
             metadata["suite_honesty"] = honesty
     except Exception:
-        logger.debug("pipeline_result_honesty_attach_failed", exc_info=True)
+        logger.warning("pipeline_result_honesty_attach_failed", exc_info=True)
     if ground_truth:
         # When the caller knows the expected outcome (pilot runs pass the
         # manifest ground truth), expose it here so the live evaluator can
@@ -2742,6 +2933,7 @@ def _execute_run(
     ground_truth: dict | None = None,
     session_id: str | None = None,
     run_id: str | None = None,
+    dataset: dict | None = None,
     invoke_input=None,
     thread_id: str | None = None,
 ) -> dict[str, Any]:
@@ -2830,19 +3022,13 @@ def _execute_run(
         tags.append(f"run-{attempt}")
     if source:
         tags.append(f"source-{source}")
-    try:
-        from pipeline.docclass_mode import docclass_prompts_enabled
-
-        if docclass_prompts_enabled():
-            tags.append("docclass-prompts")
-    except Exception:
-        pass
 
     trace_metadata = {"pipeline": "mailroom", "run_deadline": deadline, "attempt": attempt}
     if source:
         trace_metadata["source"] = source
     if run_id:
         trace_metadata["run_id"] = run_id
+    trace_metadata.update(dataset_trace_metadata(dataset))
     public_gt = _public_ground_truth(ground_truth)
     for key, value in public_gt.items():
         trace_metadata[key] = value
@@ -2858,7 +3044,7 @@ def _execute_run(
             if honesty:
                 trace_metadata["suite_honesty"] = honesty
         except Exception:
-            logger.debug("suite_honesty_attach_failed", exc_info=True)
+            logger.warning("suite_honesty_attach_failed", exc_info=True)
 
     # Native LangGraph RunnableConfig: thread-scoped attempt (a re-run of the
     # same document must not resume the previous run's checkpointed state —
@@ -2927,9 +3113,9 @@ def _execute_run(
             )
         if _result_is_interrupted(result):
             result = _paused_review_result(result, initial_state, thread_id, state_trace_id)
-        # Ensure the trace id survives into the final state (ingest_node creates
+        # Ensure the trace id survives into the final state (intake_node creates
         # the manifest with its own doc_id; the trace id must be attached even
-        # when the graph never ran ingest, e.g. aborted runs).
+        # when the graph never ran intake, e.g. aborted runs).
         if not result.get("trace_id"):
             result["trace_id"] = state_trace_id
 
@@ -2956,7 +3142,7 @@ def _execute_run(
         judge_required = None
         expected_fields = (initial_state.get("ground_truth") or {}).get("expected_fields")
         if expected_fields:
-            from observability.field_scoring import get_field_types, score_extraction
+            from llm_dojo_scoring import get_field_types, score_extraction
             from observability.langfuse_field_scoring import score_and_log_extraction
 
             extracted = result.get("extracted_data") or {}
@@ -3032,6 +3218,27 @@ def _execute_run(
     return result
 
 
+def dataset_trace_metadata(dataset: dict | None) -> dict[str, str]:
+    """§45 evaluation-trace identity (HUB-022 P0 residual): every evaluation
+    trace records dataset_name, dataset_revision, taxonomy_version.
+    matter_id rides as session_id and run_id is the simulation-run surrogate
+    (already on the trace). Empty dict when unset — live (non-corpus) runs
+    carry no dataset identity rather than a fabricated one.
+    """
+    if not isinstance(dataset, dict):
+        return {}
+    out: dict[str, str] = {}
+    for meta_key, src in (
+        ("dataset_name", "name"),
+        ("dataset_revision", "revision"),
+        ("taxonomy_version", "taxonomy_version"),
+    ):
+        value = dataset.get(src)
+        if value not in (None, ""):
+            out[meta_key] = str(value)
+    return out
+
+
 def run_pipeline(
     file_path: Path,
     matter_id: str = "DEFAULT",
@@ -3040,6 +3247,8 @@ def run_pipeline(
     ground_truth: dict | None = None,
     session_id: str | None = None,
     run_id: str | None = None,
+    dataset: dict | None = None,
+    intake_meta: dict | None = None,
 ) -> dict[str, Any]:
     _ensure_dirs()
 
@@ -3069,6 +3278,10 @@ def run_pipeline(
         "transient_retries_extract": 0,
         "run_attempt": attempt,
     }
+    if intake_meta:
+        # Intake provenance (HUB-037): carried by state so every manifest
+        # construction site (intake / review / archive / aborted) records it.
+        initial_state["intake_meta"] = dict(intake_meta)
 
     # Attempt 0 keeps the bare filename stem as the deterministic trace seed
     # (backwards-compatible with ground-truth score ingestion in run_pilot.py);
@@ -3091,6 +3304,7 @@ def run_pipeline(
         ground_truth=ground_truth,
         session_id=session_id,
         run_id=run_id,
+        dataset=dataset,
         trace_input=trace_input,
     )
 

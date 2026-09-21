@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Hugging Face corpus pilot — the runner The-Mailroom orchestrates.
 
-Default corpus is ``Lucius-Morningstar/docclass-merged`` schema **v7** (the
-targeted full 1,650-doc surface; v7 = issue #5 correspondence intent
-hydration). Class × subtype examples come from
+Default corpus is ``Lucius-Morningstar/mailroom-dataset`` schema **v9** (the
+targeted full 3,302-doc surface; v9 = §84 hardened ground_truth on top of
+the frozen v8 base — HUB-028 insurance LOB expansion + full GT conformance,
+hardened at `eafe1ab4`, successor published 2026-09-12 at `46a4d3c240a36671cde0182fff4960f6b8b73aca`).
+Class × subtype
+examples come from
 ``docclass-pilot``. Any other pipeline-ready Lucius-Morningstar dataset
 (``--dataset enron`` / ``claims`` / ``cuad``) can be ingested the same way,
 including the 247k-row Enron correspondence corpus.
@@ -11,14 +14,13 @@ including the 247k-row Enron correspondence corpus.
 ``scripts/run_production_pilot.py`` in The-Mailroom looks for this file and
 invokes ``--check`` / ``--real --per-class N``. Traces land in Langfuse under
 session ``pilot-hf-<UTC stamp>`` with tags ``mailroom``, ``pilot``, and the
-corpus ``source-*`` tag (plus ``docclass-prompts`` when that arm is on).
+corpus ``source-*`` tag.
 
   --check     network-free contract (intake + scorer mapping + report schema)
   --mock      pipeline machinery on committed Hub class×subtype examples (fake LLM)
   --real      live Qwen via OpenRouter on a stratified HF subset
   --examples  use docclass-pilot (every class × subclass stratum)
   --dataset   Lucius-Morningstar slug (merged / pilot / enron / claims / cuad)
-  --docclass  opt-in KANBAN-090 docclass prompt variants for every agent
 
 Usage:
     PYTHONPATH=src python src/scripts/run_hf_pilot.py --check
@@ -27,7 +29,7 @@ Usage:
     PYTHONPATH=src python src/scripts/run_hf_pilot.py --real --per-class 1
     PYTHONPATH=src python src/scripts/run_hf_pilot.py --real --examples
     PYTHONPATH=src python src/scripts/run_hf_pilot.py --real --dataset enron --per-subclass 1 --max-scan 8000
-    PYTHONPATH=src python src/scripts/run_hf_pilot.py --real --per-class 5 --docclass --max-scan 4000
+    PYTHONPATH=src python src/scripts/run_hf_pilot.py --real --per-class 5 --max-scan 4000
     PYTHONPATH=src python src/scripts/run_hf_pilot.py --finalize data/hf_pilot/<stamp>
     PYTHONPATH=src python src/scripts/run_quality_judges.py --real --hf-latest 5
 """
@@ -54,14 +56,12 @@ from langchain_agents.cuad_maud import (  # noqa: E402
     normalize_consideration,
 )
 from langchain_agents.doc_inventories import (  # noqa: E402
-    COMPLIANCE_GT_KEYS,
     CORPORATE_GT_KEYS,
     CORRESPONDENCE_GT_KEYS,
     INSURANCE_GT_KEYS,
     coerce_gt_value,
     normalize_claim_type,
     normalize_communication_type,
-    normalize_filing_type,
     normalize_record_type,
 )
 from pipeline.hf_corpora import (  # noqa: E402
@@ -81,24 +81,26 @@ from pipeline.hf_corpora import (  # noqa: E402
 
 DATASET_ID = FULL_CORPUS_ID
 DATASET_REVISION = FULL_CORPUS_REVISION
+# §45 evaluation-trace identity (HUB-022): rides on every pilot trace so any
+# experiment is reproducible from dataset revision + taxonomy surface.
+DATASET_IDENTITY = {
+    "name": DATASET_ID,
+    "revision": DATASET_REVISION,
+    "taxonomy_version": FULL_CORPUS_SCHEMA,
+}
 DATASET_SCHEMA = FULL_CORPUS_SCHEMA
 VIEWER_BASE = "https://datasets-server.huggingface.co"
 HF_CLASSES = HUB_CLASSES
-# Zero-row / retired classes are scored by dojo suites but MUST NOT appear in
-# HF_CLASSES — compliance_filing has zero Hub rows; court/DD were retired.
-# A local mock/check pack still scores compliance (and insurance contrast /
-# corporate schema extraction) without inventing Hub accuracy.
+# Retired classes are scored by dojo suites but MUST NOT appear in
+# HF_CLASSES — court/DD were retired and are fully removed from the
+# taxonomy; the live surface is exactly the five canonical classes.
 HF_HONESTY_EXCLUDED = (
-    "compliance_filing",
     "court_opinion",
     "due_diligence",
 )
-HF_LOCAL_PACK_CLASSES = (
-    "compliance_filing",
-)
 # Live taxonomy files MAUD merger rows as merger_agreement (not contract).
 # Exact class match is the only class KPI. Do not import
-# llm_dojo_scoring.mailroom.align_doc_type (v0.11.0 still maps MAUD ≡ CUAD).
+# llm_dojo_scoring.mailroom.align_doc_type (v0.14.0 still maps MAUD ≡ CUAD).
 ALIGN: dict[str, str] = {}
 
 
@@ -179,7 +181,7 @@ def parse_hf_row(row: dict, labels: dict[str, dict] | None = None) -> dict | Non
             raw = row.get(key)
         if raw not in (None, ""):
             sample[key] = coerce_gt_value(raw)
-    extra_keys = CORPORATE_GT_KEYS + COMPLIANCE_GT_KEYS + CORRESPONDENCE_GT_KEYS
+    extra_keys = CORPORATE_GT_KEYS + CORRESPONDENCE_GT_KEYS
     for key in extra_keys:
         if key in sample:
             continue
@@ -383,17 +385,6 @@ def subclass_ok(expected_class: str, expected_subclass: str, *, predicted_subtyp
         return _loose_label_match(
             extracted.get("communication_type") or predicted, want
         )
-    if hf_class == "compliance_filing":
-        from langchain_agents.doc_inventories import normalize_sorter_subclass
-
-        got = (
-            normalize_sorter_subclass(hf_class, predicted)
-            or normalize_filing_type(extracted.get("filing_type") or predicted)
-        )
-        need = normalize_sorter_subclass(hf_class, want) or normalize_filing_type(want)
-        if got and need:
-            return got == need
-        return _loose_label_match(extracted.get("filing_type") or predicted, want)
     return _loose_label_match(predicted, want)
 
 
@@ -629,8 +620,8 @@ def summarize_rows(rows: list[dict]) -> dict:
 def hf_corpus_honesty() -> dict:
     """Per-class corpus honesty from the dedicated specialist suites.
 
-    Includes scored HF_CLASSES plus the zero-row/retired exclusions so a
-    report never invents compliance accuracy at n=0. Local packs are
+    Includes scored HF_CLASSES plus the retired exclusions so a
+    report never invents accuracy at n=0. Local packs are
     attached as extras (mock/check only) — they do not flip ``in_hf_pilot``.
     """
     from observability.honest_gaps import suite_honesty
@@ -671,7 +662,7 @@ def score_row_extraction(extracted: dict | None, expected_fields: dict | None, d
     if not expected_fields or not extracted:
         return None
     try:
-        from observability.field_scoring import get_field_types
+        from llm_dojo_scoring import get_field_types
         from observability.suite_scoring import score_with_suite
 
         scored_class = doc_class
@@ -765,7 +756,6 @@ def enrich_sample_row(row: dict) -> dict:
             **{k: out.get(k) for k in ("content_topic", "sentiment_label", "maud_clause_labels") if out.get(k) not in (None, "")},
             **{k: out.get(k) for k in INSURANCE_GT_KEYS if out.get(k) not in (None, "")},
             **{k: out.get(k) for k in CORPORATE_GT_KEYS if out.get(k) not in (None, "")},
-            **{k: out.get(k) for k in COMPLIANCE_GT_KEYS if out.get(k) not in (None, "")},
             **{k: out.get(k) for k in CORRESPONDENCE_GT_KEYS if out.get(k) not in (None, "")},
         }
         expected_fields = expected_fields_for_sample(payload)
@@ -794,7 +784,7 @@ def render_metrics_markdown(report: dict) -> str:
         f"# HF pilot `{session or report.get('run_id') or 'report'}`",
         "",
         f"- dataset = `{report.get('dataset')}` split `{report.get('split')}`",
-        f"- mode = **{report.get('mode')}**  docclass = `{report.get('docclass_prompts')}`  "
+        f"- mode = **{report.get('mode')}**  "
         f"unique_matters = `{report.get('unique_matters')}`",
         f"- n = **{metrics.get('n', 0)}**  errors = **{report.get('errors', 0)}**",
         f"- exact accuracy = **{metrics.get('exact_accuracy')}**  "
@@ -835,11 +825,10 @@ def render_metrics_markdown(report: dict) -> str:
     honesty = report.get("honesty") or hf_corpus_honesty()
     lines += [
         "",
-        "## Corpus honesty (dojo 0.11.0)",
+        "## Corpus honesty (dojo 0.14.0)",
         "",
-        "Gaps are suite metadata, not invented accuracy. `compliance_filing` stays "
-        "out of Hub `--real` (zero Hub rows) and is scored by a **local pack** "
-        "(mock/check only). `court_opinion` / `due_diligence` are retired. "
+        "Gaps are suite metadata, not invented accuracy. "
+        "`court_opinion` / `due_diligence` are retired. "
         "`corporate_record` Hub official GT is still subclass-only; post-hoc "
         "schema labels parsed from the S-1/exhibit text are now scored. "
         "Insurance `determination_consistency` "
@@ -883,10 +872,6 @@ def render_metrics_markdown(report: dict) -> str:
                     f"gt_homogeneity={pack.get('gt_homogeneity')} "
                     f"adversarial denied-without-reasons consistency="
                     f"{adv.get('determination_consistency')}"
-                )
-            if name == "compliance_filing":
-                lines.append(
-                    f"  - Hub rows=0; subclasses={pack.get('subclasses')}"
                 )
             if name == "corporate_extraction":
                 lines.append(
@@ -936,7 +921,7 @@ def render_metrics_markdown(report: dict) -> str:
             "## Per subclass (Hub class × subtype strata)",
             "",
             "Strata come from the Hub inventories (`docclass-pilot` / "
-            "`docclass-merged`). Predicting `contract` for a `merger_agreement` "
+            "`mailroom-dataset`). Predicting `contract` for a `merger_agreement` "
             "row is a class miss, not an aligned hit.",
             "",
             "| stratum | n | exact | subclass |",
@@ -1132,8 +1117,8 @@ def _mock_samples(per_class: int, *, per_subclass: int = 0) -> list[dict]:
     """Hub class×subtype examples from the committed docclass-pilot snapshot.
 
     Invented Acme/Beta stand-ins are not used — every mock document is a
-    truncated Hub row. Local eval packs still append compliance (zero Hub
-    rows) and honesty-gap contrast samples.
+    truncated Hub row. Local eval packs append honesty-gap contrast samples
+    (mock/check only).
     """
     out: list[dict] = []
     if per_subclass and per_subclass > 0:
@@ -1271,7 +1256,7 @@ def load_ground_truth_labels(*, split: str, max_scan: int) -> dict[str, dict]:
             "content_topic": row.get("content_topic"),
             "sentiment_label": row.get("sentiment_label"),
         }
-        for key in (*INSURANCE_GT_KEYS, *CORPORATE_GT_KEYS, *COMPLIANCE_GT_KEYS, *CORRESPONDENCE_GT_KEYS):
+        for key in (*INSURANCE_GT_KEYS, *CORPORATE_GT_KEYS, *CORRESPONDENCE_GT_KEYS):
             if row.get(key) not in (None, ""):
                 labels[filename][key] = row.get(key)
     return labels
@@ -1341,8 +1326,6 @@ def check_contract() -> int:
     assert miss["exact_accuracy"] == 0.0
     assert miss["aligned_accuracy"] == 0.0
     assert miss["aligned_equals_exact"] is True
-    assert "compliance_filing" not in HF_CLASSES
-    assert "compliance_filing" in HF_LOCAL_PACK_CLASSES
     for retired in ("court_opinion", "due_diligence"):
         assert retired not in HF_CLASSES
         assert get_suite(retired).retired is True
@@ -1359,9 +1342,6 @@ def check_contract() -> int:
     gap = (insurance["honest_gap"] or "").lower()
     assert "homogeneous" in gap or "degenerate" in gap
     assert "determination_consistency" in gap
-    compliance = suite_honesty("compliance_filing")
-    assert compliance["in_corpus"] is False
-    assert "zero" in (compliance["honest_gap"] or "").lower()
     corporate = suite_honesty("corporate_record")
     assert corporate["in_corpus"] is True
     corp_gap = (corporate["honest_gap"] or "").lower()
@@ -1390,17 +1370,12 @@ def check_contract() -> int:
     assert contrast["perfect_extract"]["determination_consistency_mean"] == 1.0
     assert contrast["adversarial_denied_without_reasons"]["determination_consistency"] == 0.0
     assert contrast["hub_cms_shaped"]["gt_homogeneity"] is True
-    assert packs["compliance_filing"]["n"] >= 2
-    assert packs["compliance_filing"]["in_hub"] is False
-    assert packs["compliance_filing"]["perfect_extract"]["n"] >= 2
     corp_pack = packs["corporate_extraction"]
     assert corp_pack["hub_extract_is_subclass_only"] is True
     assert "entity_name" in corp_pack["schema_fields"]
     assert "subject_matter" in corp_pack["schema_fields"]
     assert corp_pack["perfect_extract"]["n"] >= 2
     honesty = hf_corpus_honesty()
-    assert honesty["compliance_filing"]["in_hf_pilot"] is False
-    assert honesty["compliance_filing"]["local_pack"] == "compliance_filing"
     assert honesty["corporate_record"]["local_pack"] == "corporate_extraction"
     assert honesty["insurance_claim"]["hub_gt_homogeneous"] is True
     from observability.specialist_suites import (
@@ -1419,7 +1394,6 @@ def check_contract() -> int:
     assert mapping["contracts_specialist"] == ["contract", "merger_agreement"]
     assert mapping["corporate_records_specialist"] == ["corporate_record"]
     assert mapping["correspondence_specialist"] == ["correspondence"]
-    assert mapping["compliance_specialist"] == ["compliance_filing"]
     assert mapping["insurance_claims_specialist"] == ["insurance_claim"]
     from pipeline.hf_corpora import example_rows, hub_sample
 
@@ -1449,14 +1423,8 @@ def check_contract() -> int:
     assert merger_fields.get("parties") or merger_fields.get("document_name")
     contract_fields, _ = by_class["contract"]
     assert contract_fields.get("cuad_family")
-    from observability.local_eval_packs import compliance_local_samples
-
-    compliance_sample = compliance_local_samples()[0]
-    compliance_gt = expected_fields_for_sample(compliance_sample)
-    assert compliance_gt.get("filing_type")
-    assert compliance_gt.get("entity_name")
-    assert DATASET_SCHEMA == "v7"
-    assert DATASET_ID == "Lucius-Morningstar/docclass-merged"
+    assert DATASET_SCHEMA == "v9"
+    assert DATASET_ID == "Lucius-Morningstar/mailroom-dataset"
     assert DATASET_REVISION
     pack_classes = set(examples_by_class())
     assert pack_classes == set(HF_CLASSES)
@@ -1494,13 +1462,10 @@ def check_contract() -> int:
         "example_strata": len(strata),
         "n_classes": len(HF_CLASSES),
         "honesty_excluded": list(HF_HONESTY_EXCLUDED),
-        "local_pack_classes": list(HF_LOCAL_PACK_CLASSES),
         "pipeline_datasets": sorted(slugs),
         "corporate_in_corpus": True,
-        "compliance_in_corpus": False,
         "local_packs": {
             "insurance_contrast": packs["insurance_contrast"]["n"],
-            "compliance_filing": packs["compliance_filing"]["n"],
             "corporate_extraction": packs["corporate_extraction"]["n"],
         },
     }))
@@ -1561,6 +1526,7 @@ def _run_one(sample: dict, *, mock_mode: bool, session_id: str, run_id: str, mat
             result = run_pipeline(
                 queued, matter_id, source=_trace_source(),
                 ground_truth=ground_truth, session_id=session_id, run_id=run_id,
+                dataset=DATASET_IDENTITY,
             )
     else:
         with patch("llm.client.get_llm", side_effect=rp._real_get_llm), \
@@ -1569,6 +1535,7 @@ def _run_one(sample: dict, *, mock_mode: bool, session_id: str, run_id: str, mat
             result = run_pipeline(
                 queued, matter_id, source=_trace_source(),
                 ground_truth=ground_truth, session_id=session_id, run_id=run_id,
+                dataset=DATASET_IDENTITY,
             )
     wall = time.perf_counter() - started
     predicted = result.get("doc_type")
@@ -1654,9 +1621,9 @@ def main() -> int:
     )
     parser.add_argument(
         "--dataset",
-        default="docclass-merged",
+        default="docclass-merged",  # internal slug (Hub id: mailroom-dataset)
         help="Lucius-Morningstar corpus slug or repo id (default: "
-             "docclass-merged v7). Aliases: v5/v7/full, examples/pilot, "
+             "mailroom-dataset v9). Aliases: v5/v7/v8/v9/full/corpus, examples/pilot, "
              "enron, claims, cuad.",
     )
     parser.add_argument(
@@ -1676,11 +1643,6 @@ def main() -> int:
              "Skips filenames that already have a non-error stage.",
     )
     parser.add_argument(
-        "--docclass",
-        action="store_true",
-        help="Use KANBAN-090 docclass prompt variants (MAILROOM_DOCCLASS_PROMPTS=1).",
-    )
-    parser.add_argument(
         "--shared-matter",
         action="store_true",
         help="Put every document on one matter_id (exercises Boss same-class "
@@ -1688,9 +1650,6 @@ def main() -> int:
              "evals do not park later same-class docs in REVIEW.",
     )
     args = parser.parse_args()
-
-    if args.docclass:
-        os.environ["MAILROOM_DOCCLASS_PROMPTS"] = "1"
 
     if args.check:
         return check_contract()
@@ -1708,7 +1667,6 @@ def main() -> int:
 
     from pipeline.env import default_environment, load_env
     from pipeline.logging import setup_logging
-    from pipeline.docclass_mode import docclass_prompts_enabled
 
     load_env()
     default_environment("pilot")
@@ -1855,7 +1813,6 @@ def main() -> int:
             "revision": corpus.get("revision"),
             "split": args.split,
             "mode": "mock" if mock_mode else "real",
-            "docclass_prompts": docclass_prompts_enabled(),
             "cost_abort_usd": abort,
             "plan": plan,
             "samples": rows,
@@ -1949,7 +1906,6 @@ def main() -> int:
         "n": len(rows),
         "planned_n": planned_n,
         "errors": errors,
-        "docclass_prompts": docclass_prompts_enabled(),
         "unique_matters": unique_matters,
         "metrics": metrics,
     }, default=str))

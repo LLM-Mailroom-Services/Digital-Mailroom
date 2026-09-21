@@ -56,6 +56,19 @@ class DocumentState(TypedDict, total=False):
     # Attempt number of this pipeline run for a document (observability: trace
     # tags/metadata + seed suffix beyond the first run).
     run_attempt: int
+    # Intake provenance (HUB-037): metadata from the inbox `<file>.meta`
+    # sidecar the watcher read at claim time (`source`: gmail / upload,
+    # message_id, sender, subject, ...). Manifests carry it through every
+    # terminal stage so the audit record shows HOW each document arrived.
+    intake_meta: dict[str, Any]
+    # #85 M6a (#98): ModernBERT fast-path triage run inside intake_node.
+    # `intake_handoff` is ALWAYS emitted (fail-open — absent package/bundle
+    # yields {available: false, reason: ...}, routing_path=clerk_only) so
+    # downstream lanes can rely on its presence; `bert_triage` is the same
+    # dict and feeds the Tier-1 prior-scoped sorter lane (#108) via the
+    # existing `intake_prior=` channel.
+    bert_triage: dict[str, Any] | None
+    intake_handoff: dict[str, Any] | None
     # KANBAN-062 (Lane A): independent second opinion from the sorter_reviewer
     # agent on medium-band classifications. The original sorter answer is
     # preserved untouched; `review_verdict` records the lane outcome

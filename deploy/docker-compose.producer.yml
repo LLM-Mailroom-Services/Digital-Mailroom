@@ -34,11 +34,17 @@ services:
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
       OPENROUTER_BASE_URL: "${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}"
       DEFAULT_PROVIDER: "${DEFAULT_PROVIDER:-openrouter}"
+      # vLLM provider (DEFAULT_PROVIDER=vllm): the container must reach the
+      # deployed/local server — without these passthroughs it resolves the
+      # in-container default localhost:8000 and every request fails (DMR-051).
+      VLLM_BASE_URL: "${VLLM_BASE_URL:-}"
+      VLLM_API_KEY: "${VLLM_API_KEY:-}"
       LANGFUSE_PUBLIC_KEY: "${LANGFUSE_PUBLIC_KEY:-}"
       LANGFUSE_SECRET_KEY: "${LANGFUSE_SECRET_KEY:-}"
-      LANGFUSE_HOST: "${LANGFUSE_HOST:-https://us.cloud.langfuse.com}"
+      LANGFUSE_HOST: "${LANGFUSE_HOST:-}"
+      LANGFUSE_BASE_URL: "${LANGFUSE_BASE_URL:-https://us.cloud.langfuse.com}"
       OBSERVABILITY_PROVIDER: "${OBSERVABILITY_PROVIDER:-auto}"
-      OBSERVABILITY_ENVIRONMENT: live
+      OBSERVABILITY_ENVIRONMENT: "${OBSERVABILITY_ENVIRONMENT:-live}"
       LOG_LEVEL: "${LOG_LEVEL:-INFO}"
       LOG_FORMAT: json
     volumes:

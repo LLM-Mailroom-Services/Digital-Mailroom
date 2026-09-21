@@ -75,7 +75,7 @@ Checks the API plus best-effort dependency health: LLM provider connectivity (re
 
 `status` is `"ok"` when all checks pass, `"degraded"` when any dependency is unreachable (e.g. provider resolution fails, missing API key, the models endpoint is down, ingestion is paused, the watcher lamp is `stale`/`missing`, or the tracing backend is unhealthy). Dependency checks are best-effort and never block the response.
 
-`checks.watcher` is the producer lamp The-Mailroom reads (`live` / `stale` / `missing`; stale after 15s without a heartbeat). `watcher_heartbeat_seconds_ago` is the age of the watcher's liveness beacon. `inbox_pending` counts processable inbox documents (not `.meta` upload sidecars). `producer` / `review_resolve` / `inbox_upload` advertise the The-Mailroom contract (`GET /lookup`, `POST /review/{doc_id}/resolve`, `GET /documents/{doc_id}/source`, `POST /upload`). The API embeds the inbox watcher by default (`MAILROOM_EMBED_WATCHER=1`) so uploads drain without a second process; set `0` when a dedicated `python -m pipeline.watcher` already holds `watcher.lock`.
+`checks.watcher` is the producer lamp The-Mailroom reads (`live` / `stale` / `missing`; stale after 15s without a heartbeat). `watcher_heartbeat_seconds_ago` is the age of the watcher's liveness beacon. `inbox_pending` counts processable inbox documents (not `.meta` upload sidecars). `checks.gmail_intake` reports the optional Gmail intake channel (`enabled` / `running` / `last_poll_at` / counters; never credentials). `producer` / `review_resolve` / `inbox_upload` advertise the The-Mailroom contract (`GET /lookup`, `POST /review/{doc_id}/resolve`, `GET /documents/{doc_id}/source`, `POST /upload`). The API embeds the inbox watcher by default (`MAILROOM_EMBED_WATCHER=1`) so uploads drain without a second process; set `0` when a dedicated `python -m pipeline.watcher` already holds `watcher.lock`.
 
 ---
 
@@ -485,6 +485,68 @@ Clear the `ops_monitor_paused` flag so the watcher resumes processing new files.
 ```
 
 `was_paused` is `true` if the pause flag existed and was cleared; `false` if ingestion was not paused.
+
+---
+
+### Relations Clerk Mode
+
+```
+GET /api/relations/mode
+POST /api/relations/mode
+```
+
+Read and flip the relations clerk's **live/pilot mode** (HUB-052) — the same
+knob as `python -m pipeline.relations_mode`, without touching the box: the
+POST edits taxonomy, clears the in-process config caches, and the embedded
+watcher honors the flip immediately (no restart).
+
+`GET` response — the effective posture and every knob that can block or
+shape it:
+
+```json
+{
+    "mode": "pilot",
+    "llm": false,
+    "llm_effective": false,
+    "llm_env_blocked": false,
+    "enabled": true,
+    "context_injection": true,
+    "context_injection_effective": true,
+    "graphs": true,
+    "model": "openrouter/free",
+    "model_is_free": true,
+    "free_only_guardrail": true,
+    "kill_switches": {
+        "MAILROOM_RELATIONS": "1",
+        "MAILROOM_RELATIONS_LLM": "1",
+        "MAILROOM_RELATIONS_CONTEXT": "1",
+        "MAILROOM_RELATIONS_EMBEDDINGS": "1"
+    },
+    "embeddings_enabled": true,
+    "similarity_threshold": 0.62,
+    "keyword_jaccard_threshold": 0.25,
+    "llm_confidence_gate": 0.55,
+    "top_k_llm_candidates": 5,
+    "last_sweep_at": null,
+    "edges": 0,
+    "ledger": {"ok": true, "entries": 209}
+}
+```
+
+`POST` body: `{"mode": "live" | "pilot", "model": "<optional judge model>"}`.
+
+- `mode: "pilot"` — deterministic-only (the pilot posture; zero LLM spend).
+- `mode: "live"` — the LLM judgment pass is on.
+- `model` — optional judge model: a taxonomy `cost_models` entry or an
+  OpenRouter `:free` model. A **paid** model while `MAILROOM_LLM_FREE_ONLY`
+  is on is refused with `400` (the guardrail is a pipeline-wide .env
+  decision — it is never flipped here).
+
+The stale `MAILROOM_RELATIONS_LLM=0` kill-switch in `.env` is removed
+automatically when it contradicts a requested `live` mode. `restart_required`
+is always `false` for this endpoint (embedded watcher); standalone watchers
+read the new taxonomy on their next restart or
+`python -m pipeline.relations_mode live --restart-watcher`.
 
 ---
 

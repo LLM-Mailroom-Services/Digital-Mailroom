@@ -94,28 +94,43 @@ def pipeline_trace(*args, **kwargs):
     """Root chain observation for one document run (one trace per document).
 
     See `observability/langfuse_setup.pipeline_trace` for parameters. No-ops
-    (yields None) unless Langfuse is the active backend. Default ``as_type``
-    is ``chain``.
+    (yields None) unless Langfuse or Braintrust is the active backend.
+    Default ``as_type`` is ``chain``.
     """
-    if resolve_provider_name() != "langfuse":
+    provider = resolve_provider_name()
+    if provider == "langfuse":
+        from .langfuse_setup import pipeline_trace as _langfuse_pipeline_trace
+
+        with _langfuse_pipeline_trace(*args, **kwargs) as root:
+            yield root
+    elif provider == "braintrust":
+        from .braintrust_setup import braintrust_pipeline_trace as _braintrust_pipeline_trace
+
+        with _braintrust_pipeline_trace(*args, **kwargs) as root:
+            yield root
+    else:
         yield None
         return
-    from .langfuse_setup import pipeline_trace as _langfuse_pipeline_trace
-
-    with _langfuse_pipeline_trace(*args, **kwargs) as root:
-        yield root
 
 
 @contextmanager
 def observation(name, **kwargs):
-    """Child observation under the active span. No-ops when Langfuse is inactive."""
-    if resolve_provider_name() != "langfuse":
+    """Child observation under the active span. No-ops when Langfuse or
+    Braintrust is inactive."""
+    provider = resolve_provider_name()
+    if provider == "langfuse":
+        from .langfuse_setup import observation as _langfuse_observation
+
+        with _langfuse_observation(name, **kwargs) as span:
+            yield span
+    elif provider == "braintrust":
+        from .braintrust_setup import braintrust_observation as _braintrust_observation
+
+        with _braintrust_observation(name, **kwargs) as span:
+            yield span
+    else:
         yield None
         return
-    from .langfuse_setup import observation as _langfuse_observation
-
-    with _langfuse_observation(name, **kwargs) as span:
-        yield span
 
 
 def _state_summary(state: dict) -> dict:
@@ -164,7 +179,7 @@ def _result_summary(result: dict, state: dict | None = None):
 # chain = the pipeline as a whole; span = remaining units of work.
 NODE_OBSERVATION_TYPES = {
     "document-pipeline": "chain",
-    "ingest-document": "span",
+    "intake-document": "span",
     "normalize-intake": "span",
     "extract-image-text": "retriever",
     "transcribe-pdf": "retriever",
@@ -304,7 +319,7 @@ def install_on_dropped() -> None:
 
         _install()
     except Exception:
-        logger.debug("on_dropped_install_failed")
+        logger.warning("on_dropped_install_failed")
 
 
 def get_trace_id():
@@ -336,7 +351,7 @@ def _atexit_flush():
 
         shutdown_langfuse()
     except Exception:
-        logger.debug("tracing_shutdown_failed", exc_info=True)
+        logger.warning("tracing_shutdown_failed", exc_info=True)
 
 
 def ensure_process_tracing() -> None:

@@ -18,7 +18,6 @@ tests/
     ├── due_diligence/           # retired class (fixtures kept on disk)
     ├── court_opinion/           # retired class (fixtures kept on disk)
     ├── correspondence/          # 2 sample correspondences (demand letter, memo)
-    ├── compliance_filing/       # 2 sample filings (10-K, state filing)
     └── insurance_claim/         # FNOL / claim documentation
 ```
 

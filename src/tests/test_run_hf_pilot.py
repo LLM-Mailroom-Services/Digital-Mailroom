@@ -1,4 +1,4 @@
-"""HF docclass pilot runner — The-Mailroom production-pilot contract."""
+"""HF pilot runner — The-Mailroom production-pilot contract."""
 
 import json
 import os
@@ -178,14 +178,11 @@ def test_load_ground_truth_labels_reads_expected_fields(monkeypatch):
     assert labels["a.htm"]["expected_subclass"] == "bylaws"
     assert labels["b.pdf"]["expected"] == "contract"
     assert "skip.pdf" not in labels
-    monkeypatch.delenv("MAILROOM_DOCCLASS_PROMPTS", raising=False)
     import sys
     from scripts import run_hf_pilot as mod
 
-    monkeypatch.setattr(sys, "argv", ["run_hf_pilot.py", "--check", "--docclass"])
+    monkeypatch.setattr(sys, "argv", ["run_hf_pilot.py", "--check"])
     assert mod.main() == 0
-    assert os.environ.get("MAILROOM_DOCCLASS_PROMPTS") == "1"
-    monkeypatch.delenv("MAILROOM_DOCCLASS_PROMPTS", raising=False)
 
 
 def test_check_contract_prints_ok(capsys):
@@ -194,7 +191,7 @@ def test_check_contract_prints_ok(capsys):
     assert "check ok" in out
     payload = json.loads(out.split("check ok ", 1)[1])
     assert payload["dataset"] == DATASET_ID
-    assert payload["schema"] == "v7"
+    assert payload["schema"] == "v9"
     assert payload["example_strata"] == 48
     assert payload["align"] == {}
     assert payload["aligned_equals_exact"] is True
@@ -248,10 +245,7 @@ def test_hf_pilot_mock_writes_report(temp_base_dir, mock_openai_client, mock_lan
     assert metrics["aligned_equals_exact"] is True
     assert "total_cost_usd" in metrics
     assert "per_class" in metrics
-    assert payload["honesty"]["compliance_filing"]["in_hf_pilot"] is False
-    assert payload["honesty"]["compliance_filing"]["in_corpus"] is False
     assert payload["honesty"]["corporate_record"]["in_corpus"] is True
-    assert payload["local_packs"]["compliance_filing"]["n"] == 2
     assert payload["local_packs"]["insurance_contrast"]["gt_homogeneity"] is False
     assert payload["local_packs"]["corporate_extraction"]["hub_extract_is_subclass_only"] is True
     md = reports[0].with_suffix(".md").read_text(encoding="utf-8")
@@ -377,7 +371,7 @@ def test_finalize_report_writes_metrics_and_markdown(tmp_path):
     report_path = tmp_path / "report.json"
     report_path.write_text(json.dumps({
         "session_id": "pilot-hf-test",
-        "dataset": "Lucius-Morningstar/docclass-merged",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
         "split": "train",
         "mode": "real",
         "errors": 0,
@@ -450,7 +444,7 @@ def test_summarize_rows_merger_predicted_as_contract_is_a_class_miss():
     from llm_dojo_scoring.mailroom import score_aligned_classification
 
     dojo = score_aligned_classification(["merger_agreement"], ["contract"])
-    assert dojo["aligned_accuracy"] == 1.0  # v0.11.0 pin still aliases MAUD ≡ CUAD
+    assert dojo["aligned_accuracy"] == 1.0  # dojo 0.14.0 aliases MAUD ≡ CUAD (align_doc_type)
     md = render_metrics_markdown({
         "session_id": "pilot-hf-test",
         "samples": [{

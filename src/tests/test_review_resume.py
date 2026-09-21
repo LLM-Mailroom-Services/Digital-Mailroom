@@ -65,10 +65,10 @@ def _run_to_review(temp_base_dir, phased_client) -> dict:
 
 
 class TestReviewResume:
-    def test_entry_route_resume_skips_ingest_and_classify(self):
+    def test_entry_route_resume_skips_intake_and_classify(self):
         from graph.build_graph import entry_route
 
-        assert entry_route({"resume_extraction": True, "doc_type": "contract"}) == "ingest"
+        assert entry_route({"resume_extraction": True, "doc_type": "contract"}) == "intake"
         # The approved-guard is deliberate: only the resume-from-review path
         # sets review_decision, so a crashed/partial run can never skip
         # classification.
@@ -78,9 +78,9 @@ class TestReviewResume:
             )
             == "extract"
         )
-        assert entry_route({"resume_extraction": True, "doc_type": None}) == "ingest"
-        assert entry_route({"resume_extraction": False}) == "ingest"
-        assert entry_route({}) == "ingest"
+        assert entry_route({"resume_extraction": True, "doc_type": None}) == "intake"
+        assert entry_route({"resume_extraction": False}) == "intake"
+        assert entry_route({}) == "intake"
 
     def test_default_checkpointer_is_memory(self):
         from langgraph.checkpoint.memory import MemorySaver
@@ -225,3 +225,38 @@ class TestReviewResume:
         assert newly2 is False
         assert dest2 == dest
         assert dest.exists()
+
+
+class TestManifestCorruptionHygiene:
+    """hub#63: a corrupted manifest must be logged, not silently skipped."""
+
+    def test_review_queue_skips_corrupt_manifest_with_warning(self, temp_base_dir, monkeypatch):
+        # MAILROOM_API_TOKENS is read live by active_api_tokens() (the single
+        # MAILROOM_API_TOKEN is captured at module import, which may already
+        # have happened in an earlier test) — set the live-read var.
+        monkeypatch.setenv("MAILROOM_API_TOKENS", "test-token")
+        import api.main as api_main
+        from api.main import app
+        from pipeline.bins import manifests_dir
+        from fastapi.testclient import TestClient
+
+        # structlog's global renderer is reconfigured by other tests (rotating
+        # file sink), so capture at the module logger instead of capsys.
+        events = []
+
+        def _fake_warning(event, **kw):
+            events.append((event, kw))
+            return None
+
+        monkeypatch.setattr(api_main.logger, "warning", _fake_warning)
+
+        mdir = manifests_dir()
+        mdir.mkdir(parents=True, exist_ok=True)
+        corrupt = mdir / "corrupt.json"
+        corrupt.write_text("{ not valid json !!!")
+
+        client = TestClient(app)
+        resp = client.get("/review/queue", headers={"Authorization": "Bearer test-token"})
+        # the corrupt manifest is skipped, the endpoint still answers
+        assert resp.status_code == 200
+        assert any(event == "manifest_unreadable" and "corrupt.json" in str(kw) for event, kw in events)

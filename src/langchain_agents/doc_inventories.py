@@ -1,8 +1,8 @@
 """Hub subclass inventories for every mailroom specialist.
 
 Mirrors ``cuad_maud.py`` for the non-contract classes so corporate records,
-correspondence, compliance filings, and insurance claims sort / parse /
-extract the same Hub tokens that ``Lucius-Morningstar/docclass-merged``
+correspondence, and insurance claims sort / parse /
+extract the same Hub tokens that ``Lucius-Morningstar/mailroom-dataset``
 stores in ``ground_truth.expected_subclass``.
 
 Canonical tokens (Hub ``expected_subclass``):
@@ -14,7 +14,6 @@ Canonical tokens (Hub ``expected_subclass``):
 - ``insurance_claim`` — CMS/DE-SynPUF file types ``pde``, ``inpatient``,
   ``outpatient``, ``carrier`` (plus the legacy FNOL lines
   ``auto``/``property``/``liability``/``health``/``life``/``workers_comp``)
-- ``compliance_filing`` — SEC form-body types (``10-K``, ``8-K``, …)
 
 Contract / merger inventories stay in ``cuad_maud.py``; this module
 dispatches to them so graph handoff / enrich / Boss-skip share one entry.
@@ -61,20 +60,6 @@ INSURANCE_CLAIM_TYPES: tuple[str, ...] = (
     "other",
 )
 
-COMPLIANCE_FILING_TYPES: tuple[str, ...] = (
-    "10-K",
-    "10-Q",
-    "8-K",
-    "S-1",
-    "DEF 14A",
-    "13D",
-    "13G",
-    "Form 4",
-    "20-F",
-    "6-K",
-    "other",
-)
-
 INSURANCE_GT_KEYS: tuple[str, ...] = (
     "claim_number",
     "policy_number",
@@ -107,17 +92,6 @@ CORPORATE_GT_KEYS: tuple[str, ...] = (
     "signatories",
     "jurisdiction",
     "filing_number",
-)
-
-COMPLIANCE_GT_KEYS: tuple[str, ...] = (
-    "filing_type",
-    "regulatory_body",
-    "filing_date",
-    "due_date",
-    "entity_name",
-    "key_requirements",
-    "status",
-    "reference_number",
 )
 
 # Correspondence schema fields joined from Hub extra columns when present.
@@ -300,14 +274,13 @@ _DOJO_SORTER_SUBCLASSES: dict[str, tuple[str, ...]] = {
         "mixed_cash_stock_election", "other",
     ),
     "corporate_record": (
-        "bylaws", "articles_of_incorporation", "certificate_of_formation",
-        "charter_amendment", "powers_of_attorney", "subsidiary_list",
-        "rights_instrument", "indenture", "board_resolution",
-        "officer_certificate", "other",
+        "articles_of_incorporation", "bylaws", "certificate_of_formation",
+        "charter_amendment", "board_resolution", "officer_certificate",
+        "powers_of_attorney", "rights_instrument", "indenture",
+        "subsidiary_list", "other",
     ),
     "correspondence": CORRESPONDENCE_TYPES,
-    "insurance_claim": ("carrier", "inpatient", "outpatient", "pde"),
-    "compliance_filing": COMPLIANCE_FILING_TYPES,
+    "insurance_claim": ("carrier", "inpatient", "outpatient", "pde", "property", "auto"),
     "due_diligence": (),
     "court_opinion": (),
 }
@@ -321,10 +294,23 @@ def sorter_subclass_catalog(doc_type: str | None) -> tuple[str, ...]:
 
         tokens = DOC_TYPE_SUBCLASSES.get(kind)
         if tokens is not None:
-            return tuple(tokens)
-    except Exception:
+            return _reorder_corporate_subclasses(kind, tuple(tokens))
+    except ImportError:
         pass
-    return _DOJO_SORTER_SUBCLASSES.get(kind, ())
+    tokens = _DOJO_SORTER_SUBCLASSES.get(kind, ())
+    return _reorder_corporate_subclasses(kind, tokens)
+
+
+def _reorder_corporate_subclasses(
+    doc_type: str, tokens: tuple[str, ...]
+) -> tuple[str, ...]:
+    if doc_type != "corporate_record" or "bylaws" not in tokens:
+        return tokens
+    lst = list(tokens)
+    lst.remove("bylaws")
+    idx = 1 if "articles_of_incorporation" in lst else 0
+    lst.insert(idx, "bylaws")
+    return tuple(lst)
 
 
 def valid_sorter_subclasses(doc_type: str | None) -> frozenset[str]:
@@ -362,7 +348,7 @@ def normalize_sorter_subclass(doc_type: str | None, value: Any) -> str | None:
         from llm_dojo_scoring.corpus import normalize_corpus_subclass
 
         token = normalize_corpus_subclass(kind, text)
-    except Exception:
+    except ImportError:
         token = None
         compact = re.sub(r"[^a-z0-9]", "", text.lower())
         for key in catalog:
@@ -375,8 +361,6 @@ def normalize_sorter_subclass(doc_type: str | None, value: Any) -> str | None:
             token = normalize_record_type(text) or None
         elif token is None and kind == "correspondence":
             token = normalize_communication_type(text) or None
-        elif token is None and kind == "compliance_filing":
-            token = normalize_filing_type(text) or None
     if token in catalog:
         return token
     if text in catalog:
@@ -398,11 +382,16 @@ def format_sorter_subclass_catalogs() -> str:
         "corporate_record",
         "correspondence",
         "insurance_claim",
-        "compliance_filing",
     )
     notes = {
         "contract": " — also copy this key into contract_subtype; use other if none fit",
         "merger_agreement": " — MAUD consideration type; contract_subtype stays null",
+        "corporate_record": (
+            " — articles_of_incorporation (charters/formation docs), "
+            "bylaws (operating rules/procedures), "
+            "rights_instrument (stock/warrant/rights agreements), "
+            "powers_of_attorney (delegation/authorization); use other if none fit"
+        ),
         "insurance_claim": (
             " — CMS file types; FNOL/policy lines "
             "auto/property/liability/health/life/workers_comp are also valid"
@@ -419,7 +408,6 @@ def format_sorter_subclass_catalogs() -> str:
 _INVENTORY_FIELDS = {
     "record_type",
     "communication_type",
-    "filing_type",
     "claim_type",
 }
 
@@ -498,28 +486,6 @@ _INSURANCE_ALIASES = {
     "workcomp": "workers_comp",
 }
 
-_COMPLIANCE_ALIASES = {
-    "10k": "10-K",
-    "10kanual": "10-K",
-    "annualreport": "10-K",
-    "10q": "10-Q",
-    "quarterlyreport": "10-Q",
-    "8k": "8-K",
-    "currentreport": "8-K",
-    "s1": "S-1",
-    "form s1": "S-1",
-    "def14a": "DEF 14A",
-    "proxy": "DEF 14A",
-    "proxy statement": "DEF 14A",
-    "13d": "13D",
-    "schedule13d": "13D",
-    "13g": "13G",
-    "schedule13g": "13G",
-    "form4": "Form 4",
-    "20f": "20-F",
-    "6k": "6-K",
-}
-
 
 def _compact(value: Any) -> str:
     return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
@@ -578,10 +544,6 @@ def normalize_claim_type(value: Any) -> str:
     return _normalize(value, INSURANCE_CLAIM_TYPES, _INSURANCE_ALIASES)
 
 
-def normalize_filing_type(value: Any) -> str:
-    return _normalize(value, COMPLIANCE_FILING_TYPES, _COMPLIANCE_ALIASES)
-
-
 RECORD_TYPE_DESCRIPTION = (
     "Canonical Hub subclass. Emit exactly one of: articles_of_incorporation, "
     "bylaws, powers_of_attorney, rights_instrument, other. "
@@ -611,13 +573,6 @@ CLAIM_TYPE_DESCRIPTION = (
     "empty when table headers identify a CMS file type."
 )
 
-FILING_TYPE_DESCRIPTION = (
-    "SEC form type of THIS document's body: 10-K, 10-Q, 8-K, S-1, DEF 14A, "
-    "13D, 13G, Form 4, 20-F, 6-K, or other. If this file is only an exhibit "
-    "(articles, bylaws, rights instrument, specimen stock), that is a "
-    "corporate_record — do not treat the wrapping form name as filing_type."
-)
-
 
 def specialist_handoff(doc_type: str | None, subtype: str | None = None) -> str:
     """Additive extract-node instructions listing the Hub inventory."""
@@ -633,7 +588,7 @@ def specialist_handoff(doc_type: str | None, subtype: str | None = None) -> str:
             + ". articles_of_incorporation covers Certificate/Articles of "
             "Incorporation or Formation; rights_instrument covers stockholder "
             "rights, warrants, preferred certificates, and specimen stock. "
-            "An S-1/10-K exhibit wrapper does not make this a compliance filing."
+            "An S-1/10-K exhibit wrapper does not change the record type."
         )
     if kind == "correspondence":
         return (
@@ -650,14 +605,7 @@ def specialist_handoff(doc_type: str | None, subtype: str | None = None) -> str:
             + ". Traditional FNOL lines: "
             + ", ".join(INSURANCE_CLAIM_TYPES[4:])
             + ". PDE/CLM_ID/DESYNPUF headers identify the CMS file type; "
-            "do not classify those tables as compliance_filing."
-        )
-    if kind == "compliance_filing":
-        return (
-            "COMPLIANCE FILING INVENTORY — set filing_type to the form BODY: "
-            + ", ".join(COMPLIANCE_FILING_TYPES)
-            + ". Attached charters, bylaws, POA, and rights instruments are "
-            "corporate_record, not this class."
+            "those tables are still insurance_claim claims."
         )
     return ""
 
@@ -695,10 +643,6 @@ def enrich_extraction(
         token = normalize_claim_type(result.get("claim_type") or subtype)
         if token:
             result["claim_type"] = token
-    elif kind == "compliance_filing":
-        token = normalize_filing_type(result.get("filing_type") or subtype)
-        if token:
-            result["filing_type"] = token
     return result
 
 

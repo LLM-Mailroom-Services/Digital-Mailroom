@@ -5,15 +5,193 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v0.7.1] - 2026-09-13
+
+### Changed
+
+- **Corpus revision re-pinned to the GT-closure tip** `46a4d3c2`
+  (`FULL_CORPUS_REVISION`, issue #27/#29/#30): the mailroom-dataset v1 GT
+  revision that closes the v9 audit-sweep coverage gaps —
+  `supporting_documents` populated on the 144 INSURBIAS auto rows (+6
+  documented absence via the shared audit/build rule), `cuad_clause_labels`
+  EX-10 rows recorded as a dated documented exception. 3,302 rows, schema
+  unchanged (v9 / taxonomy v9). Trace-metadata test updated to the new pin.
+
+## [v0.7.0] - 2026-09-13
+
+### Changed
+
+- **Corpus identity migrated to `Lucius-Morningstar/mailroom-dataset`**
+  (v1, canonically **v9**, 3,302 rows; issue hub #18): `FULL_CORPUS_ID`
+  in `src/pipeline/hf_corpora.py` now points at `mailroom-dataset` (schema
+  v9, pinned tip a7067844); the huggingface skill, notebook corpus layer,
+  fixture catalog, and UI copy are aligned; the `docclass-merged` Hub id
+  (deleted) survives only as the immutable `source-docclass-merged` trace
+  tag and historical references.
+- **llm-dojo-scoring pin bumped `v0.12.2` → `v0.14.0`** (release-time), so
+  released builds resolve the scoring engine's mailroom-dataset migration
+  and v9 GT surface.
+
+### Added
+
+- **Relations clerk mode toggle (HUB-052):** the live/pilot knob is now a
+  first-class operation instead of a manual taxonomy edit + restart.
+  `python -m pipeline.relations_mode status|pilot|live [--model <name>]
+  [--restart-watcher]` — `status` prints the effective posture + every knob
+  (mode, judge model, free-only guardrail, kill-switches, thresholds, ledger
+  health); `pilot`/`live` edit taxonomy.yaml surgically (comments and all
+  other lines preserved byte-for-byte), clear the in-process config caches
+  so the current process honors the flip immediately, and remove a stale
+  `MAILROOM_RELATIONS_LLM` kill-switch from `.env` that would contradict the
+  requested mode; `--restart-watcher` runs the graceful standalone-watcher
+  relaunch (watchdog first — no false 🔴 — then watcher, then both back up).
+  The "even smoother" path: authenticated `GET/POST /api/relations/mode` on
+  the API — the POST needs NO restart for the embedded watcher (the apply
+  clears the API process's caches). A paid judge model under the
+  `MAILROOM_LLM_FREE_ONLY` guardrail is refused with an actionable message
+  (the guardrail is a pipeline-wide .env decision, never flipped by the
+  toggle); `pipeline.config.clear_config_cache()` powers the in-process
+  pickup. 20 tests (mode readout, surgical editor incl. missing-key
+  insertion + comment preservation, guardrail/unknown-model/invalid-mode
+  refusals, stale kill-switch removal, CLI, API GET/POST + auth + 400s).
+  Docs: AGENTS.md commands, docs/api.md endpoints, CHANGELOG.
 
 ### Fixed
+
+- **Relations clerk production readiness (HUB-051):** the layer was a no-op
+  on the live system — (a) the Gmail triage lane never wrote the `documents`
+  catalog row (audits/archives/echoes but no `_catalog_upsert`), so
+  `scan_document` skipped every triage document as `not_in_catalog` and the
+  sweeper scanned nothing (65 live sweeps, zero edges); the lane now upserts
+  the terminal conveyor row (stage/doc_type/subclass/confidence/sha256/
+  triage extraction) on both terminal paths, and `write_document_record`
+  persists `file_sha256`. (b) The embedding cosine signal never worked in
+  production: the dojo's public `get_embedding_model()` returns the model
+  NAME (a string), so the old `model.encode(...)` call died with a TypeError
+  (`relations_embed_failed`) — `_embed` now drives the dojo's shared
+  `_EmbeddingMatcher` singleton (local SentenceTransformer + remote
+  fallback, one instance per process, 90s-bounded, fail-soft). (c) The
+  documented `python -m pipeline.relations_scan` CLI crashed
+  (`ModuleNotFoundError`) — the module is created. (d) The LLM judgment pass
+  was dead code: `RelationsAgent.judge` was never called. Now WIRED into
+  `scan_document` — the ambiguous-band near-misses (sub-threshold signals)
+  are judged (top-`top_k_llm_candidates`), confidence-gated
+  (`llm_confidence_gate`, default 0.55) `llm_asserted` edges join the same
+  upsert + ledger path, and the scanner re-validates the agent's output
+  against its own proposed pairs (defense-in-depth; nothing unvalidated
+  reaches the ledger). `relations.llm: false` still keeps the pilot
+  deterministic-only.
 
 - **Railway crash loop:** listen on platform `PORT` when set (wins over image
   `MAILROOM_API_PORT=7860`), clearer off-loopback token exit on Railway, and
   skip local Phoenix under `auto` on Railway unless `PHOENIX_ENDPOINT` is remote.
 
 ### Added
+
+- **Relations layer — the mailroom's research clerk (HUB-040):** a
+  deterministic-first, optionally-LLM association layer over the archive.
+  `pipeline/relations.py` scans every archived document (post-archive
+  dispatch off the document path at each terminal manifest + a
+  watermark-incremental background sweep embedded in the watcher, every
+  `MAILROOM_RELATIONS_SCAN_SECONDS`) for associated topics, documents, and
+  matters: same-matter, keyword Jaccard, party overlap, and embedding
+  cosine (dojo sentence-transformers model — local, free; embeddings
+  computed ONCE per document and cached in `relation_embeddings`). Edges
+  live in `relation_edges` (canonical endpoints, closed six-type
+  vocabulary, per-document cap); every scan and every new edge is an entry
+  in the OWN hash-chained ledger (`relation_log`, `__relations__` scope —
+  `python -m pipeline.relations_scan --verify-ledger`), and each
+  document's audit chain gains a `relations_linked` event. The LLM
+  judgment pass (`agents/relations.py`, `mailroom-relations` prompt,
+  closed-vocabulary validator that refuses unproposed pairs and invented
+  types) is CODE-COMPLETE but OFF in the pilot (`relations.llm: false`).
+  **Knowledge graphs** (`pipeline/relations_graph.py` +
+  `python -m pipeline.relations_graph`): matter graphs (typed doc nodes +
+  related-matter bridges), the global inter-matter graph (edges aggregated
+  to pair weights), and document ego-graphs — GraphJSON + GraphML (stdlib)
+  always, Plotly HTML + PNG when the optional libs are installed — under
+  `<base>/relations/graphs/`, every render a `relations_graph_rendered`
+  ledger event. **Context injection:** a bounded advisory RELATED block
+  rides the sorter/specialist handoff context and the completion echo.
+  Kill-switches: `MAILROOM_RELATIONS`, `MAILROOM_RELATIONS_CONTEXT`,
+  `MAILROOM_RELATIONS_LLM`, taxonomy `relations.enabled`. 13 hermetic
+  tests (`src/tests/test_relations.py`).
+
+- **`MAILROOM_LLM_FREE_ONLY` pilot guardrail (HUB-039):** when enabled,
+  `llm/client.py:get_llm` refuses to resolve ANY model that is not free —
+  taxonomy `cost_models` prices both 0.0, or unregistered with an OpenRouter
+  `:free` suffix — BEFORE any client exists, so a paid-model resolution can
+  never become a paid request (documents fail-soft park instead of
+  spending). Opt-in and reversible: on during the Gmail free-triage pilot
+  (the key must not touch paid models), unset/`0` in full production where
+  paid agents handle multi-document emails and inbox/CLI uploads by design.
+  9 tests (`src/tests/test_llm_free_only.py`).
+
+- **Gmail intake channel (HUB-037):** the agent mailbox
+  (`llmmailroom@gmail.com`, opt-in via `MAILROOM_GMAIL_ENABLED=1` +
+  `GMAIL_ADDRESS` + `GMAIL_APP_PASSWORD`) is a second intake route.
+  `pipeline/gmail_intake.py` (stdlib IMAP SSL — no new deps) runs inside the
+  watcher (`Watcher.start()` → `start_embedded_poller()`; standalone
+  `python -m pipeline.gmail_intake` for debug) and drops accepted attachments
+  into the SAME inbox bin the watcher drains, with the `/upload`
+  `<file>.meta` sidecar convention — matter routing via a subject
+  `[M:<matter_id>]` tag or `MAILROOM_GMAIL_DEFAULT_MATTER_ID`. Handled
+  messages are marked `\Seen` and their `Message-ID`s recorded in
+  `<base>/gmail_intake_state.json` (a lost seen-mark can never double-queue);
+  sender allowlist + attachment size cap guards included; `/health` reports
+  the channel as `checks.gmail_intake`. Tests stay hermetic (conftest forces
+  the channel off; 17 network-free tests). **Intake awareness:** the watcher
+  passes the sidecar provenance into the pipeline — `DocumentManifest.intake`
+  (source gmail/upload, message_id, sender, subject) now rides intake →
+  review → archive → aborted manifests and live traces tag `source-gmail`;
+  fixing this also fixed a latent `existing_file_failed` bug (the
+  `_infer_matter_id` method lived only on `InboxHandler`, so startup-scan /
+  rescan claims on `Watcher` crashed). **Check reaction:** at watcher claim
+  time the source email is reacted to with the `✅` Gmail label (IMAP
+  `X-GM-LABELS` in RFC 3501 modified-UTF-7 — Gmail rejects raw UTF-8 label
+  bytes and literals in that position, live-verified; mUTF-7 `&JwU-`
+  decodes to ✅ in the UI; one
+  reaction per Message-ID even for multi-attachment emails; best-effort
+  daemon thread; `MAILROOM_GMAIL_REACTIONS=0` disables;
+  `MAILROOM_GMAIL_REACTION_LABEL` overrides the emoji). **Completion
+  echo:** every terminal manifest (archived / review / failed) of a
+  Gmail-intake document replies on the source email thread
+  (`In-Reply-To`-threaded, To: the original sender) with the completion
+  report — status, doc_id/matter, classification + confidence, the
+  extraction report, the archive entry (path + sha256) or the
+  failure/review reason, and the audit chain with hash-chain verification —
+  so the thread itself is the notification surface (dedup per
+  `(doc_id, stage)`; retried on the next terminal event if the send fails;
+  `MAILROOM_GMAIL_ECHOES=0` disables; `MAILROOM_GMAIL_SMTP_HOST/PORT`
+  override the SMTP endpoint). **Smoke test:**
+  `src/scripts/gmail_smoke_test.py` exercises Gmail + watcher connectivity
+  end-to-end with an example insurance claim (committed FNOL fixture):
+   default network-free mock (PASS verified — connectivity, route, watcher,
+   awareness, classify, reaction), `--real` sends via SMTP and
+   sweeps the real mailbox, `--llm real` adds real LLM cost. **Secrets:**
+   `GMAIL_APP_PASSWORD` + `GMAIL_ADDRESS` registered in GitHub Actions secret
+   managers on `Exios66/mailroom-dev` and `Exios66/llm-mailroom`.
+   **Single-document triage lane (the free triage team):** an email carrying
+   exactly ONE accepted attachment is stamped `route: triage` and handled by
+   `agents/gmail_triage.py` (`GmailTriageAgent`, `z-ai/glm-5.2:free` — $0)
+   performing the core pipeline steps (deterministic prep → triage
+   classification → auditable-hash archive with its own `triage_*` audit
+   section → completion echo) without the paid agents; a deterministic
+   capability pre-check (`watcher.py:_triage_capability_check`) honestly
+   hands off documents beyond the free team's reach (image-only, scanned
+   PDFs, text over the `gmail_triage` `max_input_chars` budget) to the full
+   paid pipeline (`intake.triage_handoff` records the reason, echoed to the
+   sender). Multi-attachment emails (`route: pipeline`) and
+   `MAILROOM_GMAIL_TRIAGE=0` always take the full paid pipeline; the lane
+   fails soft. A failed claim-time ✅ reaction is retried at echo time for
+   single-claim (triage-lane) documents; `reactions_failed` surfaced in
+   status. **Documentation:** the full operator guide
+   (`docs/gmail-intake.md`) covers enabling the channel, the upload +
+   subject-line format contract, every Gmail→pipeline pathway, echoes, and
+   troubleshooting; surfaced from the README runbook, `docs/README.md`,
+   `docs/agents.md` § 12, `docs/configuration.md`, and
+   `src/pipeline/README.md` (the configuration reference's Gmail section was
+   also re-homed out of the middle of the runtime env table it had split).
 
 - **Railway deploy contract:** root `railway.json` (Dockerfile builder +
   `/health` probe), `nixpacks.toml` fallback, and

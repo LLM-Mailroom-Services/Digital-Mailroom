@@ -62,16 +62,7 @@ def get_managed_prompt(
 
     Prefers the Langfuse-managed prompt labeled `production`; falls back to
     `default_text` (rendered with `variables`) when unavailable.
-
-    When ``MAILROOM_DOCCLASS_PROMPTS`` is on, fetch the namespaced
-    ``mailroom-docclass-<key>`` variant and fall back to the in-repo append.
     """
-    try:
-        from pipeline.docclass_mode import managed_prompt_lookup
-
-        agent_name, default_text = managed_prompt_lookup(agent_name, default_text)
-    except Exception:
-        pass
     cache_key = (agent_name, label)
     if cache_key not in _prompt_cache:
         client = _client()
@@ -98,9 +89,8 @@ def _langchain_prompt(version: str) -> str:
     """Local template for the vendored LangChain agents' versioned prompts
     (langchain_agents/prompts.py, committed with the vendored stack).
 
-    Reads ``PROMPT_VERSIONS`` directly so the production catalog never
-    rewrites through the docclass arm (``prompt_templates()`` must stay
-    the agent-name-pinned production surface).
+    Reads ``PROMPT_VERSIONS`` directly so the production catalog stays the
+    agent-name-pinned production surface.
     """
     from langchain_agents.prompts import PROMPT_VERSIONS
 
@@ -117,10 +107,11 @@ def _bound_prompt_versions() -> dict[str, str]:
     return {
         "sorter": "sorter_v14",
         "sorter_reviewer": "production",
-        "contracts_specialist": "contracts_specialist_v32",
+        # Must match prompt_templates() below — the sync source uses v33
+        # (DMR-052: the catalog previously claimed v32 while v33 shipped).
+        "contracts_specialist": "contracts_specialist_v33",
         "corporate_records_specialist": "production",
         "correspondence_specialist": "production",
-        "compliance_specialist": "production",
         "insurance_claims_specialist": "production",
         "boss": "production",
         "reporter": "production",
@@ -130,6 +121,9 @@ def _bound_prompt_versions() -> dict[str, str]:
         "judge-classification": "production",
         "judge-correctness": "production",
         "arbiter": "production",
+        "gmail_triage": "production",
+        "intake": "production",
+        "relations": "production",
     }
 
 
@@ -142,14 +136,16 @@ def prompt_templates() -> dict[str, str]:
     from agents import (  # noqa: F401
         arbiter,
         boss,
-        compliance_specialist,
         contracts_specialist,
         corporate_records_specialist,
         correspondence_specialist,
+        gmail_triage,
         insurance_claims_specialist,
         image_extractor,
+        intake,
         judge,
         pdf_transcriber,
+        relations,
         reporter,
         sorter,
         sorter_reviewer,
@@ -159,14 +155,13 @@ def prompt_templates() -> dict[str, str]:
         # The sorter/contracts specialist are the vendored LangChain agents
         # (llm-entity-extraction); their local templates are the eval-validated
         # lineage plus the mailroom production mutation (sorter_v14 /
-        # contracts_specialist_v32). Lane A/B + insurance were previously
+        # contracts_specialist_v33). Lane A/B + insurance were previously
         # missing from this registry and so never synced to Langfuse.
         "sorter": _langchain_prompt("sorter_v14"),
         "sorter_reviewer": sorter_reviewer.REVIEWER_SYSTEM_PROMPT,
         "contracts_specialist": _langchain_prompt("contracts_specialist_v33"),
         "corporate_records_specialist": corporate_records_specialist.SYSTEM_PROMPT,
         "correspondence_specialist": correspondence_specialist.SYSTEM_PROMPT,
-        "compliance_specialist": compliance_specialist.SYSTEM_PROMPT,
         "insurance_claims_specialist": insurance_claims_specialist.SYSTEM_PROMPT,
         "boss": boss.BOSS_SYSTEM_PROMPT,
         "reporter": reporter.COMPILE_SYSTEM_PROMPT,
@@ -176,4 +171,7 @@ def prompt_templates() -> dict[str, str]:
         "judge-classification": judge.CLASSIFICATION_SYSTEM_PROMPT,
         "judge-correctness": judge.CORRECTNESS_SYSTEM_PROMPT,
         "arbiter": arbiter.ARBITER_SYSTEM_PROMPT,
+        "gmail_triage": gmail_triage.TRIAGE_SYSTEM_PROMPT,
+        "intake": intake.INTAKE_SYSTEM_PROMPT,
+        "relations": relations.RELATIONS_SYSTEM_PROMPT,
     }

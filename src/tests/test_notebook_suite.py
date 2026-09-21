@@ -51,6 +51,7 @@ PLANNED = {
     "11_huggingface_corpora.ipynb": "Hugging Face corpora",
     "12_legalbench.ipynb": "LegalBench",
     "13_vision_ingestion.ipynb": "Vision ingestion",
+    "14_gmail_pilot.ipynb": "Gmail corpus pilot",
 }
 
 HONESTY_MARKERS = ("Honesty label", "honest", "OFFLINE")
@@ -95,7 +96,7 @@ def test_step_capture_reports_nodes_in_graph_order() -> None:
             filename="guard_order.txt",
         )
         nodes = [s["node"] for s in r["steps"]]
-        assert nodes[:2] == ["ingest-document", "classify-document"], nodes
+        assert nodes[:2] == ["intake-document", "classify-document"], nodes
         assert all(nodes), "empty node names in capture"
 
 
@@ -175,7 +176,7 @@ def test_notebooks_make_no_exec_time_network_calls(fname: str) -> None:
 
 
 def test_lab_module_has_no_module_scope_network_imports() -> None:
-    for module in ("pipeline_lab.py", "huggingface_lab.py", "legalbench_lab.py"):
+    for module in ("pipeline_lab.py", "huggingface_lab.py", "legalbench_lab.py", "gmail_pilot_lab.py"):
         tree = ast.parse((NB_DIR / module).read_text())
         for node in tree.body:
             names: list[str] = []

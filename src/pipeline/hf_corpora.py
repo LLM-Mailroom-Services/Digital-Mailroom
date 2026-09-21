@@ -1,37 +1,56 @@
 """Lucius-Morningstar Hugging Face corpora the mailroom pipeline can ingest.
 
-``Lucius-Morningstar/docclass-merged`` schema **v7** is the targeted full
-corpus (1,650 documents: CUAD contracts, MAUD merger agreements, S-1
-corporate records, Enron correspondence sample, CMS insurance claims).
-v7 adds correspondence intent hydration (issue #5): every correspondence row
-carries a canonical 8-class intent plus `intent_source` / `intent_confidence`
-/ `intent_status` provenance on the `ground_truth` config.
+``Lucius-Morningstar/mailroom-dataset`` (v1, canonically **v9**) is the
+targeted full corpus (3,302 documents: CUAD contracts + SEC EDGAR EX-10,
+MAUD merger agreements, SEC EDGAR S-1/8-K corporate records, Enron
+correspondence sample, CMS insurance claims + the v8 synthetic LOB
+expansion — GNOTHEIA property, BDR auto — + INSURBIAS auto narratives).
+v9 builds on the v8 base (2,000 rows, frozen as ``mailroom-corpus``) with
+the §84 hardened evaluation-contract columns (identity, provenance, matter)
+on the `ground_truth` config.
+The five-class live taxonomy is unchanged (docs/README.md).
 
 Class × subclass examples come from ``docclass-pilot`` (a deterministic
 stratified slice of that parent — every type and every subtype stratum).
 Other published Lucius-Morningstar datasets are first-class pipeline inputs
 too, including the 247k-row Enron correspondence corpus.
 
-``compliance_filing`` has zero Hub rows (honest gap). Court/DD are retired.
+The five-class live taxonomy is final: no retired doc-class remnants are
+configured in the taxonomy, dispatch, or prompt surface. Court/DD are
+retired.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+_log = logging.getLogger("llm_mailroom.hf_corpora")
+
+_UNPINNED_WARNED: set[str] = set()
+
 ORG = "Lucius-Morningstar"
-FULL_CORPUS_SCHEMA = "v7"
-FULL_CORPUS_ID = f"{ORG}/docclass-merged"
-# v7 tip fc1f211c (issue #5 intent hydration + card bump); b3ec9ee7 is the
-# latest ground-truth push (intent/subject_matter/keywords for corpora).
-FULL_CORPUS_REVISION = "b3ec9ee7de3f2ca4f3b26e26d6989509d3b1121e"
+FULL_CORPUS_SCHEMA = "v9"
+# Renamed 2026-09-02 per human directive: the Hub repo was `docclass-merged`
+# ("docclass" was always a placeholder) — then `mailroom-corpus` (v8, frozen
+# baseline). The v9 build (2026-09-12) publishes the standalone successor
+# `mailroom-dataset`; the internal corpus SLUG below stays `docclass-merged`
+# (historical traces carry the immutable `source-docclass-merged` tag;
+# slug/aliases are plumbing, not identity).
+FULL_CORPUS_ID = f"{ORG}/mailroom-dataset"
+# v9 tip 46a4d3c2 (2026-09-13: mailroom-dataset v1 GT revision closing the
+# v9 audit-sweep gaps — supporting_documents on the 150 INSURBIAS auto rows,
+# EX-10 cuad dated exception; 3,302 rows, schema unchanged; configs default /
+# ground_truth / bundles / streams / fixtures).
+# Pinned per the corpus plan §44 — never evaluate against unpinned main.
+FULL_CORPUS_REVISION = "46a4d3c240a36671cde0182fff4960f6b8b73aca"
 EXAMPLES_ID = f"{ORG}/docclass-pilot"
 
-# Hub HF classes present in docclass-merged v7. Not the same as the six live
-# taxonomy keys: compliance_filing is live in the pipeline but absent on Hub.
+# Hub HF classes present in mailroom-dataset (v9) — identical to the canonical
+# five-class live taxonomy (docs/README.md).
 HUB_CLASSES: tuple[str, ...] = (
     "contract",
     "merger_agreement",
@@ -53,7 +72,7 @@ CORPORA: dict[str, dict[str, Any]] = {
         "schema": FULL_CORPUS_SCHEMA,
         "role": "full_corpus",
         "pipeline": True,
-        "n_docs": 1650,
+        "n_docs": 3302,
         "classes": HUB_CLASSES,
         "gt_config": "ground_truth",
         "row_shape": "docclass",
@@ -156,8 +175,15 @@ CORPORA: dict[str, dict[str, Any]] = {
 _ALIASES = {
     "v5": "docclass-merged",
     "v7": "docclass-merged",
+    "v8": "docclass-merged",
     "full": "docclass-merged",
     "merged": "docclass-merged",
+    # renamed 2026-09-02: Hub repo mailroom-corpus (formerly docclass-merged);
+    # 2026-09-12 the v9 successor is published as mailroom-dataset (same shape)
+    "corpus": "docclass-merged",
+    "mailroom-corpus": "docclass-merged",
+    "mailroom-dataset": "docclass-merged",
+    "v9": "docclass-merged",
     "examples": "docclass-pilot",
     "pilot": "docclass-pilot",
     "enron": "enron-correspondence-dedup",
@@ -169,6 +195,22 @@ _ALIASES = {
 }
 
 _ACTIVE_SLUG = "docclass-merged"
+
+
+def warn_unpinned(corpus: dict[str, Any]) -> None:
+    """Live-or-loud (DMR-061): a pipeline corpus with ``revision: None`` floats
+    on the Hub tip — the next upstream publish silently changes what the next
+    run ingests. Warn once per slug; the fix is a pin in ``CORPORA``."""
+    slug = str(corpus.get("slug") or "")
+    if corpus.get("revision") or slug in _UNPINNED_WARNED:
+        return
+    _UNPINNED_WARNED.add(slug)
+    _log.warning(
+        "pipeline corpus %r is UNPINNED (revision: None) — loads float on the "
+        "Hub tip and the next upstream publish silently changes the dataset "
+        "future runs ingest; pin a revision sha in hf_corpora.py CORPORA",
+        slug,
+    )
 
 
 def pipeline_corpora() -> list[dict[str, Any]]:
@@ -184,7 +226,9 @@ def resolve_corpus(name: str | None) -> dict[str, Any]:
     if slug not in CORPORA:
         known = ", ".join(sorted(CORPORA))
         raise KeyError(f"unknown Hugging Face corpus {name!r}; known: {known}")
-    return CORPORA[slug]
+    corpus = CORPORA[slug]
+    warn_unpinned(corpus)
+    return corpus
 
 
 def set_active_corpus(name: str | None) -> dict[str, Any]:
@@ -195,11 +239,13 @@ def set_active_corpus(name: str | None) -> dict[str, Any]:
 
 
 def active_corpus() -> dict[str, Any]:
-    return CORPORA[_ACTIVE_SLUG]
+    corp = CORPORA[_ACTIVE_SLUG]
+    warn_unpinned(corp)
+    return corp
 
 
 def adapt_hub_row(row: dict[str, Any], corpus: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Normalize a Hub row into the docclass-merged shape parse_hf_row expects."""
+    """Normalize a Hub row into the mailroom-dataset shape parse_hf_row expects."""
     corp = corpus or active_corpus()
     shape = corp.get("row_shape") or "docclass"
     data = dict(row or {})

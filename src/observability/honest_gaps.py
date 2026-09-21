@@ -4,7 +4,7 @@ The dedicated specialist suites carry ``honest_gap``, ``in_corpus``,
 and ``retired``. Mailroom pins those fields on traces and HF reports.
 
 v0.10.0 registered ``determination_consistency`` / ``amount_exactness``
-(v0.11.0 labels them ``ground_truth=structural`` / ``required``).
+(v0.14.0 labels them ``ground_truth=structural`` / ``required``).
 The remaining insurance Hub gap is CMS GT homogeneity (all-approved / empty
 denials), not a missing scorer: that extra is gated as a quality KPI on
 homogeneous GT and exercised on the local contrast pack
@@ -17,10 +17,9 @@ from __future__ import annotations
 from typing import Any
 
 # Hub / taxonomy extract classes whose suites still declare an honest gap.
-# HF_CLASSES omits compliance (zero rows) and the retired court/DD types.
+# HF_CLASSES omits the retired court/DD types; no retired doc classes remain.
 GAP_DOC_TYPES: tuple[str, ...] = (
     "insurance_claim",
-    "compliance_filing",
     "corporate_record",
     "court_opinion",
     "due_diligence",

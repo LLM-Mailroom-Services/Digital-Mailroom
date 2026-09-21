@@ -4,6 +4,15 @@ Status: **SHIPPED 00–13** (this document is the plan of record; 00–08 shippe
 under KANBAN-095, 09–13 extend the suite to every specialist, edge cases,
 Lucius-Morningstar Hub corpora, LegalBench, and vision ingestion).
 
+> **Counts below are the PLAN-ERA surface (historical):** the shipped live
+> taxonomy is the **five-class / five-specialist** surface (`contract`,
+> `corporate_record`, `correspondence`, `insurance_claim`, `merger_agreement`;
+> specialists for contract/corporate/correspondence/insurance/merger — the
+> `due_diligence` / `compliance_filing` / `court_opinion` classes were retired
+> from the canonical five-class surface; see `docs/configuration.md`). The
+> 15-agent roster and 7-doc-class references below describe the original plan
+> and are retained as the plan of record, not the live surface (hub#53).
+
 Audience: anyone who wants to *see* the mailroom think — how the 13-node
 LangGraph pipeline routes a legal document through its specialist agents,
 where the retry/review/judge/arbiter dynamics kick in, and what every agent
@@ -58,6 +67,7 @@ without reading the whole graph wiring first.
 | 11 | `huggingface_corpora.ipynb` | Navigate Lucius-Morningstar Hub datasets (offline snapshot + live opt-in) |
 | 12 | `legalbench.ipynb` | LegalBench eval suite beside the pipeline (mock on a mini CUAD fixture) |
 | 13 | `vision_ingestion.ipynb` | Additive page-image render path (no LLM call) |
+| 14 | `gmail_pilot.ipynb` | ONE mailroom-dataset doc fired through the agent mailbox (FIRE interlock; live/network behind the marker) |
 
 All fourteen walkthroughs share `notebooks/pipeline_lab.py` ("the lab
 bench"); 11 also uses `huggingface_lab.py` and 12 uses `legalbench_lab.py`.
@@ -77,7 +87,7 @@ bench"); 11 also uses `huggingface_lab.py` and 12 uses `legalbench_lab.py`.
 
 ### 01 — `happy_path_run.ipynb` (the example pipeline run) ★ Jack's ask
 
-- **Goal:** one contract document, end to end: ingest → classify (high
+- **Goal:** one contract document, end to end: intake → classify (high
   confidence) → extract → judge gate skipped (above band) → compile →
   catalog → archive. Every agent's input, output, and role narrated at its
   station.

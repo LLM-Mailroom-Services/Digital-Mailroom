@@ -10,6 +10,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # src/
 
 @pytest.fixture(autouse=True)
 def _set_test_env():
+    # Freeze .env loading FIRST (module-global `_loaded` latch): production
+    # code paths that call load_env() mid-test must never re-inject gitignored
+    # .env values after the pops below (deterministic hermeticity — otherwise
+    # tests pass/fail depending on which module happened to import first).
+    from pipeline.env import load_env as _load_env
+
+    _load_env()
     os.environ.setdefault("OPENROUTER_API_KEY", "test-key-not-real")
     os.environ.setdefault("MAILROOM_BASE_DIR", os.environ.get("MAILROOM_BASE_DIR", "/tmp/mailroom-test"))
     # Keep tests hermetic: never pick up the real .env Langfuse/Braintrust keys
@@ -18,8 +25,41 @@ def _set_test_env():
     # Production .env may enable the docclass arm, force vision off, or pin
     # DEFAULT_PROVIDER; tests must stay hermetic unless a case opts in.
     os.environ["MAILROOM_DOCCLASS_PROMPTS"] = "0"
+    # Gmail intake (HUB-037) is opt-in in production (.env); tests must never
+    # pick the real credentials up and start network polls.
+    os.environ["MAILROOM_GMAIL_ENABLED"] = "0"
+    # LLM-assisted intake (HUB-038) is also opt-in-able; tests stay on the
+    # deterministic clerk unless a case opts in (patched gate + mock client).
+    os.environ["MAILROOM_LLM_INTAKE"] = "0"
+    # #85 M6a (#98): ModernBERT intake is opt-in; tests stay on the
+    # deterministic clerk unless a case injects the fake mailroom_ml module
+    # (test_bert_intake.py) — models + Hub bundles are a network hazard.
+    os.environ["MAILROOM_BERT_INTAKE"] = "0"
+    for k in ("ML_MODEL_DIR", "BERT_INTAKE_MODE", "BERT_INTAKE_MAX_CHARS",
+              "BERT_INTAKE_MIN_CONFIDENCE"):
+        os.environ.pop(k, None)
+    for k in ("GMAIL_ADDRESS", "GMAIL_APP_PASSWORD"):
+        os.environ.pop(k, None)
     os.environ.pop("MAILROOM_VISION_ENABLED", None)
     os.environ.pop("DEFAULT_PROVIDER", None)
+    # HUB-039 free-only guardrail is opt-in via .env; tests must stay hermetic
+    # unless a case opts in explicitly (test_llm_free_only.py sets it itself).
+    os.environ.pop("MAILROOM_LLM_FREE_ONLY", None)
+    # HUB-040 relations layer is deterministic + free and safe in tests, but
+    # the REAL dojo embedder triggers a network model download — hermetic runs
+    # use the injection seam (set_embedder) instead.
+    os.environ["MAILROOM_RELATIONS_EMBEDDINGS"] = "0"
+    # HUB-040 relations BACKGROUND DISPATCH is kill-switched OFF for hermetic
+    # runs: the daemon `relations-scan` thread spawned from the Gmail triage
+    # lane / watcher claims writes into the base dir and raced pytest's tmpdir
+    # teardown (flaky `OSError: [Errno 66] Directory not empty` on the full
+    # suite). test_relations.py opts back IN via its own autouse fixture.
+    os.environ["MAILROOM_RELATIONS"] = "0"
+    # HUB-050 status channel OFF: no 🟢/🔴/🟠 status emails and no heartbeat
+    # enrichment threads unless a case opts in explicitly (test_status_notify).
+    os.environ["MAILROOM_WATCHER_STATUS"] = "0"
+    os.environ["MAILROOM_WATCHDOG"] = "0"
+    os.environ.pop("MAILROOM_STATUS_EMAIL", None)
     for k in ("LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_HOST",
               "LANGFUSE_BASE_URL", "BRAINTRUST_API_KEY"):
         os.environ.pop(k, None)
@@ -53,7 +93,7 @@ def temp_base_dir():
 
 
 @pytest.fixture(autouse=True)
-def mock_langchain_llm(mocker):
+def mock_langchain_llm(mocker, request):
     """Patch the vendored LangChain agents' ChatOpenAI path with a
     deterministic fake (no network). The LangChain sorter/contracts
     specialist build their own ChatOpenAI and bypass llm.client.get_llm, so
@@ -61,9 +101,17 @@ def mock_langchain_llm(mocker):
 
     Tests configure per-test behavior by mutating the returned fake's
     ``classification`` / ``extraction`` canned dicts.
+
+    Tests marked @pytest.mark.no_langchain_mock (hub#42 provider-seam tests)
+    exercise the REAL BaseAgent.llm() construction path and opt out of the
+    patch (the fake value is still returned to keep the fixture contract).
     """
     from langchain_agents.base_agent import BaseAgent as _LangChainBaseAgent
     from langchain_agents.mock import FakeLangChainLLM
+
+    fake = FakeLangChainLLM()
+    if request.node.get_closest_marker("no_langchain_mock"):
+        return fake
 
     fake = FakeLangChainLLM()
     mocker.patch.object(_LangChainBaseAgent, "llm", new=lambda self: fake)
@@ -123,12 +171,6 @@ def sample_dd_text():
 @pytest.fixture
 def sample_correspondence_text():
     fixture = Path(__file__).parent / "fixtures" / "correspondence" / "sample_demand_letter.txt"
-    return fixture.read_text()
-
-
-@pytest.fixture
-def sample_compliance_text():
-    fixture = Path(__file__).parent / "fixtures" / "compliance_filing" / "sample_10k.txt"
     return fixture.read_text()
 
 

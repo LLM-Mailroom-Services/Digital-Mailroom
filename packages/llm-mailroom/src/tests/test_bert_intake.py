@@ -298,3 +298,79 @@ class TestIntakeNodeIntegration:
         assert updates["intake_handoff"]["available"] is False
         assert updates["intake_handoff"]["reason"] == "error"
         assert updates["doc_id"] is not None  # run continued past the lane
+
+class TestExtractNodeBertAdoption:
+    """#85 M6b (#99): the skip arm lands in extract_node with NO sorter having
+    run — the node adopts the BERT triage labels and records
+    classification_method=bert_intake. The sorter path always has doc_type
+    set, so the adoption branch cannot fire after classify/review."""
+
+    def _handoff(self, doc_type="correspondence", subclass="notice"):
+        return {
+            "available": True, "reason": "ok", "method": "bert",
+            "routing_path": "fast_path", "route": "fast_path", "status": "ok",
+            "doc_type": doc_type, "subclass": subclass,
+            "calibrated_confidence": 0.99,
+            "quality": {"context_fit": True, "coverage": 1.0,
+                        "triage_vocab_ok": True, "sections_ok": True},
+            "guard_failures": [],
+        }
+
+    def _stub_dispatch(self, monkeypatch):
+        """Replace the specialist dispatch with a deterministic extractor."""
+        import graph.build_graph as bg
+
+        def fake_extractor(doc_text, pages, handoff_context):
+            return {"confidence": 0.9, "parties": ["Acme Corp"]}
+
+        monkeypatch.setattr(
+            bg, "_build_specialist_dispatch",
+            lambda: {"correspondence": fake_extractor, "contract": fake_extractor})
+
+    def test_extract_adopts_bert_labels_when_no_sorter_ran(
+        self, monkeypatch, temp_base_dir
+    ):
+        from graph.build_graph import extract_node
+
+        self._stub_dispatch(monkeypatch)
+        state = {
+            "doc_id": "d1", "matter_id": "m1",
+            "doc_text": "A short notice letter body.",
+            "doc_type": None,  # no sorter ran — the skip arm
+            "intake_handoff": self._handoff(),
+            "extraction_attempts": 0,
+        }
+        updates = extract_node(state)
+        # the adoption branch fires: classification recorded from BERT
+        assert updates["classification_method"] == "bert_intake"
+        assert updates["doc_type"] == "correspondence"
+        assert updates["doc_subclass"] == "notice"
+        assert updates["classification_confidence"] == 0.99
+        assert updates["classification_attempts"] == 1
+        # extraction proceeded against the adopted type (specialist dispatch)
+        assert updates["extraction_attempts"] == 1
+        assert updates["extracted_data"]["parties"] == ["Acme Corp"]
+
+    def test_extract_never_adopts_when_sorter_ran(
+        self, monkeypatch, temp_base_dir
+    ):
+        """doc_type set (sorter/reviewer ran) -> the BERT branch is inert."""
+        from graph.build_graph import extract_node
+
+        self._stub_dispatch(monkeypatch)
+        state = {
+            "doc_id": "d1", "matter_id": "m1",
+            "doc_text": "A short notice letter body.",
+            "doc_type": "contract",
+            "doc_subclass": "service",
+            "classification_confidence": 0.91,
+            "classification_method": "llm_sorter",
+            "intake_handoff": self._handoff(doc_type="correspondence"),
+            "extraction_attempts": 0,
+        }
+        updates = extract_node(state)
+        # the BERT branch is inert: no adoption fields in the update (the
+        # sorter's classification_method already lives on state)
+        assert updates.get("classification_method") is None
+        assert updates.get("doc_type") is None  # untouched — stays on state
+        assert updates["extraction_attempts"] == 1  # extraction ran normally

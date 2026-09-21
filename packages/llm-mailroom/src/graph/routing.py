@@ -454,6 +454,93 @@ def after_review_classify(state: dict) -> Literal["review_classify", "extract", 
     return "human_review"
 
 
+def _bert_mode() -> str:
+    """The epic rollout-ladder mode (shadow -> verify -> skip); default shadow."""
+    import os
+
+    return str(os.environ.get("BERT_INTAKE_MODE", "shadow")).strip().lower()
+
+
+def _gate_handoff(handoff: dict) -> dict:
+    """Adapt the M6a lane handoff to the mailroom-ml schema-v1 gate shape.
+
+    ``evaluate_intake_gate`` (mailroom-ml routing) consumes the epic's nested
+    handoff (``triage``/``quality``/``gate``); the lane handoff is flattened.
+    The adapter maps the lane's fields onto the gate's inputs — the gate
+    logic itself stays in ONE place (mailroom-ml), never re-implemented here.
+    """
+    quality = dict(handoff.get("quality") or {})
+    quality.setdefault("messy", False)
+    quality["guard_failures"] = handoff.get("guard_failures") or []
+    return {
+        "method": "bert",
+        "quality": quality,
+        "triage": {
+            "primary_doc_class": handoff.get("doc_type"),
+            "doc_subclass": handoff.get("subclass"),
+            "confidence": handoff.get("calibrated_confidence")
+            or handoff.get("confidence") or 0.0,
+        },
+        "gate": {},
+    }
+
+
+def after_intake(state: dict) -> Literal["classify", "review_classify", "extract"]:
+    """#85 M6b (#99): post-intake continuation — the BERT fast-path split.
+
+    Replaces the hard ``intake -> classify`` edge. Behavior table (from #91):
+
+    - lane unavailable (``flag_off`` | ``no_package`` | ``no_model`` |
+      ``error``) -> ``classify`` — today's path, byte-identical;
+    - BERT ``route != fast_path`` (gate fail) AND mode in {verify, skip} ->
+      ``review_classify`` (reviewer guard, M5a #100);
+    - BERT ``route != fast_path`` AND mode == shadow -> ``classify``;
+    - BERT ``route == fast_path`` AND mode == skip AND class allowlisted AND
+      ``evaluate_intake_gate(...).eligible_for_sorter_skip`` -> ``extract``
+      (``bert_intake`` — no ``SorterAgent`` constructed);
+    - everything else -> ``classify`` (fail-open: the sorter stays authority).
+
+    The gate call is lazy-guarded (mailroom-ml is an undeclared sibling) and
+    fail-open by construction — a missing package or a gate exception routes
+    to the sorter, never to a silent BERT accept.
+    """
+    handoff = state.get("intake_handoff") or {}
+    if not handoff.get("available") or handoff.get("method") != "bert":
+        return "classify"
+    # BERT error / status failure -> fail-soft to the sorter (pre-BERT
+    # behavior) — a broken classifier never routes to the reviewer guard.
+    if handoff.get("status") == "failure":
+        return "classify"
+    if handoff.get("route") != "fast_path":
+        return "review_classify" if _bert_mode() in ("verify", "skip") else "classify"
+    if _bert_mode() != "skip":
+        return "classify"
+    try:
+        from mailroom_ml.routing import (  # type: ignore[import-not-found]
+            GATE_ALLOWLISTED_START,
+            evaluate_intake_gate,
+        )
+    except ImportError:
+        logger.warning("bert_gate_package_unavailable", doc_id=state.get("doc_id"))
+        return "classify"
+    if handoff.get("doc_type") not in GATE_ALLOWLISTED_START:
+        return "classify"
+    try:
+        gate = evaluate_intake_gate(_gate_handoff(handoff), mode="skip")
+    except Exception as exc:  # noqa: BLE001 — fail-open: never accept on a broken gate
+        logger.warning("bert_gate_failed_open", doc_id=state.get("doc_id"),
+                       error=str(exc)[:200])
+        return "classify"
+    if gate.get("eligible_for_sorter_skip"):
+        logger.info(
+            "bert_skip_accepted",
+            doc_id=state.get("doc_id"),
+            doc_type=handoff.get("doc_type"),
+        )
+        return "extract"
+    return "classify"
+
+
 def after_judge(state: dict) -> Literal["judge_verify", "compile_report", "arbiter", "human_review"]:
     """KANBAN-063 (Lane B): judge outcome router.
 

@@ -69,6 +69,11 @@ class DocumentState(TypedDict, total=False):
     # existing `intake_prior=` channel.
     bert_triage: dict[str, Any] | None
     intake_handoff: dict[str, Any] | None
+    # #85 M6b (#99): how this document's classification was produced —
+    # "llm_sorter" (SorterAgent, today's path) | "bert_intake" (BERT fast
+    # path, no SorterAgent) | "reviewer" (KANBAN-062 Lane A). Persisted on
+    # the terminal manifest; None until a classifier runs.
+    classification_method: str | None
     # KANBAN-062 (Lane A): independent second opinion from the sorter_reviewer
     # agent on medium-band classifications. The original sorter answer is
     # preserved untouched; `review_verdict` records the lane outcome

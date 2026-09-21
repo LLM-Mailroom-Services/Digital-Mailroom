@@ -13,6 +13,7 @@ from langgraph.types import Command, interrupt
 from graph.state import DocumentState
 from graph.routing import (
     after_classify,
+    after_intake,
     after_retry_classify,
     after_review_classify,
     after_extraction,
@@ -917,6 +918,9 @@ def classify_node(state: DocumentState) -> dict[str, Any]:
         "classification_confidence": confidence,
         "classification_attempts": attempts,
         "classification_guardrail": guard["issues"],
+        # #85 M6b (#99): the sorter ran — the manifest's classification_method
+        # distinguishes this from the BERT fast path (bert_intake).
+        "classification_method": "llm_sorter",
         "stage": PipelineStage.CLASSIFIED.value,
         "escalation_reason": reasoning
         if confidence < get_confidence_thresholds().get("high", 0.95)
@@ -1293,6 +1297,35 @@ def extract_node(state: DocumentState) -> dict[str, Any]:
     doc_text = state.get("doc_text", "")
     doc_pages = state.get("doc_pages") or []
 
+    # #85 M6b (#99): BERT fast-path skip arm. after_intake sent us here
+    # directly (skip-mode + allowlisted + gate PASS) with NO sorter having
+    # run — adopt the BERT triage labels as the classification. The handoff
+    # is the only source (never the raw module); the sorter path always has
+    # doc_type set, so this branch cannot fire after classify/review.
+    # The adopted fields ride the node's returned update so LangGraph's
+    # state merge persists them.
+    adopted: dict[str, Any] = {}
+    handoff = state.get("intake_handoff") or {}
+    if not doc_type and handoff.get("method") == "bert" \
+            and handoff.get("route") == "fast_path":
+        doc_type = handoff.get("doc_type") or ""
+        adopted = {
+            "doc_type": doc_type,
+            "doc_subclass": handoff.get("subclass"),
+            "classification_confidence": handoff.get("calibrated_confidence")
+            or handoff.get("confidence"),
+            "classification_method": "bert_intake",
+            "classification_attempts": 1,
+            "stage": PipelineStage.CLASSIFIED.value,
+        }
+        state = {**state, **adopted}
+        logger.info(
+            "bert_intake_adopted",
+            doc_id=state.get("doc_id"),
+            doc_type=doc_type,
+            subclass=handoff.get("subclass"),
+        )
+
     dispatch = _build_specialist_dispatch()
     extractor = dispatch.get(_extract_dispatch_key(doc_type))
     if extractor is None:
@@ -1393,7 +1426,9 @@ def extract_node(state: DocumentState) -> dict[str, Any]:
         detail={"attempts": attempts, "guardrail_issues": guard["issues"] or None,
                 "conflict_detected": bool(conflict_detected)},
     )
-    return result_dict
+    # #85 M6b (#99): the BERT-skip adoption fields must reach LangGraph's
+    # state merge — they are part of this node's update, not just locals.
+    return {**result_dict, **adopted}
 
 
 def _extract_contracts(
@@ -2056,6 +2091,9 @@ def compile_report_node(state: DocumentState) -> dict[str, Any]:
         "contract_subtype": state.get("contract_subtype"),
         "doc_subclass": state.get("doc_subclass"),
         "classification_confidence": state.get("classification_confidence"),
+        # #85 M6b (#99): llm_sorter | bert_intake | reviewer — how the
+        # classification was produced (BERT fast path skips the sorter).
+        "classification_method": state.get("classification_method"),
         "extraction_confidence": state.get("extraction_confidence"),
         "extracted_data": extracted,
         "arbiter_decision": state.get("arbiter_decision"),
@@ -2558,7 +2596,15 @@ def build_graph(checkpointer=None):
         "intake": "intake",
         "extract": "extract",
     })
-    workflow.add_edge("intake", "classify")
+    # #85 M6b (#99): the hard intake -> classify edge becomes the BERT
+    # fast-path split — skip-mode gate PASS routes straight to extract
+    # (no SorterAgent), verify/skip gate-fail routes to the reviewer guard
+    # (M5a #100), everything else keeps today's sorter path.
+    workflow.add_conditional_edges("intake", after_intake, {
+        "classify": "classify",
+        "review_classify": "review_classify",
+        "extract": "extract",
+    })
 
     workflow.add_conditional_edges("classify", after_classify, {
         "classify": "classify",  # transient-error self-loop (same node, LLM-level retry)

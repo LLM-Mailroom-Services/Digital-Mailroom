@@ -1,4 +1,11 @@
-"""DocClass-specific HF publishing with surgical card rendering."""
+"""LEGACY (frozen v8 baseline) — DocClass publishing for the v7-schema
+``Lucius-Morningstar/mailroom-corpus`` repo only. Do NOT use for v9 rows:
+publishing the live corpus goes through ``scripts/build/build_v9.py`` →
+``mailroom_eda.v9_build.build_all`` → ``hf_interface`` (v9 ships the
+``ground_truth_hardened.jsonl`` sidecar and the ``default``/``ground_truth``
+parquet configs, not the legacy v6 ``docclass_merged.jsonl`` pipeline).
+``publish_docclass()`` below still targets ``V8_REPO_ID`` — running it would
+push v7-schema rows onto the frozen v8 repo."""
 from __future__ import annotations
 
 import json
@@ -336,7 +343,9 @@ def publish_docclass(
     publish: bool = False,
     intent_stats: dict | None = None,
 ) -> dict:
-    """Full docclass v7 publish pipeline (issue #5 intent hydration)."""
+    """LEGACY — v7-schema docclass publish for the frozen v8
+    ``mailroom-corpus`` baseline (issue #5 intent hydration). v9 rows must
+    publish via ``scripts/build/build_v9.py`` → ``v9_build.build_all``."""
     if stage_dir.exists():
         shutil.rmtree(stage_dir)
     stage_dir.mkdir(parents=True)

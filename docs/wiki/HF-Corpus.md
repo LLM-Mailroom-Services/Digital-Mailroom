@@ -125,6 +125,8 @@ counter and published the fix upstream).
 
 `hf_interface` (Hub client, sha256 verify) · `dataset_export` (cast-safe
 metadata, line-boundary-safe JSONL, parquet staging) · `docclass_uploader`
-(v7 publish, surgical card render, leak guard) · `intent_backfill`
+(**LEGACY** — frozen v8 `mailroom-corpus` v7-schema publish only; the live
+v9 corpus publishes via `scripts/build/build_v9.py` → `v9_build` →
+`hf_interface`) · `intent_backfill`
 (checkpointed correspondence intent hydration). See the `huggingface`
 opencode skill for the full workflow.

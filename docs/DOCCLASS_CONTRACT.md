@@ -144,7 +144,10 @@ absent: absent spans are the explicit `''` corpus convention.
   configuration (§46).
 - Publishing goes ONLY through the centralized helpers in
   `packages/mailroom-corpus-eda/src/mailroom_eda/` (`hf_interface`,
-  `dataset_export`, `docclass_uploader`, `intent_backfill`) — cast-safe
+  `dataset_export`, `intent_backfill`; `docclass_uploader` is **LEGACY** —
+  frozen v8 `mailroom-corpus` v7-schema publish only — the live v9 corpus
+  publishes through `scripts/build/build_v9.py` → `v9_build.build_all` →
+  `hf_interface`) — cast-safe
   metadata, line-boundary-safe JSONL, sha256 verification, surgical card
   renders, blind-config label guard (§44A). No ad-hoc upload code.
 

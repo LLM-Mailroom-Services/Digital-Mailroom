@@ -102,7 +102,7 @@ The upload/publish helpers previously living in [llm-entity-extraction](https://
 |:---|:---|
 | `src/mailroom_eda/hf_interface.py` | Hub client (upload, sha256 verify, repo mgmt) |
 | `src/mailroom_eda/dataset_export.py` | Cast-safe metadata (KANBAN-076), JSONL line-boundary safety (KANBAN-088), parquet staging |
-| `src/mailroom_eda/docclass_uploader.py` | Docclass v7 publish, surgical card rendering, blind-label strip, GT leak guard |
+| `src/mailroom_eda/docclass_uploader.py` | **LEGACY (frozen v8 `mailroom-corpus` only)** — v7-schema docclass publish, surgical card rendering, blind-label strip, GT leak guard; v9 publish rides `scripts/build/build_v9.py` → `v9_build` → `hf_interface` |
 | `src/mailroom_eda/intent_backfill.py` | Correspondence intent hydration (issue #5): cross-walk, Enron/AESLC sha256 join, LLM pass |
 | `src/mailroom_eda/token_budget.py` | Token estimation & budget coverage |
 

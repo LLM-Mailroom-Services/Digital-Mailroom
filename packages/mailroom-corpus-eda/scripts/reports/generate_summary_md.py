@@ -139,7 +139,7 @@ def main() -> int:
 
     md = f"""# Mailroom Dataset (v9) — EDA Summary Report
 
-Generated: 2026-09-13 · Pipeline: `run_all.py` (P0–P6) · Data: `Lucius-Morningstar/mailroom-dataset` v1 (canonically **v9** of the corpus family, pinned `a7067844`)
+Generated: 2026-09-13 · Pipeline: `run_all.py` (P0–P6) · Data: `Lucius-Morningstar/mailroom-dataset` v1 (canonically **v9** of the corpus family, pinned `46a4d3c2`)
 
 > v9 lineage (tracking epic #18): standalone successor of the frozen v8
 > `Lucius-Morningstar/mailroom-corpus` baseline (2,000 rows, `eafe1ab4` —
@@ -251,8 +251,11 @@ treemap, strata, timeline, sources, metadata.
 - `src/mailroom_eda/hf_interface.py` — Hub client: upload, sha verify, repo mgmt
 - `src/mailroom_eda/dataset_export.py` — KANBAN-076 cast-safe metadata,
   KANBAN-088 JSONL safety, parquet staging, manifests, splits
-- `src/mailroom_eda/docclass_uploader.py` — docclass publish, surgical card
-  render, blind-label strip, leak guard
+- `src/mailroom_eda/docclass_uploader.py` — **LEGACY (frozen v8 baseline
+  `mailroom-corpus` only)**: v7-schema docclass publish, surgical card
+  render, blind-label strip, leak guard; v9 publishing goes through
+  `scripts/build/build_v9.py` → `mailroom_eda.v9_build.build_all` →
+  `hf_interface`
 - `src/mailroom_eda/intent_backfill.py` — correspondence intent hydration +
   provenance columns
 - `scripts/backfill/backfill_intent.py` — intent hydration CLI

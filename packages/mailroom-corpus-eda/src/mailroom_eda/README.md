@@ -26,7 +26,7 @@
 | `hardened.py` | §84 release-chain builders (shared by the v9 builder + archived v8 CLIs) |
 | `hf_interface.py` | Hub client (upload, sha256 verify, repo mgmt) |
 | `dataset_export.py` | Cast-safe JSONL (KANBAN-088), parquet staging, manifests |
-| `docclass_uploader.py` | Docclass publish, surgical card render, blind-label strip, leak guard |
+| `docclass_uploader.py` | **LEGACY (frozen v8 `mailroom-corpus` only)** — v7-schema docclass publish, surgical card render, blind-label strip, leak guard |
 | `intent_backfill.py` | Correspondence intent hydration (issue #5) |
 | `visualizations.py` | P3 static PNG figures (30) + EDA tables |
 | `visualizations_interactive.py` | P4 Plotly HTML figures (18) |

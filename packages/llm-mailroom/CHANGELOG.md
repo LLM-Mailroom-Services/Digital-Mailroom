@@ -24,6 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `subclass_pass` booleans on the handoff + `bert_sorter_agreement`
   computation seam (#106). Tier-0 full skip and Tier-2 full sorter are
   unchanged; flag-off runs are byte-identical (no prior, no budget).
+- **Gate wiring finish (#90/#91 M5/M6)**: verify mode exercises the gate
+  without skipping (fast-path → classify; gate-fail → reviewer guard);
+  terminal manifests (archive + human review) persist
+  `classification_method` and `intake.bert.gate_outcome` — the verdict
+  computed against the REAL sorter/reviewer results (P6/P7), reviewer
+  blindness preserved. Fail-open everywhere: a missing package, raising
+  gate, or broken classifier never blocks a run — intake can never alone
+  mark a run FAILED (e2e pinned for error fail-soft, verify traversal,
+  and `MAILROOM_BERT_INTAKE=0` byte-identical path).
 - **`after_intake` conditional edge (#99 M6b, `2ccfbf8b`)**: intake exit splits on
   the handoff — BERT fast-path skip (gate PASS + allowlisted + `BERT_INTAKE_MODE=skip`)
   → `extract` as `bert_intake`; gate-failed + verify/skip modes → the reviewer

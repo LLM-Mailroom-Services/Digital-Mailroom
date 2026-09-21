@@ -1932,6 +1932,8 @@ def human_review_node(state: DocumentState) -> dict[str, Any]:
             original_filename=state.get("original_filename", ""),
             stage=PipelineStage.REVIEW,
             doc_type=state.get("doc_type"),
+            classification_method=state.get("classification_method"),
+            intake=_attach_gate_outcome(state.get("intake_meta"), state),
             contract_subtype=state.get("contract_subtype"),
             doc_subclass=state.get("doc_subclass"),
             classification_confidence=state.get("classification_confidence"),
@@ -1943,7 +1945,6 @@ def human_review_node(state: DocumentState) -> dict[str, Any]:
             extraction_attempts=state.get("extraction_attempts", 0),
             review_decision="pending_review",
             checkpoint_thread_id=thread_id or None,
-            intake=state.get("intake_meta") or None,
             **_lane_b_manifest_fields(state),
         )
         dest, newly_parked = park_for_review(Path(file_path_str), manifest)
@@ -2291,6 +2292,64 @@ def _lane_b_manifest_fields(state: Mapping[str, Any] | dict) -> dict[str, Any]:
     }
 
 
+def _attach_gate_outcome(intake_meta: dict | None, state: DocumentState) -> dict | None:
+    """#90/#91: persist the PASS|FAIL gate verdict on terminal manifests.
+
+    Called at archive/human-review time with the FULL state (sorter and/or
+    reviewer results exist). Evaluate mode-aware like after_intake:
+
+    - skip mode: same evaluation after_intake used for the extract decision
+      (idempotent, deterministic — re-recorded for the record);
+    - verify mode: exercises the gate WITHOUT skipping anything — P6 (sorter
+      agreement) runs against the REAL sorter/reviewer results (#90 DoD);
+    - shadow mode: also recorded (shadow does not skip either).
+
+    Reviewer blindness holds: the gate consumes sorter/reviewer verdicts as
+    INPUTS; no triage labels ever flow the other way. Fail-open: a missing
+    mailroom-ml package or a raising gate yields no gate_outcome key and
+    never blocks the manifest or the run (an intake/gate problem can never
+    mark a run FAILED — #91).
+    """
+    meta = dict(intake_meta or {})
+    bert = meta.get("bert")
+    if not bert or not bert.get("available") or bert.get("method") != "bert":
+        return meta
+    try:
+        from mailroom_ml.routing import evaluate_intake_gate  # type: ignore[import-not-found]
+    except ImportError:
+        logger.warning("bert_gate_outcome_package_unavailable", doc_id=state.get("doc_id"))
+        return meta
+    from graph.routing import _bert_mode, _gate_handoff
+
+    try:
+        gate = evaluate_intake_gate(
+            _gate_handoff(bert),
+            sorter_result=(
+                {"doc_type": state.get("doc_type"),
+                 "confidence": state.get("classification_confidence")}
+                if state.get("classification_attempts", 0) > 0 else None
+            ),
+            reviewer_result=(
+                {"doc_type": state.get("review_verdict_doc_type")
+                 or state.get("review_decision")}
+                if state.get("review_decision") else None
+            ),
+            mode=_bert_mode(),
+        )
+        bert_outcome = {
+            key: gate.get(key)
+            for key in (
+                "verdict", "mode", "failures", "failed_checks",
+                "eligible_for_sorter_skip", "recommended_action",
+            )
+        }
+        meta["bert"] = {**bert, "gate_outcome": bert_outcome}
+    except Exception as exc:  # noqa: BLE001 — fail-open: gate never blocks the record
+        logger.warning("bert_gate_outcome_failed_open", doc_id=state.get("doc_id"),
+                       error=str(exc)[:200])
+    return meta
+
+
 def archive_node(state: DocumentState) -> dict[str, Any]:
     manifest = DocumentManifest(
         doc_id=state.get("doc_id", ""),
@@ -2308,7 +2367,11 @@ def archive_node(state: DocumentState) -> dict[str, Any]:
         review_decision=state.get("review_decision"),
         classification_attempts=state.get("classification_attempts", 0),
         extraction_attempts=state.get("extraction_attempts", 0),
-        intake=state.get("intake_meta") or None,
+        # #85 M6 (#91): the terminal record carries how the classification
+        # was produced + the BERT gate PASS|FAIL outcome (verify exercises
+        # the gate against the real sorter/reviewer results — never skips).
+        classification_method=state.get("classification_method"),
+        intake=_attach_gate_outcome(state.get("intake_meta"), state),
         **_lane_b_manifest_fields(state),
     )
 

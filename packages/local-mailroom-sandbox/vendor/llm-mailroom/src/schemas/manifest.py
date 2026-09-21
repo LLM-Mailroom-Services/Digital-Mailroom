@@ -23,6 +23,9 @@ class DocumentManifest(BaseModel):
     doc_subclass: str | None = None
     classification_confidence: float | None = None
     classification_attempts: int = 0
+    # #85 M6 (#91): how the classification was produced — llm_sorter |
+    # bert_intake | bert_scoped | reviewer. Persisted on terminal records.
+    classification_method: str | None = None
     extracted_data: dict | None = None
     extraction_confidence: float | None = None
     extraction_attempts: int = 0

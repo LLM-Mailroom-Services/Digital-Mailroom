@@ -42,6 +42,15 @@ SCORE_CONFIGS: list[dict] = [
     # review/guardrail/transient self-loop — no ground truth required.
     {"name": "success_rate", "data_type": "BOOLEAN"},
     {"name": "guardrail_triggered", "data_type": "BOOLEAN"},
+    # BERT fast path telemetry (M6a/#98 intake gate; reflected from the
+    # llm-dojo-scoring registry per KANBAN-061). fast_path_est_cost_usd is
+    # DERIVED from bert_elapsed_ms (estimate_fast_path_cost_usd) and must
+    # never conflate with estimated_cost_usd, which is the LLM call cost.
+    {"name": "bert_pass", "data_type": "BOOLEAN"},
+    {"name": "bert_sorter_agreement", "data_type": "BOOLEAN"},
+    {"name": "bert_fail_soft", "data_type": "BOOLEAN"},
+    {"name": "bert_elapsed_ms", "data_type": "NUMERIC", "min_value": 0.0},
+    {"name": "fast_path_est_cost_usd", "data_type": "NUMERIC", "min_value": 0.0},
     {"name": "classification_confidence", "data_type": "NUMERIC", "min_value": 0.0, "max_value": 1.0},
     {"name": "extraction_confidence", "data_type": "NUMERIC", "min_value": 0.0, "max_value": 1.0},
     {"name": "confidence_calibration_error", "data_type": "NUMERIC", "min_value": 0.0, "max_value": 1.0},
@@ -150,6 +159,26 @@ LANGFUSE_SCORE_NAME_ALIASES = {
 def langfuse_score_name(name: str) -> str:
     """Name actually sent to Langfuse (may be a short transport alias)."""
     return LANGFUSE_SCORE_NAME_ALIASES.get(name, name)
+
+# BERT fast-path energy cost model (#106). Local ONNX inference on a
+# laptop-class CPU: power draw and electricity price defaults are the
+# documented constants; override per-host. Purely derived — this value is
+# NEVER written into estimated_cost_usd (LLM call cost) and vice versa.
+_FAST_PATH_WATTS = 40.0  # laptop-class CPU sustained inference draw
+_FAST_PATH_PRICE_PER_KWH_USD = 0.25  # grid average, conservative
+
+
+def estimate_fast_path_cost_usd(bert_elapsed_ms: float) -> float:
+    """Derived USD cost of one BERT fast-path classification.
+
+    bert_elapsed_ms x watts x price/kWh with unit conversion. Returns 0.0
+    for non-positive input. Exists so downstream emission (M7a/#92) has a
+    single derivation seam and cannot conflate with LLM call cost.
+    """
+    if bert_elapsed_ms <= 0:
+        return 0.0
+    kwh = (bert_elapsed_ms / 1000.0) / 3600.0 * _FAST_PATH_WATTS
+    return round(kwh * _FAST_PATH_PRICE_PER_KWH_USD, 10)
 
 # KANBAN-061: SCORE_CONFIGS is validated against llm-dojo-scoring's metric
 # registry (single source of truth). A name here but not in the registry

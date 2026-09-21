@@ -13,6 +13,7 @@ from langgraph.types import Command, interrupt
 from graph.state import DocumentState
 from graph.routing import (
     after_classify,
+    after_intake,
     after_retry_classify,
     after_review_classify,
     after_extraction,
@@ -584,6 +585,46 @@ def intake_node(state: DocumentState) -> dict[str, Any]:
 
     raw_text = doc_text
     doc_text, intake_stats = apply_intake(doc_text, filename=file_path.name)
+    # #85 M6a (#98): ModernBERT fast-path triage — deterministic local-model
+    # classification, fail-open by construction. The handoff is ALWAYS
+    # emitted (flag off -> {available: false, reason: flag_off}) so downstream
+    # lanes (#99 router, #108 Tier-1 prior) can rely on its presence; the
+    # span is a SPAN (no LLM call) with curated provenance metadata, never
+    # the document text.
+    bert_triage = None
+    intake_handoff = None
+    try:
+        from agents.bert_intake import run_bert_intake
+        from observability.tracing import observation
+
+        _t0 = time.monotonic()
+        with observation(
+            "intake-ml-triage",
+            as_type="span",
+            input={"file": file_path.name, "chars": len(doc_text)},
+        ) as span:
+            bert_triage = run_bert_intake(doc_text, filename=file_path.name)
+            if span is not None:
+                span.update(
+                    output={
+                        "available": bool(bert_triage.get("available")),
+                        "reason": bert_triage.get("reason"),
+                        "route": bert_triage.get("route"),
+                        "triage_class": bert_triage.get("doc_type"),
+                        "confidence": bert_triage.get("calibrated_confidence")
+                        or bert_triage.get("confidence"),
+                        "latency_ms": round((time.monotonic() - _t0) * 1000.0, 2),
+                    }
+                )
+        intake_handoff = dict(bert_triage)
+    except Exception:
+        logger.exception("bert_intake_failed", file=file_path.name)
+        intake_handoff = {
+            "available": False,
+            "reason": "error",
+            "method": "deterministic",
+            "routing_path": "clerk_only",
+        }
     # HUB-038: LLM-assisted intake (triage + clean + prepare) — gated to
     # messy / over-sorter-budget documents; sliding windows, NEVER truncates.
     intake_prep = None
@@ -631,16 +672,22 @@ def intake_node(state: DocumentState) -> dict[str, Any]:
 
     matter_id = state.get("matter_id", "DEFAULT")
     intake_meta = state.get("intake_meta") or None
-    if intake_meta is not None and intake_prep:
+    if intake_meta is not None:
         intake_meta = dict(intake_meta)
-        if intake_prep.get("triage"):
-            intake_meta["triage"] = intake_prep["triage"]
-        if intake_prep.get("sections") is not None:
-            intake_meta["prep"] = {
-                "section_count": len(intake_prep.get("sections") or []),
-                "roles": sorted({s["role"] for s in intake_prep.get("sections") or []}),
-                "windows": intake_prep.get("windows", 1),
-            }
+        if intake_prep:
+            if intake_prep.get("triage"):
+                intake_meta["triage"] = intake_prep["triage"]
+            if intake_prep.get("sections") is not None:
+                intake_meta["prep"] = {
+                    "section_count": len(intake_prep.get("sections") or []),
+                    "roles": sorted({s["role"] for s in intake_prep.get("sections") or []}),
+                    "windows": intake_prep.get("windows", 1),
+                }
+        # #85 M6a (#98): the BERT handoff merges UNCONDITIONALLY (independent
+        # of intake_prep — a BERT-only run has no LLM prep, and the fixed
+        # `intake_prep` gate used to drop the block before the manifest write).
+        if intake_handoff:
+            intake_meta["bert"] = intake_handoff
     manifest = DocumentManifest(
         matter_id=matter_id,
         original_filename=file_path.name,
@@ -698,6 +745,10 @@ def intake_node(state: DocumentState) -> dict[str, Any]:
         "intake_messy": bool(intake_stats.get("messy")),
         "intake_changed": bool(intake_stats.get("changed")),
         "intake_prep": intake_prep,
+        # #85 M6a (#98): ModernBERT fast-path triage + always-emitted handoff
+        # (fail-open; downstream lanes read these, never the raw module).
+        "bert_triage": bert_triage,
+        "intake_handoff": intake_handoff,
         "classification_attempts": 0,
         "extraction_attempts": 0,
         "retry_count": 0,
@@ -753,6 +804,16 @@ def classify_node(state: DocumentState) -> dict[str, Any]:
         from agents.intake import format_intake_prior
 
         intake_prior = format_intake_prior(state.get("intake_prep") or None)
+        # #85 M6e (#108) Tier-1: when the ModernBERT fast-path verified the
+        # primary class (route=fast_path), its prior rides the SAME channel —
+        # the sorter's residual job becomes subclass verification. Advisory
+        # only: the sorter overrules with cited evidence, and nothing is
+        # added when the lane was flag-off/clerk-only ("").
+        from agents.bert_intake import format_bert_type_prior
+
+        bert_prior = format_bert_type_prior(state.get("bert_triage") or None)
+        if bert_prior:
+            intake_prior = "\n\n".join(p for p in (intake_prior, bert_prior) if p)
         # Structured classify includes per-class doc_subclass (dojo catalogs).
         classified = sorter.classify_json(
             doc_text,
@@ -857,6 +918,9 @@ def classify_node(state: DocumentState) -> dict[str, Any]:
         "classification_confidence": confidence,
         "classification_attempts": attempts,
         "classification_guardrail": guard["issues"],
+        # #85 M6b (#99): the sorter ran — the manifest's classification_method
+        # distinguishes this from the BERT fast path (bert_intake).
+        "classification_method": "llm_sorter",
         "stage": PipelineStage.CLASSIFIED.value,
         "escalation_reason": reasoning
         if confidence < get_confidence_thresholds().get("high", 0.95)
@@ -987,13 +1051,21 @@ def retry_classify_node(state: DocumentState) -> dict[str, Any]:
 
 def review_classify_node(state: DocumentState) -> dict[str, Any]:
     """KANBAN-062 (Lane A): independent agent second opinion on a medium-band
-    classification.
+    classification — and, since #85 M5a (#100), the BERT verification guard.
 
-    The reviewer classifies the document BLIND (no hint of the sorter's
-    answer — independence is the point). Agreement/override is computed here
-    in code. The lane never changes the failure surface: reviewer high-
-    confidence → extract with the reviewer's label applied; anything else →
-    human_review with BOTH opinions preserved on state.
+    The reviewer classifies the document BLIND (no hint of the sorter's OR
+    the BERT triage's answer — independence is the point). Agreement/override
+    is computed here in code. Two entry conditions:
+
+    - **sorter path** (KANBAN-062, unchanged): the sorter ran; reviewer
+      high-confidence → extract with the reviewer's label applied; anything
+      else → human_review with BOTH opinions preserved on state.
+    - **BERT-guard path** (M5a): after_intake routed a gate-failed BERT
+      triage here in verify/skip — no sorter has run. The reference label is
+      the BERT triage's; reviewer-agree (high confidence) → extract with the
+      BERT label (``classification_method=bert_intake``); anything else →
+      the full sorter decides (``classify``). ``review_reference`` records
+      which path fired so the router can distinguish them.
     """
     from agents.sorter_reviewer import SorterReviewerAgent
     from llm.retry import is_transient_error
@@ -1004,6 +1076,16 @@ def review_classify_node(state: DocumentState) -> dict[str, Any]:
     doc_text = state.get("doc_text", "")
     sorter_type = state.get("doc_type")
     sorter_confidence = state.get("classification_confidence")
+    # #85 M5a (#100): BERT-guard entry — no sorter ran and the intake handoff
+    # is a BERT triage; the reference label is the triage's, and the reviewer
+    # stays blind either way (the handoff is never passed to the reviewer).
+    handoff = state.get("intake_handoff") or {}
+    bert_guard = not sorter_type and handoff.get("method") == "bert"
+    reference_type = handoff.get("doc_type") if bert_guard else sorter_type
+    reference_confidence = (
+        handoff.get("calibrated_confidence") or handoff.get("confidence")
+        if bert_guard else sorter_confidence
+    )
 
     try:
         reviewer = SorterReviewerAgent()
@@ -1028,6 +1110,11 @@ def review_classify_node(state: DocumentState) -> dict[str, Any]:
                 "stage": PipelineStage.CLASSIFIED.value,
                 "error_message": f"transient provider error: {str(exc)[:200]}",
                 "escalation_reason": "transient provider error during sorter review",
+                # #85 M5a (#100): stamp the guard identity on failure paths too —
+                # the router MUST still know this was a BERT-guard review so an
+                # exhausted budget fails OPEN to the sorter (classify), not
+                # closed to human review (which would skip the sorter entirely).
+                "review_reference": "bert" if bert_guard else "sorter",
             }
         # Reviewer hard-failed: escalate with the sorter's original answer
         # intact (fail-safe — same destination the doc had before this lane).
@@ -1038,8 +1125,11 @@ def review_classify_node(state: DocumentState) -> dict[str, Any]:
         return {
             "review_verdict": "reviewer_error",
             "stage": PipelineStage.CLASSIFIED.value,
-            "escalation_reason": f"sorter reviewer failed ({type(exc).__name__}: {str(exc)[:160]}) — routing to human review",
+            "escalation_reason": f"sorter reviewer failed ({type(exc).__name__}: {str(exc)[:160]}) — routing to {'sorter' if bert_guard else 'human review'}",
             "transient_error": False,
+            # Same guard stamp as above: a guard-path reviewer_error must route
+            # to the sorter (classify), which the router keys off this field.
+            "review_reference": "bert" if bert_guard else "sorter",
         }
 
     reviewer_type = result.get("doc_type")
@@ -1063,11 +1153,12 @@ def review_classify_node(state: DocumentState) -> dict[str, Any]:
     )
     reviewer_reasoning = str(result.get("reasoning", ""))
 
-    # Class-aware high: agree uses sorter class; override uses the reviewer's
-    # proposed class (severity of the label they want to win).
-    agree_high = get_confidence_thresholds(sorter_type).get("high", 0.97)
+    # Class-aware high: agree uses the reference class (sorter label on the
+    # KANBAN-062 path, BERT triage label on the M5a guard path); override uses
+    # the reviewer's proposed class (severity of the label they want to win).
+    agree_high = get_confidence_thresholds(reference_type).get("high", 0.97)
     override_high = get_confidence_thresholds(reviewer_type).get("high", 0.97)
-    if reviewer_type == sorter_type:
+    if reviewer_type == reference_type:
         verdict = (
             "reviewer_agrees_high"
             if reviewer_confidence >= agree_high
@@ -1083,38 +1174,50 @@ def review_classify_node(state: DocumentState) -> dict[str, Any]:
     logger.info(
         "review_classified",
         doc_id=state.get("doc_id"),
-        sorter_type=sorter_type,
-        sorter_confidence=sorter_confidence,
+        review_reference="bert" if bert_guard else "sorter",
+        reference_type=reference_type,
+        reference_confidence=reference_confidence,
         reviewer_type=reviewer_type,
         reviewer_confidence=reviewer_confidence,
         verdict=verdict,
     )
+    reference_label = "bert triage" if bert_guard else "sorter"
     updates = {
         "reviewer_doc_type": reviewer_type,
         "reviewer_contract_subtype": reviewer_subtype,
         "reviewer_doc_subclass": reviewer_subclass,
         "reviewer_confidence": reviewer_confidence,
         "review_verdict": verdict,
+        # #85 M5a (#100): which reference the verdict was computed against —
+        # the router needs this to tell the BERT-guard arm (agree → extract
+        # with the BERT label) from the KANBAN-062 arm (agree → extract with
+        # the reviewer's label, which the sorter already endorsed).
+        "review_reference": "bert" if bert_guard else "sorter",
         # The reviewer's reasoning rides on escalation_reason so a human
         # reviewing the doc sees BOTH opinions in the manifest/catalog.
         "escalation_reason": (
-            f"sorter review: sorter='{sorter_type}' "
-            f"({float(sorter_confidence or 0):.2f}) → reviewer='{reviewer_type}' "
+            f"sorter review: {reference_label}='{reference_type}' "
+            f"({float(reference_confidence or 0):.2f}) → reviewer='{reviewer_type}' "
             f"({reviewer_confidence:.2f}, {verdict}): {reviewer_reasoning[:400]}"
         ),
         "stage": PipelineStage.CLASSIFIED.value,
         "transient_error": False,
     }
     # KANBAN-062: only a WINNING reviewer verdict may re-label the document.
-    # reviewer_agrees_high re-asserts the (identical) sorter type with the
-    # reviewer's confidence; reviewer_overrides replaces the sorter's label.
-    # Low-confidence verdicts keep the sorter's answer untouched — the human
-    # reviewer gets both opinions via the reviewer_* fields above.
+    # reviewer_agrees_high re-asserts the (identical) reference type with the
+    # reviewer's confidence; reviewer_overrides replaces the reference label.
+    # Low-confidence verdicts keep the reference's answer untouched — the
+    # human reviewer gets both opinions via the reviewer_* fields above.
     if verdict in ("reviewer_agrees_high", "reviewer_overrides"):
         updates["doc_type"] = reviewer_type
         updates["contract_subtype"] = reviewer_subtype
         updates["doc_subclass"] = reviewer_subclass
         updates["classification_confidence"] = reviewer_confidence
+        # M5a: a winning guard verdict means the BERT triage label survived
+        # independent verification — the doc is BERT-classified, not sorter-
+        # classified. The KANBAN-062 path keeps the sorter's method.
+        if bert_guard:
+            updates["classification_method"] = "bert_intake"
     return updates
 
 
@@ -1233,6 +1336,35 @@ def extract_node(state: DocumentState) -> dict[str, Any]:
     doc_text = state.get("doc_text", "")
     doc_pages = state.get("doc_pages") or []
 
+    # #85 M6b (#99): BERT fast-path skip arm. after_intake sent us here
+    # directly (skip-mode + allowlisted + gate PASS) with NO sorter having
+    # run — adopt the BERT triage labels as the classification. The handoff
+    # is the only source (never the raw module); the sorter path always has
+    # doc_type set, so this branch cannot fire after classify/review.
+    # The adopted fields ride the node's returned update so LangGraph's
+    # state merge persists them.
+    adopted: dict[str, Any] = {}
+    handoff = state.get("intake_handoff") or {}
+    if not doc_type and handoff.get("method") == "bert" \
+            and handoff.get("route") == "fast_path":
+        doc_type = handoff.get("doc_type") or ""
+        adopted = {
+            "doc_type": doc_type,
+            "doc_subclass": handoff.get("subclass"),
+            "classification_confidence": handoff.get("calibrated_confidence")
+            or handoff.get("confidence"),
+            "classification_method": "bert_intake",
+            "classification_attempts": 1,
+            "stage": PipelineStage.CLASSIFIED.value,
+        }
+        state = {**state, **adopted}
+        logger.info(
+            "bert_intake_adopted",
+            doc_id=state.get("doc_id"),
+            doc_type=doc_type,
+            subclass=handoff.get("subclass"),
+        )
+
     dispatch = _build_specialist_dispatch()
     extractor = dispatch.get(_extract_dispatch_key(doc_type))
     if extractor is None:
@@ -1333,7 +1465,9 @@ def extract_node(state: DocumentState) -> dict[str, Any]:
         detail={"attempts": attempts, "guardrail_issues": guard["issues"] or None,
                 "conflict_detected": bool(conflict_detected)},
     )
-    return result_dict
+    # #85 M6b (#99): the BERT-skip adoption fields must reach LangGraph's
+    # state merge — they are part of this node's update, not just locals.
+    return {**result_dict, **adopted}
 
 
 def _extract_contracts(
@@ -1996,6 +2130,9 @@ def compile_report_node(state: DocumentState) -> dict[str, Any]:
         "contract_subtype": state.get("contract_subtype"),
         "doc_subclass": state.get("doc_subclass"),
         "classification_confidence": state.get("classification_confidence"),
+        # #85 M6b (#99): llm_sorter | bert_intake | reviewer — how the
+        # classification was produced (BERT fast path skips the sorter).
+        "classification_method": state.get("classification_method"),
         "extraction_confidence": state.get("extraction_confidence"),
         "extracted_data": extracted,
         "arbiter_decision": state.get("arbiter_decision"),
@@ -2498,7 +2635,15 @@ def build_graph(checkpointer=None):
         "intake": "intake",
         "extract": "extract",
     })
-    workflow.add_edge("intake", "classify")
+    # #85 M6b (#99): the hard intake -> classify edge becomes the BERT
+    # fast-path split — skip-mode gate PASS routes straight to extract
+    # (no SorterAgent), verify/skip gate-fail routes to the reviewer guard
+    # (M5a #100), everything else keeps today's sorter path.
+    workflow.add_conditional_edges("intake", after_intake, {
+        "classify": "classify",
+        "review_classify": "review_classify",
+        "extract": "extract",
+    })
 
     workflow.add_conditional_edges("classify", after_classify, {
         "classify": "classify",  # transient-error self-loop (same node, LLM-level retry)
@@ -2517,8 +2662,11 @@ def build_graph(checkpointer=None):
 
     # KANBAN-062 (Lane A): agent second opinion. High-confidence reviewer →
     # extract (label applied by the node); anything else → human review.
+    # #85 M5a (#100): as the BERT verification guard, a rejected triage →
+    # classify (the full sorter decides — the guard must never strand a doc).
     workflow.add_conditional_edges("review_classify", after_review_classify, {
         "review_classify": "review_classify",  # transient self-loop (own per-node budget)
+        "classify": "classify",  # M5a guard: triage rejected → sorter authority
         "extract": "extract",
         "human_review": "human_review",
     })

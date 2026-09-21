@@ -28,11 +28,11 @@ The board is also served live at **https://digital-mailroom-theta.vercel.app**
 
 | Thing | Value |
 | --- | --- |
-| Hub repo | [LLM-Mailroom-Services/Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) — latest hub release **v0.5.0** |
+| Hub repo | [LLM-Mailroom-Services/Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) — latest hub release **v0.7.0** |
 | Task board | [`governance/TASKS.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/governance/TASKS.md) — machine-readable via `scripts/board_state.py` |
 | Served board | [digital-mailroom-theta.vercel.app](https://digital-mailroom-theta.vercel.app) — live, issue-backed ([[Served-Board]]) |
 | Conventions | [`AGENTS.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/AGENTS.md) — read first, every session |
-| Subagents | 11-specialty roster ([[Subagents]]) — project agents under `.opencode/agents/` |
+| Subagents | 15-agent roster ([[Subagents]]) — project + global agent files under `.opencode/agents/` (see DMR-062) |
 | Packages | 10 (6 built + 4 virtual members) |
 | Python | 3.11+ (workspace `requires-python >= 3.11`) |
 | Family pins | llm-mailroom **v0.7.1** · llm-dojo-scoring **v0.15.0** · llm-entity-extraction **v0.21.0** |

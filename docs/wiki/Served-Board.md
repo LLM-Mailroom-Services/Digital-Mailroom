@@ -83,11 +83,15 @@ The UI PATCHes on every move/save. Only the changed keys need to be sent:
   assignees (agent names aren't repo users and GitHub rejects them with
   422).
 - **Owner dropdown (edit modal):** the Owner field is a `<select>` with
-  `<optgroup>`s — **Agent roles** (the 11-specialty roster from AGENTS.md:
-  `athena-database-agent`, `lucius`, `atom`, `prompt-engineer`,
-  `hazel-ui-software-master`, `jarvis-systems-maximizer`,
-  `vllm-specialist`, `modal-specialist`, `board-evidence-auditor`,
-  `explore`, `general`), **Models** (GLM-5.3-Flash, GLM-4.7-Flash,
+  `<optgroup>`s — **Agent roles** (hardcoded 11-entry list in
+  `board-site/index.html` — `athena-database-agent`, `lucius`, `atom`,
+  `prompt-engineer`, `hazel-ui-software-master`,
+  `jarvis-systems-maximizer`, `vllm-specialist`, `modal-specialist`,
+  `board-evidence-auditor`, `explore`, `general`; AGENTS.md's roster has
+  since grown to 15 entries with DMR-062 — the 4 additions
+  (`archivist-file-organizer`, `code-analyst`, `test-suite-auditor`,
+  `orchestrator-governor`) are not yet in the dropdown; refresh tracked on
+  DMR-075), **Models** (GLM-5.3-Flash, GLM-4.7-Flash,
   Claude Opus/Sonnet 4.5, GPT-5, Gemini 2.5 Pro, Llama 4 Maverick,
   DeepSeek V3.2, Kimi K2, Qwen 3 Max), **Users** (`lucius (Jack J
   Burleson)`, `human`), **Harness composites** (`opencode (GLM-5.3-Flash)`),

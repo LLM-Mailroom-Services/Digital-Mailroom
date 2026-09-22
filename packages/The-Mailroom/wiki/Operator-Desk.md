@@ -29,19 +29,27 @@ MAILROOM_OBSERVER=1 mailroom-web # in-process bin watcher
 mailroom-observer                # standalone → POST /v1/ops/events
 ```
 
-Default admin is `admin` / `changeme` until `MAILROOM_OPERATOR_ADMIN_PASSWORD`
-is set. Use `MAILROOM_OPERATOR_JWT_SECRET` (or `JWT_SECRET`) — never reuse
+Default admin is `admin`; set `MAILROOM_OPERATOR_ADMIN_PASSWORD` before any
+shared exposure (a local-dev fallback exists). Use
+`MAILROOM_OPERATOR_JWT_SECRET` (or `JWT_SECRET`) — never reuse
 `MAILROOM_PIPELINE_TOKEN`.
 
-Compose (visualizer + observer + nginx, no local Langfuse, no React UI):
+Compose — the production path (visualizer + observer + nginx, no local
+Langfuse). The `operator` image target installs `.[operator]` and bakes the
+React `/desk` build; nginx `:80` is the single front door. Both
+`MAILROOM_OPERATOR_JWT_SECRET` and `MAILROOM_OPERATOR_ADMIN_PASSWORD` are
+required (compose fails fast):
 
 ```bash
-docker compose -f operator_desk/docker-compose.yml up --build
+cd packages/The-Mailroom/operator_desk
+export MAILROOM_OPERATOR_JWT_SECRET="$(openssl rand -hex 32)"
+export MAILROOM_OPERATOR_ADMIN_PASSWORD='<strong-password>'
+docker compose up --build          # → http://localhost/ , /live , /desk
 ```
 
 See `operator_desk/README.md` and `.env.example` (`MAILROOM_OPERATOR_*`).
 
-Optional React desk (Node 22+, never required for `mailroom-web`):
+Optional React desk, docker-free (Node 22+, never required for `mailroom-web`):
 
 ```bash
 cd ui && npm install && npm run build

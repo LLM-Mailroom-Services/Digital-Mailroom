@@ -80,6 +80,17 @@ mailroom-observer         # bin watcher (or MAILROOM_OBSERVER=1 on mailroom-web)
 # optional React desk: cd ui && npm install && npm run build  →  /desk
 ```
 
+Production Docker path (single nginx `:80` front door; builds the `operator`
+image target — `.[operator]` + the React `/desk` build baked in). Both
+operator secrets are required:
+
+```bash
+cd operator_desk
+export MAILROOM_OPERATOR_JWT_SECRET="$(openssl rand -hex 32)"
+export MAILROOM_OPERATOR_ADMIN_PASSWORD='<strong-password>'
+docker compose up --build     # → http://localhost/ , /live , /desk
+```
+
 <details>
 <summary>What you see on each surface</summary>
 
@@ -418,7 +429,10 @@ producer `MAILROOM_API_TOKEN`.
 `MAILROOM_PIPELINE_API_PREFIX` defaults to `/v1`. `MAILROOM_API_URL` is the TUI → this
 visualizer (`:8001`), not the producer. The operator desk (`operator_desk/`)
 adds `MAILROOM_OPERATOR_*` (JWT, admin seed, ingest token) plus
-`MAILROOM_BASE_DIR`, `MAILROOM_OPERATOR_DB`, and `MAILROOM_OBSERVER`. The GH Pages edition adds `MAILROOM_SOURCE`
+`MAILROOM_BASE_DIR`, `MAILROOM_OPERATOR_DB`, and `MAILROOM_OBSERVER`. In the
+Docker compose path `MAILROOM_OPERATOR_JWT_SECRET` and
+`MAILROOM_OPERATOR_ADMIN_PASSWORD` are required and compose fails fast without
+them. The GH Pages edition adds `MAILROOM_SOURCE`
 (`langfuse|phoenix|both`), `PHOENIX_ENDPOINT` / `PHOENIX_API_KEY` /
 `MAILROOM_PHOENIX_PROJECT`, `MAILROOM_CORS_ORIGINS`, and `MAILROOM_DEBUG`.
 

@@ -1,22 +1,42 @@
-# Operator-desk sidecar around the existing The-Mailroom visualizer.
-# Pixel console + Observatory stay vanilla (no Node/React UI).
-# Langfuse stays the US-cloud document-display source — this file does not
+# Operator-desk production sidecar around the existing The-Mailroom visualizer.
+#
+# Topology — single front door (nginx :80):
+#   nginx :80 ──► mailroom :8001   pixel console /, Observatory /live,
+#                                  operator API /v1 /api /ws /ws/pipeline,
+#                                  React desk /desk (baked into the image)
+#   mailroom-observer ──► mailroom :8001   bin-move events
+#
+# The backend is NOT published on the host — reach it only through nginx.
+# Langfuse stays the US-cloud document-display source; this file does not
 # stand up a local Langfuse.
+#
+# REQUIRED secrets (fail-fast): MAILROOM_OPERATOR_JWT_SECRET and
+# MAILROOM_OPERATOR_ADMIN_PASSWORD. Export them (or pass --env-file) first:
+#   export MAILROOM_OPERATOR_JWT_SECRET="$(openssl rand -hex 32)"
+#   export MAILROOM_OPERATOR_ADMIN_PASSWORD='<strong-password>'
+# See operator_desk/README.md.
 
 services:
   mailroom:
     build:
       context: ..
       dockerfile: Dockerfile
+      # The operator image: pip install .[operator] + prebuilt /desk SPA.
+      # A bare `docker build ..` still produces the hosted edition.
+      target: operator
+      args:
+        MAILROOM_EXTRAS: operator
     container_name: mailroom-visualizer
+    restart: unless-stopped
     environment:
       - MAILROOM_EDITION=${MAILROOM_EDITION:-console}
+      # Must bind 0.0.0.0 INSIDE the container (nginx proxies over the network).
       - MAILROOM_HOST=0.0.0.0
       - MAILROOM_PORT=8001
       - MAILROOM_BASE_DIR=/data
       - MAILROOM_OPERATOR_DB=/data/operator.db
-      - MAILROOM_OPERATOR_JWT_SECRET=${MAILROOM_OPERATOR_JWT_SECRET:-dev-secret-change-me}
-      - MAILROOM_OPERATOR_ADMIN_PASSWORD=${MAILROOM_OPERATOR_ADMIN_PASSWORD:-changeme}
+      - MAILROOM_OPERATOR_JWT_SECRET=${MAILROOM_OPERATOR_JWT_SECRET:?MAILROOM_OPERATOR_JWT_SECRET is required (openssl rand -hex 32)}
+      - MAILROOM_OPERATOR_ADMIN_PASSWORD=${MAILROOM_OPERATOR_ADMIN_PASSWORD:?MAILROOM_OPERATOR_ADMIN_PASSWORD is required}
       - MAILROOM_OPERATOR_INGEST_TOKEN=${MAILROOM_OPERATOR_INGEST_TOKEN:-}
       - MAILROOM_OBSERVER=${MAILROOM_OBSERVER:-1}
       - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-}
@@ -26,19 +46,24 @@ services:
       - MAILROOM_PIPELINE_TOKEN=${MAILROOM_PIPELINE_TOKEN:-}
     volumes:
       - mailroom-data:/data
-    ports:
-      - "8001:8001"
-    command: python -m server.main
+    # No host ports: nginx :80 is the single published front door.
 
   mailroom-observer:
     build:
       context: ..
       dockerfile: Dockerfile
+      target: operator
+      args:
+        MAILROOM_EXTRAS: operator
     container_name: mailroom-observer
+    restart: unless-stopped
     environment:
       - MAILROOM_BASE_DIR=/data
       - MAILROOM_OPERATOR_DB=/data/operator.db
       - MAILROOM_API_URL=http://mailroom:8001
+      # Required for the standalone observer's POST /v1/ops/events to be
+      # accepted; without it the in-process watcher (MAILROOM_OBSERVER=1 on
+      # `mailroom`) is the working path. Left empty by default.
       - MAILROOM_OPERATOR_INGEST_TOKEN=${MAILROOM_OPERATOR_INGEST_TOKEN:-}
       - MAILROOM_OBSERVER=0
     volumes:
@@ -47,20 +72,10 @@ services:
     depends_on:
       - mailroom
 
-  mailroom-ui:
-    profiles: ["ui"]
-    build:
-      context: ../ui
-      dockerfile: Dockerfile
-    container_name: mailroom-ui
-    ports:
-      - "5174:80"
-    depends_on:
-      - mailroom
-
   nginx:
     image: nginx:alpine
     container_name: mailroom-nginx
+    restart: unless-stopped
     ports:
       - "80:80"
     volumes:

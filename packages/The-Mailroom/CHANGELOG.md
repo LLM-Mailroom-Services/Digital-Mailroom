@@ -6,6 +6,23 @@ All notable changes to The-Mailroom are documented here, following
 
 ## [Unreleased]
 
+### Fixed
+
+- **Operator-desk Docker path is production-correct.** The shared root
+  `Dockerfile` gains an `operator` build target that installs
+  `.[operator]` (bcrypt / PyJWT / watchdog / PyMuPDF) and bakes the React
+  `/desk` build via a Node `ui-builder` stage — the default hosted build
+  (`pip install .`, port `7860`, `python -m server.hosted`) is unchanged and
+  still the last stage. Front-door nginx drops the bogus `try_files` (no
+  `root`; it resolved against the nginx container, never the upstream) and
+  gains an explicit plain-proxy `/desk`. `operator_desk/docker-compose.yml`
+  builds the `operator` target, publishes only nginx `:80`, and makes
+  `MAILROOM_OPERATOR_JWT_SECRET` / `MAILROOM_OPERATOR_ADMIN_PASSWORD`
+  fail-fast required; the broken optional `ui` profile is removed in favour
+  of the baked `/desk`. Docs updated (`operator_desk/README.md`,
+  `docs/operator-desk.md`, `wiki/Operator-Desk.md`, `ui/README.md`, root
+  `README.md`, `.env.example`).
+
 ### Changed
 
 - **DMR-016: vendored docclass mirror resynced 32→74 keys.**

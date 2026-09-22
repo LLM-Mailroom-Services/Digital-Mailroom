@@ -15,3 +15,7 @@ scripts
 *.md
 !README.md
 .DS_Store
+# React desk: never copy host build artifacts into the image — the ui-builder
+# stage runs `npm ci` + `npm run build` inside the image (root Dockerfile).
+ui/node_modules
+ui/dist

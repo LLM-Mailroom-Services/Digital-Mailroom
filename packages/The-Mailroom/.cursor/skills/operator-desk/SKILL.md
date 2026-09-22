@@ -28,7 +28,10 @@ SQLite (`ui_users` / `ui_audit` / `archive_index`).
 pip install -e ".[operator]"
 python -m operator_desk
 mailroom-observer
-docker compose -f operator_desk/docker-compose.yml up --build
+# production Docker path (single nginx :80 front door; requires both secrets):
+export MAILROOM_OPERATOR_JWT_SECRET="$(openssl rand -hex 32)"
+export MAILROOM_OPERATOR_ADMIN_PASSWORD='<strong-password>'
+cd operator_desk && docker compose up --build
 ```
 
 ## Related

@@ -34,6 +34,11 @@ SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B": (0.05, 0.25),  # deepseek-v4-flash
     "deepseek-ai/DeepSeek-R1-Distill-Llama-8B": (0.05, 0.25),
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": (0.435, 0.87),  # deepseek-v4-pro
+    # Real OpenRouter qwen3-8b price card (USD per 1M in / 1M out). The API-leg
+    # record carries the OpenRouter slug, which matches neither the HF-id keys
+    # above nor the startswith fallback otherwise — without this row the API
+    # leg's estimated_cost_usd would stay None.
+    "qwen/qwen3-8b": (0.05, 0.40),
 }
 
 

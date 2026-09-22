@@ -48,7 +48,7 @@ and the cost plan without executing anything.
 Secrets are never printed (only presence, mirroring ``modal_vllm._masked_config``).
 
 Usage:
-    python deploy/run_modal_classifier_cost.py {--preview|--dry-run|--mock|--run}
+    python deploy/run_modal_classifier_cost.py {--preview|--dry-run|--mock|--run|--run-openrouter}
 """
 
 from __future__ import annotations
@@ -74,10 +74,16 @@ if str(REPO_ROOT / "deploy") not in sys.path:
 import modal_vllm  # noqa: E402  (deploy facts only; import has no deploy side effects)
 
 SPEC_PATH = REPO_ROOT / "config" / "runs" / "qwen3_8b_cost_compare_modal.yaml"
+OR_SPEC_PATH = REPO_ROOT / "config" / "runs" / "qwen3_8b_cost_compare.yaml"
+OR_BASE_URL_DEFAULT = "https://openrouter.ai/api/v1"
 RUN_ID = "qwen3-8b-modal-sorter"
 OPENROUTER_LEG_RUN_ID = "qwen3-8b-openrouter-sorter"
 EXPERIMENT_NAME = "qwen3-8b-cost-per-token"
 DEFAULT_GPU_HOURLY_USD = 0.80
+# Hard ceiling on a single --run's projected Modal spend (GPU cost = hourly x
+# warm-span / 3600). Saved as soon as the tripwire is exceeded; teardown still
+# runs in the finally. Override with MODAL_RUN_SPEND_CAP_USD (float, >0).
+MODAL_RUN_SPEND_CAP_USD = 1.00
 WARMUP_CALLS = 3
 READY_RETRIES = 240
 READY_BACKOFF_SECONDS = 5.0
@@ -104,12 +110,13 @@ def _int(value: Any) -> str:
     return f"{int(value):,}"
 
 
-def _load_spec() -> Any:
+def _load_spec(path: Path | None = None) -> Any:
     from mailroom_sandbox.job.spec import load_run_spec
 
-    if not SPEC_PATH.is_file():
-        raise SystemExit(f"run spec not found: {SPEC_PATH}")
-    return load_run_spec(SPEC_PATH)
+    p = path or SPEC_PATH
+    if not p.is_file():
+        raise SystemExit(f"run spec not found: {p}")
+    return load_run_spec(p)
 
 
 def _sandbox_cmd() -> list[str]:
@@ -175,11 +182,61 @@ def _resolve_api_token() -> str:
     return (os.environ.get("VLLM_API_KEY") or os.environ.get("MODAL_VLLM_API_TOKEN") or "").strip()
 
 
+def _resolve_openrouter_url() -> str:
+    return (os.environ.get("OPENROUTER_BASE_URL") or OR_BASE_URL_DEFAULT).strip() or OR_BASE_URL_DEFAULT
+
+
+def _resolve_openrouter_key() -> str:
+    key = os.environ.get("OPENROUTER_API_KEY") or ""
+    key = (os.environ.get("RESEARCH_FUNDING_OPENROUTER_API_KEY") or key).strip()
+    if not key:
+        raise SystemExit(
+            "no OpenRouter API key found for the API leg — export OPENROUTER_API_KEY "
+            "(or RESEARCH_FUNDING_OPENROUTER_API_KEY). Secret value is never printed."
+        )
+    return key
+
+
 def _gpu_hourly() -> float:
     try:
         return float(os.environ.get("MODAL_GPU_HOURLY_USD") or DEFAULT_GPU_HOURLY_USD)
     except ValueError:
         return DEFAULT_GPU_HOURLY_USD
+
+
+def _spend_cap() -> float:
+    """MODAL_RUN_SPEND_CAP_USD tripwire (float, >0; invalid/unset -> default)."""
+    try:
+        cap = float(os.environ.get("MODAL_RUN_SPEND_CAP_USD") or MODAL_RUN_SPEND_CAP_USD)
+        return cap if cap > 0 else MODAL_RUN_SPEND_CAP_USD
+    except ValueError:
+        return MODAL_RUN_SPEND_CAP_USD
+
+
+def _spend_so_far(gpu_hourly_usd: float, started_at: float) -> float:
+    """Projected GPU spend so far = hourly rate x elapsed wall-clock / 3600.
+
+    A conservative proxy for the running container's billed lifetime during
+    this --run (warm-ups + eval), used by the tripwire to abort runaway spend.
+    """
+    return gpu_hourly_usd * max(0.0, time.monotonic() - started_at) / 3600.0
+
+
+def _check_spend_tripwire(gpu_hourly_usd: float, started_at: float) -> None:
+    """Abort the run (before finalize, after teardown still runs) if the
+    projected Modal spend has crossed MODAL_RUN_SPEND_CAP_USD."""
+    spent = _spend_so_far(gpu_hourly_usd, started_at)
+    cap = _spend_cap()
+    if spent > cap:
+        print(
+            "\n" + "!" * 72
+            + f"\nSPEND TRIPWIRE: projected Modal spend {spent:.4f} USD exceeds "
+            + f"MODAL_RUN_SPEND_CAP_USD={cap:.4f} USD. Aborting before finalize; "
+            + "teardown still runs (finally)."
+            + "\n" + "!" * 72,
+            flush=True,
+        )
+        raise SystemExit(3)
 
 
 REVISION_PLACEHOLDER = "REVISION_PIN_ME"
@@ -500,6 +557,73 @@ def _run_eval(proxy_url: str, api_token: str) -> None:
     _run([*cmd, "run", "start", "--config", str(SPEC_PATH)], env=env)
 
 
+def _run_openrouter_leg(or_spec: Any) -> int:
+    """Drive the OpenRouter (API) leg through the same token-counting proxy and
+    write its serving record (run_id = OPENROUTER_LEG_RUN_ID) so the cost
+    comparison's API column is populated with real token counts + price.
+
+    The isolated sorter eval is run via the sandbox CLI against the OPENROUTER
+    spec, with OPENROUTER_BASE_URL pointed at a local TokenCountingProxy that
+    forwards to OpenRouter and records per-request usage/TTFT/latency. The API
+    record is priced by record_from_run (token price -> estimated_cost_usd),
+    never GPU. No Modal/deploy is involved on this leg.
+    """
+    from mailroom_sandbox.datasets import dataset_fingerprint
+    from mailroom_sandbox.eval import experiment_log
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.metrics import record_from_run
+    from mailroom_sandbox.job.spec import run_dir
+
+    or_url = _resolve_openrouter_url()
+    or_key = _resolve_openrouter_key()
+    _step(f"OpenRouter (API) leg via token-counting proxy -> {or_url}")
+    proxy = TokenCountingProxy(or_url)
+    proxy_url = proxy.start()
+    try:
+        env = dict(os.environ)
+        env["OPENROUTER_BASE_URL"] = proxy_url
+        env["OPENROUTER_API_KEY"] = or_key
+        cmd = _sandbox_cmd()
+        _run([*cmd, "run", "preflight", "--force", "--config", str(OR_SPEC_PATH)], env=env)
+        _run([*cmd, "run", "start", "--config", str(OR_SPEC_PATH)], env=env)
+    finally:
+        proxy.stop()
+    items = proxy.captures.snapshot()
+    _log(f"captured {len(items)} OpenRouter chat request(s) through the token-counting proxy")
+    if not items:
+        print(
+            "\n" + "!" * 72
+            + "\nWARNING: OpenRouter leg produced ZERO proxy captures — API cost is "
+            + "UNKNOWN, not zero. Check the OPENROUTER_BASE_URL / key and the run log."
+            + "\n" + "!" * 72,
+            flush=True,
+        )
+    rows = RunStore(run_dir(OPENROUTER_LEG_RUN_ID)).dataset_rows()
+    fingerprint = dataset_fingerprint(rows) if rows else ""
+    records_before = _load_log_records()
+    serving = record_from_run(
+        run_id=OPENROUTER_LEG_RUN_ID,
+        spec_hash=or_spec.spec_hash(),
+        task=or_spec.task,
+        profile="openrouter",
+        model=or_spec.engine.model,
+        prompt_version="code-default",
+        dataset_fingerprint=fingerprint,
+        items=items,
+        scores=_latest_eval_scores(records_before) or None,
+    )
+    # The isolated eval runner also appends a token-less record for this run;
+    # THIS row is the authoritative one (has run_id + real token counts + price).
+    rec = experiment_log.new_record(experiment_name=EXPERIMENT_NAME, identity=serving)
+    experiment_log.append(rec)
+    _step(f"OpenRouter serving record appended (run_id {OPENROUTER_LEG_RUN_ID})")
+    records = _load_log_records()
+    modal_rec = next((r for r in records if r.get("run_id") == RUN_ID), {})
+    _print_openrouter_comparison(records, modal_rec)
+    _log("API leg complete — run the Modal leg (--run) for the full comparison table.")
+    return 0
+
+
 def _warm_span_seconds(items: list[dict[str, Any]], warm_start: float) -> float:
     ends = [i.get("end_monotonic") or 0.0 for i in items]
     last_end = max(ends) if ends else warm_start
@@ -715,6 +839,7 @@ def _run_real(spec: Any) -> int:
             proxy.stop()
         items = proxy.captures.snapshot()
         _log(f"captured {len(items)} eval chat request(s) through the token-counting proxy")
+        _check_spend_tripwire(_gpu_hourly(), warm_start)
         _finalize(spec, items, warm_start, _gpu_hourly())
         return 0
     finally:
@@ -787,6 +912,8 @@ def _preview(spec: Any) -> int:
     print(f"                experiment_log.new_record(identity=...) + append -> reports/experiment_log.jsonl")
     print(f"  7. compare  : cost card + OpenRouter-leg (run_id {OPENROUTER_LEG_RUN_ID}) table from the log")
     print(f"  8. teardown : {modal_cli[0]} {' '.join(modal_cli[1:])} app stop {modal_vllm.APP_NAME}")
+    print(f"  (API leg)  : --run-openrouter routes the OpenRouter leg through the same proxy and")
+    print(f"               writes its token-counted serving record (no Modal/deploy) for the comparison")
     print()
     print("Cost plan:")
     print(f"  gpu_hourly_usd       : {_usd(gpu_hourly)}/hour (L4 bf16; override with MODAL_GPU_HOURLY_USD)")
@@ -794,6 +921,10 @@ def _preview(spec: Any) -> int:
     print("  warm_span_seconds    : measured at runtime (first warm-up request -> last eval request end)")
     for span in (300, 600, 1200):
         print(f"    example @ {span:>4}s warm : {_usd(gpu_hourly * span / 3600.0)}")
+    _poll_max = READY_RETRIES * READY_BACKOFF_SECONDS
+    _worst = gpu_hourly * (_poll_max + modal.scaledown_seconds) / 3600.0
+    print(f"    worst-case (cold)   : {_usd(_worst)} = gpu_hourly x (readiness poll {_poll_max:.0f}s + scaledown {modal.scaledown_seconds}s) / 3600")
+    print(f"    spend tripwire      : MODAL_RUN_SPEND_CAP_USD = {_spend_cap():.4f} USD (aborts a --run before finalize; teardown always runs)")
     print("  identity recorded    : gpu_hourly_usd, warm_span_seconds, scaledown_seconds, revision, "
           "image_tag, gpu_memory_utilization, max_num_seqs")
     print()
@@ -813,6 +944,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", dest="mode", action="store_const", const="preview", help="alias for --preview")
     parser.add_argument("--mock", dest="mode", action="store_const", const="mock", help="full offline rehearsal against a fake local /v1 endpoint")
     parser.add_argument("--run", dest="mode", action="store_const", const="run", help="the real Modal leg (pre-warm -> deploy -> eval -> record -> teardown)")
+    parser.add_argument("--run-openrouter", dest="mode", action="store_const", const="orleg",
+                        help="THE API LEG only: run the OpenRouter leg through the token-counting "
+                             "proxy and write its token-counted serving record (no Modal/deploy)")
     parser.set_defaults(mode=None)
     args = parser.parse_args(argv)
 
@@ -820,6 +954,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return 2
 
+    if args.mode == "orleg":
+        return _run_openrouter_leg(_load_spec(OR_SPEC_PATH))
     spec = _load_spec()
     if args.mode == "preview":
         return _preview(spec)

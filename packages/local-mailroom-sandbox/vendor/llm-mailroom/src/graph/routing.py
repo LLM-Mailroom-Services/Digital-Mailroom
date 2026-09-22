@@ -400,20 +400,35 @@ def after_human_review(state: dict) -> Literal["extract", "failed"]:
     return "failed"
 
 
-def after_review_classify(state: dict) -> Literal["review_classify", "extract", "human_review"]:
-    """KANBAN-062 (Lane A) outcome router.
+def after_review_classify(state: dict) -> Literal["review_classify", "extract", "human_review", "classify"]:
+    """KANBAN-062 (Lane A) outcome router — plus the #85 M5a (#100) BERT-guard arm.
 
-    The reviewer's high-confidence label wins (extract — with the reviewer's
-    type applied by the node); anything else (reviewer unsure, labels
-    conflicting at low confidence, or reviewer confirming genuine ambiguity)
-    escalates to human review with BOTH opinions recorded on state. The lane
-    is strictly fail-safe: every path it can take existed before the lane.
-    Transient provider errors self-loop on the review node's OWN per-node
-    budget (L-13) before escalating.
+    **Sorter path** (``review_reference == "sorter"``, KANBAN-062): the
+    reviewer's high-confidence label wins (extract — with the reviewer's type
+    applied by the node); anything else (reviewer unsure, labels conflicting
+    at low confidence, or reviewer confirming genuine ambiguity) escalates to
+    human review with BOTH opinions recorded on state. The lane is strictly
+    fail-safe: every path it can take existed before the lane. Transient
+    provider errors self-loop on the review node's OWN per-node budget (L-13)
+    before escalating.
+
+    **BERT-guard path** (``review_reference == "bert"``, M5a): the reviewer
+    verified the BERT triage (no sorter has run). Reviewer agrees at high
+    confidence → extract with the BERT label (``classification_method`` was
+    set to ``bert_intake`` by the node). Anything else — including a
+    high-confidence reviewer override — → ``classify``: the full sorter is
+    the authority and gets to decide. Transient exhaustion also → ``classify``
+    (fail-open; the doc must not skip the sorter just because the guard
+    wobbled).
     """
     if state.get("transient_error"):
         if _transient_decision(state, retry_target="review_classify") == "retry":
             return "review_classify"
+        # Exhausted: the guard's failure must not strand the doc — the sorter
+        # decides (M5a), human review (KANBAN-062, where the sorter already
+        # answered and the human is the only remaining authority).
+        if state.get("review_reference") == "bert":
+            return "classify"
         return "human_review"
     verdict = state.get("review_verdict")
     confidence = state.get("reviewer_confidence")
@@ -426,6 +441,27 @@ def after_review_classify(state: dict) -> Literal["review_classify", "extract", 
         and confidence >= high
         and is_extractable_doc_type(doc_type)
     ):
+        # M5a guard: only a plain agree may fast-path extract — an override
+        # means the triage label did NOT survive verification, so the full
+        # sorter decides (the reviewer's opinion is preserved on state for
+        # the sorter's prompt context).
+        if state.get("review_reference") == "bert":
+            if verdict == "reviewer_agrees_high":
+                logger.info(
+                    "bert_guard_accepted",
+                    confidence=confidence,
+                    doc_type=doc_type,
+                    doc_id=state.get("doc_id"),
+                )
+                return "extract"
+            logger.info(
+                "bert_guard_override_to_sorter",
+                verdict=verdict,
+                confidence=confidence,
+                doc_type=doc_type,
+                doc_id=state.get("doc_id"),
+            )
+            return "classify"
         from pipeline.reconsideration import class_misses_ground_truth
 
         if class_misses_ground_truth(state, reviewer=True):
@@ -445,6 +481,16 @@ def after_review_classify(state: dict) -> Literal["review_classify", "extract", 
             doc_id=state.get("doc_id"),
         )
         return "extract"
+    # Guard path: any non-winning outcome (low-confidence agree, conflict,
+    # reviewer_error) → the sorter decides. Sorter path: human review.
+    if state.get("review_reference") == "bert":
+        logger.info(
+            "bert_guard_rejected_to_sorter",
+            verdict=verdict,
+            confidence=confidence,
+            doc_id=state.get("doc_id"),
+        )
+        return "classify"
     logger.info(
         "review_classify_escalated",
         verdict=verdict,
@@ -452,6 +498,97 @@ def after_review_classify(state: dict) -> Literal["review_classify", "extract", 
         doc_id=state.get("doc_id"),
     )
     return "human_review"
+
+
+def _bert_mode() -> str:
+    """The epic rollout-ladder mode (shadow -> verify -> skip); default shadow."""
+    import os
+
+    return str(os.environ.get("BERT_INTAKE_MODE", "shadow")).strip().lower()
+
+
+def _gate_handoff(handoff: dict) -> dict:
+    """Adapt the M6a lane handoff to the mailroom-ml schema-v1 gate shape.
+
+    ``evaluate_intake_gate`` (mailroom-ml routing) consumes the epic's nested
+    handoff (``triage``/``quality``/``gate``); the lane handoff is flattened.
+    The adapter maps the lane's fields onto the gate's inputs — the gate
+    logic itself stays in ONE place (mailroom-ml), never re-implemented here.
+    """
+    quality = dict(handoff.get("quality") or {})
+    quality.setdefault("messy", False)
+    quality["guard_failures"] = handoff.get("guard_failures") or []
+    return {
+        "method": "bert",
+        "quality": quality,
+        "triage": {
+            "primary_doc_class": handoff.get("doc_type"),
+            "doc_subclass": handoff.get("subclass"),
+            "confidence": handoff.get("calibrated_confidence")
+            or handoff.get("confidence") or 0.0,
+        },
+        "gate": {},
+    }
+
+
+def after_intake(state: dict) -> Literal["classify", "review_classify", "extract"]:
+    """#85 M6b (#99): post-intake continuation — the BERT fast-path split.
+
+    Replaces the hard ``intake -> classify`` edge. Behavior table (from #91):
+
+    - lane unavailable (``flag_off`` | ``no_package`` | ``no_model`` |
+      ``error``) -> ``classify`` — today's path, byte-identical;
+    - BERT ``route != fast_path`` (gate fail) AND mode in {verify, skip} ->
+      ``review_classify`` (reviewer guard, M5a #100);
+    - BERT ``route != fast_path`` AND mode == shadow -> ``classify``;
+    - BERT ``route == fast_path`` AND mode == skip AND class allowlisted AND
+      ``evaluate_intake_gate(...).eligible_for_sorter_skip`` -> ``extract``
+      (``bert_intake`` — no ``SorterAgent`` constructed; Tier 0);
+    - everything else -> ``classify`` (fail-open: the sorter stays
+      authority). Tier 1 (doc_type passed, subclass left open) lands in
+      ``classify`` via this row and is recognized there by
+      ``_bert_triage_scoped`` — the router cannot mutate state, so the
+      ``bert_scoped`` flag is stamped by classify_node from the handoff.
+
+    The gate call is lazy-guarded (mailroom-ml is an undeclared sibling) and
+    fail-open by construction — a missing package or a gate exception routes
+    to the sorter, never to a silent BERT accept.
+    """
+    handoff = state.get("intake_handoff") or {}
+    if not handoff.get("available") or handoff.get("method") != "bert":
+        return "classify"
+    # BERT error / status failure -> fail-soft to the sorter (pre-BERT
+    # behavior) — a broken classifier never routes to the reviewer guard.
+    if handoff.get("status") == "failure":
+        return "classify"
+    if handoff.get("route") != "fast_path":
+        return "review_classify" if _bert_mode() in ("verify", "skip") else "classify"
+    if _bert_mode() != "skip":
+        return "classify"
+    try:
+        from mailroom_ml.routing import (  # type: ignore[import-not-found]
+            GATE_ALLOWLISTED_START,
+            evaluate_intake_gate,
+        )
+    except ImportError:
+        logger.warning("bert_gate_package_unavailable", doc_id=state.get("doc_id"))
+        return "classify"
+    if handoff.get("doc_type") not in GATE_ALLOWLISTED_START:
+        return "classify"
+    try:
+        gate = evaluate_intake_gate(_gate_handoff(handoff), mode="skip")
+    except Exception as exc:  # noqa: BLE001 — fail-open: never accept on a broken gate
+        logger.warning("bert_gate_failed_open", doc_id=state.get("doc_id"),
+                       error=str(exc)[:200])
+        return "classify"
+    if gate.get("eligible_for_sorter_skip"):
+        logger.info(
+            "bert_skip_accepted",
+            doc_id=state.get("doc_id"),
+            doc_type=handoff.get("doc_type"),
+        )
+        return "extract"
+    return "classify"
 
 
 def after_judge(state: dict) -> Literal["judge_verify", "compile_report", "arbiter", "human_review"]:

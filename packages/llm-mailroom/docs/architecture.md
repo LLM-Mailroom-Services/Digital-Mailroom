@@ -250,7 +250,7 @@ Writes document and matter records to the database (best-effort — pipeline con
 | `intake` | Intake agent — the ingest specialist (clerk + LLM-assisted) | Read file, deterministic `normalize-intake`, gated LLM triage/clean/prepare, create manifest, move to processing |
 | `classify` | Sorter | Determine doc_type + confidence |
 | `retry_classify` | Sorter | Re-classify with alternate prompt |
-| `review_classify` | Sorter Reviewer | Agent second opinion when the medium band is exhausted (KANBAN-062) |
+| `review_classify` | Sorter Reviewer | Agent second opinion when the medium band is exhausted (KANBAN-062); also the M5a BERT verification guard on gate-failed BERT triages (#100) — agree-high extracts the BERT label, else the sorter decides |
 | `extract` | Specialist | Extract structured data per doc-type |
 | `retry_extract` | Specialist | Re-extract with context from prior attempt |
 | `judge_verify` | Judge (in-graph) | Gated completeness verification of any extraction landing in the ambiguous band (KANBAN-063) |
@@ -264,6 +264,10 @@ Writes document and matter records to the database (best-effort — pipeline con
 ## Conditional Edges
 
 ```
+intake ─┬─ BERT fast_path + skip mode + class allowlisted + gate PASS ─▶ extract (bert_intake)
+        ├─ BERT route ≠ fast_path + mode verify|skip ───────────────────▶ review_classify (M5a guard)
+        └─ BERT unavailable / error / shadow mode / else ───────────────▶ classify
+
 classify ─┬─ unknown / retired type ──▶ human_review
           ├─ confidence >= high ──────▶ extract
           ├─ low <= conf < high ─────▶ retry_classify
@@ -277,6 +281,8 @@ retry_classify ─┬─ transient (budget left) ───────▶ retry_
                 └─ still low ─────────────────────▶ human_review
 
 review_classify ─┬─ high-confidence live class ─▶ extract
+                 ├─ BERT-guard agree-high ──────▶ extract (bert_intake, #100)
+                 ├─ BERT-guard reject/override ─▶ classify (#100 — sorter decides)
                  └─ unknown / unsure / else ────▶ human_review
 
 extract ─┬─ unsupported / non-taxonomy type ─▶ human_review (no retry)

@@ -13,7 +13,7 @@
 | Rows | 1000 (30.3% of 3,302): v4 drew 110, v6 appended 240, v9 appended +650 |
 | Splits | train 915 / test 85 (`md5(filename) % 10 == 0 → test`; each email keeps its split across this dataset and the dedup corpus) |
 | Strata | 8 `expected_subclass` values: email 557, memo 83, notice 81, letter 79, press_release 78, demand 66, meeting_request 53, attorney_demand 3 |
-| Content topics | 11 (general_business 165, energy_market 40, marketing_clients 32, hr_personnel 36, legal_contracts 21, regulatory 20, scheduling 19, finance_earnings 5, announcements 4, it_systems 4, travel_logistics 4) |
+| Content topics | 11 (general_business 537, energy_market 100, hr_personnel 73, marketing_clients 56, scheduling 54, legal_contracts 53, regulatory 46, it_systems 25, finance_earnings 21, travel_logistics 20, announcements 15) |
 | Provenance keys | `metadata.source = cmu_enron_maildir`, `metadata.source_dataset = Lucius-Morningstar/enron-correspondence-dedup`, `metadata.license = "Enron corpus — released for research use"` |
 | Entered at | v4 (+110) and v6 (+240); v7 hydrated `intent` on all rows |
 | License | Research use only; contains real PII of Enron employees |
@@ -94,13 +94,13 @@ consumer use of the correspondence subset.
 
 ## Purpose in mailroom-dataset
 
-1. **doc_type supervision** — 350 gold `correspondence` labels across 8
+1. **doc_type supervision** — 1,000 gold `correspondence` labels across 8
    mail subtypes, including the hard minority `attorney_demand` (3 rows, an
    honest gap: the dedup corpus carries no more beyond the v4 sample).
 2. **Multi-task head targets** — the only subset supervised on four axes at
    once: `expected_subclass` (8), `content_topic` (11), `intent` (8-class
    canonical vocabulary), and `sentiment_score`/`sentiment_label`
-   (neutral 178 / positive 97 / negative 75) with per-label evidence
+   (neutral 566 / positive 254 / negative 180) with per-label evidence
    strings (`label_evidence`, `topic_evidence`, `sentiment_evidence`) on
    the `ground_truth` config.
 3. **Agentic triage realism** — short, noisy, conversational text balancing
@@ -112,40 +112,41 @@ consumer use of the correspondence subset.
    is the family-wide `INTENT_LABELS` reference (see
    `src/mailroom_eda/intent_backfill.py`).
 
-## Intent hydration (v7, issue #5)
+## Intent hydration (v7, issue #5; v9-expanded)
 
-All 350 rows carry a non-null canonical intent — **100.0% coverage** — with
+All 1,000 rows carry a non-null canonical intent — **100.0% coverage** — with
 three provenance columns on the `ground_truth` config
 (`intent_source` / `intent_confidence` / `intent_status`).
-`intent_source` records the **hydration path**; the three values are
-disjoint and sum to 350:
+`intent_source` records the **hydration path**; the four values are
+disjoint and sum to 1,000:
 
 | `intent_source` | Rows | Mechanism |
 |---|---:|---|
 | `manual` | 96 | purpose-GT labeling push (llm-mailroom, 2026-08-30) |
 | `aeslc_join` | 162 | join-assisted hydration: a sha256 exact normalized-body match against the Enron/AESLC mirrors routes the row through the assisted pass — the join supplies row provenance + the recovered `subject_line` used as constrained context |
-| `llm_zero_shot` | 92 | constrained zero-shot pass without a join hit, OpenRouter `deepseek/deepseek-chat`, temperature 0.1, closed 8-class vocabulary |
+| `heuristic` | 105 | v9 addition (epic #18): §20/§43 subject-line heuristics on the +650 drawn rows, `intent_status = auto_labeled` |
+| `llm_zero_shot` | 637 | constrained zero-shot pass without a join hit, OpenRouter `deepseek/deepseek-chat`, temperature 0.1, closed 8-class vocabulary |
 
 The mirrors carry **no** intent annotations (verified 2026-08-31): every
 label is assigned under the closed vocabulary during the labeling pass, so
 `aeslc_join` marks the path a row's label came through — not a mirror-side
-label origin. Statuses (`intent_status`): `manual` 96, `auto_labeled` 253,
-`flagged_review` 1 (confidence < 0.85 threshold → manual review queue).
-The `other` class is the explicit fallback (22 rows), never null.
+label origin. Statuses (`intent_status`): `manual` 96, `auto_labeled` 879,
+`flagged_review` 25 (confidence < 0.85 threshold → manual review queue).
+The `other` class is the explicit fallback (123 rows), never null.
 
-Intent distribution (v7 EDA): notice 74, request 73, meeting_invite 57,
-press_communication 51, update 51, other 22, analysis 12, payment_demand
-10. Every canonical class appears in the 10% test split (test sources:
-aeslc_join 26, llm_zero_shot 14). The checkpointed backfill is reproducible
-via `scripts/backfill/backfill_intent.py` (never hand-edit
-`data/backfill/intent_labels.jsonl`).
+Intent distribution (v9): request 221, update 193, notice 177,
+meeting_invite 124, other 123, press_communication 97, payment_demand 37,
+analysis 28. Every canonical class appears in the 10% test split (85 rows;
+test sources: llm_zero_shot 56, aeslc_join 26, heuristic 3). The
+checkpointed backfill is reproducible via `scripts/backfill/backfill_intent.py`
+(never hand-edit `data/backfill/intent_labels.jsonl`).
 
-## Subset statistics (v7 EDA)
+## Subset statistics (v9 EDA)
 
-- Text length (chars): mean 2,470 · p50 1,230 · p95 6,101 · max 104,836 —
+- Text length (chars): mean 2,103 · p50 1,054 · p95 5,960 · max 104,836 —
   the short-text pole of the corpus (bodies < 80 chars were excluded from
   sampling; empty bodies never win a slot).
-- Sentiment: neutral 178 / positive 97 / negative 75.
+- Sentiment: neutral 566 / positive 254 / negative 180.
 - Topic × intent crosstab:
   [`reports/tables/correspondence_topic_intent.csv`](../../reports/tables/correspondence_topic_intent.csv)
   (e.g. payment_demand concentrates in marketing_clients; meeting_invite in
@@ -157,12 +158,14 @@ via `scripts/backfill/backfill_intent.py` (never hand-edit
   deterministic lexicon and marker-taxonomy functions, human spot-checked
   upstream — single-topic assignment for multi-topic emails, head-window
   scanning, no sarcasm detection. Treat them as routing priors, not gold.
-  The v7 `intent` labels inherit this: 254/350 came from a zero-shot LLM
-  pass (confidence-thresholded at 0.85), 1 row remains flagged for review.
+  The `intent` labels inherit this: 637/1,000 came from a zero-shot LLM
+  pass (confidence-thresholded at 0.85), 25 rows remain flagged for review.
 - **Research-use / PII**: real employee names, addresses and content;
   research contexts only (see Attribution).
-- **Subclass skew**: `attorney_demand` has only 3 rows and zero test rows;
-  the remaining 7 subtypes are balanced (~49–51 each).
+- **Subclass skew**: `email` dominates (557/1,000 rows); `attorney_demand`
+  has 3 rows and zero test rows; the remaining strata are small but
+  test-exposed (39 email, 14 letter, 9 memo, 8 press_release, 6 demand,
+  5 meeting_request, 4 notice test rows).
 - **Time-locked**: all mail predates the 2004 release; language and
   formatting are early-2000s corporate email.
 

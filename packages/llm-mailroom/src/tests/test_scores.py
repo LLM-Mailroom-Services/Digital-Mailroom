@@ -97,6 +97,63 @@ class TestEmitPipelineScores:
             os.environ.pop("OBSERVABILITY_PROVIDER", None)
 
 
+def test_bert_fast_path_scores_registered_in_dojo_registry():
+    """KANBAN-061 integrity: every mailroom SCORE_CONFIGS name, including the
+    #106 BERT fast-path set, resolves in the llm-dojo-scoring registry."""
+    from llm_dojo_scoring import load_registry
+
+    from observability.scores import SCORE_CONFIGS
+
+    reg = load_registry()
+    names = {c["name"] for c in SCORE_CONFIGS}
+    bert_fast_path = {
+        "bert_pass",
+        "bert_sorter_agreement",
+        "bert_fail_soft",
+        "bert_elapsed_ms",
+        "fast_path_est_cost_usd",
+    }
+    assert bert_fast_path <= names
+    missing = [n for n in names if n not in reg.metrics]
+    assert not missing, f"unregistered SCORE_CONFIGS names: {missing}"
+    # mailroom-only names must be flagged as not computed upstream
+    assert reg.get("bert_pass").source is None
+    assert reg.get("bert_fail_soft").ground_truth == "none"
+
+
+def test_bert_fast_path_score_types_and_wire_cap():
+    from observability.scores import SCORE_CONFIGS, langfuse_score_name
+
+    by_name = {c["name"]: c for c in SCORE_CONFIGS}
+    assert by_name["bert_pass"]["data_type"] == "BOOLEAN"
+    assert by_name["bert_sorter_agreement"]["data_type"] == "BOOLEAN"
+    assert by_name["bert_fail_soft"]["data_type"] == "BOOLEAN"
+    assert by_name["bert_elapsed_ms"]["data_type"] == "NUMERIC"
+    assert by_name["fast_path_est_cost_usd"]["data_type"] == "NUMERIC"
+    for name in by_name:
+        assert len(langfuse_score_name(name)) <= 35, name
+
+
+def test_estimate_fast_path_cost_usd_derived_distinct_from_llm_call_cost():
+    """#106 non-conflation contract: the fast-path cost is a pure derivation
+    of bert_elapsed_ms and never lands in estimated_cost_usd."""
+    from observability.scores import (
+        SCORE_CONFIGS,
+        estimate_fast_path_cost_usd,
+    )
+
+    names = {c["name"] for c in SCORE_CONFIGS}
+    assert "fast_path_est_cost_usd" in names
+    assert "estimated_cost_usd" in names
+    assert estimate_fast_path_cost_usd(0.0) == 0.0
+    assert estimate_fast_path_cost_usd(-5.0) == 0.0
+    # monotonic, energy-model-shaped: doubling wall-clock doubles the cost
+    a = estimate_fast_path_cost_usd(100.0)
+    b = estimate_fast_path_cost_usd(200.0)
+    assert 0.0 < a < b
+    assert b == round(2 * a, 10)
+
+
 def test_langfuse_score_name_aliases_overlong_verified_precision():
     from observability.scores import langfuse_score_name
 

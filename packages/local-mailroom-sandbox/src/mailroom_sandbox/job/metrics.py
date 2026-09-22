@@ -34,6 +34,11 @@ SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B": (0.05, 0.25),  # deepseek-v4-flash
     "deepseek-ai/DeepSeek-R1-Distill-Llama-8B": (0.05, 0.25),
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": (0.435, 0.87),  # deepseek-v4-pro
+    # Real OpenRouter qwen3-8b price card (USD per 1M in / 1M out). The API-leg
+    # record carries the OpenRouter slug, which matches neither the HF-id keys
+    # above nor the startswith fallback otherwise — without this row the API
+    # leg's estimated_cost_usd would stay None.
+    "qwen/qwen3-8b": (0.05, 0.40),
 }
 
 
@@ -74,6 +79,16 @@ def _estimate_cost(
     )
 
 
+def _as_float(value: Any) -> float | None:
+    """Parse a numeric field; booleans/None are not numbers."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def bucket_kind(record: Mapping[str, Any]) -> str:
     kind = str(record.get("serving_kind") or "").lower()
     if kind in {"local", "api", "modal"}:
@@ -104,8 +119,16 @@ def record_from_run(
     dataset_fingerprint: str,
     items: Sequence[Mapping[str, Any]],
     scores: Mapping[str, Any] | None = None,
+    gpu_hourly_usd: float | None = None,
+    warm_span_seconds: float | None = None,
 ) -> dict[str, Any]:
-    """Aggregate per-item captures into one dojo-compatible serving record."""
+    """Aggregate per-item captures into one dojo-compatible serving record.
+
+    ``gpu_hourly_usd`` / ``warm_span_seconds`` are the Modal/GPU billing
+    inputs (hourly rate × warm span). For a Modal bucket they price the run
+    by wall clock; when either is absent the GPU cost stays unknown (None)
+    rather than being fabricated from a token price.
+    """
     kind = bucket_kind({"serving_kind": "", "profile": profile, "provider": _provider_for(profile)})
     # hub#56: TTFT aggregation must treat failures like the latency
     # aggregation — failed/retried items carry inflated TTFT from backoff
@@ -130,6 +153,10 @@ def record_from_run(
         "run_id": run_id,
         "spec_hash": spec_hash,
     }
+    if gpu_hourly_usd is not None:
+        rec["gpu_hourly_usd"] = float(gpu_hourly_usd)
+    if warm_span_seconds is not None:
+        rec["warm_span_seconds"] = float(warm_span_seconds)
     if latencies:
         rec["e2e_latency_seconds"] = statistics.mean(latencies) / 1000.0
     if ttfts:
@@ -142,17 +169,27 @@ def record_from_run(
         rec["total_tokens"] = total_tokens
     if scores:
         rec["scores"] = dict(scores)
-    try:
-        cost = _estimate_cost(prompt_tokens, completion_tokens, model)
-        if cost is not None:
-            rec["estimated_cost_usd"] = float(cost)
-    except Exception as exc:
-        _log.warning(
-            "cost estimation for run %r failed outright (inner function "
-            "covered) — estimated_cost_usd will be ABSENT from the record: %s",
-            run_id,
-            exc,
-        )
+    if kind == "modal":
+        # Modal/GPU billing is wall-clock (hourly rate × warm span), NOT an
+        # OpenRouter champion token price. Unknown stays None.
+        hourly = _as_float(rec.get("gpu_hourly_usd"))
+        warm = _as_float(rec.get("warm_span_seconds"))
+        if hourly is not None and warm is not None:
+            rec["gpu_cost_usd"] = round(hourly * warm / 3600.0, 6)
+        else:
+            rec["gpu_cost_usd"] = None
+    else:
+        try:
+            cost = _estimate_cost(prompt_tokens, completion_tokens, model)
+            if cost is not None:
+                rec["estimated_cost_usd"] = float(cost)
+        except Exception as exc:
+            _log.warning(
+                "cost estimation for run %r failed outright (inner function "
+                "covered) — estimated_cost_usd will be ABSENT from the record: %s",
+                run_id,
+                exc,
+            )
     return {k: v for k, v in rec.items() if v is not None}
 
 
@@ -187,8 +224,9 @@ def aggregate_bucket(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     prom = sum(int(r.get("prompt_tokens") or 0) for r in records)
     comp = sum(int(r.get("completion_tokens") or 0) for r in records)
     cost = [float(r["estimated_cost_usd"]) for r in records if r.get("estimated_cost_usd") is not None]
+    gpu_cost = [float(r["gpu_cost_usd"]) for r in records if r.get("gpu_cost_usd") is not None]
     dur = sum(lat) if lat else None
-    return {
+    agg = {
         "n": n,
         "mean_ttft_s": _mean(ttft),
         "mean_e2e_s": _mean(lat),
@@ -196,6 +234,9 @@ def aggregate_bucket(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "tokens_per_s": round((prom + comp) / dur, 2) if dur else None,
         "estimated_cost_usd": round(sum(cost), 6) if cost else None,
     }
+    if gpu_cost:
+        agg["gpu_cost_usd"] = round(sum(gpu_cost), 6)
+    return agg
 
 
 def _pct(base: float | None, other: float | None) -> float | None:

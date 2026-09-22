@@ -40,7 +40,9 @@ it lives at `packages/mailroom-corpus-eda` as a virtual uv member (no build).
   - `visualizations_interactive.py` — P4 Plotly HTML figures (18)
   - `hf_interface.py` — centralized Hub client (upload, sha256 verify)
   - `dataset_export.py` — cast-safe JSONL (KANBAN-076/088), parquet staging, manifests
-  - `docclass_uploader.py` — docclass v7 publish, surgical card render, leak guard
+  - `docclass_uploader.py` — LEGACY: v7-schema docclass publish for the
+    frozen v8 `mailroom-corpus` repo only (v9 publish rides
+    `scripts/build/build_v9.py` → `v9_build.build_all` → `hf_interface`)
   - `intent_backfill.py` — correspondence intent hydration (issue #5):
     cross-walk, Enron/AESLC sha256 join, constrained LLM pass, provenance
   - `token_budget.py` — token estimation & budget coverage

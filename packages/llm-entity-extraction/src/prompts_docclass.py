@@ -66,6 +66,7 @@ from src.prompts import (  # noqa: F401  (re-exports are part of the surface)
     SORTER_DOCCLASS_PROMPT_V5,
     SORTER_DOCCLASS_PROMPT_V6,
     SORTER_DOCCLASS_PROMPT_V7,
+    SORTER_MAILROOM_PROMPT_V0,
     SORTER_DOCCLASS_CORRESPONDENCE_PROMPT_V0,
     SORTER_DOCCLASS_CORRESPONDENCE_PROMPT_V1,
     SORTER_DOCCLASS_CORRESPONDENCE_PROMPT_V2,
@@ -1055,6 +1056,9 @@ DOCCLASS_PROMPT_VERSIONS: dict[str, str] = {
     "sorter_docclass_v5": SORTER_DOCCLASS_PROMPT_V5,
     "sorter_docclass_v6": SORTER_DOCCLASS_PROMPT_V6,
     "sorter_docclass_v7": SORTER_DOCCLASS_PROMPT_V7,
+    # #68A: 6-token insurance promotion — v7's rule 40 stays frozen; the
+    # mailroom v0 successor (property/auto LOB, DMR-015) is the active sorter.
+    "sorter_mailroom_v0": SORTER_MAILROOM_PROMPT_V0,
     "sorter_docclass_correspondence_v0": SORTER_DOCCLASS_CORRESPONDENCE_PROMPT_V0,
     "sorter_docclass_correspondence_v1": SORTER_DOCCLASS_CORRESPONDENCE_PROMPT_V1,
     "sorter_docclass_correspondence_v2": SORTER_DOCCLASS_CORRESPONDENCE_PROMPT_V2,

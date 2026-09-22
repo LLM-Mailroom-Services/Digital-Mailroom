@@ -119,6 +119,10 @@ class PipelineRun(BaseModel):
     intake_changed: Optional[bool] = None
     intake_method: Optional[str] = None
     intake_chars: Optional[int] = None
+    # #111: terminal-manifest ``intake.bert`` block (BERT handoff fields +
+    # gate_outcome) lifted for the Observatory BERT lane panels. None on
+    # runs whose manifest predates the lane or carries no bert block.
+    intake_bert: Optional[dict] = None
     classification_confidence: Optional[float] = None
     extraction_confidence: Optional[float] = None
     review_decision: Optional[str] = None

@@ -13,6 +13,7 @@ from langgraph.types import Command, interrupt
 from graph.state import DocumentState
 from graph.routing import (
     after_classify,
+    after_intake,
     after_retry_classify,
     after_review_classify,
     after_extraction,
@@ -770,6 +771,25 @@ def intake_node(state: DocumentState) -> dict[str, Any]:
     return intake_state
 
 
+def _bert_triage_scoped(state: DocumentState) -> bool:
+    """#108 Tier-1 predicate: BERT doc_type head PASSED (route fast_path +
+    doc_type_pass) — the sorter's residual job is subclass verification.
+
+    Mirrors the tier table: Tier 0 (full skip) never reaches classify;
+    Tier 2 (gate fail / missing lane) yields False (no BERT steer); Tier 1
+    yields True and the node composes the verified-type prior + scoped
+    completion budget. The flag rides state so retries and the manifest
+    stay consistent.
+    """
+    handoff = state.get("intake_handoff") or {}
+    if not handoff.get("available") or handoff.get("method") != "bert":
+        return False
+    if handoff.get("route") != "fast_path":
+        return False
+    doc_type_pass = handoff.get("doc_type_pass", True)
+    return bool(doc_type_pass and handoff.get("doc_type"))
+
+
 def classify_node(state: DocumentState) -> dict[str, Any]:
     doc_text = state.get("doc_text", "")
     if not doc_text or not doc_text.strip():
@@ -813,11 +833,16 @@ def classify_node(state: DocumentState) -> dict[str, Any]:
         bert_prior = format_bert_type_prior(state.get("bert_triage") or None)
         if bert_prior:
             intake_prior = "\n\n".join(p for p in (intake_prior, bert_prior) if p)
+        # #108 Tier-1: scoped docs get the verified-type prior (composed
+        # above) + a capped completion budget (2048 -> 1024); Tier-2 keeps
+        # the full budget from taxonomy.yaml.
+        scoped = _bert_triage_scoped(state)
         # Structured classify includes per-class doc_subclass (dojo catalogs).
         classified = sorter.classify_json(
             doc_text,
             pages=state.get("doc_pages"),
             intake_prior=intake_prior,
+            max_tokens=1024 if scoped else None,
         )
         doc_type = classified.get("doc_type") or ""
         contract_subtype = classified.get("contract_subtype")
@@ -910,6 +935,7 @@ def classify_node(state: DocumentState) -> dict[str, Any]:
         confidence=confidence,
         attempts=attempts,
     )
+    scoped = _bert_triage_scoped(state)
     result = {
         "doc_type": doc_type,
         "contract_subtype": contract_subtype,
@@ -917,6 +943,12 @@ def classify_node(state: DocumentState) -> dict[str, Any]:
         "classification_confidence": confidence,
         "classification_attempts": attempts,
         "classification_guardrail": guard["issues"],
+        # #85 M6b (#99) + M6e (#108): classification_method distinguishes the
+        # BERT fast path (bert_intake), the Tier-1 prior-scoped lane
+        # (bert_scoped — BERT verified the type, sorter resolved the
+        # subclass), and the full sorter (llm_sorter).
+        "classification_method": "bert_scoped" if scoped else "llm_sorter",
+        "bert_scoped": scoped,
         "stage": PipelineStage.CLASSIFIED.value,
         "escalation_reason": reasoning
         if confidence < get_confidence_thresholds().get("high", 0.95)
@@ -956,14 +988,25 @@ def retry_classify_node(state: DocumentState) -> dict[str, Any]:
         preamble = f"{preamble}\n\n{memory}"
     from agents.intake import format_intake_prior
 
+    scoped = _bert_triage_scoped(state)
     try:
         # HUB-038: no truncation — the retry reads the FULL document through
         # sliding windows (preamble + advisory intake prior on every window).
+        # #108: a Tier-1 scoped retry KEEPS the verified-type BERT prior (the
+        # sorter re-resolves the subclass, not the type it was steered to);
+        # the scoped completion budget applies for the same reason.
+        retry_prior = format_intake_prior(state.get("intake_prep") or None)
+        from agents.bert_intake import format_bert_type_prior
+
+        bert_prior = format_bert_type_prior(state.get("bert_triage") or None)
+        if bert_prior:
+            retry_prior = "\n\n".join(p for p in (retry_prior, bert_prior) if p)
         classified = sorter.classify_json(
             doc_text,
             pages=state.get("doc_pages"),
             prefix=preamble,
-            intake_prior=format_intake_prior(state.get("intake_prep") or None),
+            intake_prior=retry_prior,
+            max_tokens=1024 if scoped else None,
         )
         doc_type = classified.get("doc_type") or ""
         contract_subtype = classified.get("contract_subtype")
@@ -1037,6 +1080,9 @@ def retry_classify_node(state: DocumentState) -> dict[str, Any]:
         "classification_attempts": attempts,
         "retry_count": state.get("retry_count", 0) + 1,
         "classification_guardrail": guard["issues"],
+        # #108: keep the lane method consistent across the retry.
+        "classification_method": "bert_scoped" if scoped else "llm_sorter",
+        "bert_scoped": scoped,
         "stage": PipelineStage.CLASSIFIED.value,
         "escalation_reason": reasoning
         if confidence < get_confidence_thresholds().get("high", 0.95)
@@ -1047,13 +1093,21 @@ def retry_classify_node(state: DocumentState) -> dict[str, Any]:
 
 def review_classify_node(state: DocumentState) -> dict[str, Any]:
     """KANBAN-062 (Lane A): independent agent second opinion on a medium-band
-    classification.
+    classification — and, since #85 M5a (#100), the BERT verification guard.
 
-    The reviewer classifies the document BLIND (no hint of the sorter's
-    answer — independence is the point). Agreement/override is computed here
-    in code. The lane never changes the failure surface: reviewer high-
-    confidence → extract with the reviewer's label applied; anything else →
-    human_review with BOTH opinions preserved on state.
+    The reviewer classifies the document BLIND (no hint of the sorter's OR
+    the BERT triage's answer — independence is the point). Agreement/override
+    is computed here in code. Two entry conditions:
+
+    - **sorter path** (KANBAN-062, unchanged): the sorter ran; reviewer
+      high-confidence → extract with the reviewer's label applied; anything
+      else → human_review with BOTH opinions preserved on state.
+    - **BERT-guard path** (M5a): after_intake routed a gate-failed BERT
+      triage here in verify/skip — no sorter has run. The reference label is
+      the BERT triage's; reviewer-agree (high confidence) → extract with the
+      BERT label (``classification_method=bert_intake``); anything else →
+      the full sorter decides (``classify``). ``review_reference`` records
+      which path fired so the router can distinguish them.
     """
     from agents.sorter_reviewer import SorterReviewerAgent
     from llm.retry import is_transient_error
@@ -1064,6 +1118,16 @@ def review_classify_node(state: DocumentState) -> dict[str, Any]:
     doc_text = state.get("doc_text", "")
     sorter_type = state.get("doc_type")
     sorter_confidence = state.get("classification_confidence")
+    # #85 M5a (#100): BERT-guard entry — no sorter ran and the intake handoff
+    # is a BERT triage; the reference label is the triage's, and the reviewer
+    # stays blind either way (the handoff is never passed to the reviewer).
+    handoff = state.get("intake_handoff") or {}
+    bert_guard = not sorter_type and handoff.get("method") == "bert"
+    reference_type = handoff.get("doc_type") if bert_guard else sorter_type
+    reference_confidence = (
+        handoff.get("calibrated_confidence") or handoff.get("confidence")
+        if bert_guard else sorter_confidence
+    )
 
     try:
         reviewer = SorterReviewerAgent()
@@ -1088,6 +1152,11 @@ def review_classify_node(state: DocumentState) -> dict[str, Any]:
                 "stage": PipelineStage.CLASSIFIED.value,
                 "error_message": f"transient provider error: {str(exc)[:200]}",
                 "escalation_reason": "transient provider error during sorter review",
+                # #85 M5a (#100): stamp the guard identity on failure paths too —
+                # the router MUST still know this was a BERT-guard review so an
+                # exhausted budget fails OPEN to the sorter (classify), not
+                # closed to human review (which would skip the sorter entirely).
+                "review_reference": "bert" if bert_guard else "sorter",
             }
         # Reviewer hard-failed: escalate with the sorter's original answer
         # intact (fail-safe — same destination the doc had before this lane).
@@ -1098,8 +1167,11 @@ def review_classify_node(state: DocumentState) -> dict[str, Any]:
         return {
             "review_verdict": "reviewer_error",
             "stage": PipelineStage.CLASSIFIED.value,
-            "escalation_reason": f"sorter reviewer failed ({type(exc).__name__}: {str(exc)[:160]}) — routing to human review",
+            "escalation_reason": f"sorter reviewer failed ({type(exc).__name__}: {str(exc)[:160]}) — routing to {'sorter' if bert_guard else 'human review'}",
             "transient_error": False,
+            # Same guard stamp as above: a guard-path reviewer_error must route
+            # to the sorter (classify), which the router keys off this field.
+            "review_reference": "bert" if bert_guard else "sorter",
         }
 
     reviewer_type = result.get("doc_type")
@@ -1123,11 +1195,12 @@ def review_classify_node(state: DocumentState) -> dict[str, Any]:
     )
     reviewer_reasoning = str(result.get("reasoning", ""))
 
-    # Class-aware high: agree uses sorter class; override uses the reviewer's
-    # proposed class (severity of the label they want to win).
-    agree_high = get_confidence_thresholds(sorter_type).get("high", 0.97)
+    # Class-aware high: agree uses the reference class (sorter label on the
+    # KANBAN-062 path, BERT triage label on the M5a guard path); override uses
+    # the reviewer's proposed class (severity of the label they want to win).
+    agree_high = get_confidence_thresholds(reference_type).get("high", 0.97)
     override_high = get_confidence_thresholds(reviewer_type).get("high", 0.97)
-    if reviewer_type == sorter_type:
+    if reviewer_type == reference_type:
         verdict = (
             "reviewer_agrees_high"
             if reviewer_confidence >= agree_high
@@ -1143,38 +1216,50 @@ def review_classify_node(state: DocumentState) -> dict[str, Any]:
     logger.info(
         "review_classified",
         doc_id=state.get("doc_id"),
-        sorter_type=sorter_type,
-        sorter_confidence=sorter_confidence,
+        review_reference="bert" if bert_guard else "sorter",
+        reference_type=reference_type,
+        reference_confidence=reference_confidence,
         reviewer_type=reviewer_type,
         reviewer_confidence=reviewer_confidence,
         verdict=verdict,
     )
+    reference_label = "bert triage" if bert_guard else "sorter"
     updates = {
         "reviewer_doc_type": reviewer_type,
         "reviewer_contract_subtype": reviewer_subtype,
         "reviewer_doc_subclass": reviewer_subclass,
         "reviewer_confidence": reviewer_confidence,
         "review_verdict": verdict,
+        # #85 M5a (#100): which reference the verdict was computed against —
+        # the router needs this to tell the BERT-guard arm (agree → extract
+        # with the BERT label) from the KANBAN-062 arm (agree → extract with
+        # the reviewer's label, which the sorter already endorsed).
+        "review_reference": "bert" if bert_guard else "sorter",
         # The reviewer's reasoning rides on escalation_reason so a human
         # reviewing the doc sees BOTH opinions in the manifest/catalog.
         "escalation_reason": (
-            f"sorter review: sorter='{sorter_type}' "
-            f"({float(sorter_confidence or 0):.2f}) → reviewer='{reviewer_type}' "
+            f"sorter review: {reference_label}='{reference_type}' "
+            f"({float(reference_confidence or 0):.2f}) → reviewer='{reviewer_type}' "
             f"({reviewer_confidence:.2f}, {verdict}): {reviewer_reasoning[:400]}"
         ),
         "stage": PipelineStage.CLASSIFIED.value,
         "transient_error": False,
     }
     # KANBAN-062: only a WINNING reviewer verdict may re-label the document.
-    # reviewer_agrees_high re-asserts the (identical) sorter type with the
-    # reviewer's confidence; reviewer_overrides replaces the sorter's label.
-    # Low-confidence verdicts keep the sorter's answer untouched — the human
-    # reviewer gets both opinions via the reviewer_* fields above.
+    # reviewer_agrees_high re-asserts the (identical) reference type with the
+    # reviewer's confidence; reviewer_overrides replaces the reference label.
+    # Low-confidence verdicts keep the reference's answer untouched — the
+    # human reviewer gets both opinions via the reviewer_* fields above.
     if verdict in ("reviewer_agrees_high", "reviewer_overrides"):
         updates["doc_type"] = reviewer_type
         updates["contract_subtype"] = reviewer_subtype
         updates["doc_subclass"] = reviewer_subclass
         updates["classification_confidence"] = reviewer_confidence
+        # M5a: a winning guard verdict means the BERT triage label survived
+        # independent verification — the doc is BERT-classified, not sorter-
+        # classified. The KANBAN-062 path keeps the sorter's method.
+        if bert_guard:
+            updates["classification_method"] = "bert_intake"
     return updates
 
 
@@ -1293,6 +1378,35 @@ def extract_node(state: DocumentState) -> dict[str, Any]:
     doc_text = state.get("doc_text", "")
     doc_pages = state.get("doc_pages") or []
 
+    # #85 M6b (#99): BERT fast-path skip arm. after_intake sent us here
+    # directly (skip-mode + allowlisted + gate PASS) with NO sorter having
+    # run — adopt the BERT triage labels as the classification. The handoff
+    # is the only source (never the raw module); the sorter path always has
+    # doc_type set, so this branch cannot fire after classify/review.
+    # The adopted fields ride the node's returned update so LangGraph's
+    # state merge persists them.
+    adopted: dict[str, Any] = {}
+    handoff = state.get("intake_handoff") or {}
+    if not doc_type and handoff.get("method") == "bert" \
+            and handoff.get("route") == "fast_path":
+        doc_type = handoff.get("doc_type") or ""
+        adopted = {
+            "doc_type": doc_type,
+            "doc_subclass": handoff.get("subclass"),
+            "classification_confidence": handoff.get("calibrated_confidence")
+            or handoff.get("confidence"),
+            "classification_method": "bert_intake",
+            "classification_attempts": 1,
+            "stage": PipelineStage.CLASSIFIED.value,
+        }
+        state = {**state, **adopted}
+        logger.info(
+            "bert_intake_adopted",
+            doc_id=state.get("doc_id"),
+            doc_type=doc_type,
+            subclass=handoff.get("subclass"),
+        )
+
     dispatch = _build_specialist_dispatch()
     extractor = dispatch.get(_extract_dispatch_key(doc_type))
     if extractor is None:
@@ -1393,7 +1507,9 @@ def extract_node(state: DocumentState) -> dict[str, Any]:
         detail={"attempts": attempts, "guardrail_issues": guard["issues"] or None,
                 "conflict_detected": bool(conflict_detected)},
     )
-    return result_dict
+    # #85 M6b (#99): the BERT-skip adoption fields must reach LangGraph's
+    # state merge — they are part of this node's update, not just locals.
+    return {**result_dict, **adopted}
 
 
 def _extract_contracts(
@@ -1816,6 +1932,8 @@ def human_review_node(state: DocumentState) -> dict[str, Any]:
             original_filename=state.get("original_filename", ""),
             stage=PipelineStage.REVIEW,
             doc_type=state.get("doc_type"),
+            classification_method=state.get("classification_method"),
+            intake=_attach_gate_outcome(state.get("intake_meta"), state),
             contract_subtype=state.get("contract_subtype"),
             doc_subclass=state.get("doc_subclass"),
             classification_confidence=state.get("classification_confidence"),
@@ -1827,7 +1945,6 @@ def human_review_node(state: DocumentState) -> dict[str, Any]:
             extraction_attempts=state.get("extraction_attempts", 0),
             review_decision="pending_review",
             checkpoint_thread_id=thread_id or None,
-            intake=state.get("intake_meta") or None,
             **_lane_b_manifest_fields(state),
         )
         dest, newly_parked = park_for_review(Path(file_path_str), manifest)
@@ -2056,6 +2173,9 @@ def compile_report_node(state: DocumentState) -> dict[str, Any]:
         "contract_subtype": state.get("contract_subtype"),
         "doc_subclass": state.get("doc_subclass"),
         "classification_confidence": state.get("classification_confidence"),
+        # #85 M6b (#99): llm_sorter | bert_intake | reviewer — how the
+        # classification was produced (BERT fast path skips the sorter).
+        "classification_method": state.get("classification_method"),
         "extraction_confidence": state.get("extraction_confidence"),
         "extracted_data": extracted,
         "arbiter_decision": state.get("arbiter_decision"),
@@ -2172,6 +2292,64 @@ def _lane_b_manifest_fields(state: Mapping[str, Any] | dict) -> dict[str, Any]:
     }
 
 
+def _attach_gate_outcome(intake_meta: dict | None, state: DocumentState) -> dict | None:
+    """#90/#91: persist the PASS|FAIL gate verdict on terminal manifests.
+
+    Called at archive/human-review time with the FULL state (sorter and/or
+    reviewer results exist). Evaluate mode-aware like after_intake:
+
+    - skip mode: same evaluation after_intake used for the extract decision
+      (idempotent, deterministic — re-recorded for the record);
+    - verify mode: exercises the gate WITHOUT skipping anything — P6 (sorter
+      agreement) runs against the REAL sorter/reviewer results (#90 DoD);
+    - shadow mode: also recorded (shadow does not skip either).
+
+    Reviewer blindness holds: the gate consumes sorter/reviewer verdicts as
+    INPUTS; no triage labels ever flow the other way. Fail-open: a missing
+    mailroom-ml package or a raising gate yields no gate_outcome key and
+    never blocks the manifest or the run (an intake/gate problem can never
+    mark a run FAILED — #91).
+    """
+    meta = dict(intake_meta or {})
+    bert = meta.get("bert")
+    if not bert or not bert.get("available") or bert.get("method") != "bert":
+        return meta
+    try:
+        from mailroom_ml.routing import evaluate_intake_gate  # type: ignore[import-not-found]
+    except ImportError:
+        logger.warning("bert_gate_outcome_package_unavailable", doc_id=state.get("doc_id"))
+        return meta
+    from graph.routing import _bert_mode, _gate_handoff
+
+    try:
+        gate = evaluate_intake_gate(
+            _gate_handoff(bert),
+            sorter_result=(
+                {"doc_type": state.get("doc_type"),
+                 "confidence": state.get("classification_confidence")}
+                if state.get("classification_attempts", 0) > 0 else None
+            ),
+            reviewer_result=(
+                {"doc_type": state.get("review_verdict_doc_type")
+                 or state.get("review_decision")}
+                if state.get("review_decision") else None
+            ),
+            mode=_bert_mode(),
+        )
+        bert_outcome = {
+            key: gate.get(key)
+            for key in (
+                "verdict", "mode", "failures", "failed_checks",
+                "eligible_for_sorter_skip", "recommended_action",
+            )
+        }
+        meta["bert"] = {**bert, "gate_outcome": bert_outcome}
+    except Exception as exc:  # noqa: BLE001 — fail-open: gate never blocks the record
+        logger.warning("bert_gate_outcome_failed_open", doc_id=state.get("doc_id"),
+                       error=str(exc)[:200])
+    return meta
+
+
 def archive_node(state: DocumentState) -> dict[str, Any]:
     manifest = DocumentManifest(
         doc_id=state.get("doc_id", ""),
@@ -2189,7 +2367,11 @@ def archive_node(state: DocumentState) -> dict[str, Any]:
         review_decision=state.get("review_decision"),
         classification_attempts=state.get("classification_attempts", 0),
         extraction_attempts=state.get("extraction_attempts", 0),
-        intake=state.get("intake_meta") or None,
+        # #85 M6 (#91): the terminal record carries how the classification
+        # was produced + the BERT gate PASS|FAIL outcome (verify exercises
+        # the gate against the real sorter/reviewer results — never skips).
+        classification_method=state.get("classification_method"),
+        intake=_attach_gate_outcome(state.get("intake_meta"), state),
         **_lane_b_manifest_fields(state),
     )
 
@@ -2558,7 +2740,15 @@ def build_graph(checkpointer=None):
         "intake": "intake",
         "extract": "extract",
     })
-    workflow.add_edge("intake", "classify")
+    # #85 M6b (#99): the hard intake -> classify edge becomes the BERT
+    # fast-path split — skip-mode gate PASS routes straight to extract
+    # (no SorterAgent), verify/skip gate-fail routes to the reviewer guard
+    # (M5a #100), everything else keeps today's sorter path.
+    workflow.add_conditional_edges("intake", after_intake, {
+        "classify": "classify",
+        "review_classify": "review_classify",
+        "extract": "extract",
+    })
 
     workflow.add_conditional_edges("classify", after_classify, {
         "classify": "classify",  # transient-error self-loop (same node, LLM-level retry)
@@ -2577,8 +2767,11 @@ def build_graph(checkpointer=None):
 
     # KANBAN-062 (Lane A): agent second opinion. High-confidence reviewer →
     # extract (label applied by the node); anything else → human review.
+    # #85 M5a (#100): as the BERT verification guard, a rejected triage →
+    # classify (the full sorter decides — the guard must never strand a doc).
     workflow.add_conditional_edges("review_classify", after_review_classify, {
         "review_classify": "review_classify",  # transient self-loop (own per-node budget)
+        "classify": "classify",  # M5a guard: triage rejected → sorter authority
         "extract": "extract",
         "human_review": "human_review",
     })

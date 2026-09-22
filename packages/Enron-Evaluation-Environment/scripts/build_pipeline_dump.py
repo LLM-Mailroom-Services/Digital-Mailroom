@@ -17,8 +17,7 @@ Sampling (deterministic, seed 42):
   identical text even though >50% of corpus bodies are byte-exact copies.
 - Every NON-email subclass present in the corpus is included wholesale up to
   a per-subclass cap (they are the rare, high-value types: memo, letter,
-  notice, demand, attorney_demand, press_release, meeting_request,
-  voicemail).
+  notice, demand, attorney_demand, press_release, meeting_request).
 - The ``email`` subclass is quota-stratified across custodians
   (log-volume-proportional, per-custodian cap) with internal/external and
   attachment-presence balance.

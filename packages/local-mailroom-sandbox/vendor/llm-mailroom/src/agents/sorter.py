@@ -86,13 +86,16 @@ class SorterAgent(_LangChainSorterAgent):
         pages: list[str] | None = None,
         intake_prior: str | None = None,
         prefix: str | None = None,
+        max_tokens: int | None = None,  # #108: Tier-1 scoped budget override
     ) -> dict:
         """Structured classify used by the graph (includes ``doc_subclass``).
 
         Sliding-windowed past the input budget — never truncates. ``pages``
         attach to the first window only (additive vision at bounded cost).
         ``intake_prior`` (advisory intake read) and ``prefix`` (e.g. the
-        retry preamble) are prepended to EVERY window.
+        retry preamble) are prepended to EVERY window. ``max_tokens`` caps
+        the completion per window (Tier-1 scoped lane: 2048 -> 1024) and
+        defaults to the agent config when None (#108).
         """
         if pages:
             doc_text = (
@@ -107,7 +110,8 @@ class SorterAgent(_LangChainSorterAgent):
         if len(doc_text) <= effective:
             composed = f"{prior}\n\n{doc_text}" if prior else doc_text
             result = super().classify_json(
-                composed, subtype_focus=subtype_focus, pages=pages
+                composed, subtype_focus=subtype_focus, pages=pages,
+                max_tokens=max_tokens,
             )
             self._last_windows = 1
             return result
@@ -124,7 +128,9 @@ class SorterAgent(_LangChainSorterAgent):
             composed = "\n\n".join(p for p in (prior, header, window) if p)
             results.append(
                 super().classify_json(
-                    composed, subtype_focus=subtype_focus, pages=pages if index == 1 else None
+                    composed, subtype_focus=subtype_focus,
+                    pages=pages if index == 1 else None,
+                    max_tokens=max_tokens,
                 )
             )
         merged = _merge_sorter_reads(results)

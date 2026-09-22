@@ -52,9 +52,12 @@ operational. GitHub Pages sites exist for six of them.
 
 ## The 13-node pipeline (llm-mailroom v0.7.1)
 
-`intake → classify → (retry_classify) → review_classify → extract →
+`intake → after_intake → classify → (retry_classify) → review_classify → extract →
 (retry_extract) → judge_verify → arbiter → human_review / boss_escalation →
 compile_report → catalog_write → archive → relations scan`.
+
+(`after_intake`, #99: BERT fast-path skip → extract as `bert_intake`; gate-failed
+triages → reviewer guard (#100 M5a) in verify/skip modes, else straight to classify.)
 
 Two auxiliary flows operate outside the 13-node graph: the **Gmail triage
 lane** (free OpenRouter model for single-document email uploads) and the

@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **ModernBERT intake fast path (#98 M6a, hub-tracked at `7d6bde2c`)**: procedural
+  BERT triage in intake — `agents/bert_intake.py` (fail-open by construction:
+  flag off by default, undeclared-sibling package, missing bundle, or model error
+  all degrade to the deterministic clerk), always-emitted `intake_handoff` state
+  + manifest `intake.bert` block, `intake-ml-triage` span with curated provenance.
+- **Tier-1 prior-scoped sorter lane (#108 M6e)**: fast-path handoffs whose
+  doc_type head PASSED route into `classify` with the verified-type BERT
+  prior composed onto the existing `intake_prior=` channel — the sorter's
+  residual job is subclass verification (subclass UNVERIFIED, overrulable
+  with cited evidence). `classification_method=bert_scoped`, `bert_scoped`
+  state flag, scoped completion budget (2048→1024) and scoped retries
+  retain the prior (type not re-litigated); `doc_type_pass` /
+  `subclass_pass` booleans on the handoff + `bert_sorter_agreement`
+  computation seam (#106). Tier-0 full skip and Tier-2 full sorter are
+  unchanged; flag-off runs are byte-identical (no prior, no budget).
+- **Gate wiring finish (#90/#91 M5/M6)**: verify mode exercises the gate
+  without skipping (fast-path → classify; gate-fail → reviewer guard);
+  terminal manifests (archive + human review) persist
+  `classification_method` and `intake.bert.gate_outcome` — the verdict
+  computed against the REAL sorter/reviewer results (P6/P7), reviewer
+  blindness preserved. Fail-open everywhere: a missing package, raising
+  gate, or broken classifier never blocks a run — intake can never alone
+  mark a run FAILED (e2e pinned for error fail-soft, verify traversal,
+  and `MAILROOM_BERT_INTAKE=0` byte-identical path).
+- **`after_intake` conditional edge (#99 M6b, `2ccfbf8b`)**: intake exit splits on
+  the handoff — BERT fast-path skip (gate PASS + allowlisted + `BERT_INTAKE_MODE=skip`)
+  → `extract` as `bert_intake`; gate-failed + verify/skip modes → the reviewer
+  guard; everything else → the sorter. `classification_method` on state + manifest.
+- **Reviewer as BERT verification guard (#100 M5a)**: `review_classify` gains the
+  guard arm — the reviewer classifies blind, agreement computed in code
+  (`review_reference: bert|sorter`), agree-high → `extract` with
+  `classification_method=bert_intake`; override/conflict/low/guard-exhaustion/error
+  → `classify` (fail-open: the doc never skips the sorter). `classify` route added
+  to the `review_classify` edge map.
+
+### Changed
+
+- `after_review_classify` routes by `review_reference` — the KANBAN-062 medium-band
+  path is byte-identical when the field is absent.
+
 ## [v0.7.1] - 2026-09-13
 
 ### Changed

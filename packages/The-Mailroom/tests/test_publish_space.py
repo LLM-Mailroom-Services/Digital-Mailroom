@@ -33,6 +33,23 @@ def test_dockerfile_is_hosted_observatory():
         assert rel in docker
 
 
+def test_dockerfile_operator_stages_and_default_target():
+    """DMR-076: operator/ui-builder stages exist AND the default `docker
+    build .` target is unchanged (trailing `FROM runtime AS observatory`)."""
+    docker = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    assert "AS ui-builder" in docker
+    assert "AS operator-core" in docker
+    assert "AS operator" in docker
+    # operator extends operator-core (which extends runtime) so the headless
+    # operator-core build skips the Node ui-builder stage entirely.
+    assert "FROM operator-core AS operator" in docker
+    from_lines = [ln for ln in docker.splitlines() if ln.startswith("FROM ")]
+    assert from_lines and from_lines[-1] == "FROM runtime AS observatory", (
+        "the LAST FROM stage must be `FROM runtime AS observatory` so the "
+        "default build stays the byte-identical hosted image"
+    )
+
+
 def test_check_payload_passes():
     notes = pub.check_payload()
     joined = "\n".join(notes)

@@ -69,6 +69,17 @@ class DocumentState(TypedDict, total=False):
     # existing `intake_prior=` channel.
     bert_triage: dict[str, Any] | None
     intake_handoff: dict[str, Any] | None
+    # #85 M6b (#99) + M6e (#108): how this document's classification was
+    # produced — "llm_sorter" (SorterAgent, today's path) | "bert_intake"
+    # (BERT fast path, no SorterAgent) | "bert_scoped" (Tier-1 prior-scoped
+    # lane: BERT verified the doc_type, sorter resolved the subclass only) |
+    # "reviewer" (KANBAN-062 Lane A). Persisted on the terminal manifest;
+    # None until a classifier runs.
+    classification_method: str | None
+    # #85 M6e (#108): True when classify ran in Tier-1 prior-scoped mode
+    # (BERT doc_type head passed; subclass left to the sorter). Set by
+    # classify_node / retry_classify from the intake handoff.
+    bert_scoped: bool | None = None
     # KANBAN-062 (Lane A): independent second opinion from the sorter_reviewer
     # agent on medium-band classifications. The original sorter answer is
     # preserved untouched; `review_verdict` records the lane outcome

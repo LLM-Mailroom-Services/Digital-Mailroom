@@ -20,6 +20,8 @@ Pinned / verified 2026-09-16:
 * ``.entrypoint([])`` clears the image's vLLM entrypoint so Modal can run
   our ``serve()`` function without flag leakage.
 * ``NETWORKX_AUTOMATIC_BACKEND_SELECTION=0`` prevents import hang.
+* ``--default-chat-template-kwargs {"enable_thinking": false}`` (Qwen3
+  ChatML defaults to thinking ON; disabled for deterministic billed runs).
 
 Workflow::
 
@@ -30,6 +32,7 @@ Workflow::
 from __future__ import annotations
 
 import atexit
+import json
 import os
 import socket
 import subprocess
@@ -180,6 +183,11 @@ def build_vllm_command(model: str) -> list[str]:
     if _truthy(ASYNC_SCHEDULING):
         cmd += ["--async-scheduling"]
     cmd += ["--no-enable-log-requests"]
+    # Qwen3-8B ChatML enables thinking by default, inflating completion tokens
+    # and skewing cost-per-token vs the API. Default-disable it so the
+    # BILLED/measured path is deterministic; request-level chat_template_kwargs
+    # (e.g. the driver's warm-ups) still take precedence.
+    cmd += ["--default-chat-template-kwargs", json.dumps({"enable_thinking": False})]
     return cmd
 
 

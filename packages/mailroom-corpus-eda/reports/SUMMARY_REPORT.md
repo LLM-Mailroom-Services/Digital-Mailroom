@@ -1,6 +1,6 @@
 # Mailroom Dataset (v9) — EDA Summary Report
 
-Generated: 2026-09-13 · Pipeline: `run_all.py` (P0–P6) · Data: `Lucius-Morningstar/mailroom-dataset` v1 (canonically **v9** of the corpus family, pinned `a7067844`)
+Generated: 2026-09-13 · Pipeline: `run_all.py` (P0–P6) · Data: `Lucius-Morningstar/mailroom-dataset` v1 (canonically **v9** of the corpus family, pinned `46a4d3c2`)
 
 > v9 lineage (tracking epic #18): standalone successor of the frozen v8
 > `Lucius-Morningstar/mailroom-corpus` baseline (2,000 rows, `eafe1ab4` —
@@ -33,7 +33,6 @@ Type entropy = 2.09 bits.
 ## Key Findings
 
 ### 1. Text & token geometry
-
 - `merger_agreement` documents are by far the longest (mean ~89,048.5 chars
   ≈ 22,262.1 tokens; max 252,135 chars ≈ 63,033.8
   tokens) — **exceed common 32k/65k contexts**.
@@ -41,7 +40,6 @@ Type entropy = 2.09 bits.
 - Token budget coverage: 76.6% ≤4k 89.6% ≤16k 93.2% ≤32k 99.8% ≤128k.
 
 ### 2. CUAD annotations (509 contracts, 41 clause types)
-
 - 13,753 spans with **100.0% exact offset match** against doc_text.
 - Most-annotated: `Document Name` (509 docs, mean 1.0 spans), `Parties` (508 docs, mean 5.0 spans), `Agreement Date` (469 docs, mean 1.0 spans), `Governing Law` (436 docs, mean 1.1 spans).
 - 91 v9 EX-10 contracts carry no CUAD clause annotations (source-native EDGAR
@@ -49,7 +47,6 @@ Type entropy = 2.09 bits.
   over the 509 CUAD-v1 contracts.
 
 ### 3. MAUD annotations (152 merger agreements, 22 tasks)
-
 - `Accuracy of Target R&W Closing Condition` on 152 agreements (100.0%)
 - `MAE Definition` on 152 agreements (100.0%)
 - `Tail Period & Acquisition Proposal Details` on 152 agreements (100.0%)
@@ -58,7 +55,6 @@ Type entropy = 2.09 bits.
   rows match `maud_label_count == sum(maud_categories) == upstream count`.
 
 ### 4. Insurance claims (1,100 rows)
-
 - Claimed amount present on 1,062 rows (median $1,250); coverage
   determination & denial reasons fully populated → ready for
   coverage-classification supervision.
@@ -66,7 +62,6 @@ Type entropy = 2.09 bits.
   (carrier/inpatient/outpatient/pde/property/auto).
 
 ### 5. Correspondence (1,000 rows)
-
 - **Intent is 100% hydrated** (1,000/1,000
   rows): `intent_source` records the hydration path (disjoint, sums to 1,000):
   162 aeslc_join + 105 heuristic + 637 llm_zero_shot + 96 manual. v9 adds the `heuristic` provenance for the §20/§43
@@ -75,14 +70,12 @@ Type entropy = 2.09 bits.
 - Every canonical intent class appears in the 10% test split: `analysis`, `meeting_invite`, `notice`, `other`, `payment_demand`, `press_communication`, `request`, `update`.
 
 ### 6. Split integrity
-
 - 90/10 train/test: 2,979/323. Per-stratum test shares deviate
   from 10% (0%–max); 10 strata have zero test rows and
   5 minority strata (<10 rows, 19 rows total) — flagged in
   `24_strata_imbalance_ratio.png` / `25_minority_strata.png`.
 
 ### 7. §84 hardened evaluation contract (ground_truth config)
-
 - Ground truth carries 65 columns after `gt_fields` expansion:
   identity (`document_id`, `content_sha256`, `normalized_text_sha256`),
   provenance (`source_corpus`, `source_document_id`, `source_filename`,
@@ -95,9 +88,8 @@ Type entropy = 2.09 bits.
 ## Artifacts
 
 ### Static figures — `reports/figures/` (30 PNGs)
-
 | # | figure | insight |
-| --- | --- | --- |
+|---|---|---|
 | 01–03 | type/subclass/strata/metadata heatmap | composition & coverage |
 | 04–07 | text length violin, token budgets, ECDF, subclass lengths | context-window fit |
 | 08–12 | CUAD presence/span/co-occurrence | annotation density & structure |
@@ -111,12 +103,10 @@ Type entropy = 2.09 bits.
 > Static figure counts are nominal; regenerate with `run_all.py --phases P3`.
 
 ### Interactive figures — `reports/figures_interactive/` (18 HTML)
-
 Plotly versions with hover/zoom: lengths, budgets, CUAD, MAUD, claims,
 treemap, strata, timeline, sources, metadata.
 
 ### Tables — `reports/tables/` (17 files)
-
 `integrity_report.json`, `strata_counts.csv`, `metadata_coverage_by_type.csv`,
 `provenance_by_type.csv`, `imbalance_metrics.json`, `text_length_stats_by_type.csv`,
 `token_budget_coverage.csv`, `cuad_clause_stats.csv`, `cuad_cooccurrence_matrix.csv`,
@@ -129,8 +119,11 @@ treemap, strata, timeline, sources, metadata.
 - `src/mailroom_eda/hf_interface.py` — Hub client: upload, sha verify, repo mgmt
 - `src/mailroom_eda/dataset_export.py` — KANBAN-076 cast-safe metadata,
   KANBAN-088 JSONL safety, parquet staging, manifests, splits
-- `src/mailroom_eda/docclass_uploader.py` — docclass publish, surgical card
-  render, blind-label strip, leak guard
+- `src/mailroom_eda/docclass_uploader.py` — **LEGACY (frozen v8 baseline
+  `mailroom-corpus` only)**: v7-schema docclass publish, surgical card
+  render, blind-label strip, leak guard; v9 publishing goes through
+  `scripts/build/build_v9.py` → `mailroom_eda.v9_build.build_all` →
+  `hf_interface`
 - `src/mailroom_eda/intent_backfill.py` — correspondence intent hydration +
   provenance columns
 - `scripts/backfill/backfill_intent.py` — intent hydration CLI

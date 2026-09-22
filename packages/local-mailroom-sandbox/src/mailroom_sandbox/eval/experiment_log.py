@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from llm_dojo_scoring.experiment import append_experiment, git_snapshot, load_records, utc_now
 
@@ -12,6 +12,20 @@ from mailroom_sandbox.paths import reports_dir
 
 JSONL_NAME = "experiment_log.jsonl"
 MD_NAME = "experiment_log.md"
+
+#: Provider/GPU identity extras a run may record for a Modal self-hosted leg
+#: (GPU billing rate, warm span, scale-to-zero window, weight pin, image tag,
+#: vLLM serving knobs). The vendored dojo ``IDENTITY_FIELDS`` does not carry
+#: them, so they pass through to the JSONL row verbatim (never normalized away).
+PROVIDER_IDENTITY_KEYS = (
+    "gpu_hourly_usd",
+    "warm_span_seconds",
+    "scaledown_seconds",
+    "revision",
+    "image_tag",
+    "gpu_memory_utilization",
+    "max_num_seqs",
+)
 
 
 def jsonl_path() -> Path:
@@ -22,13 +36,27 @@ def md_path() -> Path:
     return reports_dir() / MD_NAME
 
 
-def new_record(**fields: Any) -> dict[str, Any]:
+def new_record(
+    *,
+    identity: Mapping[str, Any] | None = None,
+    **fields: Any,
+) -> dict[str, Any]:
+    """Build a JSONL row; ``identity`` carries provider/GPU serving extras.
+
+    Extras (see ``PROVIDER_IDENTITY_KEYS``) are merged into the row so they
+    survive to the JSONL log. ``fields`` may also carry them directly — both
+    paths are backward-compatible and nothing is stripped here.
+    """
     record = {
         "timestamp": utc_now(),
         "sandbox": True,
         "git": git_snapshot(),
     }
     record.update(fields)
+    if identity:
+        for key, value in identity.items():
+            if value is not None:
+                record[key] = value
     from mailroom_sandbox.eval.scoring import attach_serving_identity
 
     return attach_serving_identity(record)

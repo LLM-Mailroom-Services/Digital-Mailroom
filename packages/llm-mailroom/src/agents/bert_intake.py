@@ -177,11 +177,20 @@ def run_bert_intake(
         return handoff
 
     try:
-        classifier = module.inference.classify_document  # type: ignore[attr-defined]
-        try:
+        # M6a seam (#102/#103): the lane's call shape is classify_document(
+        # doc_text, filename=...) — the default-bundle entrypoint matches it
+        # exactly and never raises for a missing bundle (fail-open failure
+        # shape with machine-readable reasons). Older mailroom-ml without
+        # the seam keeps the raw TypeError dance below.
+        classifier = getattr(module.inference, "classify_document_default", None)
+        if classifier is not None:
             result = classifier(doc_text, filename=filename)
-        except TypeError:
-            result = classifier(doc_text)
+        else:
+            classifier = module.inference.classify_document  # type: ignore[attr-defined]
+            try:
+                result = classifier(doc_text, filename=filename)
+            except TypeError:
+                result = classifier(doc_text)
     except Exception as exc:  # model load / inference / malformed bundle
         logger.exception(
             "bert_classify_failed",
@@ -232,11 +241,39 @@ def run_bert_intake(
         "margin",
         "guard_failures",
         "reason",
+        "doc_type_pass",  # #108: per-head pass booleans (calibrated gate)
+        "subclass_pass",
     ):
         if key in result and result[key] is not None:
             handoff[key] = result[key]
+    # #108 Tier ladder: doc_type_pass is the runner's own fast-path decision
+    # (route == fast_path IS the doc-type gate pass); subclass_pass stays
+    # conservative-False until the #107-calibrated runner emits it — weak
+    # subclass heads mean most docs sit in Tier 1 by design.
+    handoff.setdefault("doc_type_pass", handoff.get("route") == "fast_path")
+    handoff.setdefault("subclass_pass", False)
     _write_bert_debug(handoff, doc_text, filename)
     return handoff
+
+
+def bert_sorter_agreement_value(
+    handoff: dict[str, Any] | None, classified: dict[str, Any] | None
+) -> bool | None:
+    """#106 ``bert_sorter_agreement`` computation seam (drift telemetry).
+
+    True when the BERT doc_type label and the sorter's returned doc_type
+    agree (case-folded); False on a flip; None when there is nothing to
+    compare (lane off, no BERT label, no sorter verdict). The #108 drift
+    rule rides this value: steady agreement < 95% over a shadow window ->
+    demote prior strength or raise the type-pass threshold.
+    """
+    handoff = dict(handoff or {})
+    classified = dict(classified or {})
+    bert_label = handoff.get("doc_type")
+    sorter_label = classified.get("doc_type")
+    if not bert_label or not sorter_label:
+        return None
+    return str(bert_label).strip().casefold() == str(sorter_label).strip().casefold()
 
 
 def format_bert_type_prior(triage: dict[str, Any] | None) -> str:
@@ -244,15 +281,23 @@ def format_bert_type_prior(triage: dict[str, Any] | None) -> str:
 
     Rides the EXISTING ``intake_prior=`` channel (agents/sorter.py — the
     vendored ``sorter_v14`` prompt is never mutated). The prior is only
-    emitted on a fast-path route with a concretely-predicted primary class;
-    the subclass is explicitly labeled UNVERIFIED so the sorter resolves it
-    independently and may overrule the type with cited evidence.
+    emitted on a fast-path route whose doc_type head PASSED
+    (``doc_type_pass``, #108 Tier-1); every other route — gate failure,
+    clerk-only, subclass-verdict only — emits nothing. The subclass stays
+    explicitly UNVERIFIED so the sorter resolves it independently and may
+    overrule the type with cited evidence.
 
     Returns ``""`` when there is nothing to say (gate off, clerk-only route,
     no class) — callers compose it harmlessly.
     """
     triage = dict(triage or {})
     if not triage.get("doc_type") or triage.get("route") != "fast_path":
+        return ""
+    # Tier-2 guard: a handoff whose doc_type head did NOT pass (clerk_only /
+    # below-threshold) must not claim a VERIFIED prior — the sorter stays
+    # full authority with no BERT steer (#108 precedence rule).
+    doc_type_pass = triage.get("doc_type_pass", triage.get("route") == "fast_path")
+    if not doc_type_pass:
         return ""
     confidence = triage.get("calibrated_confidence") or triage.get("confidence")
     lines = [

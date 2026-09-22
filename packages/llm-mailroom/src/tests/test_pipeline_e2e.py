@@ -3,6 +3,9 @@ from pathlib import Path
 from graph.state import DocumentState
 
 
+from unittest.mock import patch
+
+
 class TestPipelineE2E:
     def test_graph_builds_and_runs_basic(self, temp_base_dir, mock_openai_client):
         from graph.build_graph import build_graph, _ensure_dirs
@@ -249,6 +252,117 @@ startxref
 459
 %%EOF
 """
+
+
+class TestBertLaneE2E:
+    """#90/#91 pipeline-level DoD: fail-soft, verify traversal, flag-off."""
+
+    def _run(self, temp_base_dir, mock_openai_client, mock_langchain_llm,
+             filename="letter.txt", text="Demand letter from opposing counsel."):
+        from graph.build_graph import build_graph
+
+        _ensure_dirs_relative(temp_base_dir)
+        inbox = temp_base_dir / "pipeline" / "inbox"
+        test_file = inbox / filename
+        test_file.write_text(text)
+        graph = build_graph()
+        config = {"configurable": {"thread_id": f"e2e-{filename}"}}
+        initial_state: DocumentState = {
+            "doc_id": "",
+            "matter_id": "MATTER-BERT",
+            "original_filename": filename,
+            "stage": "inbox",
+            "doc_type": None,
+            "classification_confidence": None,
+            "classification_attempts": 0,
+            "extracted_data": None,
+            "extraction_confidence": None,
+            "extraction_attempts": 0,
+            "trace_id": None,
+            "escalation_reason": None,
+            "review_decision": None,
+            "retry_count": 0,
+            "conflict_detected": False,
+            "file_path": str(test_file),
+            "doc_text": "",
+            "error_message": None,
+            "messages": [],
+        }
+        return graph.invoke(initial_state, config)
+
+    def test_bert_error_fail_soft_archives(
+        self, temp_base_dir, mock_openai_client, mock_langchain_llm
+    ):
+        """A broken classifier degrades to the sorter — the run still archives
+        and no intake problem ever marks the run FAILED (#91 DoD)."""
+        from unittest.mock import patch
+
+        with patch.dict("os.environ", {"MAILROOM_BERT_INTAKE": "1"}):
+            with patch(
+                "agents.bert_intake.run_bert_intake",
+                return_value={
+                    "available": False, "reason": "error", "method": "bert",
+                    "routing_path": "clerk_only", "route": "clerk_only",
+                    "status": "failure",
+                },
+            ):
+                result = self._run(temp_base_dir, mock_openai_client,
+                                   mock_langchain_llm)
+
+        assert result["stage"] == "archived"
+        assert result["classification_method"] == "llm_sorter"
+
+    def test_verify_mode_traversal(
+        self, temp_base_dir, mock_openai_client, mock_langchain_llm
+    ):
+        """Verify mode: gate-failed triage -> reviewer guard (blind) ->
+        fail-open to the full sorter -> archived (#90 DoD)."""
+        from unittest.mock import patch
+
+        # reviewer BLIND-disagrees -> guard routes to classify (sorter authority)
+        with patch.dict("os.environ", {
+            "MAILROOM_BERT_INTAKE": "1", "BERT_INTAKE_MODE": "verify",
+        }):
+            with patch(
+                "agents.bert_intake.run_bert_intake",
+                return_value={
+                    "available": True, "reason": "ok", "method": "bert",
+                    "routing_path": "clerk_only", "route": "clerk_only",
+                    "status": "success", "doc_type": "contract",
+                    "subclass": None, "score": 0.31,
+                    "calibrated_confidence": 0.31,
+                    "quality": {"messy": True, "coverage": 0.5},
+                    "doc_type_pass": False, "subclass_pass": False,
+                },
+            ):
+                with patch(
+                    "agents.sorter_reviewer.SorterReviewerAgent.review",
+                    return_value={
+                        "doc_type": "claim", "confidence": 0.5,
+                        "reasoning": "reviewer blind read",
+                    },
+                ):
+                    result = self._run(temp_base_dir, mock_openai_client,
+                                       mock_langchain_llm)
+
+        assert result["stage"] == "archived"
+        # gate failed -> the blind reviewer ran -> sorter remained authority
+        assert result["classification_method"] == "llm_sorter"
+
+    def test_flag_off_matches_pre_bert_path(
+        self, temp_base_dir, mock_openai_client, mock_langchain_llm
+    ):
+        """MAILROOM_BERT_INTAKE=0 restores the current path byte-for-byte:
+        llm_sorter classification, archived, always-emitted empty handoff."""
+        with patch.dict("os.environ", {"MAILROOM_BERT_INTAKE": "0"}):
+            result = self._run(temp_base_dir, mock_openai_client,
+                               mock_langchain_llm)
+
+        assert result["stage"] == "archived"
+        assert result["classification_method"] == "llm_sorter"
+        handoff = result.get("intake_handoff") or {}
+        assert handoff.get("available") is False
+        assert handoff.get("reason") == "flag_off"
 
 
 def test_ingest_transcribes_real_pdf_bytes(temp_base_dir, mock_openai_client):

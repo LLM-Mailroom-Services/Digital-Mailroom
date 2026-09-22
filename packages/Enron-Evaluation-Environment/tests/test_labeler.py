@@ -325,7 +325,7 @@ class TestSubclassEnumInvariants:
         expected = [
             "email", "memo", "letter", "notice", "demand",
             "attorney_demand", "press_release", "meeting_request",
-            "voicemail", "other",
+            "other",
         ]
         assert SUBCLASS_KEYS == expected
 

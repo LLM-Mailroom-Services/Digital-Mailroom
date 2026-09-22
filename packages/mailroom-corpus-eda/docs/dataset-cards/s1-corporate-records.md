@@ -34,7 +34,7 @@ In mailroom-dataset this is the **governance-document block**: it
 deliberately introduces a heavily imbalanced class so that classification
 systems are evaluated under realistic mailroom conditions — high-stakes
 document types that must not be confused with the dominant contracts and
-correspondence. (The v8 corpus expanded the block from 39 to 450 rows with
+correspondence. (The v9 corpus expanded the block from 39 to 450 rows with
 the EDGAR exhibit expansion; merger_agreement at 152 rows is now the
 smallest class.)
 
@@ -74,30 +74,33 @@ smallest class.)
    variety an agentic mailroom triage system encounters (contracts, merger
    agreements, correspondence, claims, and now corporate filings).
 
-## Subset statistics (v7 EDA)
+## Subset statistics (v9 EDA)
 
-- Text length (chars): mean 44,899 · p50 35,823 · p95 91,211 · max 93,296 —
-  mid-length documents, all comfortably within 32k-token contexts.
-- Strata skew: articles_of_incorporation (20) and rights_instrument (14)
-  hold 87% of the rows; bylaws and powers_of_attorney have 2 rows each and
-  `other` exactly 1.
-- Split exposure is minimal: a single test row (from
-  articles_of_incorporation); bylaws, powers_of_attorney, rights_instrument
-  and other drew zero test rows — see
+- Text length (chars): mean 37,850 · p50 9,181 · p95 264,347 · max 630,961 —
+  long-tailed: half the block sits below ~9.2k chars, but the EDGAR
+  exhibits run to ~631k chars (≈158k tokens at 4 chars/token), so 32k-token
+  context coverage cannot be assumed for this block.
+- Strata skew: 450 rows across 10 strata — charter_amendment (80),
+  articles_of_incorporation (62), officer_certificate (61), indenture (57),
+  subsidiary_list (53), rights_instrument (46), board_resolution (32),
+  bylaws (28), powers_of_attorney (28), and `other` exactly 3.
+- Split exposure: 47 test rows across 9 of the 10 strata (subsidiary_list
+  10, charter_amendment 9, officer_certificate 7, articles_of_incorporation
+  5, board_resolution 5, indenture 4, powers_of_attorney 3,
+  rights_instrument 3, bylaws 1); only `other` drew zero test rows — see
   [`reports/tables/strata_counts.csv`](../../reports/tables/strata_counts.csv)
   and the minority-strata report
   [`reports/tables/minority_strata_report.csv`](../../reports/tables/minority_strata_report.csv).
 
 ## Caveats & limitations
 
-- **n = 39.** Any per-class metric on this block is high-variance; treat it
-  as a routing-prior and imbalance stress test, not a statistically robust
-  class. The EDA's ML-readiness notes suggest considering a rollup (e.g.
-  bylaws / powers_of_attorney → corporate_record `other`) or a per-stratum
-  test floor in a future revision.
-- One filer (one S-1) can contribute multiple exhibits — the 11 CIKs mean
-  filer-level leakage between train and test is possible under the
-  filename-hash split.
+- **n = 450** (39 legacy S-1 rows + 411 v9 EDGAR exhibits). The small
+  strata (bylaws / powers_of_attorney at 28, `other` at 3) and the
+  zero-test `other` stratum remain high-variance; the EDA's ML-readiness
+  notes suggest considering a per-stratum test floor in a future revision.
+- One filer (one S-1) can contribute multiple exhibits — the 333 unique
+  CIKs mean limited filer-level leakage between train and test is still
+  possible under the filename-hash split.
 - EDGAR exhibits are .htm-derived text; rendering artifacts (tables, entity
   escapes) may survive in `doc_text`.
 - Public-domain status attaches to the US government works; verify the

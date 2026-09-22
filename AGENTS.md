@@ -98,6 +98,49 @@ specialists (prompt-engineer, vllm/modal-specialists, board-evidence-auditor,
 lucius) stay project files by design — their protocols are repo-specific.
 Restart opencode after adding any agent so the Task tool picks it up.
 
+### Devin (CLI) mirror of the roster — dispatch, don't impersonate
+
+Devin agents use the SAME roster, mirrored one-file-per-persona under
+`.devin/agents/<name>.md` (flat-file custom subagent profiles; names match
+the `subagent_type` column 1:1, plus `explore` and `general` so the names
+resolve). A Devin agent dispatches a specialist via the **`run_subagent`
+tool** with `profile: <name>` — same dispatch law as opencode: one
+specialist per concern, brief like a card, the caller owns the work, chain
+never impersonate. The `.opencode/agents/*.md` files stay the canonical
+persona source; when a persona changes, update the `.devin/agents/` mirror
+in the same commit (same semantics, Devin frontmatter: `name`,
+`description`, optional `allowed-tools`, `max-nesting`).
+
+**Discovery location (verified 2026-09-22):** Devin discovers project
+profiles from the `.devin/agents/` directory of its **project root** —
+for Devin Desktop sessions the project root is the workspace folder the
+session opened on, NOT this repo when it sits inside a parent workspace
+(e.g. a session rooted at `monorepo_mailroom/` reads
+`monorepo_mailroom/.devin/agents/`, not
+`monorepo_mailroom/Digital-Mailroom/.devin/agents/`). The committed copy
+here serves repos opened as their own root; a parent-rooted workspace
+needs the same files mirrored to the parent's `.devin/agents/` (verified
+with `devin doctor`, which reports the loaded profile count). Profiles
+are read at session start — restart Devin after adding/changing them.
+
+Devin-specific notes:
+
+- **Read-only profiles** — `code-analyst`, `test-suite-auditor`, and
+  `explore` carry `allowed-tools` restricted to read/analysis tools (no
+  `edit`/`write`).
+- **`orchestrator-governor`** carries `max-nesting: 2`, so it can dispatch
+  roster specialists as its own children when run as a subagent (specialist
+  grandchildren cannot spawn further).
+- **Model**: profiles do not pin a `model:` — they run on the default
+  subagent router (cheap tier). Pin a `model:` in a profile file only if a
+  persona needs a stronger model at higher cost.
+- **Monitoring**: the Devin subagent panel shows every dispatch — profile,
+  title, status, elapsed time, tool-call count (press `↓` from the input,
+  then `Enter`); the caller announces each dispatch inline (profile + card
+  scope + expected evidence), and every `run_subagent` call is visible in
+  the transcript. Background subagents can be foregrounded, cancelled, or
+  resumed from the panel.
+
 ## Sync & release at a glance — read before touching any package
 
 The file-and-package flow has **three moving surfaces**; know which one you

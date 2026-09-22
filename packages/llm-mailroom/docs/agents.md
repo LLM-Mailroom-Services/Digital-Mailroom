@@ -29,6 +29,8 @@ Key design points:
 - When a managed prompt is active, it's passed to the OpenAI call as `langfuse_prompt=`, linking each generation to its exact prompt version in the trace UI.
 - Every agent has a distinct system prompt ("personality") aligned with its role
 
+**BERT intake lane doctrine** — the ModernBERT fast path (tier ladder, precedence, gate semantics, fail-open rules, rollback): see [`intake-bert-doctrine.md`](intake-bert-doctrine.md).
+
 **Two of the agents — the Sorter and the Contracts Specialist — are vendored LangChain agents** (from `github.com/Exios66/llm-entity-extraction`, kept in sync with that repo's append-only prompt lineage — re-vendored to the sibling's current HEAD on 2026-08-15), imported into `langchain_agents/` with mailroom plumbing adapted in (pages/vision, run-deadline checks, per-call usage accounting — each adaptation marked `MAILROOM PATCH`). They use `langchain-openai`'s `ChatOpenAI` + `with_structured_output` instead of the mailroom's `agents/base.py` plumbing, and their system prompts resolve **by version key** through `langchain_agents/prompts.py:PROMPT_VERSIONS`: the production aliases are `"sorter"` → `SORTER_PROMPT_V14` (V12 CUAD-subtype lineage + mailroom pipeline doctrine; V13 remains a frozen insurance-class experiment derived from V0) and `"contracts_specialist"` → `CONTRACTS_SPECIALIST_PROMPT_V33` (V32 + pared checklist doctrine — no open-ended `key_obligations` / `termination_clauses`). The full eval history rides along in-repo (`sorter_v0…v14`, vision v0–v1, `contracts_specialist_v1…v33`) so evaluation loops can pin exactly one version per experiment — they bypass `get_managed_prompt`/Langfuse prompt linking (generations are still auto-traced via the langfuse-openai SDK patch). All other agents follow the `BaseAgent` contract below.
 
 ---
@@ -58,8 +60,8 @@ The Sorter is a **vendored LangChain agent** (`agents/sorter.py` re-exports `lan
 | Attribute | Value |
 |---|---|
 | **Node** | `review_classify` (Lane A) |
-| **Trigger** | Medium-band classification that survived `retry_classify` |
-| **Input** | Document text (+ page images); **blind** to the sorter's answer |
+| **Trigger** | Medium-band classification that survived `retry_classify`; ALSO the M5a BERT verification guard on gate-failed BERT triages from `after_intake` (#100) |
+| **Input** | Document text (+ page images); **blind** to the sorter's AND the BERT triage's answer (independence is the invariant — `review_reference: bert|sorter` records which path fired) |
 | **Output** | Independent `doc_type` + `contract_subtype` + `doc_subclass` + `confidence` |
 | **Personality** | Independent second opinion; agreement is computed by the graph, not the model |
 

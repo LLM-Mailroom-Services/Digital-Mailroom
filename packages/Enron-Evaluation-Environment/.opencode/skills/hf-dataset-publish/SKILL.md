@@ -31,7 +31,7 @@ not fork the spec.
 ### 1. Stage and validate (no network)
 
 ```bash
-# Full corpus (~517k rows → ~1 GB staged JSONL)
+# Full corpus (247,523 rows → ~0.6 GB staged JSONL)
 python scripts/publish_hf_dataset.py --dry-run
 
 # Smoke test first — always
@@ -39,9 +39,9 @@ python scripts/publish_hf_dataset.py --dry-run --limit 5000
 ```
 
 Check the printed counts against expectations before proceeding:
-- ~517k published rows, 150 custodians
-- subclass mix ≈ email 505,929 / memo 3,568 / notice 2,842 / press_release 2,520 /
-  letter 2,077 / demand 315 / meeting_request 135 / attorney_demand 4
+- 247,523 published rows (222,572 train / 24,951 test), 150 custodians
+- subclass mix ≈ email 242,361 / memo 1,356 / notice 1,254 / letter 1,199 /
+  press_release 1,126 / demand 158 / meeting_request 66 / attorney_demand 3
   (`voicemail` and `other` are structurally 0 — see AGENTS.md known limitations)
 - split ≈ 90/10 train/test
 

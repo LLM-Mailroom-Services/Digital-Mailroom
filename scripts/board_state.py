@@ -738,15 +738,23 @@ def cmd_sync_issues(args: argparse.Namespace) -> int:
 
 
 def _reverse_lane_from_issue(issue: dict) -> str | None:
-    """stage/* label wins; closed issue => done; else assigned."""
+    """closed issue => done (state wins); stage/* label wins on open; else assigned.
+
+    (#69 audit): a directly-closed issue (closed on GitHub, not via the site's
+    archived:true + lane:done path) can still carry a stale `stage/*` label
+    (e.g. `stage/in-progress`). The closed state must win, or pull-issues
+    re-imports the stale work lane as live state instead of `done`.
+    """
+    state_str = issue.get("state") or "open"
+    if state_str == "closed":
+        return "done"
     for entry in issue.get("labels") or []:
         name = entry.get("name", "")
         if "stage/" in name and name in LANE_LABELS.values():
             for lane, label in LANE_LABELS.items():
                 if label == name:
                     return lane
-    state_str = issue.get("state") or "open"
-    return "done" if state_str == "closed" else "assigned"
+    return "assigned"
 
 
 def _list_kanban_issues(repo: str) -> list[dict]:

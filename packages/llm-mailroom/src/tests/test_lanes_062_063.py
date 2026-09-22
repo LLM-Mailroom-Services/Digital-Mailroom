@@ -93,6 +93,110 @@ class TestLaneARouting:
         exhausted = {"transient_error": True, "transient_retries_review_classify": 3}
         assert after_review_classify(exhausted) == "human_review"
 
+    # --- #85 M5a (#100): reviewer as BERT verification guard -----------------
+
+    def test_bert_guard_agree_high_extracts(self):
+        # Guard path: reviewer verified the BERT triage label at high
+        # confidence → extract with the BERT label (bert_intake).
+        assert (
+            after_review_classify({
+                "review_reference": "bert",
+                "review_verdict": "reviewer_agrees_high",
+                "reviewer_confidence": 0.98,
+                "reviewer_doc_type": "contract",
+            })
+            == "extract"
+        )
+
+    def test_bert_guard_agree_low_goes_to_sorter(self):
+        # Guard path: reviewer agrees but is not confident → the full sorter
+        # decides (no sorter has run yet).
+        assert (
+            after_review_classify({
+                "review_reference": "bert",
+                "review_verdict": "reviewer_agrees_low",
+                "reviewer_confidence": 0.85,
+                "reviewer_doc_type": "contract",
+            })
+            == "classify"
+        )
+
+    def test_bert_guard_override_never_fast_paths(self):
+        # Guard path: even a HIGH-confidence override must not extract — the
+        # triage label failed verification, so the sorter is the authority.
+        assert (
+            after_review_classify({
+                "review_reference": "bert",
+                "review_verdict": "reviewer_overrides",
+                "reviewer_confidence": 0.99,
+                "reviewer_doc_type": "insurance_claim",
+            })
+            == "classify"
+        )
+
+    def test_bert_guard_conflict_goes_to_sorter(self):
+        assert (
+            after_review_classify({
+                "review_reference": "bert",
+                "review_verdict": "reviewer_conflicts",
+                "reviewer_confidence": 0.90,
+                "reviewer_doc_type": "contract",
+            })
+            == "classify"
+        )
+
+    def test_bert_guard_reviewer_error_goes_to_sorter(self):
+        # Fail-open: a broken guard must not strand the doc — the sorter
+        # decides, exactly as if BERT had never run.
+        assert (
+            after_review_classify({
+                "review_reference": "bert",
+                "review_verdict": "reviewer_error",
+                "reviewer_confidence": 0.97,
+                "reviewer_doc_type": "contract",
+            })
+            == "classify"
+        )
+
+    def test_bert_guard_transient_exhausted_goes_to_sorter(self):
+        # Guard-path exhaustion → classify (the doc never had a sorter
+        # answer); sorter-path exhaustion stays human_review (regression).
+        exhausted_guard = {
+            "transient_error": True,
+            "transient_retries_review_classify": 3,
+            "review_reference": "bert",
+        }
+        assert after_review_classify(exhausted_guard) == "classify"
+        exhausted_sorter = {"transient_error": True, "transient_retries_review_classify": 3}
+        assert after_review_classify(exhausted_sorter) == "human_review"
+
+    def test_bert_guard_transient_retries_own_node(self):
+        looping = {
+            "transient_error": True,
+            "transient_retries_review_classify": 1,
+            "review_reference": "bert",
+        }
+        assert after_review_classify(looping) == "review_classify"
+
+    def test_sorter_path_unchanged_without_review_reference(self):
+        # KANBAN-062 regression: no review_reference → sorter path semantics.
+        assert (
+            after_review_classify({
+                "review_verdict": "reviewer_agrees_high",
+                "reviewer_confidence": 0.98,
+                "reviewer_doc_type": "contract",
+            })
+            == "extract"
+        )
+        assert (
+            after_review_classify({
+                "review_verdict": "reviewer_conflicts",
+                "reviewer_confidence": 0.90,
+                "reviewer_doc_type": "contract",
+            })
+            == "human_review"
+        )
+
 
 class TestJudgeGate:
     def test_clean_run_never_enters_judge(self):

@@ -1436,11 +1436,6 @@
             }
         }
     </style>
-    <!-- Vercel Web Analytics -->
-    <script>
-        window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-    </script>
-    <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
 
@@ -1546,11 +1541,11 @@
                     <div class="form-group">
                         <label class="form-label" for="formLane">Lane</label>
                         <select class="form-select" id="formLane">
+                            <!-- Create (modal open via openNewCardModal) may only target the
+                                 triage/claimed queues; openEditModal() swaps in the full
+                                 five-lane set via setFormLaneOptions(false). (#69) -->
                             <option value="unassigned">Unassigned</option>
                             <option value="assigned">Assigned</option>
-                            <option value="in-progress">In Progress</option>
-                            <option value="needs-attention">Needs Attention</option>
-                            <option value="done">Done</option>
                         </select>
                         <div class="archived-hint" id="archivedHint">📦 This card is archived, so it won't appear on the board. Use "Restore to Board" below to bring it back.</div>
                     </div>
@@ -2546,7 +2541,10 @@
                 formId.readOnly = true;
                 formTitle.value = card.title || '';
                 formDesc.value = card.desc || '';
-                formLane.value = card.lane || 'assigned';
+                // Edit may target any lane — rebuild the selector with the
+                // full five-lane set BEFORE restoring the card's lane value.
+                setFormLaneOptions(false);
+                formLane.value = (card.lane && LANES.some((l) => l.id === card.lane)) ? card.lane : 'unassigned';
                 formPriority.value = card.priority || 'medium';
                 setOwnerFields((card.agents || [])[0] || 'unclaimed');
                 formEvidence.value = card.evidence || '';
@@ -2571,6 +2569,23 @@
             }
 
             let tmpNewCardId = null;
+
+            // The modal lane select serves two contracts: create (POST) may
+            // only use the triage/claimed queues, edit (PATCH) may move to
+            // any of the five canonical lanes. (#69)
+            const CREATE_LANE_IDS = ['unassigned', 'assigned'];
+            function setFormLaneOptions(createMode) {
+                const lanes = createMode
+                    ? LANES.filter((l) => CREATE_LANE_IDS.includes(l.id))
+                    : LANES;
+                formLane.replaceChildren(...lanes.map((l) => {
+                    const opt = document.createElement('option');
+                    opt.value = l.id;
+                    opt.textContent = l.title;
+                    return opt;
+                }));
+            }
+
             function openNewCardModal(laneId) {
                 state.editingCardId = null;
                 const newId = getNextCardId();
@@ -2580,7 +2595,8 @@
                 formId.readOnly = true;
                 formTitle.value = '';
                 formDesc.value = '';
-                formLane.value = laneId || 'unassigned';
+                setFormLaneOptions(true);
+                formLane.value = CREATE_LANE_IDS.includes(laneId) ? laneId : 'unassigned';
                 formPriority.value = 'medium';
                 setOwnerFields('unclaimed');
                 formEvidence.value = '';

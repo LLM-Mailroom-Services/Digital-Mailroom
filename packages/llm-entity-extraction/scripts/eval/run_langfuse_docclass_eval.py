@@ -96,7 +96,7 @@ from src.prompts import list_prompts  # noqa: E402
 _CONFIG = load_braintrust_config()
 DEFAULT_DATASETS = "mailroom-maud-contracts,mailroom-cuad-contracts-full,mailroom-s1-corporate-records"
 DEFAULT_LOCAL_DUMP = "data/datasets/docclass_merged.jsonl"
-DEFAULT_PROMPT = "sorter_docclass_v7"
+DEFAULT_PROMPT = "sorter_mailroom_v0"
 
 
 class EvalResultShim:

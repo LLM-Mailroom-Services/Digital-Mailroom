@@ -13,7 +13,10 @@ Layout under ``data/runtime/runs/<run_id>/``:
 
 from __future__ import annotations
 
-import fcntl
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - Windows / PyPy: no advisory flock
+    fcntl = None
 import json
 import os
 import time
@@ -43,7 +46,7 @@ def _atomic_write(path: Path, payload: str) -> None:
             os.fsync(dir_fd)
         finally:
             os.close(dir_fd)
-    except OSError:
+    except (OSError, AttributeError):
         pass
 
 
@@ -112,6 +115,13 @@ class RunStore:
     # ── single-writer guard ─────────────────────────────────────────────────
     @contextmanager
     def acquire(self) -> Iterator["RunStore"]:
+        if fcntl is None:
+            # Windows/no-fcntl fallback: skip the advisory flock and yield
+            # directly. Safe because writes are atomic (os.replace) or
+            # append-only (items.jsonl / events.jsonl), and this is a local
+            # single-writer tool — no cross-process contention to guard.
+            yield self
+            return
         with open(self.flock_path, "a+", encoding="utf-8") as fh:
             fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
             try:

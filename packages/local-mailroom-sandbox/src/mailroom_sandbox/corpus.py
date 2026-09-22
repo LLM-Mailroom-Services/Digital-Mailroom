@@ -511,7 +511,7 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
     strata_draw_guard(chosen, spec.strata)
 
     payload = "".join(_cache_line(r) for r in chosen)
-    dest.write_text(payload, encoding="utf-8")
+    dest.write_bytes(payload.encode("utf-8"))
     file_sha = hashlib.sha256(payload.encode("utf-8")).hexdigest()
     counts: dict[str, int] = {}
     for r in chosen:

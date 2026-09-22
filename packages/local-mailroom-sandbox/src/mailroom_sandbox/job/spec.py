@@ -256,6 +256,11 @@ class ModalSpec(BaseModel):
     scaledown_seconds: int = 900
     max_containers: int = 1
     prewarm: bool = True
+    # Hub weight-revision pin for the served model. Propagated by
+    # deploy/run_modal_classifier_cost.py as MODAL_VLLM_REVISION so the
+    # pre-warm and the serve boot pin the SAME commit (no tip drift between
+    # pre-warm and eval). Empty = Hub tip (drifting).
+    revision: str = ""
 
     @field_validator("gpu")
     @classmethod

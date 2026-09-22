@@ -130,7 +130,9 @@ def _live_sorter(row: dict[str, Any]) -> dict[str, Any]:
     result = SorterAgent().classify(_doc_text(row))
     if isinstance(result, dict):
         return result
-    return {"doc_type": str(result)}
+    if isinstance(result, (tuple, list)) and result:
+        return {"doc_type": str(result[0])}
+    return {"doc_type": ""}
 
 
 def _live_reviewer(row: dict[str, Any]) -> dict[str, Any]:

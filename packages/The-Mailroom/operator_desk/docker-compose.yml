@@ -41,7 +41,9 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-      target: operator
+      # Headless watcher — the lean operator-core target (no Node stage,
+      # no ui/dist bake).
+      target: operator-core
       args:
         MAILROOM_EXTRAS: operator
     container_name: mailroom-observer

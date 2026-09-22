@@ -40,10 +40,12 @@ def test_compose_fail_fast_and_single_front_door():
     # mailroom itself publishes nothing.
     assert "ports" not in cfg["services"]["mailroom"]
 
-    # Both app services build the operator target with the extras arg.
-    for name in ("mailroom", "mailroom-observer"):
+    # The visualizer builds the full `operator` target (baked ui/dist →
+    # /desk); the headless observer builds the lean `operator-core` target
+    # (no Node stage, no ui/dist). Both install the extras via the arg.
+    for name, target in (("mailroom", "operator"), ("mailroom-observer", "operator-core")):
         build = cfg["services"][name]["build"]
-        assert build["target"] == "operator"
+        assert build["target"] == target
         assert build.get("args", {}).get("MAILROOM_EXTRAS") == "operator"
 
     # nginx + observer wait for a healthy backend (nginx resolves the

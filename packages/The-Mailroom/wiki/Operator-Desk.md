@@ -35,8 +35,10 @@ is set. Use `MAILROOM_OPERATOR_JWT_SECRET` (or `JWT_SECRET`) — never reuse
 `MAILROOM_PIPELINE_TOKEN`.
 
 Compose — single front door, operator edition (visualizer + observer +
-nginx; nginx `:80` is the only published port; the `operator` image target
-bakes `.[operator]` + the React `ui/dist`, served at `/desk`):
+nginx; nginx `:80` is the only published port; the visualizer builds the
+`operator` image target — `.[operator]` extras + the baked React `ui/dist`,
+served at `/desk` — while the headless observer builds the lean
+`operator-core` target with no Node stage):
 
 ```bash
 export MAILROOM_OPERATOR_JWT_SECRET="$(openssl rand -hex 32)"

@@ -86,10 +86,11 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
 CMD ["python", "-m", "server.hosted"]
 
 
-# ---- Operator edition: the hosted runtime + operator extras + the baked
-# React operator desk. Built explicitly with `docker build --target operator`
-# or by the operator-desk compose (`target: operator`).
-FROM runtime AS operator
+# ---- Operator edition: the hosted runtime + operator extras. Built
+# explicitly with `docker build --target operator-core` or by the
+# operator-desk compose for the headless observer — no Node stage, no
+# ui/dist, for containers that never serve /desk.
+FROM runtime AS operator-core
 
 USER root
 
@@ -100,10 +101,6 @@ ARG MAILROOM_EXTRAS=operator
 RUN pip install --no-cache-dir ".[${MAILROOM_EXTRAS}]" || \
     pip install --no-cache-dir bcrypt PyJWT watchdog pymupdf
 
-# Baked React operator desk → /app/ui/dist → operator_desk/mount.py
-# `react_ui_dist()` → GET /desk when index.html exists.
-COPY --from=ui-builder --chown=mailroom:mailroom /ui/dist ./ui/dist
-
 # /data (bins + operator SQLite) must be writable by the app user. A fresh
 # named volume is populated from this directory on first mount, so the
 # ownership carries over — without this, `mailroom` (uid 10001) cannot
@@ -111,6 +108,15 @@ COPY --from=ui-builder --chown=mailroom:mailroom /ui/dist ./ui/dist
 RUN mkdir -p /data && chown -R mailroom:mailroom /data
 
 USER mailroom
+
+# ---- Operator edition + the baked React operator desk: extends
+# operator-core with the ui-builder output → /app/ui/dist →
+# operator_desk/mount.py `react_ui_dist()` → GET /desk when index.html
+# exists. Built with `docker build --target operator` or by the operator-
+# desk compose for the visualizer service.
+FROM operator-core AS operator
+
+COPY --from=ui-builder --chown=mailroom:mailroom /ui/dist ./ui/dist
 
 # Default target stays the hosted build (byte-identical to the pre-change
 # image): `docker build .` resolves to the LAST stage, this alias.

@@ -38,7 +38,11 @@ def test_dockerfile_operator_stages_and_default_target():
     build .` target is unchanged (trailing `FROM runtime AS observatory`)."""
     docker = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     assert "AS ui-builder" in docker
+    assert "AS operator-core" in docker
     assert "AS operator" in docker
+    # operator extends operator-core (which extends runtime) so the headless
+    # operator-core build skips the Node ui-builder stage entirely.
+    assert "FROM operator-core AS operator" in docker
     from_lines = [ln for ln in docker.splitlines() if ln.startswith("FROM ")]
     assert from_lines and from_lines[-1] == "FROM runtime AS observatory", (
         "the LAST FROM stage must be `FROM runtime AS observatory` so the "

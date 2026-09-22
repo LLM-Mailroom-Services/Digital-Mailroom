@@ -30,7 +30,11 @@ All notable changes to The-Mailroom are documented here, following
   from the image, so the app can write `/data/operator.db` + the pipeline
   bins), and nginx/observer now `depends_on: mailroom: condition:
   service_healthy` (nginx resolves the upstream at boot and would otherwise
-  crash-loop while the backend starts). Docs currency in the same change:
+  crash-loop while the backend starts). Headless-observer split (issue #77
+  gate 3): `operator-core` (`FROM runtime` + extras + `/data`) is the lean
+  no-Node target the `mailroom-observer` service builds, and `operator` now
+  extends `operator-core` with the ui/dist bake — the observer no longer
+  wastes the Node `ui-builder` stage. Docs currency in the same change:
   README, `operator_desk/README.md`, `docs/operator-desk.md` + wiki mirror,
   `.env.example`, `scripts/setup_operator.sh`,
   `.cursor/skills/operator-desk/SKILL.md`, `ui/README.md`.

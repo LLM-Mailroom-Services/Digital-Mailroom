@@ -35,7 +35,7 @@ app services build the root Dockerfile's `operator` target (installs
 | Service | Image | Purpose |
 | :--- | :--- | :--- |
 | `mailroom` | root `Dockerfile` → `target: operator` | Visualizer + `/v1/auth` `/v1/archive` `/v1/ops` `/ws/pipeline`, serves `/desk` |
-| `mailroom-observer` | root `Dockerfile` → `target: operator` | Standalone bin watcher → POST `/v1/ops/events` |
+| `mailroom-observer` | root `Dockerfile` → `target: operator-core` | Headless bin watcher → POST `/v1/ops/events` (lean image: no Node stage, no ui/dist) |
 | `nginx` | `nginx:alpine` | Reverse proxy — the only published front door (`:80`) |
 
 ## Related Files

@@ -8,6 +8,33 @@ All notable changes to The-Mailroom are documented here, following
 
 ### Changed
 
+- **DMR-076: operator desk single front door — Docker production path.**
+  The root `Dockerfile` gains a `ui-builder` (Node) stage and an `operator`
+  target (`FROM runtime` + `.[operator]` extras via the `MAILROOM_EXTRAS`
+  build arg + baked `ui/dist` at `/app/ui/dist`), with a trailing
+  `FROM runtime AS observatory` alias so the default `docker build .` stays
+  byte-identical to the hosted image. `operator_desk/docker-compose.yml`
+  rewrites to a single front door: both app services build `target:
+  operator`, the backend's `8001:8001` publish is removed (nginx `:80` is
+  the only published port), the broken `mailroom-ui` sidecar service is
+  deleted, and `MAILROOM_OPERATOR_JWT_SECRET` /
+  `MAILROOM_OPERATOR_ADMIN_PASSWORD` are fail-fast (`${VAR:?}`, no
+  `dev-secret-change-me`/`changeme` defaults; `MAILROOM_OPERATOR_INGEST_TOKEN`
+  stays optional). `operator_desk/nginx/nginx.conf` drops the bogus
+  `try_files` on the `location /` proxy_pass and documents the `/desk`
+  passthrough. `ui/Dockerfile` + `ui/nginx.conf` are repaired for standalone
+  use (`VITE_BASE=/`, proxies `/api` `/v1` `/ws` to `mailroom`) and
+  documented not-in-production; new `ui/.dockerignore`. Smoke-test fixes
+  (discovered by the live `docker compose up` gate): the `operator` stage
+  pre-creates `/data` owned by `mailroom` (a fresh named volume is populated
+  from the image, so the app can write `/data/operator.db` + the pipeline
+  bins), and nginx/observer now `depends_on: mailroom: condition:
+  service_healthy` (nginx resolves the upstream at boot and would otherwise
+  crash-loop while the backend starts). Docs currency in the same change:
+  README, `operator_desk/README.md`, `docs/operator-desk.md` + wiki mirror,
+  `.env.example`, `scripts/setup_operator.sh`,
+  `.cursor/skills/operator-desk/SKILL.md`, `ui/README.md`.
+
 - **DMR-016: vendored docclass mirror resynced 32→74 keys.**
   `mailroom_ui/docclass_prompts.py::DOCLASS_PROMPT_VERSIONS` regenerated
   verbatim (byte-identical, order-preserving) from llm-entity-extraction

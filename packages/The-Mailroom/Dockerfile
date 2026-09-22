@@ -25,6 +25,23 @@ COPY operator_desk ./operator_desk
 RUN pip install --no-cache-dir --prefix=/install .
 
 
+# ---- Optional React operator desk (ui/) — build stage only, never a runtime
+# dependency. The production compose (`operator_desk/docker-compose.yml`) uses
+# the `operator` target below, which bakes ui/dist into the image; this stage
+# is not part of the default (hosted) build.
+FROM node:22-alpine AS ui-builder
+
+WORKDIR /ui
+
+COPY ui/package.json ui/package-lock.json* ./
+RUN npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+COPY ui/ ./
+# Production default base is /desk/ (vite.config.ts); the standalone ui image
+# overrides it with VITE_BASE=/. The baked operator desk keeps /desk/.
+RUN npm run build
+
+
 FROM python:3.11-slim-bookworm AS runtime
 
 WORKDIR /app
@@ -67,3 +84,34 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD python -c "import os,urllib.request; p=os.environ.get('PORT') or os.environ.get('MAILROOM_PORT','7860'); urllib.request.urlopen(f'http://127.0.0.1:{p}/health', timeout=3)"
 
 CMD ["python", "-m", "server.hosted"]
+
+
+# ---- Operator edition: the hosted runtime + operator extras + the baked
+# React operator desk. Built explicitly with `docker build --target operator`
+# or by the operator-desk compose (`target: operator`).
+FROM runtime AS operator
+
+USER root
+
+# MAILROOM_EXTRAS is a build ARG (compose passes `args: MAILROOM_EXTRAS:
+# operator`); the explicit fallback pins the same four deps as the
+# `[operator]` extra in case the workspace copy is not installable as-is.
+ARG MAILROOM_EXTRAS=operator
+RUN pip install --no-cache-dir ".[${MAILROOM_EXTRAS}]" || \
+    pip install --no-cache-dir bcrypt PyJWT watchdog pymupdf
+
+# Baked React operator desk → /app/ui/dist → operator_desk/mount.py
+# `react_ui_dist()` → GET /desk when index.html exists.
+COPY --from=ui-builder --chown=mailroom:mailroom /ui/dist ./ui/dist
+
+# /data (bins + operator SQLite) must be writable by the app user. A fresh
+# named volume is populated from this directory on first mount, so the
+# ownership carries over — without this, `mailroom` (uid 10001) cannot
+# create /data/operator.db or the pipeline bins in a root-owned volume.
+RUN mkdir -p /data && chown -R mailroom:mailroom /data
+
+USER mailroom
+
+# Default target stays the hosted build (byte-identical to the pre-change
+# image): `docker build .` resolves to the LAST stage, this alias.
+FROM runtime AS observatory

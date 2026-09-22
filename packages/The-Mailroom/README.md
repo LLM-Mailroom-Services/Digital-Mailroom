@@ -291,11 +291,26 @@ Pages snapshot and not the pixel-art console.
 
 ```bash
 mailroom-hosted                          # 0.0.0.0:8001  →  / and /live
-docker build -t mailroom-observatory .
+docker build -t mailroom-observatory .   # default `observatory` target = hosted
 docker run --rm -p 7860:7860 --env-file .env mailroom-observatory
 python scripts/publish_space.py --check  # Hugging Face Docker Space payload
 # Railway: see docs/deployment.md (.railway/railway.py IaC + PORT preference;
 # GET /health = liveness (+ platform, build_sha), GET /api/health = Langfuse)
+```
+
+**Operator edition (single front door):** the root `Dockerfile` also ships
+`--target operator` — the hosted runtime + `.[operator]` extras + the baked
+React desk at `/desk` — and an `observatory` alias keeps `docker build .`
+(no `--target`) byte-identical to the hosted image above. Compose is the
+production path for the operator desk: nginx `:80` is the ONLY published
+port, and `MAILROOM_OPERATOR_JWT_SECRET` / `MAILROOM_OPERATOR_ADMIN_PASSWORD`
+are fail-fast (`${VAR:?}`, no dev defaults):
+
+```bash
+cd operator_desk
+export MAILROOM_OPERATOR_JWT_SECRET="$(openssl rand -hex 32)"
+export MAILROOM_OPERATOR_ADMIN_PASSWORD='<strong-password>'
+docker compose up --build                # → http://localhost/desk
 ```
 
 Hugging Face Space: SDK **Docker**, root directory **empty** (repo-root

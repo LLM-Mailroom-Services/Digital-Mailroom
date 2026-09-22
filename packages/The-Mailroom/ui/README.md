@@ -33,8 +33,16 @@ pip install -e ".[ui]"
 Ingest still happens on llm-mailroom `:8000`. This desk does not accept uploads
 and does not fabricate envelopes.
 
-Compose profile (after `npm run build` or the UI image):
+Compose: the `mailroom-ui` sidecar service was removed (DMR-076) — the
+production compose bakes this desk into the root image's `operator` target
+and serves it at `/desk` through nginx (`:80`, single front door). This
+package is now standalone-only:
 
 ```bash
-docker compose -f operator_desk/docker-compose.yml --profile ui up --build
+docker build -t mailroom-ui ./ui        # VITE_BASE=/ → serves SPA at /
+# run on a network shared with the backend, then open :5174
+docker run --network mailroom-net -p 5174:80 mailroom-ui
 ```
+
+The standalone container proxies `/api` `/v1` `/ws` to a `mailroom` upstream
+(see `nginx.conf`) — it is dev/evaluation use only, not the production path.

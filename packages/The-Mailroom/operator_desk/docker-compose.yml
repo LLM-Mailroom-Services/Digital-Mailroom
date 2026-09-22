@@ -1,13 +1,21 @@
-# Operator-desk sidecar around the existing The-Mailroom visualizer.
-# Pixel console + Observatory stay vanilla (no Node/React UI).
-# Langfuse stays the US-cloud document-display source — this file does not
-# stand up a local Langfuse.
+# Operator desk — single front door. nginx :80 is the ONLY published port.
+# Both app services run the `operator` image target (operator extras + baked
+# ui/dist served at /desk). Langfuse stays the US-cloud document-display
+# source — this file does not stand up a local Langfuse.
+#
+# Required env (fail fast — compose refuses to start without them):
+#   MAILROOM_OPERATOR_JWT_SECRET, MAILROOM_OPERATOR_ADMIN_PASSWORD
+# Optional: MAILROOM_OPERATOR_INGEST_TOKEN (standalone observer ingest),
+# MAILROOM_EDITION, MAILROOM_OBSERVER, LANGFUSE_*, MAILROOM_PIPELINE_*.
 
 services:
   mailroom:
     build:
       context: ..
       dockerfile: Dockerfile
+      target: operator
+      args:
+        MAILROOM_EXTRAS: operator
     container_name: mailroom-visualizer
     environment:
       - MAILROOM_EDITION=${MAILROOM_EDITION:-console}
@@ -15,8 +23,8 @@ services:
       - MAILROOM_PORT=8001
       - MAILROOM_BASE_DIR=/data
       - MAILROOM_OPERATOR_DB=/data/operator.db
-      - MAILROOM_OPERATOR_JWT_SECRET=${MAILROOM_OPERATOR_JWT_SECRET:-dev-secret-change-me}
-      - MAILROOM_OPERATOR_ADMIN_PASSWORD=${MAILROOM_OPERATOR_ADMIN_PASSWORD:-changeme}
+      - MAILROOM_OPERATOR_JWT_SECRET=${MAILROOM_OPERATOR_JWT_SECRET:?set MAILROOM_OPERATOR_JWT_SECRET in .env}
+      - MAILROOM_OPERATOR_ADMIN_PASSWORD=${MAILROOM_OPERATOR_ADMIN_PASSWORD:?set MAILROOM_OPERATOR_ADMIN_PASSWORD in .env}
       - MAILROOM_OPERATOR_INGEST_TOKEN=${MAILROOM_OPERATOR_INGEST_TOKEN:-}
       - MAILROOM_OBSERVER=${MAILROOM_OBSERVER:-1}
       - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-}
@@ -26,14 +34,16 @@ services:
       - MAILROOM_PIPELINE_TOKEN=${MAILROOM_PIPELINE_TOKEN:-}
     volumes:
       - mailroom-data:/data
-    ports:
-      - "8001:8001"
+    # No ports: nginx is the only published front door.
     command: python -m server.main
 
   mailroom-observer:
     build:
       context: ..
       dockerfile: Dockerfile
+      target: operator
+      args:
+        MAILROOM_EXTRAS: operator
     container_name: mailroom-observer
     environment:
       - MAILROOM_BASE_DIR=/data
@@ -45,18 +55,8 @@ services:
       - mailroom-data:/data
     command: python -m operator_desk.observer
     depends_on:
-      - mailroom
-
-  mailroom-ui:
-    profiles: ["ui"]
-    build:
-      context: ../ui
-      dockerfile: Dockerfile
-    container_name: mailroom-ui
-    ports:
-      - "5174:80"
-    depends_on:
-      - mailroom
+      mailroom:
+        condition: service_healthy
 
   nginx:
     image: nginx:alpine
@@ -66,7 +66,10 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - mailroom
+      # nginx resolves `mailroom` at boot — wait for the backend to be up,
+      # otherwise the unresolvable upstream kills the container.
+      mailroom:
+        condition: service_healthy
 
 volumes:
   mailroom-data:

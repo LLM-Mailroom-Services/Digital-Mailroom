@@ -28,6 +28,9 @@ SQLite (`ui_users` / `ui_audit` / `archive_index`).
 pip install -e ".[operator]"
 python -m operator_desk
 mailroom-observer
+# Compose = single front door: nginx :80 only published port, /desk baked
+# into the `operator` image target. Fail-fast required env:
+# MAILROOM_OPERATOR_JWT_SECRET / MAILROOM_OPERATOR_ADMIN_PASSWORD.
 docker compose -f operator_desk/docker-compose.yml up --build
 ```
 

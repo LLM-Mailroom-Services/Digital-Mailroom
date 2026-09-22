@@ -49,6 +49,12 @@ Secrets are never printed (only presence, mirroring ``modal_vllm._masked_config`
 
 Usage:
     python deploy/run_modal_classifier_cost.py {--preview|--dry-run|--mock|--run|--run-openrouter}
+
+Fully spec-driven: --spec/--or-spec accept any run spec (model, GPU, task/eval,
+serving knobs all come from the spec; engine knobs are pushed into MODAL_VLLM_*
+so the deploy boots exactly what the spec records). GPU hourly rate is an env
+override (MODAL_GPU_HOURLY_USD). To run the Modal-vs-OpenRouter cost-per-token
+comparison for a DIFFERENT model/GPU: edit or point --spec/--or-spec at new run specs.
 """
 
 from __future__ import annotations
@@ -255,6 +261,40 @@ def _modal_revision(spec: Any) -> str:
         if rev:
             return rev
     return str(getattr(getattr(spec.engine, "vllm", None), "revision", "") or "").strip()
+
+
+def _apply_engine_env(spec: Any) -> None:
+    """Propagate the run spec's engine knobs into the environment so the Modal
+    deploy boots EXACTLY what the spec records (any model / GPU / context /
+    serving knobs / revision / image tag).
+
+    deploy/modal_vllm.py reads ``MODAL_VLLM_*`` at module import; the spawned
+    ``modal deploy`` / ``modal run`` subprocesses inherit this driver's
+    os.environ, so setting them here means recorded identity == booted engine
+    by construction (no divergence when the spec differs from deploy defaults).
+    """
+    modal = getattr(spec.engine, "modal", None)
+    vllm = getattr(spec.engine, "vllm", None)
+
+    def _set(key: str, value: Any) -> None:
+        if value not in (None, "", False):
+            os.environ[key] = str(value)
+
+    _set("MODAL_VLLM_MODEL", spec.engine.model)
+    if modal is not None:
+        _set("MODAL_VLLM_GPU", getattr(modal, "gpu", None))
+        _set("MODAL_VLLM_IMAGE_TAG", getattr(modal, "image_tag", None))
+        _set("MODAL_VLLM_SCALEDOWN_SECONDS", getattr(modal, "scaledown_seconds", None))
+        _set("MODAL_VLLM_MAX_CONTAINERS", getattr(modal, "max_containers", None))
+        _set("MODAL_VLLM_REVISION", getattr(modal, "revision", None))
+    if vllm is not None:
+        _set("MODAL_VLLM_MAX_MODEL_LEN", getattr(vllm, "max_model_len", None))
+        _set("MODAL_VLLM_GPU_MEMORY_UTILIZATION", getattr(vllm, "gpu_memory_utilization", None))
+        _set("MODAL_VLLM_MAX_NUM_SEQS", getattr(vllm, "max_num_seqs", None))
+        _set("MODAL_VLLM_QUANTIZATION", getattr(vllm, "quantization", None))
+        # backward-compatible revision fallback (modal.revision is primary)
+        if not (modal is not None and getattr(modal, "revision", None)):
+            _set("MODAL_VLLM_REVISION", getattr(vllm, "revision", None))
 
 
 def _load_log_records() -> list[dict[str, Any]]:
@@ -797,22 +837,14 @@ def _run_real(spec: Any) -> int:
     if revision == REVISION_PLACEHOLDER:
         raise SystemExit(
             "engine.modal.revision is still the placeholder 'REVISION_PIN_ME' — pin the exact "
-            "Qwen/Qwen3-8B commit before --run (see the comment in "
-            "config/runs/qwen3_8b_cost_compare_modal.yaml; use the full 40-hex sha from the HF "
-            "snapshot or the Qwen/Qwen3-8B release). Without a pin the Hub tip can drift between "
-            "pre-warm and eval."
+            "commit before --run (use the full 40-hex sha from the HF snapshot or the upstream "
+            "release); otherwise the Hub tip can drift between pre-warm and eval."
         )
-    if revision:
-        # Pin the SAME commit for pre-warm (snapshot_download) and serve boot
-        # (vllm --revision): deploy/modal_vllm.py reads MODAL_VLLM_REVISION.
-        os.environ["MODAL_VLLM_REVISION"] = revision
-    # Propagate the spec's image_tag so the recorded identity always equals the
-    # booted engine. deploy/modal_vllm.py defaults to v0.29.0, which is the
-    # fallback when the spec leaves image_tag empty — so identity and reality
-    # can never drift.
-    image_tag = str(getattr(getattr(spec.engine, "modal", None), "image_tag", "") or "").strip()
-    if image_tag:
-        os.environ["MODAL_VLLM_IMAGE_TAG"] = image_tag
+    # Model / GPU / context / quantization / serving knobs / revision / image tag
+    # all derive from the run spec and are pushed into MODAL_VLLM_* so the deploy
+    # boots EXACTLY what the spec records (recorded identity == booted engine, by
+    # construction — no divergence when the spec differs from deploy defaults).
+    _apply_engine_env(spec)
     os.environ["VLLM_API_KEY"] = api_token
     # The deployed bearer endpoint is authenticated by MODAL_VLLM_API_TOKEN
     # (consumed by deploy/modal_vllm.py); mirror the consumer-side VLLM_API_KEY
@@ -849,6 +881,9 @@ def _run_real(spec: Any) -> int:
 
 def _run_mock(spec: Any) -> int:
     _step("Mock — fake local /v1 endpoint (no Modal, no deploy, no network)")
+    # Echo the spec's model so the offline rehearsal is model-agnostic.
+    global FAKE_MODEL
+    FAKE_MODEL = spec.engine.model
     fake = FakeEndpointServer()
     fake_base = fake.start()
     api_token = "not-needed"
@@ -886,7 +921,7 @@ def _preview(spec: Any) -> int:
     print(f"  run spec            : {SPEC_PATH}")
     print(f"  run_id              : {RUN_ID}")
     print(f"  experiment          : {EXPERIMENT_NAME}")
-    print(f"  task                : {spec.task} (isolated -> sorter classifier, one LLM call/doc)")
+    print(f"  task                : {spec.task} (isolated -> single LLM call/doc; task from the spec)")
     print(f"  profile/engine      : {spec.profile} / {spec.engine.kind}")
     print(f"  model               : {spec.engine.model}")
     print(f"  revision            : {_modal_revision(spec) or '(unset — Hub tip, DRIFTING; pin engine.modal.revision)'}")
@@ -903,11 +938,11 @@ def _preview(spec: Any) -> int:
     print(f"  3. readiness: poll {upstream}/models with a bearer token (retry on 503/connection until ready), "
           "then modal_vllm._smoke_check")
     print(f"  4. warm-up  : {WARMUP_CALLS} uncounted /v1/chat/completions calls (CUDA-graph/TTFT isolation)")
-    print(f"                bodies pass chat_template_kwargs={{'enable_thinking': False}} (Qwen3-8B)")
+    print(f"                bodies pass chat_template_kwargs={{'enable_thinking': False}} (Qwen3-class)")
     print(f"  5. eval     : start a local token-counting proxy -> VLLM_BASE_URL=<proxy>/v1 ->")
-    print(f"                {' '.join(sandbox)} run preflight --force --config config/runs/qwen3_8b_cost_compare_modal.yaml")
-    print(f"                {' '.join(sandbox)} run start --config config/runs/qwen3_8b_cost_compare_modal.yaml")
-    print(f"                (the isolated sorter eval runs against the proxy; no eval reimplementation)")
+    print(f"                {' '.join(sandbox)} run preflight --force --config {SPEC_PATH.name}")
+    print(f"                {' '.join(sandbox)} run start --config {SPEC_PATH.name}")
+    print(f"                (the spec's isolated eval runs against the proxy; no eval reimplementation)")
     print(f"  6. record   : metrics.record_from_run(..., gpu_hourly_usd=..., warm_span_seconds=...) +")
     print(f"                experiment_log.new_record(identity=...) + append -> reports/experiment_log.jsonl")
     print(f"  7. compare  : cost card + OpenRouter-leg (run_id {OPENROUTER_LEG_RUN_ID}) table from the log")
@@ -916,7 +951,7 @@ def _preview(spec: Any) -> int:
     print(f"               writes its token-counted serving record (no Modal/deploy) for the comparison")
     print()
     print("Cost plan:")
-    print(f"  gpu_hourly_usd       : {_usd(gpu_hourly)}/hour (L4 bf16; override with MODAL_GPU_HOURLY_USD)")
+    print(f"  gpu_hourly_usd       : {_usd(gpu_hourly)}/hour (GPU {modal.gpu}; override with MODAL_GPU_HOURLY_USD)")
     print("  gpu_cost_usd         = gpu_hourly_usd x warm_span_seconds / 3600")
     print("  warm_span_seconds    : measured at runtime (first warm-up request -> last eval request end)")
     for span in (300, 600, 1200):
@@ -937,9 +972,15 @@ def _preview(spec: Any) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    global SPEC_PATH, OR_SPEC_PATH, RUN_ID, OPENROUTER_LEG_RUN_ID, EXPERIMENT_NAME
     parser = argparse.ArgumentParser(
-        description="Orchestrate the Modal leg of the cost-per-token classifier experiment (qwen3-8b, isolated sorter)."
+        description="Orchestrate either leg of the cost-per-token experiment — fully spec-driven "
+                    "(any model / GPU / eval via the run specs)."
     )
+    parser.add_argument("--spec", default=str(SPEC_PATH),
+                        help="Modal-leg run spec path (default: config/runs/qwen3_8b_cost_compare_modal.yaml)")
+    parser.add_argument("--or-spec", default=str(OR_SPEC_PATH),
+                        help="OpenRouter(API)-leg run spec path (default: config/runs/qwen3_8b_cost_compare.yaml)")
     parser.add_argument("--preview", dest="mode", action="store_const", const="preview", help="print the plan + cost plan; run nothing")
     parser.add_argument("--dry-run", dest="mode", action="store_const", const="preview", help="alias for --preview")
     parser.add_argument("--mock", dest="mode", action="store_const", const="mock", help="full offline rehearsal against a fake local /v1 endpoint")
@@ -954,9 +995,18 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return 2
 
+    # Derive run identity from the SPECS so the driver is switchable to any
+    # model/GPU/eval by pointing --spec/--or-spec at different run specs.
+    SPEC_PATH = Path(args.spec)
+    OR_SPEC_PATH = Path(args.or_spec)
+    spec = _load_spec(SPEC_PATH)
+    or_spec = _load_spec(OR_SPEC_PATH)
+    RUN_ID = getattr(spec, "run_id", None) or RUN_ID
+    OPENROUTER_LEG_RUN_ID = getattr(or_spec, "run_id", None) or OPENROUTER_LEG_RUN_ID
+    EXPERIMENT_NAME = getattr(spec, "experiment_name", None) or EXPERIMENT_NAME
+
     if args.mode == "orleg":
         return _run_openrouter_leg(_load_spec(OR_SPEC_PATH))
-    spec = _load_spec()
     if args.mode == "preview":
         return _preview(spec)
     if args.mode == "mock":

@@ -179,8 +179,16 @@ function bodySection(body, heading) {
   return hit ? hit.content.trim() : "";
 }
 
+function sanitizeSectionContent(content) {
+  return (content || "")
+    .split("\n")
+    .filter((line) => !/^###\s+/.test(line))
+    .join("\n")
+    .trim();
+}
+
 function setBodySection(body, heading, content) {
-  const clean = (content || "").trim();
+  const clean = sanitizeSectionContent(content);
   const { preamble, sections } = parseSections(body || "");
   const idx = sections.findIndex((s) => s.heading.toLowerCase() === heading.toLowerCase());
   if (idx >= 0) sections[idx] = { heading, content: clean || "—" };

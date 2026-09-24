@@ -12,6 +12,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BUILDER = REPO_ROOT / "scripts" / "datasets" / "build_legalbench_full_pack.py"
 PUBLISHER = REPO_ROOT / "scripts" / "datasets" / "publish_kanban071.py"
@@ -83,9 +85,8 @@ def _summary() -> dict | None:
     return json.loads(p.read_text())
 
 
+@pytest.mark.artifact
 def test_publish_summary_records_green_verification():
-    import pytest
-
     s = _summary()
     if s is None:
         pytest.skip("data/hf_export/ absent (gitignored)")
@@ -100,6 +101,7 @@ def test_publish_summary_records_green_verification():
     assert docclass.get("local_sha256") == docclass.get("hub_lfs_sha256")
 
 
+@pytest.mark.artifact
 def test_enrichment_report_totals_are_complete_and_honest():
     p = STAGING / "legalbench_full" / "ENRICHMENT_REPORT.json"
     if not p.exists():
@@ -150,6 +152,7 @@ def test_publisher_docclass_guard_blocks_partial_null_uploads():
     assert 'r.get("expected_subclass")' in src and 'r.get("filename")' in src
 
 
+@pytest.mark.artifact
 def test_docclass_dump_schema_v2_no_null_label_columns():
     import pytest
 
@@ -170,6 +173,7 @@ def test_docclass_dump_schema_v2_no_null_label_columns():
     assert len({r["expected_subclass"] for r in contracts}) >= 25
 
 
+@pytest.mark.artifact
 def test_docclass_manifest_records_schema_v2_coverage():
     import pytest
 
@@ -213,6 +217,7 @@ def test_split_rule_is_deterministic_family_single_source():
         in enron_src
 
 
+@pytest.mark.artifact
 def test_docclass_dump_schema_v3_splits_on_every_row():
     import pytest
 

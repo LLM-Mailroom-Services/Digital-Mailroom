@@ -2,7 +2,7 @@
 
 # 🔌 Agent Mailroom API
 
-**API endpoints for the agent-mailroom package.**
+**HTTP surface for the agent-mailroom package (`agent_mailroom.api.app`).**
 
 </div>
 
@@ -10,17 +10,15 @@
 
 ## Endpoints
 
-| Endpoint | Purpose |
-|:---|:---|
-| `/api/agents` | Agent status and control |
-| `/api/floor` | Office floor state |
-| `/api/mail` | Mail queue operations |
+Routes mount at `/` and `/v1` (see the package `README.md` “Full endpoint list” for
+the live table). Common paths include `/health`, `/upload`, `/lookup`,
+`/review/queue`, `/metrics`, `/hive/board`, and `/console`.
 
 ## Usage
 
 ```bash
 cd packages/agent-mailroom
-uv run python -m agent_mailroom.api
+uv run uvicorn agent_mailroom.api.app:app --host 127.0.0.1 --port 8080
 ```
 
 ## Related Files

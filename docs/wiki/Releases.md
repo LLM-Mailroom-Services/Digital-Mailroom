@@ -115,8 +115,8 @@ change what every release carries, never hand-type a release body.
   package directory as before.
 - GitHub Pages sites: [llm-entity-extraction](https://exios66.github.io/llm-entity-extraction/),
   [The-Mailroom](https://exios66.github.io/The-Mailroom/) (pixel console
-  root; the new [terminal console](https://exios66.github.io/The-Mailroom/docs/terminal/)
-  lives under `/docs/terminal/`),
+  root; the terminal console will live under `/docs/terminal/` once
+  `publish_pages.sh` lands — that URL **404s today**; track [DMR-013](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/18)),
   [llm-mailroom-graph](https://exios66.github.io/llm-mailroom-graph/).
 - **The served Kanban board — Vercel:** https://digital-mailroom-theta.vercel.app
   (project `digital-mailroom`, deploy root `board-site/`). It is its own deploy

@@ -17,7 +17,7 @@ Four surfaces share one display API (`/api/*` + `/ws`):
 | Pixel-art console | `mailroom-web` → `http://127.0.0.1:8001/` | the CRT conveyor floor |
 | Hosted Observatory | `mailroom-hosted` (also `/live` on the same server) | public operations desk |
 | TUI | `mailroom-tui` | typed-command REPL (`MAILROOM_API_URL`) |
-| Terminal site | `…/terminal/` on GH Pages | owlcot-style TTY: `ls`/`cat`/`cd`, `corpus ls | show`,`repos` |
+| Terminal site | `…/terminal/` on GH Pages (pending live publish — DMR-013; URL 404s until `publish_pages.sh` lands) | owlcot-style TTY: `ls`/`cat`/`cd`, `corpus ls | show`,`repos` |
 
 The terminal site and the TUI both add a **dataset viewer** (`corpus …`
 commands over `Lucius-Morningstar/mailroom-dataset` — slim windowed

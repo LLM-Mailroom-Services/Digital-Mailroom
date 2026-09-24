@@ -771,17 +771,6 @@ def _serialize(run: PipelineRun, full: bool = False) -> dict:
         "scores": run.scores,
     }
 
-
-def _dt(value) -> Optional[datetime]:
-    if value is None:
-        return None
-    try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    except ValueError:
-        return None
-
-
-def listen_port(default: int = 8001) -> int:
     """Prefer platform ``PORT`` (Railway / Fly / Render) over ``MAILROOM_PORT``.
 
     Hugging Face Spaces and the Observatory image bake ``MAILROOM_PORT=7860``.

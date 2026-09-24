@@ -20,6 +20,14 @@ belongs to the standalone mailroom lineage that became `packages/llm-mailroom`
 and is recorded there, not here.
 
 ## [Unreleased]
+### Removed
+
+- **`.github/workflows/ci.yml`:** dropped the hub#176 per-package pytest matrix on
+  GitHub Actions — it was manually disabled yet still registered as a required
+  check, and recent runs failed on unrelated suite drift (entity-extraction
+  scorer label test, sandbox vendor/fixture gaps). Local/PR verification stays
+  per `docs/TESTING.md`; governance gates remain in `board-governance.yml`.
+
 ### Changed
 
 - **Hub governance + docs truth (post-v0.7.0 sweep):** DMR-074 sync/release law in

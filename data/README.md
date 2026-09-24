@@ -14,9 +14,14 @@ This directory holds shared data that spans multiple packages in the monorepo. P
 
 ### Structure
 
-| Path | Contents |
-|:---|:---|
-| [`manifests/`](manifests/) | Pipeline manifests, document catalogs, and classification outputs |
+| Path | Contents | Git |
+|:---|:---|:---|
+| [`manifests/`](manifests/) | Pipeline manifests, document catalogs, and classification outputs | Tracked (`manifests/extraction_langfuse.jsonl` + READMEs) |
+| `pipeline/` | Bin lanes (`inbox/`, `processing/`, `review/`, `classified/`, `failed/`) | Regenerated locally (gitignored) |
+| `archive/` | Archived pipeline documents | Regenerated locally (gitignored) |
+| `runtime/` | Runtime taxonomy (`taxonomy.yaml`) and similar operator state | Regenerated locally (gitignored) |
+| `operator.db` (+ `-shm`/`-wal`) | Local operator SQLite store | Regenerated locally (gitignored via `*.db`) |
+| `watcher_heartbeat` | Pipeline watcher liveness file | Regenerated locally (gitignored) |
 
 ## Related Data Locations
 

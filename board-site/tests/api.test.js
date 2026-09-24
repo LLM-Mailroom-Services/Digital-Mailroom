@@ -319,6 +319,38 @@ function reset() {
     }
   });
 
+  await check("GET board returns rateLimited JSON after GitHub 429 (hub#166)", async () => {
+    reset();
+    const origFetch = global.fetch;
+    let hits = 0;
+    global.fetch = async () => {
+      hits++;
+      return {
+        ok: false,
+        status: 429,
+        headers: { get: (name) => (name === "retry-after" ? "0" : null) },
+        text: async () => JSON.stringify({ message: "API rate limit exceeded" }),
+      };
+    };
+    try {
+      const res = await runHandler(boardHandler, makeReq("GET", "/api/board"));
+      assert.strictEqual(res.statusCode, 503, res._body);
+      const body = JSON.parse(res._body);
+      assert.strictEqual(body.rateLimited, true);
+      assert.ok(hits >= 3, "expected retries before surfacing rate limit");
+    } finally {
+      global.fetch = origFetch;
+    }
+  });
+
+  await check("index.html keeps cards when refresh hits rateLimited (hub#166)", () => {
+    const src = require("node:fs").readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    assert.ok(src.includes("if (err.rateLimited)"), "refreshBoard must branch on rateLimited");
+    assert.ok(src.includes("● RATE LIMITED"), "rate limit badge copy present");
+    const rateBranch = src.slice(src.indexOf("if (err.rateLimited)"), src.indexOf("} else {", src.indexOf("if (err.rateLimited)")));
+    assert.ok(!rateBranch.includes("state.cards = []"), "rate limit branch must not wipe cards");
+  });
+
   await check("GET board maps fetch network failure to 502", async () => {
     reset();
     const origFetch = global.fetch;
@@ -332,6 +364,29 @@ function reset() {
     } finally {
       global.fetch = origFetch;
     }
+  });
+
+  await check("PATCH desc-only omits labels field (hub#167)", async () => {
+    reset();
+    const res = await runHandler(cardHandler, makeReq("PATCH", "/api/board/DMR-001", { desc: "updated task" }));
+    assert.strictEqual(res.statusCode, 200, res._body);
+    const patchCall = calls.find((c) => c.method === "PATCH" && /\/issues\/1$/.test(c.url));
+    assert.ok(patchCall, "expected PATCH");
+    assert.strictEqual(patchCall.body.labels, undefined, "labels must be omitted on desc-only patch");
+  });
+
+  await check("setBodySection strips embedded markdown headings (hub#167)", () => {
+    const out = ghx.setBodySection("### Task\nold", "Task", "line one\n### Evidence plan\ninjected");
+    assert.ok(!out.includes("### Evidence plan\ninjected"), `body must not retain injected heading: ${out}`);
+    assert.ok(out.includes("line one"), out);
+  });
+
+  await check("PATCH agents non-array returns 400 (hub#167)", async () => {
+    reset();
+    const res = await runHandler(cardHandler, makeReq("PATCH", "/api/board/DMR-001", { agents: "bob" }));
+    assert.strictEqual(res.statusCode, 400, res._body);
+    assert.ok(res._body.includes("agents must be an array"), res._body);
+    assert.ok(!calls.some((c) => c.method === "PATCH" && /\/issues\/1$/.test(c.url)), "no write on bad agents");
   });
 
   console.log(`\n${passed} checks passed`);

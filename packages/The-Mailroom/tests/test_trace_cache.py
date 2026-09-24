@@ -32,8 +32,14 @@ def test_snapshot_export_is_empty_not_canned():
 
 
 def test_traces_fall_back_to_cache_when_langfuse_down():
+    now = datetime.now(timezone.utc)
     persist_floor(
-        [{"trace_id": "t-cached", "filename": "kept.pdf", "stage": "archived"}],
+        [{
+            "trace_id": "t-cached",
+            "filename": "kept.pdf",
+            "stage": "archived",
+            "updated_at": (now - timedelta(minutes=5)).isoformat(),
+        }],
         source="langfuse",
     )
     persist_run("t-cached", {
@@ -66,6 +72,34 @@ def test_empty_cache_and_langfuse_down_stays_closed():
         health = c.get("/api/health").json()
         assert health.get("langfuse") is False
         assert health.get("source") != CACHE_SOURCE or not health.get("cache", {}).get("has_snapshot")
+
+
+def test_cached_traces_honor_since_and_count_matches_slice():
+    """Cached fallback must filter by ?since= and count returned rows only."""
+    now = datetime.now(timezone.utc)
+    persist_floor(
+        [
+            {
+                "trace_id": "t-stale",
+                "filename": "stale.pdf",
+                "stage": "archived",
+                "updated_at": (now - timedelta(days=10)).isoformat(),
+            },
+            {
+                "trace_id": "t-fresh",
+                "filename": "fresh.pdf",
+                "stage": "archived",
+                "updated_at": (now - timedelta(minutes=5)).isoformat(),
+            },
+        ],
+        source="langfuse",
+    )
+    with TestClient(create_app(_down_source())) as c:
+        body = c.get("/api/traces?since=3600&limit=1").json()
+        assert body["source"] == CACHE_SOURCE
+        assert len(body["runs"]) == 1
+        assert body["count"] == 1
+        assert body["runs"][0]["trace_id"] == "t-fresh"
 
 
 def test_live_traces_still_hit_langfuse():

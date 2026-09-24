@@ -334,5 +334,14 @@ function reset() {
     }
   });
 
+  await check("writeThrough snapshots card before mutation (hub#168)", () => {
+    const src = require("node:fs").readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    assert.ok(src.includes("function snapshotCard(card)"), "snapshot helper required");
+    assert.ok(src.includes("const prev = snapshotCard("), "writeThrough must snapshot before PATCH");
+    const wt = src.slice(src.indexOf("async function writeThrough"), src.indexOf("// ─── STATE MANAGEMENT"));
+    assert.ok(!wt.includes("throw err"), "writeThrough must not rethrow after toast");
+    assert.match(src, /writeThrough\(cardId, \{ archived: true[\s\S]*?\.catch\(\(\) => \{\}\)/, "archive must catch");
+  });
+
   console.log(`\n${passed} checks passed`);
 })();

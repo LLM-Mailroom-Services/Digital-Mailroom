@@ -1829,8 +1829,16 @@
                 updateTabTitle();
             }
 
+            function snapshotCard(card) {
+                if (!card) return null;
+                return {
+                    ...card,
+                    agents: Array.isArray(card.agents) ? card.agents.slice() : [],
+                };
+            }
+
             async function writeThrough(cardId, patch) {
-                const prev = state.cards.find((c) => c.id === cardId);
+                const prev = snapshotCard(state.cards.find((c) => c.id === cardId));
                 try {
                     const fresh = await apiFetch('PATCH', '/api/board/' + encodeURIComponent(cardId), patch);
                     if (fresh && fresh.id) {
@@ -1852,7 +1860,6 @@
                     }
                     renderBoard();
                     showToast(`❌ ${cardId} save failed: ${err.message}`, 'error');
-                    throw err;
                 }
             }
 
@@ -2424,7 +2431,7 @@
                 const patch = { lane: newLane, priority: card.priority };
                 writeThrough(cardId, patch).then(() => {
                     showToast(`✅ ${card.id} moved to ${LANES.find(l => l.id === newLane)?.title}`, 'success');
-                });
+                }).catch(() => {});
             }
 
             function archiveCard(cardId) {
@@ -2437,7 +2444,7 @@
                 updateStats();
                 updateTabTitle();
                 ensureAgent();
-                writeThrough(cardId, { archived: true, lane: 'done' });
+                writeThrough(cardId, { archived: true, lane: 'done' }).catch(() => {});
             }
 
             function unarchiveCard(cardId) {
@@ -2450,7 +2457,7 @@
                 updateStats();
                 updateTabTitle();
                 ensureAgent();
-                writeThrough(cardId, { archived: false, lane: 'unassigned' });
+                writeThrough(cardId, { archived: false, lane: 'unassigned' }).catch(() => {});
             }
 
             function deleteCard(cardId) {
@@ -2483,7 +2490,7 @@
                         priority: cardData.priority,
                         agents: cardData.agents,
                         evidence: cardData.evidence,
-                    });
+                    }).catch(() => {});
                 } else {
                     // New card -> create a GitHub issue; server assigns DMR-0NN.
                     const tmp = tmpNewCardId || cardData.id;

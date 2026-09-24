@@ -201,6 +201,11 @@ def test_root_requirements_is_core_only_with_pointer_header():
     assert set(parsed) == set(CORE_EXPECTED), (
         f"root requirements.txt must stay core-only, got: {sorted(parsed)}"
     )
+    for name, expected in CORE_EXPECTED.items():
+        assert parsed.get(name) == expected, (
+            f"requirements.txt spec drift for {name}: "
+            f"got {parsed.get(name)!r}, want {expected!r}"
+        )
     assert "requirements/" in text and "test_dependency_manifests" in text, (
         "pointer header to the batch files went missing"
     )

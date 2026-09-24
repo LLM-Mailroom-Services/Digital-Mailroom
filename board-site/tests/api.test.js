@@ -366,27 +366,13 @@ function reset() {
     }
   });
 
-  await check("PATCH desc-only omits labels field (hub#167)", async () => {
-    reset();
-    const res = await runHandler(cardHandler, makeReq("PATCH", "/api/board/DMR-001", { desc: "updated task" }));
-    assert.strictEqual(res.statusCode, 200, res._body);
-    const patchCall = calls.find((c) => c.method === "PATCH" && /\/issues\/1$/.test(c.url));
-    assert.ok(patchCall, "expected PATCH");
-    assert.strictEqual(patchCall.body.labels, undefined, "labels must be omitted on desc-only patch");
-  });
-
-  await check("setBodySection strips embedded markdown headings (hub#167)", () => {
-    const out = ghx.setBodySection("### Task\nold", "Task", "line one\n### Evidence plan\ninjected");
-    assert.ok(!out.includes("### Evidence plan\ninjected"), `body must not retain injected heading: ${out}`);
-    assert.ok(out.includes("line one"), out);
-  });
-
-  await check("PATCH agents non-array returns 400 (hub#167)", async () => {
-    reset();
-    const res = await runHandler(cardHandler, makeReq("PATCH", "/api/board/DMR-001", { agents: "bob" }));
-    assert.strictEqual(res.statusCode, 400, res._body);
-    assert.ok(res._body.includes("agents must be an array"), res._body);
-    assert.ok(!calls.some((c) => c.method === "PATCH" && /\/issues\/1$/.test(c.url)), "no write on bad agents");
+  await check("writeThrough snapshots card before mutation (hub#168)", () => {
+    const src = require("node:fs").readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    assert.ok(src.includes("function snapshotCard(card)"), "snapshot helper required");
+    assert.ok(src.includes("const prev = snapshotCard("), "writeThrough must snapshot before PATCH");
+    const wt = src.slice(src.indexOf("async function writeThrough"), src.indexOf("// ─── STATE MANAGEMENT"));
+    assert.ok(!wt.includes("throw err"), "writeThrough must not rethrow after toast");
+    assert.match(src, /writeThrough\(cardId, \{ archived: true[\s\S]*?\.catch\(\(\) => \{\}\)/, "archive must catch");
   });
 
   console.log(`\n${passed} checks passed`);

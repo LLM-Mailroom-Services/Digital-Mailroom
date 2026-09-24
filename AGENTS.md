@@ -30,8 +30,8 @@ Every specialty has a dedicated subagent. Invoke it through the **Task tool**
 specialty work done inline is a defect even when it happens to be correct.
 The subagent's returned report is the evidence for that slice of the card.
 The project specialists (`vllm-specialist`, `modal-specialist`,
-`prompt-engineer`, `board-evidence-auditor`) and the global team
-(`lucius`, `archivist-file-organizer`, `code-analyst`,
+`prompt-engineer`, `board-evidence-auditor`, `lucius`) and the global team
+(`archivist-file-organizer`, `code-analyst`,
 `test-suite-auditor`, `orchestrator-governor`,
 `athena-database-agent`, `atom`, `hazel-ui-software-master`,
 `jarvis-systems-maximizer`) are `mode: all` — callable through the Task
@@ -76,8 +76,9 @@ Rules that make the roster work:
 - **Specialists verify current upstream docs** (vLLM stable, Modal SDK,
   HF Hub APIs, Langfuse) before writing configuration; a report that quotes
   a version without checking it is incomplete.
-- **Skills are the second layer.** Load the `huggingface`, `langfuse`, or
-  `customize-opencode` skill when a task matches its description, and the
+- **Skills are the second layer.** Load the `hf-dataset-publish` or `langfuse`
+  opencode skill (under `.opencode/skills/`) when a task matches its
+  description, and the
   package-local `.cursor/skills/` (openrouter, ollama, modal, langfuse,
   apache-phoenix, braintrust, huggingface, langgraph, dojo-scoring,
   legalbench) for provider/sink depth inside a package. The monorepo-root
@@ -235,7 +236,7 @@ was a placeholder). Both are published through the CENTRALIZED helpers in
 `packages/mailroom-corpus-eda/src/mailroom_eda/` (`hf_interface`,
 `dataset_export`, `docclass_uploader`, `intent_backfill`) — never ad-hoc
 upload code. See `packages/mailroom-corpus-eda/AGENTS.md` and the
-`huggingface` opencode skill for the full workflow (cast-safe metadata,
+`hf-dataset-publish` opencode skill for the full workflow (cast-safe metadata,
 line-boundary-safe JSONL, sha256 verification, surgical card renders,
 blind-config label guard, issue #5 intent hydration).
 

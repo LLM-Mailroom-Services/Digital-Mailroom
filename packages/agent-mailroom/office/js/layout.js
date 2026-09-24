@@ -216,7 +216,6 @@ const SPECIALIST_DESK = {
   merger_agreement: "desk-contracts",
   corporate_record: "desk-corporate",
   correspondence: "desk-correspondence",
-  compliance_filing: "desk-compliance",
   insurance_claim: "desk-claims",
 };
 

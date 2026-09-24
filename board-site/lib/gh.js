@@ -43,10 +43,36 @@ function cors(req, res) {
 }
 
 class HttpError extends Error {
-  constructor(status, message) {
+  constructor(status, message, extra = {}) {
     super(message);
     this.status = status;
+    Object.assign(this, extra);
   }
+}
+
+class RateLimitError extends HttpError {
+  constructor(retryAfterSec, message) {
+    super(503, message || `GitHub rate limited — retry in ${retryAfterSec}s`, {
+      rateLimited: true,
+      retryAfter: retryAfterSec,
+    });
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseRetryAfterSec(res) {
+  const raw = res.headers.get("retry-after");
+  const n = raw ? parseInt(raw, 10) : NaN;
+  if (Number.isFinite(n) && n >= 0) return n;
+  const reset = res.headers.get("x-ratelimit-reset");
+  if (reset) {
+    const sec = parseInt(reset, 10) - Math.floor(Date.now() / 1000);
+    if (sec > 0) return Math.min(sec, 3600);
+  }
+  return 60;
 }
 
 function token() {
@@ -64,7 +90,7 @@ function actor(req) {
   return raw ? raw.slice(0, 60) : "anonymous";
 }
 
-async function gh(path, { method = "GET", body, query } = {}) {
+async function gh(path, { method = "GET", body, query, _attempt = 0 } = {}) {
   let url = `${GITHUB_API}${path}`;
   if (query) {
     const qs = new URLSearchParams(query);
@@ -103,6 +129,19 @@ async function gh(path, { method = "GET", body, query } = {}) {
   }
   if (!res.ok) {
     const msg = (data && (data.message || JSON.stringify(data))) || `GitHub ${res.status}`;
+    const rateLimited =
+      res.status === 429 ||
+      (res.status === 403 &&
+        /rate limit/i.test(msg) &&
+        (res.headers.get("x-ratelimit-remaining") === "0" || res.headers.get("retry-after")));
+    if (rateLimited) {
+      const waitSec = parseRetryAfterSec(res);
+      if (_attempt < 2) {
+        await sleep(waitSec * 1000);
+        return gh(path, { method, body, query, _attempt: _attempt + 1 });
+      }
+      throw new RateLimitError(waitSec, `GitHub rate limited — retry in ${waitSec}s`);
+    }
     throw new HttpError(res.status, msg);
   }
   if (Array.isArray(data)) {
@@ -179,8 +218,16 @@ function bodySection(body, heading) {
   return hit ? hit.content.trim() : "";
 }
 
+function sanitizeSectionContent(content) {
+  return (content || "")
+    .split("\n")
+    .filter((line) => !/^###\s+/.test(line))
+    .join("\n")
+    .trim();
+}
+
 function setBodySection(body, heading, content) {
-  const clean = (content || "").trim();
+  const clean = sanitizeSectionContent(content);
   const { preamble, sections } = parseSections(body || "");
   const idx = sections.findIndex((s) => s.heading.toLowerCase() === heading.toLowerCase());
   if (idx >= 0) sections[idx] = { heading, content: clean || "—" };
@@ -282,8 +329,27 @@ async function nextCardId() {
   return `DMR-${String(max + 1).padStart(3, "0")}`;
 }
 
+/** Kanban issues whose normalized card id equals ``cardId`` (search + title match). */
+async function listIssuesByCardId(cardId) {
+  const want = String(cardId || "").toUpperCase();
+  try {
+    const searchResult = await gh(`/search/issues`, {
+      query: {
+        q: `repo:${repo()} is:issue "${want}" label:kanban`,
+        per_page: "100",
+      },
+    });
+    return (searchResult.items || []).filter((issue) => cardIdFromIssue(issue) === want);
+  } catch (err) {
+    console.warn(`[gh] listIssuesByCardId search failed for ${want}:`, err.message || err);
+    const data = await fetchAllKanbanIssues();
+    return (data || []).filter((issue) => cardIdFromIssue(issue) === want);
+  }
+}
+
 module.exports = {
   HttpError,
+  RateLimitError,
   LANES,
   PRI_LABELS,
   STAGE_LABELS,
@@ -299,4 +365,5 @@ module.exports = {
   listKanbanIssues,
   findIssueByCardId,
   nextCardId,
+  listIssuesByCardId,
 };

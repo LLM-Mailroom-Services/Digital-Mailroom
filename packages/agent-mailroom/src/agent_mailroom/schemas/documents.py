@@ -88,7 +88,6 @@ EXTRACTION_SCHEMAS: dict[str, type[BaseModel]] = {
     "merger_agreement": ContractExtraction,
     "corporate_record": CorporateRecordExtraction,
     "correspondence": CorrespondenceExtraction,
-    "compliance_filing": ComplianceFilingExtraction,
     "insurance_claim": InsuranceClaimExtraction,
 }
 

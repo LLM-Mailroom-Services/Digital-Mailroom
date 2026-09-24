@@ -321,6 +321,24 @@ async function nextCardId() {
   return `DMR-${String(max + 1).padStart(3, "0")}`;
 }
 
+/** Kanban issues whose normalized card id equals ``cardId`` (search + title match). */
+async function listIssuesByCardId(cardId) {
+  const want = String(cardId || "").toUpperCase();
+  try {
+    const searchResult = await gh(`/search/issues`, {
+      query: {
+        q: `repo:${repo()} is:issue "${want}" label:kanban`,
+        per_page: "100",
+      },
+    });
+    return (searchResult.items || []).filter((issue) => cardIdFromIssue(issue) === want);
+  } catch (err) {
+    console.warn(`[gh] listIssuesByCardId search failed for ${want}:`, err.message || err);
+    const data = await fetchAllKanbanIssues();
+    return (data || []).filter((issue) => cardIdFromIssue(issue) === want);
+  }
+}
+
 module.exports = {
   HttpError,
   RateLimitError,
@@ -339,4 +357,5 @@ module.exports = {
   listKanbanIssues,
   findIssueByCardId,
   nextCardId,
+  listIssuesByCardId,
 };

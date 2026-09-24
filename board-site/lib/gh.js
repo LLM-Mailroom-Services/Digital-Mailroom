@@ -43,10 +43,36 @@ function cors(req, res) {
 }
 
 class HttpError extends Error {
-  constructor(status, message) {
+  constructor(status, message, extra = {}) {
     super(message);
     this.status = status;
+    Object.assign(this, extra);
   }
+}
+
+class RateLimitError extends HttpError {
+  constructor(retryAfterSec, message) {
+    super(503, message || `GitHub rate limited — retry in ${retryAfterSec}s`, {
+      rateLimited: true,
+      retryAfter: retryAfterSec,
+    });
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseRetryAfterSec(res) {
+  const raw = res.headers.get("retry-after");
+  const n = raw ? parseInt(raw, 10) : NaN;
+  if (Number.isFinite(n) && n >= 0) return n;
+  const reset = res.headers.get("x-ratelimit-reset");
+  if (reset) {
+    const sec = parseInt(reset, 10) - Math.floor(Date.now() / 1000);
+    if (sec > 0) return Math.min(sec, 3600);
+  }
+  return 60;
 }
 
 function token() {
@@ -64,7 +90,7 @@ function actor(req) {
   return raw ? raw.slice(0, 60) : "anonymous";
 }
 
-async function gh(path, { method = "GET", body, query } = {}) {
+async function gh(path, { method = "GET", body, query, _attempt = 0 } = {}) {
   let url = `${GITHUB_API}${path}`;
   if (query) {
     const qs = new URLSearchParams(query);
@@ -103,6 +129,19 @@ async function gh(path, { method = "GET", body, query } = {}) {
   }
   if (!res.ok) {
     const msg = (data && (data.message || JSON.stringify(data))) || `GitHub ${res.status}`;
+    const rateLimited =
+      res.status === 429 ||
+      (res.status === 403 &&
+        /rate limit/i.test(msg) &&
+        (res.headers.get("x-ratelimit-remaining") === "0" || res.headers.get("retry-after")));
+    if (rateLimited) {
+      const waitSec = parseRetryAfterSec(res);
+      if (_attempt < 2) {
+        await sleep(waitSec * 1000);
+        return gh(path, { method, body, query, _attempt: _attempt + 1 });
+      }
+      throw new RateLimitError(waitSec, `GitHub rate limited — retry in ${waitSec}s`);
+    }
     throw new HttpError(res.status, msg);
   }
   if (Array.isArray(data)) {
@@ -284,6 +323,7 @@ async function nextCardId() {
 
 module.exports = {
   HttpError,
+  RateLimitError,
   LANES,
   PRI_LABELS,
   STAGE_LABELS,

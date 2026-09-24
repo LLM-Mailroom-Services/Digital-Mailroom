@@ -20,6 +20,20 @@ _log = logging.getLogger("mailroom_sandbox.job.spec")
 
 FAMILY_HF_REVISION = "46a4d3c240a36671cde0182fff4960f6b8b73aca"  # v9 mailroom-dataset tip (GT-closure revision, epic #27)
 HF_DEFAULT_REPO = "Lucius-Morningstar/mailroom-dataset"
+# Full corpus row count at FAMILY_HF_REVISION (train+test; mailroom-ml pin).
+FAMILY_CORPUS_SIZE = 3302
+# Hub README composition at the same pin. Test-only is ~10% (323 rows) and
+# cannot back 40/100-per-class Modal draws — merger_agreement has ~17 in
+# test / 152 all-splits. `sandbox datasets pull` defaults to split=all.
+FAMILY_CLASS_COUNTS: dict[str, int] = {
+    "contract": 600,
+    "corporate_record": 450,
+    "correspondence": 1000,
+    "insurance_claim": 1100,
+    "merger_agreement": 152,
+}
+LIVE_DOC_CLASSES: tuple[str, ...] = tuple(FAMILY_CLASS_COUNTS)
+assert sum(FAMILY_CLASS_COUNTS.values()) == FAMILY_CORPUS_SIZE
 
 KNOWN_GPUS = (
     "L4",
@@ -132,6 +146,17 @@ class DatasetSpec(BaseModel):
                     raise ValueError("strata.buckets entries must be objects")
                 if "count" in b and (not isinstance(b["count"], int) or b["count"] < 1):
                     raise ValueError("strata.buckets[].count must be a positive int")
+                sub_buckets = b.get("sub_buckets")
+                if sub_buckets is not None:
+                    if not isinstance(sub_buckets, list) or not sub_buckets:
+                        raise ValueError("strata.buckets[].sub_buckets must be a non-empty list")
+                    for sb in sub_buckets:
+                        if not isinstance(sb, dict):
+                            raise ValueError("strata.buckets[].sub_buckets entries must be objects")
+                        if not sb.get("subclass") or not isinstance(sb["subclass"], str):
+                            raise ValueError("strata.buckets[].sub_buckets[].subclass must be a non-empty string")
+                        if not isinstance(sb.get("count"), int) or sb["count"] < 1:
+                            raise ValueError("strata.buckets[].sub_buckets[].count must be a positive int")
             return v
         if "values" in v:
             if not isinstance(v["values"], list) or not v["values"]:
@@ -253,14 +278,13 @@ class ModalSpec(BaseModel):
     app: str = "sandbox-vllm"
     gpu: str = "L4"
     image_tag: str = "v0.29.0"
-    scaledown_seconds: int = 900
+    # Efficient conservative / unattended default: 600s idle warm.
+    # Specialist 5×30 attended suite pins 120 explicitly in run-30 YAMLs (DMR-076);
+    # deploy/modal_vllm.py defaults to 120 for the same attended posture.
+    scaledown_seconds: int = 600
     max_containers: int = 1
+    min_containers: int = 0  # scale-to-zero; mirror MODAL_VLLM_MIN_CONTAINERS
     prewarm: bool = True
-    # Hub weight-revision pin for the served model. Propagated by
-    # deploy/run_modal_classifier_cost.py as MODAL_VLLM_REVISION so the
-    # pre-warm and the serve boot pin the SAME commit (no tip drift between
-    # pre-warm and eval). Empty = Hub tip (drifting).
-    revision: str = ""
 
     @field_validator("gpu")
     @classmethod
@@ -284,6 +308,13 @@ class ModalSpec(BaseModel):
             raise ValueError("max_containers must be >= 1 (cost guard)")
         return v
 
+    @field_validator("min_containers")
+    @classmethod
+    def _minc(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("min_containers must be >= 0")
+        return v
+
 
 class EngineSpec(BaseModel):
     kind: Literal["vllm-local", "vllm-remote", "modal-vllm"] = "modal-vllm"
@@ -301,7 +332,16 @@ def known_tasks() -> tuple[str, ...]:
     and a ``sandbox run`` whole-run task. No cycle: ``eval.agents`` does not
     import ``job.spec``.
     """
-    base = ("sorter", "legalbench", "pipeline", "extract", "chained", "local_vs_api", "isolated")
+    base = (
+        "sorter",
+        "legalbench",
+        "pipeline",
+        "extract",
+        "chained",
+        "local_vs_api",
+        "sorter_vs_modernbert",
+        "isolated",
+    )
     try:
         from mailroom_sandbox.eval.agents import SPECS
 
@@ -332,10 +372,17 @@ class JobSpec(BaseModel):
     fail_fast: bool = False
     # Modal-throughput alignment: how many rows the per-item loop runs at
     # once, so vLLM's continuous batching sees concurrent requests (offline
-    # evals are a throughput workload). 1 preserves the serial, deterministic
-    # default; 4-16 is the documented range for a vLLM endpoint. Guarded to
-    # [1, 64] — unbounded fan-out is a cost accident.
-    concurrency: int = 1
+    # evals are a throughput workload). Default 4 is the efficient
+    # conservative sweet spot (docs/jobs.md recommends 4-16 vs Modal vLLM;
+    # DMR-072 found 8-way on 1×L4 piled at the web proxy). Specialist
+    # run-30 YAMLs pin per-doc-type concurrency via specialist_posture
+    # (DMR-078: short docs 5, long MAUD 3). Guarded to [1, 64].
+    concurrency: int = 4
+    # Cost / wall abort guards (DMR-078). None = disabled. Modal endpoint
+    # runs estimate GPU $ from wall clock × L4 rate while the item loop
+    # runs; exceeding either cap fails the run loud (no silent overspend).
+    cost_cap_usd: float | None = None
+    max_wall_seconds: int | None = None
 
     @field_validator("task")
     @classmethod
@@ -354,6 +401,24 @@ class JobSpec(BaseModel):
     def _conc(cls, v: int) -> int:
         if not 1 <= v <= 64:
             raise ValueError("concurrency must be in [1, 64]")
+        return v
+
+    @field_validator("cost_cap_usd")
+    @classmethod
+    def _cost_cap(cls, v: float | None) -> float | None:
+        if v is None:
+            return v
+        if v <= 0:
+            raise ValueError("cost_cap_usd must be > 0 when set")
+        return v
+
+    @field_validator("max_wall_seconds")
+    @classmethod
+    def _max_wall(cls, v: int | None) -> int | None:
+        if v is None:
+            return v
+        if v < 60:
+            raise ValueError("max_wall_seconds must be >= 60 when set")
         return v
 
 
@@ -389,6 +454,26 @@ class RunSpec(BaseModel):
         allowed = {"default", "agents"}
         if not set(self.prompt).issubset(allowed):
             raise ValueError(f"prompt section allows only {sorted(allowed)}")
+        return self
+
+    @model_validator(mode="after")
+    def _modal_concurrency_posture(self) -> "RunSpec":
+        """Warn when a Modal profile would starve continuous batching at concurrency=1."""
+        if (
+            self.profile == "modal-vllm"
+            and self.engine.kind == "modal-vllm"
+            and self.job.concurrency == 1
+        ):
+            _log.warning(
+                "run spec profile=modal-vllm with job.concurrency=1 starves vLLM "
+                "continuous batching on the warm L4 — set concurrency: 4 (efficient "
+                "conservative default) unless this is an intentional serial probe"
+            )
+        if self.engine.modal is not None and self.engine.modal.min_containers > self.engine.modal.max_containers:
+            raise ValueError(
+                f"modal.min_containers ({self.engine.modal.min_containers}) cannot "
+                f"exceed modal.max_containers ({self.engine.modal.max_containers})"
+            )
         return self
 
     def spec_hash(self) -> str:

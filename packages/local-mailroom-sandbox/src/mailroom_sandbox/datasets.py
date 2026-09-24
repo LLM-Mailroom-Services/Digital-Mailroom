@@ -16,6 +16,11 @@ _log = logging.getLogger("mailroom_sandbox.datasets")
 MANIFEST_NAME = "manifest.csv"
 HF_DATASET = "Lucius-Morningstar/mailroom-dataset"
 
+_log = logging.getLogger("mailroom_sandbox.datasets")
+
+MANIFEST_NAME = "manifest.csv"
+HF_DATASET = "Lucius-Morningstar/mailroom-dataset"
+
 
 def manifest_path() -> Path:
     return fixtures_dir() / MANIFEST_NAME
@@ -176,9 +181,10 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
     rows = []
     if not path.is_file():
         return rows
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if line.strip():
-            rows.append(json.loads(line))
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            if line.strip():
+                rows.append(json.loads(line))
     return rows
 
 
@@ -208,6 +214,23 @@ def load_serving_fixtures() -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def sorter_vs_modernbert_fixture_path() -> Path:
+    return fixtures_dir() / "serving" / "sorter_vs_modernbert.json"
+
+
+def load_sorter_vs_modernbert_fixtures() -> dict[str, Any]:
+    """Synthetic LLM-sorter vs ModernBERT records (no live model load)."""
+    path = sorter_vs_modernbert_fixture_path()
+    if not path.is_file():
+        _log.warning(
+            "sorter_vs_modernbert fixture missing: %s — comparison will be empty",
+            path,
+        )
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload if isinstance(payload, dict) else {}
+
+
 def intake_dir() -> Path:
     return fixtures_dir() / "intake"
 
@@ -218,14 +241,117 @@ def cache_dir() -> Path:
     return path
 
 
-def pull_hf_dataset(
+def full_corpus_cache_path(
     dataset_id: str = HF_DATASET,
-    split: str = "test",
-    max_rows: int = 50,
     revision: str = "",
     config: str = "ground_truth",
 ) -> Path:
+    """Canonical JSONL for the pinned full ground_truth corpus (train+test)."""
+    from mailroom_sandbox.job.spec import FAMILY_HF_REVISION
+
+    rev = revision or FAMILY_HF_REVISION
+    return (
+        cache_dir()
+        / f"{dataset_id.replace('/', '__')}__{rev[:12]}"
+        / f"{config or 'default'}_all.jsonl"
+    )
+
+
+def _count_jsonl(path: Path) -> int:
+    if not path.is_file():
+        return 0
+    n = 0
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            if line.strip():
+                n += 1
+    return n
+
+
+def _class_counts(path: Path) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    if not path.is_file():
+        return counts
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            key = str(row.get("expected_doc_class") or "")
+            counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def _format_class_counts(counts: dict[str, int]) -> str:
+    from mailroom_sandbox.job.spec import LIVE_DOC_CLASSES
+
+    parts = [f"{cls}={counts.get(cls, 0)}" for cls in LIVE_DOC_CLASSES]
+    extra = sorted(k for k in counts if k not in LIVE_DOC_CLASSES)
+    parts.extend(f"{k}={counts[k]}" for k in extra)
+    return " ".join(parts)
+
+
+def _subset_cache_path(
+    dataset_id: str,
+    revision: str,
+    config: str,
+    split: str,
+    *,
+    limit: int | None = None,
+    per_class: int | None = None,
+) -> Path:
+    from mailroom_sandbox.corpus import expand_hf_splits
+
+    splits = expand_hf_splits(split)
+    stem_split = "all" if splits == ("train", "test") else splits[0]
+    if per_class:
+        name = f"{config or 'default'}_{stem_split}_perclass{per_class}.jsonl"
+    elif limit:
+        name = f"{config or 'default'}_{stem_split}_n{limit}.jsonl"
+    else:
+        name = f"{config or 'default'}_{stem_split}.jsonl"
+    return (
+        cache_dir()
+        / f"{dataset_id.replace('/', '__')}__{revision[:12]}"
+        / name
+    )
+
+
+def _verify_full_pin(path: Path) -> None:
+    from mailroom_sandbox.job.spec import FAMILY_CLASS_COUNTS, FAMILY_CORPUS_SIZE
+
+    n = _count_jsonl(path)
+    if n != FAMILY_CORPUS_SIZE:
+        raise RuntimeError(
+            f"full corpus cache {path} has {n} rows, expected "
+            f"FAMILY_CORPUS_SIZE={FAMILY_CORPUS_SIZE} — refusing a partial pin"
+        )
+    counts = _class_counts(path)
+    mismatches = {
+        cls: (counts.get(cls, 0), expect)
+        for cls, expect in FAMILY_CLASS_COUNTS.items()
+        if counts.get(cls, 0) != expect
+    }
+    if mismatches:
+        raise RuntimeError(
+            f"full corpus class counts mismatch at {path}: {mismatches}"
+        )
+
+
+def pull_hf_dataset(
+    dataset_id: str = HF_DATASET,
+    split: str = "all",
+    max_rows: int | None = 0,
+    revision: str = "",
+    config: str = "ground_truth",
+    per_class: int | None = None,
+    sample_seed: int = 42,
+) -> Path:
     """LIVE-or-loud pinned Hub pull into data/cache (DMR-056).
+
+    Default (``max_rows=0``, ``split=all``) materializes the FULL 3,302-row
+    ``ground_truth`` train+test corpus at ``FAMILY_HF_REVISION``. That local
+    JSONL is what Modal 20/40/100-per-class draws sample from.
 
     Routes through the SAME corpus loader the job preflight uses
     (``corpus.prepare_subset``): pinned revision (default
@@ -235,32 +361,142 @@ def pull_hf_dataset(
     1) — the old ``except Exception -> README marker -> exit 0`` silent no-op
     is gone, so a pull that fetched zero rows can never look successful.
     """
-    from mailroom_sandbox.corpus import prepare_subset
-    from mailroom_sandbox.job.spec import DatasetSpec, FAMILY_HF_REVISION
+    from mailroom_sandbox.corpus import per_class_strata, prepare_subset
+    from mailroom_sandbox.job.spec import DatasetSpec, FAMILY_CORPUS_SIZE, FAMILY_HF_REVISION
 
     rev = revision or FAMILY_HF_REVISION
-    spec = DatasetSpec(
-        provider="huggingface",
-        repo=dataset_id,
-        config=config,
-        split=split,
-        revision=rev,
-        limit=max_rows,
-    )
-    dest = (
-        cache_dir()
-        / f"{dataset_id.replace('/', '__')}__{rev[:12]}"
-        / f"{config or 'default'}_{split}_subset.jsonl"
-    )
+    limit: int | None = None if not max_rows or max_rows < 1 else int(max_rows)
+    strata = per_class_strata(per_class) if per_class else None
+    seed = int(sample_seed)
+
+    if per_class and not limit:
+        dest = _subset_cache_path(
+            dataset_id, rev, config, split, per_class=per_class
+        )
+        spec = DatasetSpec(
+            provider="huggingface",
+            repo=dataset_id,
+            config=config,
+            split=split,
+            revision=rev,
+            limit=None,
+            sample_seed=seed,
+            strata=strata,
+        )
+    elif limit:
+        dest = _subset_cache_path(dataset_id, rev, config, split, limit=limit)
+        spec = DatasetSpec(
+            provider="huggingface",
+            repo=dataset_id,
+            config=config,
+            split=split,
+            revision=rev,
+            limit=limit,
+            sample_seed=seed if strata else None,
+            strata=strata,
+        )
+    else:
+        dest = full_corpus_cache_path(dataset_id, rev, config)
+        spec = DatasetSpec(
+            provider="huggingface",
+            repo=dataset_id,
+            config=config,
+            split=split,
+            revision=rev,
+            limit=None,
+        )
+
     result = prepare_subset(spec, dest)
     if not result.get("rows"):
         raise RuntimeError(
             f"pull returned 0 rows for {dataset_id}@{rev} "
             f"({config or 'default'}/{split}) — refusing to write an empty dataset"
         )
+    if (
+        not limit
+        and not per_class
+        and expand_is_all(split)
+        and (config or "ground_truth") == "ground_truth"
+    ):
+        if result["rows"] != FAMILY_CORPUS_SIZE:
+            raise RuntimeError(
+                f"pull returned {result['rows']} rows, expected "
+                f"FAMILY_CORPUS_SIZE={FAMILY_CORPUS_SIZE}"
+            )
+        if _count_jsonl(dest) > 0:
+            _verify_full_pin(dest)
+    counts = _class_counts(dest)
     print(
         f"pulled {result['rows']} row(s) from {dataset_id}@"
         f"{result.get('revision_resolved') or rev[:12]} ({config or 'default'}/{split}) "
-        f"sha256={result['sha256'][:12]} -> {dest}"
+        f"sha256={result['sha256'][:12]} [{_format_class_counts(counts)}] -> {dest}"
     )
     return dest
+
+
+def expand_is_all(split: str) -> bool:
+    from mailroom_sandbox.corpus import expand_hf_splits
+
+    return expand_hf_splits(split) == ("train", "test")
+
+
+def sample_cached_corpus(
+    per_class: int,
+    *,
+    sample_seed: int = 42,
+    source: Path | None = None,
+    dest: Path | None = None,
+    classes: list[str] | None = None,
+) -> Path:
+    """Offline per-class draw from the cached full corpus (no Hub)."""
+    from mailroom_sandbox.corpus import prepare_subset
+    from mailroom_sandbox.job.spec import DatasetSpec, FAMILY_CLASS_COUNTS, LIVE_DOC_CLASSES
+
+    src = Path(source) if source is not None else full_corpus_cache_path()
+    if not src.is_file():
+        raise FileNotFoundError(
+            f"full corpus cache missing: {src} — run `sandbox datasets pull` "
+            "(default: split=all, no --max-rows) first"
+        )
+    if source is None:
+        _verify_full_pin(src)
+    wanted = list(classes) if classes else list(LIVE_DOC_CLASSES)
+    unknown = [c for c in wanted if c not in LIVE_DOC_CLASSES]
+    if unknown:
+        raise ValueError(
+            f"unknown live class(es) {unknown}; valid: {list(LIVE_DOC_CLASSES)}"
+        )
+    available = _class_counts(src)
+    for cls in wanted:
+        avail = available.get(cls, 0)
+        cap = FAMILY_CLASS_COUNTS.get(cls, avail)
+        if per_class > avail:
+            raise ValueError(
+                f"--per-class {per_class} exceeds {cls} availability {avail} "
+                f"in {src} (full-corpus cap at FAMILY_HF_REVISION is {cap}; "
+                f"merger_agreement max is {FAMILY_CLASS_COUNTS['merger_agreement']})"
+            )
+    out = Path(dest) if dest is not None else (
+        src.parent / f"ground_truth_all_perclass{per_class}.jsonl"
+    )
+    spec = DatasetSpec(
+        provider="file",
+        local_path=str(src),
+        sample_seed=sample_seed,
+        strata={
+            "buckets": [{"doc_class": cls, "count": per_class} for cls in wanted]
+        },
+    )
+    result = prepare_subset(spec, out)
+    expected = per_class * len(wanted)
+    if result["rows"] != expected:
+        raise RuntimeError(
+            f"per-class sample wrote {result['rows']} rows, expected {expected}"
+        )
+    counts = _class_counts(out)
+    print(
+        f"sampled {result['rows']} row(s) ({per_class}/class × {len(wanted)}) "
+        f"seed={sample_seed} sha256={result['sha256'][:12]} "
+        f"[{_format_class_counts(counts)}] -> {out}"
+    )
+    return out

@@ -596,6 +596,157 @@ def run_local_vs_api_eval(
     return {**plan, "scores": scores, "comparison": compared, "record": record}
 
 
+def run_sorter_vs_modernbert_eval(
+    *,
+    sample: int | None = None,
+    mock: bool = True,
+    dry_run: bool = False,
+    experiment_name: str | None = None,
+    profile: str | None = None,
+    model: str | None = None,
+    prompt_version: str | None = None,
+    agent_models: dict[str, str] | None = None,
+    from_log: bool = False,
+    connected: bool = False,
+    sorter_record: dict[str, Any] | None = None,
+    modernbert_record: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Compare LLM sorter vs trained ModernBERT on accuracy + cost/latency.
+
+    ``--mock`` uses committed fixtures (no mailroom-ml import, no GPU).
+    Live (``mock=False``) loads ModernBERT from the local mailroom-ml feeder
+    (``MAILROOM_ML_SRC`` / ``MODERNBERT_MODEL_PATH``) via ``eval_modernbert.py``
+    and pairs it with fixtures' sorter side unless ``sorter_record`` /
+    ``from_log`` supplies a measured sorter record.
+    """
+    del sample, connected, agent_models  # parity with other eval kwargs
+    from mailroom_sandbox.datasets import load_sorter_vs_modernbert_fixtures
+    from mailroom_sandbox.job.metrics import compare_sorter_vs_modernbert
+
+    plan = {
+        "task": "sorter_vs_modernbert",
+        "suite": "sorter_vs_modernbert",
+        "mock": mock,
+        "from_log": from_log,
+        "fingerprint": "fixture-sorter-vs-modernbert-v0",
+        "requires_api_key": False,
+        "requires_mailroom_ml": not mock,
+    }
+    if dry_run:
+        return plan
+
+    activation = activate(profile, model=model, prompt_variant=prompt_version)
+    source = "fixtures"
+    if sorter_record is not None and modernbert_record is not None:
+        left, right = sorter_record, modernbert_record
+        source = "records"
+    elif from_log:
+        left, right = _sorter_modernbert_from_log(experiment_log.load())
+        source = "experiment_log"
+        if left is None or right is None:
+            raise RuntimeError(
+                "experiment_log has no comparable sorter + modernbert records "
+                "(need one with classifier/serving_kind llm_sorter|sorter and "
+                "one with modernbert); use --mock fixtures or pass records"
+            )
+    elif mock:
+        fixtures = load_sorter_vs_modernbert_fixtures()
+        left = fixtures.get("sorter") or {}
+        right = fixtures.get("modernbert") or {}
+        if not left or not right:
+            raise RuntimeError(
+                "sorter_vs_modernbert fixtures missing both sides — "
+                "expected data/fixtures/serving/sorter_vs_modernbert.json"
+            )
+        os.environ.setdefault("SANDBOX_RUN_MODE", "mock")
+    else:
+        # Live ModernBERT via mailroom-ml feeder; sorter from fixture or log.
+        from mailroom_sandbox.modernbert import (
+            feeder_status,
+            run_modernbert_eval,
+            serving_record_from_eval,
+        )
+
+        status = feeder_status()
+        if not status.get("ok"):
+            raise RuntimeError(
+                "ModernBERT feeder incomplete — "
+                f"{status.get('hint')} (status={status})"
+            )
+        report = run_modernbert_eval(sample=50, seed=42)
+        right = serving_record_from_eval(report)
+        left = sorter_record
+        if left is None:
+            left, _ = _sorter_modernbert_from_log(experiment_log.load())
+        if left is None:
+            fixtures = load_sorter_vs_modernbert_fixtures()
+            left = fixtures.get("sorter") or {}
+            source = "modernbert-live+sorter-fixture"
+            _log.warning(
+                "no measured sorter record in experiment_log — pairing live "
+                "ModernBERT with fixture sorter side (accuracy delta is not "
+                "apples-to-apples until a live sorter run exists)"
+            )
+        else:
+            source = "modernbert-live+sorter-log"
+        plan["fingerprint"] = right.get("dataset_fingerprint") or plan["fingerprint"]
+        plan["modernbert_checkpoint"] = right.get("checkpoint")
+
+    compared = compare_sorter_vs_modernbert(left, right)
+    quality = compared.get("quality") or {}
+    cost = compared.get("cost") or {}
+    latency = compared.get("latency") or {}
+    scores = {
+        "accuracy_sorter": (quality.get("accuracy") or {}).get("sorter"),
+        "accuracy_modernbert": (quality.get("accuracy") or {}).get("modernbert"),
+        "f1_macro_sorter": (quality.get("f1_macro") or {}).get("sorter"),
+        "f1_macro_modernbert": (quality.get("f1_macro") or {}).get("modernbert"),
+        "e2e_sorter": latency.get("sorter_e2e_s"),
+        "e2e_modernbert": latency.get("modernbert_e2e_s"),
+        "cost_per_doc_sorter": cost.get("sorter_cost_per_document"),
+        "cost_per_doc_modernbert": cost.get("modernbert_cost_per_document"),
+        "honest_gaps": compared.get("honest_gaps") or [],
+        "n": int(left.get("n") or 0) + int(right.get("n") or 0),
+    }
+    record = experiment_log.new_record(
+        experiment_name=experiment_name or "sandbox_sorter_vs_modernbert",
+        task="sorter_vs_modernbert",
+        profile=activation.profile_name,
+        provider=os.environ.get("DEFAULT_PROVIDER"),
+        model=model,
+        prompt_version=prompt_version or "mailroom-default",
+        mock=mock,
+        dataset_fingerprint=plan["fingerprint"],
+        n=scores["n"],
+        scores=scores,
+        serving_kind="local",
+        tracing_backend=tracing.tracing_backend(),
+        tags=tracing.default_tags("source-serving", "sorter-vs-modernbert"),
+        sorter_vs_modernbert=compared,
+        serving_markdown=compared.get("markdown"),
+        source=source,
+    )
+    experiment_log.append(record)
+    return {**plan, "scores": scores, "comparison": compared, "record": record}
+
+
+def _sorter_modernbert_from_log(
+    records: list[dict[str, Any]],
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Pick the latest sorter + modernbert rows from an experiment log."""
+    sorter: dict[str, Any] | None = None
+    modernbert: dict[str, Any] | None = None
+    for rec in records:
+        kind = str(rec.get("classifier") or rec.get("serving_kind") or "").lower()
+        task = str(rec.get("task") or "").lower()
+        if kind in {"modernbert", "bert_intake", "onnx-cpu"} or "modernbert" in kind:
+            modernbert = rec
+        elif task == "sorter" or kind in {"llm_sorter", "modal", "local", "api"}:
+            if task in {"sorter", ""} or rec.get("scores"):
+                sorter = rec
+    return sorter, modernbert
+
+
 def run_pipeline_eval(
     *,
     mock: bool = True,
@@ -891,6 +1042,14 @@ def _live_serve_target() -> tuple[str, str]:
 
 
 def _live_legalbench_answer(row: dict[str, Any], *, model: str | None) -> str:
+    answer, _usage = _live_legalbench_answer_with_usage(row, model=model)
+    return answer
+
+
+def _live_legalbench_answer_with_usage(
+    row: dict[str, Any], *, model: str | None
+) -> tuple[str, dict[str, int]]:
+    """Live LegalBench call returning ``(answer, usage_metrics)``."""
     try:
         from openai import OpenAI
     except Exception as exc:
@@ -898,14 +1057,17 @@ def _live_legalbench_answer(row: dict[str, Any], *, model: str | None) -> str:
             "openai is not installed — a live legalbench run would silently "
             "score the expected answer; install the eval extras or use --mock"
         ) from exc
+    from mailroom_sandbox.job.usage_capture import usage_from_openai_response
+
     base, fallback_model = _live_serve_target()
     client = OpenAI(base_url=base, api_key=os.environ.get("VLLM_API_KEY") or "not-needed")
     prompt = (
         f"Answer Yes or No only. json required.\nQuestion: {row.get('question')}\n"
         f"Passage: {row.get('doc_text') or row.get('text') or row.get('passage') or row.get('document_text')}\n"
     )
+    resolved_model = model or os.environ.get("SANDBOX_MODEL") or fallback_model
     resp = client.chat.completions.create(
-        model=model or os.environ.get("SANDBOX_MODEL") or fallback_model,
+        model=resolved_model,
         messages=[
             {"role": "system", "content": "Return json {\"answer\": \"Yes\" or \"No\"}."},
             {"role": "user", "content": prompt},
@@ -914,8 +1076,10 @@ def _live_legalbench_answer(row: dict[str, Any], *, model: str | None) -> str:
         max_tokens=32,
         temperature=0,
     )
+    usage = usage_from_openai_response(resp)
     raw = resp.choices[0].message.content or "{}"
     try:
-        return str(json.loads(raw).get("answer") or raw).strip()
+        answer = str(json.loads(raw).get("answer") or raw).strip()
     except json.JSONDecodeError:
-        return raw.strip()
+        answer = raw.strip()
+    return answer, usage

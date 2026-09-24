@@ -28,6 +28,7 @@ STATIC_AGENTS = (
     "sorter",
     "sorter_reviewer",
     "contracts_specialist",
+    "merger_agreement_specialist",
     "corporate_records_specialist",
     "correspondence_specialist",
     "insurance_claims_specialist",
@@ -45,9 +46,17 @@ STATIC_AGENTS = (
 )
 
 # Family B: agents whose only override point is the langchain prompt dict.
+# Keys are the PROMPT_VERSIONS entries that the agent constructor looks up.
+# contracts also has a production alias ("contracts_specialist") — runtime
+# apply patches BOTH so either lookup sees the locked local text.
 FAMILY_B_KEYS = {
     "sorter": "sorter_v14",
     "contracts_specialist": "contracts_specialist_v33",
+}
+
+# Extra PROMPT_VERSIONS keys to patch when an agent override lands (aliases).
+FAMILY_B_ALIASES = {
+    "contracts_specialist": ("contracts_specialist",),
 }
 
 # Family A agents whose fetch name differs from the registry key.
@@ -231,6 +240,8 @@ def apply_runtime_overrides(resolved_texts: dict[str, str]) -> list[str]:
             key = FAMILY_B_KEYS.get(agent)
             if key and hasattr(lc_prompts, "PROMPT_VERSIONS"):
                 lc_prompts.PROMPT_VERSIONS[key] = text
+                for alias in FAMILY_B_ALIASES.get(agent, ()):
+                    lc_prompts.PROMPT_VERSIONS[alias] = text
                 patched.append(agent)
         for agent in patched:
             remainder.pop(agent, None)

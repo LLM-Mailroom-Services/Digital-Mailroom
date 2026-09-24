@@ -19,7 +19,8 @@ description: Hugging Face Hub usage for local-mailroom-sandbox — fixture schem
 
 ```bash
 sandbox datasets prepare                                    # offline cleaners
-sandbox datasets pull --dataset Lucius-Morningstar/mailroom-dataset --max-rows 50
+sandbox datasets pull                                       # FULL ground_truth train+test (3302 rows)
+sandbox datasets sample --per-class 40                      # 20/40/100… from the local cache
 #   pinned revision 46a4d3c2… (FAMILY_HF_REVISION, v9 mailroom-dataset tip),
 #   ground_truth + default
 #   merged on filename, content_sha256 verified, exit 1 on any failure (DMR-056)
@@ -45,7 +46,7 @@ old `[hf_transfer]` extra / `HF_HUB_ENABLE_HF_TRANSFER` are dead (DMR-056).
 | Task | Tool |
 | --- | --- |
 | Sandbox evals / pilots | Offline fixtures + prepared JSONL |
-| Stream a tiny Hub slice | `sandbox datasets pull` / `pull_hf_dataset` |
+| Stream a tiny Hub slice | `sandbox datasets pull --max-rows 50 --split test` |
 | Choose a local GGUF / serve recipe | Prefer [ollama](../ollama/SKILL.md) or llama.cpp profile; use Hub only for the weight source |
 | Deploy weights on Modal | [modal](../modal/SKILL.md) + `HF_TOKEN` if gated |
 | Full Hub CLI (upload, buckets, papers, …) | Cursor **hf-cli** / other Hugging Face plugin skills — this skill stays sandbox-scoped |

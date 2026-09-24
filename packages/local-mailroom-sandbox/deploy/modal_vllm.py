@@ -4,6 +4,34 @@ Same env-knob contract as llm-mailroom ``deploy/modal_vllm.py``, plus
 sandbox-local cost/scale knobs. App name and cache Volumes are
 sandbox-scoped.
 
+Default experiment posture (specialist 5×30 cost eval)
+------------------------------------------------------
+``MODAL_VLLM_MODEL=Qwen/Qwen3-8B`` on ``MODAL_VLLM_GPU=L4``,
+``max_containers=1``, ``scaledown=120`` (attended; restore **600** for
+unattended/overnight), job concurrency 4 — see ``docs/benchmark-l4.md``.
+Leave knobs unset to get this posture. One warm app for all five runs;
+teardown only after the fifth.
+
+Advanced: swap model / GPU (one control surface)
+------------------------------------------------
+All deploy knobs are env-driven below. Prefer the catalog row in
+``config/models.yaml`` ``modal_models:`` via::
+
+    eval "$(sandbox modal-matrix env Qwen/Qwen3-8B-AWQ)"          # L4 AWQ
+    eval "$(sandbox modal-matrix env Qwen/Qwen3-14B --gpu A100-40GB)"
+    eval "$(sandbox modal-matrix env Qwen/Qwen3-8B-FP8)"          # H100 FP8
+    # or bare env:
+    #   export MODAL_VLLM_MODEL=… MODAL_VLLM_GPU=L4|A10G|A100-80GB:2|H100
+    #   export MODAL_VLLM_QUANTIZATION=awq   # or empty for bf16/FP8 auto
+    #   export MODAL_VLLM_MAX_MODEL_LEN=16384|32768
+    #   export MODAL_VLLM_TP_SIZE=2          # must match GPU :N suffix
+    modal run deploy/modal_vllm.py::download_model
+    modal deploy deploy/modal_vllm.py --strategy recreate
+
+Do **not** edit ``config/runs/run-30-*-specialist.yaml`` for swaps — those
+YAMLs pin the default Qwen+L4 suite. Copy a YAML if an alternate scorecard
+needs matching ``engine.model`` / ``engine.modal.gpu``.
+
 Architecture (2026-09-16 — direct subprocess)
 ---------------------------------------------
 vLLM runs as a subprocess on port 8000 in the image's native Python
@@ -20,8 +48,6 @@ Pinned / verified 2026-09-16:
 * ``.entrypoint([])`` clears the image's vLLM entrypoint so Modal can run
   our ``serve()`` function without flag leakage.
 * ``NETWORKX_AUTOMATIC_BACKEND_SELECTION=0`` prevents import hang.
-* ``--default-chat-template-kwargs {"enable_thinking": false}`` (Qwen3
-  ChatML defaults to thinking ON; disabled for deterministic billed runs).
 
 Workflow::
 
@@ -32,7 +58,6 @@ Workflow::
 from __future__ import annotations
 
 import atexit
-import json
 import os
 import socket
 import subprocess
@@ -66,7 +91,9 @@ TP_SIZE = os.environ.get("MODAL_VLLM_TP_SIZE", "") or str(
 )
 VLLM_IMAGE_TAG = os.environ.get("MODAL_VLLM_IMAGE_TAG", "v0.29.0")
 
-SCALEDOWN_SECONDS = int(os.environ.get("MODAL_VLLM_SCALEDOWN_SECONDS", 15 * 60))
+# Attended specialist suite default: 120s idle warm (DMR-076 cost-saver).
+# Unattended / overnight: export MODAL_VLLM_SCALEDOWN_SECONDS=600 before deploy.
+SCALEDOWN_SECONDS = int(os.environ.get("MODAL_VLLM_SCALEDOWN_SECONDS", 120))
 MAX_CONTAINERS = int(os.environ.get("MODAL_VLLM_MAX_CONTAINERS", 1))
 MIN_CONTAINERS = int(os.environ.get("MODAL_VLLM_MIN_CONTAINERS", 0))
 STARTUP_TIMEOUT_SECONDS = int(
@@ -183,11 +210,6 @@ def build_vllm_command(model: str) -> list[str]:
     if _truthy(ASYNC_SCHEDULING):
         cmd += ["--async-scheduling"]
     cmd += ["--no-enable-log-requests"]
-    # Qwen3-8B ChatML enables thinking by default, inflating completion tokens
-    # and skewing cost-per-token vs the API. Default-disable it so the
-    # BILLED/measured path is deterministic; request-level chat_template_kwargs
-    # (e.g. the driver's warm-ups) still take precedence.
-    cmd += ["--default-chat-template-kwargs", json.dumps({"enable_thinking": False})]
     return cmd
 
 
@@ -365,7 +387,15 @@ def main(check: bool = False, debug: bool = False) -> None:
     print(f"Deploy:   modal deploy {name}")
     print(f"Pre-warm: modal run {name}::download_model")
     print(f"Model:    {MODEL} on {GPU} (vllm/vllm-openai:{VLLM_IMAGE_TAG})")
+    print(
+        f"Knobs:    max_model_len={MAX_MODEL_LEN} quant={QUANTIZATION or '(none)'} "
+        f"tp={TP_SIZE} max_containers={MAX_CONTAINERS} scaledown={SCALEDOWN_SECONDS}s"
+    )
     print(f"Endpoint: {base or 'set VLLM_BASE_URL after deploy'}")
+    print(
+        "Swap:     eval \"$(sandbox modal-matrix env <HF-id> [--gpu GPU])\" "
+        "then redeploy --strategy recreate (default catalog row: Qwen/Qwen3-8B @ L4)"
+    )
     if debug:
         for key, value in _masked_config().items():
             print(f"  {key}: {value}")

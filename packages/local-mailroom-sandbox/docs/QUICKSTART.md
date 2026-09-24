@@ -13,6 +13,11 @@ for the offline paths. Deep dives: [`SANDBOX-GUIDE.md`](SANDBOX-GUIDE.md)
 cd <checkout>                        # repo root (or packages/local-mailroom-sandbox in the monorepo)
 python3 -m venv .venv                # deps live INSIDE the repo — never the machine env
 .venv/bin/pip install -e ".[dev]"    # base + pytest + hf hub (datasets pull)
+# Equivalent requirements-file install:
+#   pip install -r requirements.txt          # → requirements/dev.txt
+# Specialist / Modal live path:
+#   pip install -e ".[pipeline,deploy]"
+#   # or: pip install -r requirements/pipeline.txt -r requirements/deploy.txt
 cp config/.env.example .env          # profiles/tracing knobs (edit if needed)
 export PATH="$PWD/.venv/bin:$PATH"   # or call ./.venv/bin/sandbox explicitly
 ```
@@ -109,8 +114,10 @@ sandbox prompts show sorter --variant sorter_local_v0   # local variant stem
 
 ```bash
 sandbox datasets prepare                # offline: load/clean fixtures → data/runtime/prepared/ (no network)
-sandbox datasets pull                   # LIVE pinned Hub pull (NETWORK):
-#   Lucius-Morningstar/mailroom-dataset@46a4d3c2 (ground_truth/test) → data/cache/…, sha256-verified
+sandbox datasets pull                   # LIVE pinned FULL Hub pull (NETWORK):
+#   Lucius-Morningstar/mailroom-dataset@46a4d3c2 ground_truth train+test
+#   (3,302 rows) → data/cache/…, sha256-verified. Required for 20/40/100-per-class.
+sandbox datasets sample --per-class 40  # offline draw from that cache (merger cap 152)
 sandbox datasets pull --max-rows 50 --config ground_truth --split test --revision <sha-or-tag>
 sandbox datasets pull --dataset Lucius-Morningstar/mailroom-dataset --max-rows 20
 ```

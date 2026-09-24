@@ -27,6 +27,7 @@ _log = logging.getLogger("mailroom_sandbox.eval.agents")
 
 SPECIALIST_CLASS = {
     "contracts_specialist": "contract",
+    "merger_agreement_specialist": "merger_agreement",
     "corporate_records_specialist": "corporate_record",
     "correspondence_specialist": "correspondence",
     "insurance_claims_specialist": "insurance_claim",
@@ -34,6 +35,10 @@ SPECIALIST_CLASS = {
 
 LIVE_CLASS_MAP = {
     "contracts_specialist": ("agents.contracts_specialist", "ContractsSpecialist"),
+    "merger_agreement_specialist": (
+        "agents.merger_agreement_specialist",
+        "MergerAgreementSpecialist",
+    ),
     "corporate_records_specialist": ("agents.corporate_records_specialist", "CorporateRecordsSpecialist"),
     "correspondence_specialist": ("agents.correspondence_specialist", "CorrespondenceSpecialist"),
     "insurance_claims_specialist": ("agents.insurance_claims_specialist", "InsuranceClaimsSpecialist"),
@@ -130,9 +135,7 @@ def _live_sorter(row: dict[str, Any]) -> dict[str, Any]:
     result = SorterAgent().classify(_doc_text(row))
     if isinstance(result, dict):
         return result
-    if isinstance(result, (tuple, list)) and result:
-        return {"doc_type": str(result[0])}
-    return {"doc_type": ""}
+    return {"doc_type": str(result)}
 
 
 def _live_reviewer(row: dict[str, Any]) -> dict[str, Any]:
@@ -540,7 +543,14 @@ _register(
     )
 )
 
-COMPOSITE_TASKS = ("extract", "chained", "pipeline", "legalbench", "local_vs_api")
+COMPOSITE_TASKS = (
+    "extract",
+    "chained",
+    "pipeline",
+    "legalbench",
+    "local_vs_api",
+    "sorter_vs_modernbert",
+)
 EVAL_TASKS = tuple(SPECS) + COMPOSITE_TASKS
 
 

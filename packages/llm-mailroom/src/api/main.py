@@ -1,5 +1,7 @@
+import asyncio
 import os
 import re
+import time
 import uuid
 import datetime
 import structlog
@@ -141,6 +143,31 @@ app = FastAPI(
 )
 
 
+_LLM_HEALTH_CACHE: dict | None = None
+_LLM_HEALTH_CACHE_AT: float = 0.0
+_LLM_HEALTH_CACHE_TTL = float(os.environ.get("MAILROOM_LLM_HEALTH_CACHE_SECONDS", "30"))
+
+
+def _sync_ping_llm_models(provider, model: str) -> tuple[str, str]:
+    """Blocking OpenAI SDK models.list ping (run in a worker thread)."""
+    status = "ok"
+    detail = f"{provider.name}:{model}"
+    try:
+        from openai import OpenAI
+
+        kwargs = {"base_url": provider.base_url, "api_key": "not-needed", "timeout": 5.0}
+        if provider.api_key_env:
+            key = os.environ.get(provider.api_key_env)
+            if key:
+                kwargs["api_key"] = key
+        client = OpenAI(**kwargs)
+        client.models.list()
+    except Exception as exc:
+        status = "degraded"
+        detail = f"{provider.name}:{model} — models endpoint unreachable: {type(exc).__name__}"
+    return status, detail
+
+
 async def _check_llm_provider() -> dict:
     """Best-effort LLM provider connectivity check.
 
@@ -148,35 +175,27 @@ async def _check_llm_provider() -> dict:
     missing or is the mock placeholder) and pings the models endpoint with a
     short timeout. Never spends completion tokens.
     """
-    import os
+    global _LLM_HEALTH_CACHE, _LLM_HEALTH_CACHE_AT
+    now = time.monotonic()
+    if _LLM_HEALTH_CACHE is not None and (now - _LLM_HEALTH_CACHE_AT) < _LLM_HEALTH_CACHE_TTL:
+        return _LLM_HEALTH_CACHE
     try:
         from llm.providers import resolve_provider
         from pipeline.config import get_agent_config
 
         agent_cfg = get_agent_config("sorter")
         provider, model = resolve_provider(agent_cfg)
-        status = "ok"
-        detail = f"{provider.name}:{model}"
-        try:
-            from openai import OpenAI
-
-            kwargs = {"base_url": provider.base_url, "api_key": "not-needed", "timeout": 5.0}
-            if provider.api_key_env:
-                key = os.environ.get(provider.api_key_env)
-                if key:
-                    kwargs["api_key"] = key
-            client = OpenAI(**kwargs)
-            client.models.list()
-        except Exception as exc:
-            status = "degraded"
-            detail = f"{provider.name}:{model} — models endpoint unreachable: {type(exc).__name__}"
-        return {"status": status, "detail": detail, "provider": provider.name}
+        status, detail = await asyncio.to_thread(_sync_ping_llm_models, provider, model)
+        result = {"status": status, "detail": detail, "provider": provider.name}
     except Exception as exc:
-        return {
+        result = {
             "status": "degraded",
             "detail": f"provider resolution failed: {type(exc).__name__}: {exc}",
             "provider": None,
         }
+    _LLM_HEALTH_CACHE = result
+    _LLM_HEALTH_CACHE_AT = now
+    return result
 
 
 async def _check_database() -> dict:

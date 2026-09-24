@@ -26,6 +26,10 @@ packages/llm-entity-extraction/config/environments/braintrust-sandbox.env
 packages/llm-entity-extraction/config/environments/langfuse.env
 packages/llm-entity-extraction/config/environments/*.env.local
 
+# Hub #183: stale repo-root copy of the entity-extraction scores manifest (canonical:
+# packages/llm-entity-extraction/reports/scores_manifest.jsonl).
+reports/scores_manifest.jsonl
+
 # Local run artifacts (regenerated locally)
 packages/llm-entity-extraction/data/manifests/*
 !packages/llm-entity-extraction/data/manifests/README.md

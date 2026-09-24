@@ -26,17 +26,23 @@ docker compose up --build
 ```
 
 Front door: **http://localhost** — nginx `:80` is the only published port;
-the desk is at **`/desk`**. The backend port `8001` is NOT published. Both
-app services build the root Dockerfile's `operator` target (installs
-`.[operator]` via the `MAILROOM_EXTRAS` build arg and bakes `ui/dist`).
+the desk is at **`/desk`**. The backend port `8001` is NOT published. The
+visualizer builds the root Dockerfile's `operator` target (installs
+`.[operator]` via the `MAILROOM_EXTRAS` build arg and bakes `ui/dist`) and
+runs the in-process bin watcher (`MAILROOM_OBSERVER=1`). Do not add a
+`mailroom-observer` sidecar on the same volume (issue #78).
 
 ## Services
 
 | Service | Image | Purpose |
 | :--- | :--- | :--- |
-| `mailroom` | root `Dockerfile` → `target: operator` | Visualizer + `/v1/auth` `/v1/archive` `/v1/ops` `/ws/pipeline`, serves `/desk` |
-| `mailroom-observer` | root `Dockerfile` → `target: operator-core` | Headless bin watcher → POST `/v1/ops/events` (lean image: no Node stage, no ui/dist) |
+| `mailroom` | root `Dockerfile` → `target: operator` | Visualizer + `/v1/auth` `/v1/archive` `/v1/ops` `/ws/pipeline`, serves `/desk`, in-process bin watcher |
 | `nginx` | `nginx:alpine` | Reverse proxy — the only published front door (`:80`) |
+
+The standalone `mailroom-observer` CLI (`python -m operator_desk.observer`,
+POST `/v1/ops/events`) is optional and **not** part of this compose file.
+If you run it, set `MAILROOM_OBSERVER=0` on `mailroom` first so the two
+watchers do not double-emit.
 
 ## Related Files
 

@@ -19,7 +19,7 @@ SQLite (`ui_users` / `ui_audit` / `archive_index`).
 | Display | Still Langfuse via `/api/*` + `/ws`. Ops numbers come from `PipelineRun`s. |
 | Auth | Gates operator routes only. Do not require JWT on the floor or TUI. |
 | Archive | Local `archive_index` + files under `MAILROOM_BASE_DIR`. No fabricated catalog. |
-| Observer | Prefer in-process (`MAILROOM_OBSERVER=1`). Standalone POSTs `/v1/ops/events`. |
+| Observer | Compose default is in-process (`MAILROOM_OBSERVER=1`). Do not add a `mailroom-observer` sidecar on the same volume (issue #78). Optional standalone CLI POSTs `/v1/ops/events` — set `MAILROOM_OBSERVER=0` first. |
 | Producer | Never `import api.main`. Review resolve stays `mailroom_ui/review_actions.py`. |
 
 ## Commands
@@ -27,9 +27,11 @@ SQLite (`ui_users` / `ui_audit` / `archive_index`).
 ```bash
 pip install -e ".[operator]"
 python -m operator_desk
-mailroom-observer
+# Optional standalone watcher (NOT the compose default; set MAILROOM_OBSERVER=0 first):
+# mailroom-observer
 # Compose = single front door: nginx :80 only published port, /desk baked
-# into the `operator` image target. Fail-fast required env:
+# into the `operator` image target, in-process watcher via MAILROOM_OBSERVER=1.
+# Fail-fast required env:
 # MAILROOM_OPERATOR_JWT_SECRET / MAILROOM_OPERATOR_ADMIN_PASSWORD.
 docker compose -f operator_desk/docker-compose.yml up --build
 ```

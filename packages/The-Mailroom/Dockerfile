@@ -87,9 +87,9 @@ CMD ["python", "-m", "server.hosted"]
 
 
 # ---- Operator edition: the hosted runtime + operator extras. Built
-# explicitly with `docker build --target operator-core` or by the
-# operator-desk compose for the headless observer — no Node stage, no
-# ui/dist, for containers that never serve /desk.
+# explicitly with `docker build --target operator-core` for an optional
+# standalone `mailroom-observer` CLI image — no Node stage, no ui/dist.
+# Default compose does NOT run this as a sidecar (issue #78: one watcher).
 FROM runtime AS operator-core
 
 USER root

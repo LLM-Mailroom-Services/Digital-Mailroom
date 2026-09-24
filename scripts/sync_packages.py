@@ -1679,8 +1679,9 @@ def main(argv: list[str] | None = None) -> int:
     push.add_argument(
         "--patch",
         action="store_true",
-        help="non-fast-forward fallback (HUB-012): land tracked package files as "
-        "one commit on the current upstream tip, then re-baseline the cursor",
+        help="content-only fast path (DMR-070): land tracked package files as one "
+        "commit on the current upstream tip, then re-baseline the cursor; refuses "
+        "deletion-bearing deltas (use full push without --patch)",
     )
     push.add_argument("--dry-run", action="store_true", help="print the plan; no pushes, no cursor writes")
     push.add_argument(

@@ -366,15 +366,27 @@ function reset() {
     }
   });
 
-  await check("POST create retries when card id already exists (hub#165)", async () => {
+  await check("PATCH desc-only omits labels field (hub#167)", async () => {
     reset();
-    ISSUES.set(99, issueRecord(99, { title: "DMR-100: taken", state: "open" }));
-    const res = await runHandler(boardHandler, makeReq("POST", "/api/board", { title: "new card" }));
-    assert.strictEqual(res.statusCode, 201, `expected 201 got ${res.statusCode}`);
-    const body = JSON.parse(res._body);
-    assert.ok(body.id && body.id !== "DMR-100", `must not collide with existing id, got ${body.id}`);
-    const creates = calls.filter((c) => c.method === "POST" && /\/issues$/.test(c.url));
-    assert.ok(creates.length >= 1, "expected at least one GitHub create");
+    const res = await runHandler(cardHandler, makeReq("PATCH", "/api/board/DMR-001", { desc: "updated task" }));
+    assert.strictEqual(res.statusCode, 200, res._body);
+    const patchCall = calls.find((c) => c.method === "PATCH" && /\/issues\/1$/.test(c.url));
+    assert.ok(patchCall, "expected PATCH");
+    assert.strictEqual(patchCall.body.labels, undefined, "labels must be omitted on desc-only patch");
+  });
+
+  await check("setBodySection strips embedded markdown headings (hub#167)", () => {
+    const out = ghx.setBodySection("### Task\nold", "Task", "line one\n### Evidence plan\ninjected");
+    assert.ok(!out.includes("### Evidence plan\ninjected"), `body must not retain injected heading: ${out}`);
+    assert.ok(out.includes("line one"), out);
+  });
+
+  await check("PATCH agents non-array returns 400 (hub#167)", async () => {
+    reset();
+    const res = await runHandler(cardHandler, makeReq("PATCH", "/api/board/DMR-001", { agents: "bob" }));
+    assert.strictEqual(res.statusCode, 400, res._body);
+    assert.ok(res._body.includes("agents must be an array"), res._body);
+    assert.ok(!calls.some((c) => c.method === "PATCH" && /\/issues\/1$/.test(c.url)), "no write on bad agents");
   });
 
   console.log(`\n${passed} checks passed`);

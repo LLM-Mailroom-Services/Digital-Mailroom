@@ -239,15 +239,18 @@ def create_app(source: Optional[object] = None) -> FastAPI:
             cached = load_traces()
             if cached:
                 rows = list(cached.get("runs") or [])
+                cutoff = _utcnow() - timedelta(seconds=since)
+                rows = [r for r in rows if _cached_row_stamp(r) >= cutoff]
                 if stage:
                     rows = [r for r in rows if r.get("stage") == stage]
                 if environment:
                     rows = [r for r in rows if r.get("environment") == environment]
+                sliced = rows[:limit]
                 return {
-                    "count": len(rows),
+                    "count": len(sliced),
                     "source": CACHE_SOURCE,
                     "cached_at": cached.get("cached_at"),
-                    "runs": rows[:limit],
+                    "runs": sliced,
                 }
             raise
         if stage:
@@ -306,7 +309,7 @@ def create_app(source: Optional[object] = None) -> FastAPI:
             grouped.setdefault(r.session_id or r.matter_id or "(no session)", []).append(r)
         out = []
         for sid, rs in grouped.items():
-            rs.sort(key=lambda r: (r.updated_at or r.created_at or datetime.min), reverse=True)
+            rs.sort(key=_run_sort_key, reverse=True)
             stamps_c = [r.created_at for r in rs if r.created_at]
             stamps_u = [r.updated_at or r.created_at for r in rs
                         if (r.updated_at or r.created_at) is not None]
@@ -317,7 +320,7 @@ def create_app(source: Optional[object] = None) -> FastAPI:
                 trace_count=len(rs),
                 runs=rs,
             ))
-        out.sort(key=lambda s: s.updated_at or datetime.min, reverse=True)
+        out.sort(key=lambda s: s.updated_at or UTC_MIN, reverse=True)
         return JSONResponse(
             {
                 "count": len(out[:limit]),
@@ -348,10 +351,7 @@ def create_app(source: Optional[object] = None) -> FastAPI:
                 if (r.session_id or r.matter_id) == session_id
             ]
         if desk:
-            desk.sort(
-                key=lambda r: (r.updated_at or r.created_at or datetime.min),
-                reverse=True,
-            )
+            desk.sort(key=_run_sort_key, reverse=True)
             return {
                 "session_id": session_id,
                 "count": len(desk),
@@ -677,10 +677,25 @@ def create_app(source: Optional[object] = None) -> FastAPI:
     return app
 
 
+UTC_MIN = datetime.min.replace(tzinfo=timezone.utc)
+
+
 def _utcnow() -> datetime:
     """Langfuse stores UTC — every query window must be UTC-aware (a naive
     local now() shifts the window by the machine's UTC offset)."""
     return datetime.now(timezone.utc)
+
+
+def _run_sort_key(run: PipelineRun) -> datetime:
+    return run.updated_at or run.created_at or UTC_MIN
+
+
+def _cached_row_stamp(row: dict) -> datetime:
+    raw = row.get("updated_at") or row.get("created_at")
+    if not raw:
+        return UTC_MIN
+    parsed = _dt(raw)
+    return parsed if parsed is not None else UTC_MIN
 
 
 def _source_names(src: object) -> str:
@@ -757,7 +772,7 @@ def _session_runs(src: LangfuseSource, session_id: str, limit: int) -> list[Pipe
         except Exception as exc:
             log.warning("session run failed for %s: %s", tid, exc)
             runs.append(interpret_trace(t))
-    runs.sort(key=lambda r: r.updated_at or datetime.min, reverse=True)
+    runs.sort(key=lambda r: r.updated_at or UTC_MIN, reverse=True)
     return runs
 
 
@@ -771,6 +786,17 @@ def _serialize(run: PipelineRun, full: bool = False) -> dict:
         "scores": run.scores,
     }
 
+
+def _dt(value) -> Optional[datetime]:
+    if value is None:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def listen_port(default: int = 8001) -> int:
     """Prefer platform ``PORT`` (Railway / Fly / Render) over ``MAILROOM_PORT``.
 
     Hugging Face Spaces and the Observatory image bake ``MAILROOM_PORT=7860``.

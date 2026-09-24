@@ -38,6 +38,26 @@ vllm_model_map:
   deepseek/deepseek-v4-pro: deepseek-ai/DeepSeek-R1-Distill-Qwen-14B
   openrouter/free: Qwen/Qwen3-8B
 
+# Ollama served-model remap (DMR-076): same contract as vllm_model_map — when
+# DEFAULT_PROVIDER=ollama the champions are rewritten to the Ollama model tags
+# served by the sidecar (deploy/docker-compose.ollama.yml). Tags are
+# pre-pulled with `ollama pull <tag>` (e.g. qwen3:7b).
+ollama_model_map:
+  qwen/qwen3.7-flash: qwen3:7b
+  deepseek/deepseek-v4-flash: deepseek-r1:8b
+  deepseek/deepseek-v4-pro: deepseek-r1:14b
+  openrouter/free: qwen3:7b
+
+# Llamafile served-model remap (DMR-076): when DEFAULT_PROVIDER=llamafile the
+# champions collapse onto the single GGUF served by the sidecar
+# (deploy/docker-compose.llamafile.yml). The served id is the --alias value
+# (LLAMAFILE_ALIAS); the server answers /v1/models with exactly that id.
+llamafile_model_map:
+  qwen/qwen3.7-flash: qwen3:7b
+  deepseek/deepseek-v4-flash: qwen3:7b
+  deepseek/deepseek-v4-pro: qwen3:14b
+  openrouter/free: qwen3:7b
+
 # Free-model swarm (Gmail triage pilot): the Free Models Router. Instead of
 # hardcoding individual free models (their availability alternates as
 # providers rotate in and out of the free tier), the swarm is OpenRouter's
@@ -230,21 +250,20 @@ doc_classes:
 
   - key: merger_agreement
     label: "Merger Agreement"
-    schema: ContractExtraction
-    specialist: contracts_specialist
+    schema: MergerAgreementExtraction
+    specialist: merger_agreement_specialist
     description: "MAUD merger agreements (agreement and plan of merger) — a distinct class from CUAD commercial contracts. Subclass is consideration type (all_cash, all_stock, mixed, …)."
     field_types:
       document_name: name
       parties: entity_list:name
       effective_date: date
-      term_length: free_text
+      effective_time: free_text
       governing_law: name
-      contract_value: money
-      renewal_terms: free_text
-      cuad_family: name
       merger_consideration: name
-      cuad_clauses: entity_list:free_text
       maud_clauses: entity_list:free_text
+      intent: name
+      subject_matter: free_text
+      keywords: entity_list:name
 
   - key: corporate_record
     label: "Corporate Record"
@@ -421,6 +440,14 @@ agents:
     reasoning_effort: none
 
   contracts_specialist:
+    provider: openrouter
+    model: qwen/qwen3.7-flash
+    temperature: 0.1
+    max_tokens: 8192
+    max_input_chars: 100000
+    reasoning_effort: none
+
+  merger_agreement_specialist:
     provider: openrouter
     model: qwen/qwen3.7-flash
     temperature: 0.1

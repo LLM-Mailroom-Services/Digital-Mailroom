@@ -62,10 +62,9 @@ module.exports = async function handler(req, res) {
       // Route: cards with NO agents → unassigned; cards WITH agents → assigned
       const effectiveLane = agents.length === 0 ? "unassigned" : lane;
       const laneObj = ghx.LANES.find((l) => l.id === effectiveLane) || ghx.LANES[0];
-      const id = await ghx.nextCardId();
       const labels = ["kanban", "type/task", laneObj.label, `priority/${priority}`];
 
-      const issueBody = [
+      const issueBody = (id) => [
         "## Board card — the issue is the mirror, the board is the truth",
         "",
         "Synced from the Mailroom Dispatch Board (served site).",
@@ -83,17 +82,39 @@ module.exports = async function handler(req, res) {
         `### Evidence plan\n\n—`,
       ].join("\n");
 
-      const created = await ghx.gh(`/repos/${ghx.repo()}/issues`, {
-        method: "POST",
-        body: {
-          title: `${id}: ${title}`,
-          body: issueBody,
-          labels,
-          // Agents ride the body "### Owner" section (agent/persona/harness),
-          // NOT GitHub assignees — arbitrary agent names aren't repo users and
-          // GitHub rejects them (422). Leave assignees unset.
-        },
-      });
+      const MAX_CREATE_ATTEMPTS = 5;
+      let created = null;
+      for (let attempt = 0; attempt < MAX_CREATE_ATTEMPTS; attempt++) {
+        const id = await ghx.nextCardId();
+        const existing = await ghx.listIssuesByCardId(id);
+        if (existing.length > 0) continue;
+
+        created = await ghx.gh(`/repos/${ghx.repo()}/issues`, {
+          method: "POST",
+          body: {
+            title: `${id}: ${title}`,
+            body: issueBody(id),
+            labels,
+          },
+        });
+
+        const after = await ghx.listIssuesByCardId(id);
+        if (after.length <= 1) break;
+
+        const winner = after.reduce((a, b) => (a.number < b.number ? a : b));
+        if (created.number !== winner.number) {
+          await ghx.gh(`/repos/${ghx.repo()}/issues/${created.number}`, {
+            method: "PATCH",
+            body: { state: "closed" },
+          });
+          created = null;
+          continue;
+        }
+        break;
+      }
+      if (!created) {
+        return sendJson(res, 503, { error: "could not allocate a unique card id — retry shortly" });
+      }
       return sendJson(res, 201, ghx.toCard(created));
     }
 

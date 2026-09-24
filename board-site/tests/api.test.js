@@ -334,5 +334,16 @@ function reset() {
     }
   });
 
+  await check("POST create retries when card id already exists (hub#165)", async () => {
+    reset();
+    ISSUES.set(99, issueRecord(99, { title: "DMR-100: taken", state: "open" }));
+    const res = await runHandler(boardHandler, makeReq("POST", "/api/board", { title: "new card" }));
+    assert.strictEqual(res.statusCode, 201, `expected 201 got ${res.statusCode}`);
+    const body = JSON.parse(res._body);
+    assert.ok(body.id && body.id !== "DMR-100", `must not collide with existing id, got ${body.id}`);
+    const creates = calls.filter((c) => c.method === "POST" && /\/issues$/.test(c.url));
+    assert.ok(creates.length >= 1, "expected at least one GitHub create");
+  });
+
   console.log(`\n${passed} checks passed`);
 })();

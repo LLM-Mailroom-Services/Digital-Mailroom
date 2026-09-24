@@ -192,7 +192,7 @@ class TestDeploySurface:
         assert mod.MAX_MODEL_LEN == "16384"  # DMR-056: L4-bf16 boot-valid default
         assert mod.GPU_MEMORY_UTILIZATION == "0.90"  # below vLLM's 0.92 default
         assert mod.MAX_NUM_SEQS == "256"  # vLLM's own L4/OpenAI-server default
-        assert mod.SCALEDOWN_SECONDS == 15 * 60
+        assert mod.SCALEDOWN_SECONDS == 120  # DMR-076 attended default (restore 600 unattended)
         assert mod.MAX_CONTAINERS == 1  # a test sandbox must not fan out GPUs
         assert mod.MIN_CONTAINERS == 0  # scale-to-zero
         assert mod.STARTUP_TIMEOUT_SECONDS == 20 * 60
@@ -207,7 +207,7 @@ class TestDeploySurface:
         }
         assert kwargs["max_containers"] == 1
         assert kwargs["min_containers"] == 0
-        assert kwargs["scaledown_window"] == 15 * 60
+        assert kwargs["scaledown_window"] == 120  # DMR-076 attended pin
         assert kwargs["timeout"] == mod.STARTUP_TIMEOUT_SECONDS == 20 * 60
         assert mod.serve.web_server_kwargs == {
             "port": 8000,

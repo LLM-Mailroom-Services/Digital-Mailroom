@@ -1,5 +1,4 @@
 *.pyc
-*.pyo
 __pycache__/
 *.egg-info/
 dist/
@@ -16,7 +15,8 @@ config/.env
 
 # Runtime / operator data (fixtures are tracked)
 data/runtime/
-data/cache/
+data/cache/**
+!data/cache/README.md
 data/traces/
 data/pipeline/
 data/manifests/
@@ -65,3 +65,52 @@ docker/volumes/
 
 # Runtime agent memory churn (DMR-063 hygiene)
 data/memory/
+
+
+# Python egg and metadata
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# System files
+Thumbs.db
+Desktop.ini
+
+# macOS system files
+.DS_Store
+
+# Logs and core dumps
+*.log
+*.out
+*.pid
+*.bak
+*.old
+*.orig
+*.core
+
+# Coverage, test, and profiling
+.coverage
+.tox/
+.nose2/
+/cache/
+*.prof
+
+# Editor-specific
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+# local Cursor or replay files
+cursor-record/
+.replay/
+/replay/
+.cache/
+# Possible others (customize for direct project needs)
+logs/
+tmp/
+temp/

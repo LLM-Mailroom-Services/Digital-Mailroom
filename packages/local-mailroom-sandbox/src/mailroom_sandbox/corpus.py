@@ -16,11 +16,56 @@ import random
 import re
 from typing import Any
 
-from mailroom_sandbox.job.spec import DatasetSpec, FAMILY_HF_REVISION
+from mailroom_sandbox.job.spec import (
+    DatasetSpec,
+    FAMILY_CLASS_COUNTS,
+    FAMILY_HF_REVISION,
+    LIVE_DOC_CLASSES,
+)
 
 _log = logging.getLogger("mailroom_sandbox.corpus")
 
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+_ALL_SPLIT_ALIASES = frozenset({"all", "*", "both", "train+test", "train,test"})
+
+
+def expand_hf_splits(split: str) -> tuple[str, ...]:
+    """Map a DatasetSpec.split value onto parquet split names.
+
+    ``all`` / ``train+test`` loads BOTH evaluation partitions (3,302 rows at
+    the family pin). The Hub 90/10 split is an evaluation partition, not ML
+    train/test — Modal 20/40/100-per-class draws must use ``all``.
+    """
+    raw = (split or "test").strip().lower().replace(" ", "")
+    if raw in _ALL_SPLIT_ALIASES:
+        return ("train", "test")
+    if raw in {"train", "test"}:
+        return (raw,)
+    raise ValueError(
+        f"unknown dataset split {split!r} — use train, test, or all (train+test)"
+    )
+
+
+def per_class_strata(per_class: int) -> dict[str, Any]:
+    """Strata block: ``per_class`` rows from each live extract class."""
+    if not isinstance(per_class, int) or per_class < 1:
+        raise ValueError(f"per_class must be a positive int (got {per_class!r})")
+    return {
+        "buckets": [
+            {"doc_class": cls, "count": per_class} for cls in LIVE_DOC_CLASSES
+        ]
+    }
+
+
+def _ensure_hf_home() -> None:
+    """Keep Hub parquet in the sandbox cache (gitignored ``data/cache/hf``)."""
+    import os
+
+    from mailroom_sandbox.paths import repo_root
+
+    hf_home = repo_root() / "data" / "cache" / "hf"
+    hf_home.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("HF_HOME", str(hf_home))
 
 
 def _resolve_revision(repo: str, revision: str) -> str:
@@ -73,10 +118,16 @@ def _stable_key(row: dict[str, Any]) -> tuple[str, str]:
 
 
 def _read_jsonl(path) -> list[dict[str, Any]]:
+    """Read JSONL without ``str.splitlines()``.
+
+    Legal ``doc_text`` can contain U+2028/U+2029; ``splitlines()`` would
+    break a ``json.dumps(ensure_ascii=False)`` record in the middle.
+    """
     rows = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if line.strip():
-            rows.append(json.loads(line))
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            if line.strip():
+                rows.append(json.loads(line))
     return rows
 
 
@@ -100,51 +151,65 @@ def merge_default_and_gt(default_rows: list[dict[str, Any]], gt_rows: list[dict[
 
 
 def load_hf_rows(spec: DatasetSpec) -> list[dict[str, Any]]:
-    """Fetch pinned parquet shards, merge default+ground_truth, return raw rows."""
+    """Fetch pinned parquet shards, merge default+ground_truth, return raw rows.
+
+    ``split=all`` concatenates train+test (the full 3,302-row evaluation
+    corpus). Duplicate ``filename`` across splits is a pin-integrity failure.
+    """
     import huggingface_hub
 
+    _ensure_hf_home()
     repo = spec.repo
     revision = spec.revision or FAMILY_HF_REVISION
     resolved = _resolve_revision(repo, revision)
     files = set(huggingface_hub.list_repo_files(repo, revision=resolved, repo_type="dataset"))
+    splits = expand_hf_splits(spec.split)
 
-    def shard(config: str) -> str:
-        return f"parquet/{config}/{spec.split}/{spec.split}-00000-of-00001.parquet"
+    def shard(config: str, split: str) -> str:
+        return f"parquet/{config}/{split}/{split}-00000-of-00001.parquet"
 
-    def read_config(config: str) -> list[dict[str, Any]] | None:
-        f = shard(config)
+    def read_config(config: str, split: str) -> list[dict[str, Any]] | None:
+        f = shard(config, split)
         if f not in files:
             return None
         path = huggingface_hub.hf_hub_download(repo, f, revision=resolved, repo_type="dataset")
         return _read_parquet(path)
 
-    default = read_config("default")
-    ground_truth = read_config("ground_truth")
-
-    if ground_truth is not None:
-        merged = merge_default_and_gt(default or [], ground_truth)
-        for r in merged:
-            r["source_revision"] = resolved
-        return merged
-    if default is not None:
-        if spec.config in ("", "ground_truth"):
-            # The blind rows would be scored as unlabeled (expected_doc_class
-            # "") — a silent 0.0/unknown scorecard. Refuse instead (DMR-049).
-            raise RuntimeError(
-                f"ground_truth config is absent at {repo}@{resolved} for split "
-                f"{spec.split!r} — refusing to prepare blind rows as labeled data"
-            )
-        for r in default:
-            r["source_revision"] = resolved
-        return default
-    cfg = read_config(spec.config)
-    if cfg is None:
-        raise RuntimeError(
-            f"no parquet shards for {spec.config or 'default'} / {spec.split} at {repo}@{resolved}"
-        )
-    for r in cfg:
-        r["source_revision"] = resolved
-    return cfg
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for split in splits:
+        default = read_config("default", split)
+        ground_truth = read_config("ground_truth", split)
+        if ground_truth is not None:
+            merged = merge_default_and_gt(default or [], ground_truth)
+        elif default is not None:
+            if spec.config in ("", "ground_truth"):
+                # The blind rows would be scored as unlabeled (expected_doc_class
+                # "") — a silent 0.0/unknown scorecard. Refuse instead (DMR-049).
+                raise RuntimeError(
+                    f"ground_truth config is absent at {repo}@{resolved} for split "
+                    f"{split!r} — refusing to prepare blind rows as labeled data"
+                )
+            merged = default
+        else:
+            cfg = read_config(spec.config, split)
+            if cfg is None:
+                raise RuntimeError(
+                    f"no parquet shards for {spec.config or 'default'} / {split} "
+                    f"at {repo}@{resolved}"
+                )
+            merged = cfg
+        for row in merged:
+            fname = str(row.get("filename") or "")
+            if fname in seen:
+                raise RuntimeError(
+                    f"duplicate filename {fname!r} across splits at {repo}@{resolved}"
+                )
+            seen.add(fname)
+            row["source_revision"] = resolved
+            row.setdefault("split", split)
+            out.append(row)
+    return out
 
 
 def normalize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -281,6 +346,10 @@ def _strata_requested(strata: dict[str, Any] | None) -> set[tuple[str, str]]:
                 out.add(("expected_doc_class", dc))
             if sc:
                 out.add(("expected_subclass", sc))
+            for sb in b.get("sub_buckets") or []:
+                ssc = str(sb.get("subclass") or "")
+                if ssc:
+                    out.add(("expected_subclass", ssc))
         return out
     field = strata_field(strata)
     if "values" in strata:
@@ -417,7 +486,16 @@ def _draw_buckets(
     field: str,
     sample_seed: int | None,
 ) -> list[dict[str, Any]]:
-    """Per-stratum sub-seeded draws; union; stable-key preserved."""
+    """Per-stratum sub-seeded draws; union; stable-key preserved.
+
+    A doc_class bucket may carry ``sub_buckets`` (per-subclass quotas within
+    the class): each quota is drawn from the class candidates matching that
+    subclass, sub-seeded per ``field::class::subclass``, with earlier
+    sub-bucket picks excluded from later ones so the bucket total is exactly
+    the quota sum (zero duplicates by construction across the whole strata
+    block). A quota above the subclass's availability HARD-FAILS (loud — a
+    shortfall here is a spec design bug, not a truncate-and-warn condition).
+    """
     keep: set[tuple[str, str]] = set()
     for bucket in buckets:
         value = bucket.get("value") or bucket.get("subclass")
@@ -429,15 +507,66 @@ def _draw_buckets(
             raise ValueError(
                 f"strata bucket {field}={value!r}: no candidate rows in prepared set"
             )
-        if count is not None and count < len(candidates):
-            if sample_seed is None:
-                raise ValueError("sample_seed required for stratified draws")
-            bucket_key = f"{field}::{value}"
-            sub_seed = int(hashlib.sha256(f"{sample_seed}:{bucket_key}".encode()).hexdigest()[:16], 16)
-            drawn = random.Random(sub_seed).sample(candidates, k=count)
+        sub_buckets = bucket.get("sub_buckets") or []
+        if sub_buckets and field == "expected_doc_class":
+            drawn: list[dict[str, Any]] = []
+            excluded: set[tuple[str, str]] = set()
+            for sb in sub_buckets:
+                sc = str(sb.get("subclass") or sb.get("value") or "")
+                c = sb.get("count")
+                if not sc or not isinstance(c, int) or c < 1:
+                    raise ValueError(
+                        "strata sub_bucket requires a 'subclass' and a positive "
+                        f"'count' (got {sb!r})"
+                    )
+                sub_candidates = [
+                    r
+                    for r in candidates
+                    if _stable_key(r) not in excluded and _subclass_matches(r, sc)
+                ]
+                if not sub_candidates:
+                    raise ValueError(
+                        f"strata sub_bucket {value!r}::{sc!r}: no candidate rows "
+                        "in prepared set"
+                    )
+                if c > len(sub_candidates):
+                    raise ValueError(
+                        f"strata sub_bucket {value!r}::{sc!r}: requested {c} but "
+                        f"only {len(sub_candidates)} available"
+                    )
+                bucket_key = f"{field}::{value}::{sc}"
+                if c < len(sub_candidates):
+                    if sample_seed is None:
+                        raise ValueError("sample_seed required for stratified draws")
+                    sub_seed = int(hashlib.sha256(f"{sample_seed}:{bucket_key}".encode()).hexdigest()[:16], 16)
+                    picked = random.Random(sub_seed).sample(sub_candidates, k=c)
+                else:
+                    picked = sub_candidates
+                drawn.extend(picked)
+                excluded.update(_stable_key(r) for r in picked)
+            keep.update(_stable_key(r) for r in drawn)
         else:
-            drawn = candidates
-        keep.update(_stable_key(r) for r in drawn)
+            if count is not None and count > len(candidates):
+                hint = ""
+                if str(value) in FAMILY_CLASS_COUNTS:
+                    hint = (
+                        f" (full-corpus availability at FAMILY_HF_REVISION is "
+                        f"{FAMILY_CLASS_COUNTS[str(value)]}; use split=all — "
+                        f"test-only cannot back 40/100-per-class draws)"
+                    )
+                raise ValueError(
+                    f"strata bucket {field}={value!r}: requested {count} but "
+                    f"only {len(candidates)} available{hint}"
+                )
+            if count is not None and count < len(candidates):
+                if sample_seed is None:
+                    raise ValueError("sample_seed required for stratified draws")
+                bucket_key = f"{field}::{value}"
+                sub_seed = int(hashlib.sha256(f"{sample_seed}:{bucket_key}".encode()).hexdigest()[:16], 16)
+                drawn = random.Random(sub_seed).sample(candidates, k=count)
+            else:
+                drawn = candidates
+            keep.update(_stable_key(r) for r in drawn)
     return [r for r in rows if _stable_key(r) in keep]
 
 
@@ -511,7 +640,7 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
     strata_draw_guard(chosen, spec.strata)
 
     payload = "".join(_cache_line(r) for r in chosen)
-    dest.write_bytes(payload.encode("utf-8"))
+    dest.write_text(payload, encoding="utf-8")
     file_sha = hashlib.sha256(payload.encode("utf-8")).hexdigest()
     counts: dict[str, int] = {}
     for r in chosen:

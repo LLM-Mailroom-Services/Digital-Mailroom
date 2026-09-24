@@ -1,0 +1,14 @@
+# AUTO-GENERATED from pyproject.toml by scripts/sync_requirements.py — do not
+# hand-edit. Source of truth: [project] / [project.optional-dependencies].
+# Refresh: python3 scripts/sync_requirements.py
+
+pyyaml>=6.0
+python-dotenv>=1.0
+httpx>=0.27
+structlog>=24.0
+pydantic>=2.0
+openai>=1.30
+numpy>=1.26
+pandas>=2.0
+matplotlib>=3.8
+openpyxl>=3.1

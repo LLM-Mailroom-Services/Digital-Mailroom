@@ -146,7 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--from-log",
         action="store_true",
         dest="from_log",
-        help="For local_vs_api: compare experiment_log.jsonl instead of serving fixtures",
+        help="For local_vs_api / sorter_vs_modernbert: compare experiment_log.jsonl instead of fixtures",
     )
     p.set_defaults(handler=_cmd_eval)
 
@@ -164,9 +164,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("datasets", help="Dataset helpers", parents=[shared])
     ds = p.add_subparsers(dest="datasets_cmd")
-    pull = ds.add_parser("pull", parents=[shared], help="Live pinned Hub pull into data/cache (network)")
+    pull = ds.add_parser("pull", parents=[shared], help="Live pinned Hub pull of the FULL ground_truth corpus into data/cache (network)")
     pull.add_argument("--dataset", default="Lucius-Morningstar/mailroom-dataset")
-    pull.add_argument("--max-rows", type=int, default=50)
+    pull.add_argument(
+        "--max-rows",
+        type=int,
+        default=0,
+        help="Cap rows after the draw (0 = full corpus; default). Legacy tiny slices used 50.",
+    )
     pull.add_argument(
         "--revision",
         default="",
@@ -178,8 +183,40 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("ground_truth", "default", ""),
         help="parquet config: ground_truth (labels merged with blind text, the default) or 'default'/'' (blind)",
     )
-    pull.add_argument("--split", default="test", help="parquet split (test|train)")
+    pull.add_argument(
+        "--split",
+        default="all",
+        help="parquet split: all (train+test, default — required for 40/100-per-class) | train | test",
+    )
+    pull.add_argument(
+        "--per-class",
+        type=int,
+        default=0,
+        help="Also draw N rows per live doc type (20/40/100…) from the pulled corpus",
+    )
+    pull.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        dest="sample_seed",
+        help="sample_seed for --per-class draws (default 42)",
+    )
     pull.set_defaults(handler=_cmd_datasets_pull)
+    sample = ds.add_parser(
+        "sample",
+        parents=[shared],
+        help="Offline per-class draw from the cached full corpus (no network)",
+    )
+    sample.add_argument("--per-class", type=int, required=True, help="rows per live doc type (20/40/100…)")
+    sample.add_argument("--seed", type=int, default=42, dest="sample_seed")
+    sample.add_argument(
+        "--classes",
+        default="",
+        help="comma-separated live classes (default: all five)",
+    )
+    sample.add_argument("--from", dest="source", default="", help="source JSONL (default: cached full pull)")
+    sample.add_argument("--out", default="", help="destination JSONL")
+    sample.set_defaults(handler=_cmd_datasets_sample)
     prep = ds.add_parser(
         "prepare",
         help="Load/clean fixtures into data/runtime/prepared/ (offline, no network)",
@@ -233,9 +270,138 @@ def build_parser() -> argparse.ArgumentParser:
     mcomp = metrics_sub.add_parser("compare", parents=[shared])
     mcomp.add_argument("--runs", default="", help="comma-separated run-ids")
     mcomp.add_argument("--log", action="store_true", help="read experiments from the log instead")
+    mcomp.add_argument(
+        "--sorter-vs-modernbert",
+        action="store_true",
+        help="compare LLM sorter vs ModernBERT (fixtures, or --runs sorter,modernbert)",
+    )
     mcomp.add_argument("--json", action="store_true")
     mcomp.set_defaults(handler=_cmd_metrics_compare)
+    mext = metrics_sub.add_parser(
+        "extrapolate",
+        parents=[shared],
+        help="extrapolate run cost/doc to full corpus / docs-per-day",
+    )
+    mext.add_argument("--run", dest="run_id", required=True, help="run-id with a lock + items")
+    mext.add_argument(
+        "--corpus-size",
+        type=int,
+        default=None,
+        help="target N (default: FAMILY_CORPUS_SIZE=3302)",
+    )
+    mext.add_argument("--docs-per-day", type=float, default=None)
+    mext.add_argument("--docs-per-month", type=float, default=None)
+    mext.add_argument("--cold-start-seconds", type=float, default=120.0)
+    mext.add_argument("--scaledown-seconds", type=float, default=120.0)
+    mext.add_argument("--concurrency", type=int, default=4)
+    mext.add_argument("--json", action="store_true")
+    mext.set_defaults(handler=_cmd_metrics_extrapolate)
+    mest = metrics_sub.add_parser(
+        "estimate-suite",
+        parents=[shared],
+        help="pre-flight GPU $/wall estimate from run YAML(s) (no Modal spend)",
+    )
+    mest.add_argument(
+        "--configs",
+        default="",
+        help="comma-separated run YAML paths (default: five run-30-*-specialist.yaml)",
+    )
+    mest.add_argument(
+        "--suite",
+        default="",
+        help="suite id/alias (track-a|track-b|full) — overrides default five; "
+        "see config/runs/suites/",
+    )
+    mest.add_argument(
+        "config_paths",
+        nargs="*",
+        help="optional run YAML paths (positional); overrides default suite when set",
+    )
+    mest.add_argument(
+        "--sec-per-doc",
+        type=float,
+        default=None,
+        help="override busy seconds/doc for every run (skips class defaults)",
+    )
+    mest.add_argument(
+        "--gen-tok-per-s",
+        type=float,
+        default=None,
+        help="derive sec/doc from assumed completion tokens ÷ gen rate",
+    )
+    mest.add_argument(
+        "--gpu-usd-per-hour",
+        type=float,
+        default=None,
+        help="override L4 rate (default $0.80 or MODAL_GPU_USD_PER_HOUR)",
+    )
+    mest.add_argument("--cold-start-seconds", type=float, default=120.0)
+    mest.add_argument(
+        "--scaledown-seconds",
+        type=float,
+        default=None,
+        help="suite teardown scaledown (default: max from YAMLs, usually 120 attended)",
+    )
+    mest.add_argument(
+        "--inter-run-gap-seconds",
+        type=float,
+        default=60.0,
+        help="warm idle between classes (preflight) while app stays up",
+    )
+    mest.add_argument(
+        "--corpus-size",
+        type=int,
+        default=None,
+        help="also print linear extrapolation (default: FAMILY_CORPUS_SIZE)",
+    )
+    mest.add_argument(
+        "--no-corpus",
+        action="store_true",
+        help="skip full-corpus extrapolation block",
+    )
+    mest.add_argument("--json", action="store_true")
+    mest.set_defaults(handler=_cmd_metrics_estimate_suite)
     mp.set_defaults(handler=_cmd_metrics_help)
+
+    mb = sub.add_parser(
+        "modernbert",
+        help="mailroom-ml ModernBERT feeder (path status + live eval)",
+        parents=[shared],
+    )
+    mb_sub = mb.add_subparsers(dest="modernbert_cmd")
+    mb_status = mb_sub.add_parser("status", parents=[shared], help="resolve MAILROOM_ML_SRC + checkpoint")
+    mb_status.set_defaults(handler=_cmd_modernbert_status)
+    mb_eval = mb_sub.add_parser("eval", parents=[shared], help="run mailroom-ml eval_modernbert.py")
+    mb_eval.add_argument("--sample", type=int, default=50)
+    mb_eval.add_argument("--seed", type=int, default=42)
+    mb_eval.add_argument("--checkpoint", default=None, help="override MODERNBERT_MODEL_PATH")
+    mb_eval.add_argument("--json", action="store_true")
+    mb_eval.set_defaults(handler=_cmd_modernbert_eval)
+    mb.set_defaults(handler=_cmd_modernbert_help)
+
+    mm = sub.add_parser(
+        "modal-matrix",
+        help="list/apply Modal+vLLM model/GPU rows from config/models.yaml",
+        parents=[shared],
+    )
+    mm_sub = mm.add_subparsers(dest="modal_matrix_cmd")
+    mm_list = mm_sub.add_parser("list", parents=[shared], help="catalog rows (default marked)")
+    mm_list.add_argument("--json", action="store_true")
+    mm_list.set_defaults(handler=_cmd_modal_matrix_list)
+    mm_show = mm_sub.add_parser("show", parents=[shared], help="one row + cutover hints")
+    mm_show.add_argument("model", help="HF id (e.g. Qwen/Qwen3-8B or Qwen/Qwen3-8B-AWQ)")
+    mm_show.add_argument("--gpu", default=None, help="override matrix GPU (e.g. A100-40GB:2)")
+    mm_show.add_argument("--json", action="store_true")
+    mm_show.set_defaults(handler=_cmd_modal_matrix_show)
+    mm_env = mm_sub.add_parser(
+        "env",
+        parents=[shared],
+        help='print export lines for eval "$(sandbox modal-matrix env …)"',
+    )
+    mm_env.add_argument("model", nargs="?", default=None, help="HF id (default: Qwen/Qwen3-8B)")
+    mm_env.add_argument("--gpu", default=None, help="override matrix GPU")
+    mm_env.set_defaults(handler=_cmd_modal_matrix_env)
+    mm.set_defaults(handler=_cmd_modal_matrix_help)
 
     return parser
 
@@ -252,6 +418,22 @@ def _run_parser(sub, shared):
     common.add_argument("--watch", action="store_true")
     common.add_argument("--job-mode", dest="mode", choices=["endpoint", "modal"], default=None)
     common.add_argument("--max-items", type=int, default=None)
+    common.add_argument(
+        "--suite",
+        default=None,
+        help="suite id/alias (track-a|track-b|full) for suite / benchmark-check",
+    )
+    common.add_argument(
+        "--require-hermes",
+        action="store_true",
+        default=True,
+        help="benchmark-check: require Hermes Modal profile (default on)",
+    )
+    common.add_argument(
+        "--allow-non-hermes",
+        action="store_true",
+        help="benchmark-check: skip Hermes profile requirement",
+    )
     g = common.add_mutually_exclusive_group()
     g.add_argument("--mock", action="store_true", default=None)
     g.add_argument("--local", action="store_true", default=None)
@@ -270,6 +452,38 @@ def _run_parser(sub, shared):
     cancel.set_defaults(handler=_cmd_run_cancel)
     runlist = run_sub.add_parser("list", parents=[common])
     runlist.set_defaults(handler=_cmd_run_list)
+    bcheck = run_sub.add_parser(
+        "benchmark-check",
+        parents=[common],
+        help="loud Modal L4 Qwen reproducibility gate (Hermes profile, pins)",
+    )
+    bcheck.set_defaults(handler=_cmd_run_benchmark_check)
+    suite_p = run_sub.add_parser(
+        "suite",
+        parents=[common],
+        help="two-operator / full specialist suite runbook (DMR-077)",
+    )
+    suite_p.add_argument(
+        "--list",
+        action="store_true",
+        help="list suite ids under config/runs/suites/",
+    )
+    suite_p.add_argument(
+        "--check",
+        action="store_true",
+        help="run benchmark-check on every config in the suite",
+    )
+    suite_p.add_argument(
+        "--print-loop",
+        action="store_true",
+        help="print bash preflight+start loop only",
+    )
+    suite_p.add_argument(
+        "--execute",
+        action="store_true",
+        help="chain preflight+start --watch for each config (no teardown)",
+    )
+    suite_p.set_defaults(handler=_cmd_run_suite)
     run.set_defaults(handler=_cmd_run_help)
     return common
 
@@ -801,6 +1015,12 @@ def _cmd_eval(args: argparse.Namespace) -> int:
             from_log=bool(getattr(args, "from_log", False)),
             **kwargs,
         )
+    elif args.task == "sorter_vs_modernbert":
+        result = runners.run_sorter_vs_modernbert_eval(
+            prompt_version=args.prompt,
+            from_log=bool(getattr(args, "from_log", False)),
+            **kwargs,
+        )
     elif args.task == "legalbench":
         result = runners.run_legalbench_eval(**kwargs)
     else:
@@ -831,7 +1051,7 @@ def _cmd_matrix(args: argparse.Namespace) -> int:
 
 
 def _cmd_datasets_help(args: argparse.Namespace) -> int:
-    print("Use: sandbox datasets pull | sandbox datasets prepare")
+    print("Use: sandbox datasets pull | sandbox datasets sample | sandbox datasets prepare")
     return 0
 
 
@@ -845,6 +1065,8 @@ def _cmd_datasets_pull(args: argparse.Namespace) -> int:
             max_rows=args.max_rows,
             revision=args.revision,
             config=args.config,
+            per_class=getattr(args, "per_class", 0) or None,
+            sample_seed=getattr(args, "sample_seed", 42),
         )
     except ModuleNotFoundError as exc:
         # The Hub client lives in the [hf]/[dev] extras (offline-first base
@@ -852,6 +1074,28 @@ def _cmd_datasets_pull(args: argparse.Namespace) -> int:
         print(f"error: {type(exc).__name__}: {exc}\n(hint: pip install -e \".[hf]\" — or -e \".[dev]\")")
         return 1
     except Exception as exc:  # live-or-loud (DMR-056): a failed pull is exit 1
+        print(f"error: {type(exc).__name__}: {exc}")
+        return 1
+    return 0
+
+
+def _cmd_datasets_sample(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from mailroom_sandbox.datasets import sample_cached_corpus
+
+    classes = [c.strip() for c in (args.classes or "").split(",") if c.strip()]
+    source = Path(args.source) if args.source else None
+    dest = Path(args.out) if args.out else None
+    try:
+        sample_cached_corpus(
+            args.per_class,
+            sample_seed=args.sample_seed,
+            source=source,
+            dest=dest,
+            classes=classes or None,
+        )
+    except Exception as exc:
         print(f"error: {type(exc).__name__}: {exc}")
         return 1
     return 0
@@ -947,7 +1191,251 @@ def _cmd_tunnel_down(args: argparse.Namespace) -> int:
 
 
 def _cmd_run_help(args):
-    print("Use: sandbox run preflight | start | status | resume | cancel | list  --config <run.yaml>")
+    print(
+        "Use: sandbox run preflight | start | status | resume | cancel | list | "
+        "benchmark-check | suite  --config <run.yaml> | --suite track-a|track-b|full"
+    )
+    return 0
+
+
+def _cmd_run_benchmark_check(args) -> int:
+    """Loud Modal L4 Qwen + Modal profile gate before specialist suite."""
+    from mailroom_sandbox.job.benchmark_check import (
+        check_benchmark_posture,
+        check_suite_benchmark_posture,
+    )
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    suite_name = (getattr(args, "suite", None) or "").strip()
+    require_hermes = not bool(getattr(args, "allow_non_hermes", False))
+    if suite_name:
+        report = check_suite_benchmark_posture(
+            suite_name,
+            require_hermes=require_hermes,
+            require_modernbert=False,
+        )
+    else:
+        spec = None
+        if getattr(args, "config", None):
+            spec = load_run_spec(args.config)
+        report = check_benchmark_posture(
+            spec=spec,
+            require_hermes=require_hermes,
+            require_modernbert=False,
+        )
+    if getattr(args, "json", False):
+        _print(report)
+    else:
+        print(report.get("markdown", ""))
+        for err in report.get("errors") or []:
+            print(f"ERROR: {err}", file=sys.stderr)
+    return 0 if report.get("ok") else 1
+
+
+def _cmd_run_suite(args) -> int:
+    """Print or execute a two-operator / full specialist suite (DMR-077)."""
+    from mailroom_sandbox.job.suite import (
+        list_suite_ids,
+        load_suite,
+        suite_runbook_md,
+        suite_shell_loop,
+    )
+
+    if getattr(args, "list", False):
+        ids = list_suite_ids()
+        if getattr(args, "json", False):
+            _print({"suites": ids})
+        else:
+            print("Suites (config/runs/suites/):")
+            for sid in ids:
+                print(f"  {sid}")
+            print(
+                "Aliases: track-a|a, track-b|b, full|all "
+                "(see docs/benchmark-l4.md)"
+            )
+        return 0
+
+    suite_name = (getattr(args, "suite", None) or "").strip()
+    if not suite_name:
+        print(
+            "error: pass --suite track-a|track-b|full (or --list)",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        suite = load_suite(suite_name)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if getattr(args, "check", False):
+        from mailroom_sandbox.job.benchmark_check import check_suite_benchmark_posture
+
+        require_hermes = not bool(getattr(args, "allow_non_hermes", False))
+        # Track B is intentionally non-Hermes — auto-allow when profile ≠ Hermes.
+        if suite.track == "b":
+            require_hermes = False
+        report = check_suite_benchmark_posture(
+            suite_name,
+            require_hermes=require_hermes,
+            require_modernbert=False,
+        )
+        if getattr(args, "json", False):
+            _print(report)
+        else:
+            print(report.get("markdown", ""))
+            for err in report.get("errors") or []:
+                print(f"ERROR: {err}", file=sys.stderr)
+        return 0 if report.get("ok") else 1
+
+    if getattr(args, "print_loop", False):
+        print(suite_shell_loop(suite, job_mode=getattr(args, "mode", None) or "endpoint"))
+        return 0
+
+    if getattr(args, "execute", False):
+        # Chain each config via the existing start path (no teardown).
+        mode = getattr(args, "mode", None) or "endpoint"
+        for cfg in suite.configs:
+            print(f"=== suite {suite.suite_id}: {cfg} ===", flush=True)
+            ns = argparse.Namespace(**vars(args))
+            ns.config = str(cfg)
+            ns.suite = None
+            ns.mode = mode
+            ns.watch = True
+            ns.live = True if getattr(args, "live", False) else getattr(args, "live", False)
+            # Prefer live when execute unless mock/offline explicitly set.
+            if not getattr(args, "mock", None) and not getattr(args, "offline", False):
+                ns.live = True
+            rc = _cmd_run_start(ns)
+            if rc != 0:
+                print(
+                    f"error: suite stopped after {cfg} (rc={rc}); "
+                    "app left warm — fix and resume, or teardown manually",
+                    file=sys.stderr,
+                )
+                return rc
+        print(
+            f"suite {suite.suite_id} complete — teardown with "
+            "./deploy/teardown_vllm.sh (do not teardown between configs)"
+        )
+        return 0
+
+    if getattr(args, "json", False):
+        _print(
+            {
+                "suite_id": suite.suite_id,
+                "track": suite.track,
+                "title": suite.title,
+                "configs": suite.config_paths_rel(),
+                "scaledown_seconds": suite.scaledown_seconds,
+                "warm_once": suite.warm_once,
+                "modal_profile_env": suite.modal_profile_env,
+                "modal_profile_default": suite.modal_profile_default,
+                "resolved_modal_profile": suite.resolve_modal_profile(),
+                "rationale": suite.rationale,
+                "shell_loop": suite_shell_loop(suite),
+            }
+        )
+        return 0
+
+    print(suite_runbook_md(suite))
+    return 0
+
+def _cmd_modernbert_help(args) -> int:
+    print("Use: sandbox modernbert status | eval [--sample N] [--json]")
+    return 0
+
+
+def _cmd_modernbert_status(args) -> int:
+    from mailroom_sandbox.modernbert import feeder_status
+
+    status = feeder_status()
+    _print(status)
+    return 0 if status.get("ok") else 1
+
+
+def _cmd_modernbert_eval(args) -> int:
+    from mailroom_sandbox.modernbert import run_modernbert_eval, serving_record_from_eval
+
+    report = run_modernbert_eval(
+        sample=int(args.sample),
+        seed=int(args.seed),
+        checkpoint=args.checkpoint,
+    )
+    record = serving_record_from_eval(report)
+    out = {"report": report, "serving_record": record}
+    if getattr(args, "json", False):
+        _print(out)
+    else:
+        print(
+            f"ModernBERT n={record.get('n')} doc_type_acc="
+            f"{(record.get('scores') or {}).get('doc_type_accuracy')} "
+            f"e2e_s/doc={record.get('e2e_latency_seconds')} "
+            f"$/doc={record.get('cost_per_document')}"
+        )
+        _print(out)
+    return 0
+
+
+def _cmd_modal_matrix_help(args) -> int:
+    print(
+        "Use: sandbox modal-matrix list | show <model> | env [<model>] [--gpu GPU]\n"
+        "Default catalog row (specialist suite): Qwen/Qwen3-8B @ L4\n"
+        'Swap: eval "$(sandbox modal-matrix env Qwen/Qwen3-8B-AWQ)" && '
+        "modal deploy deploy/modal_vllm.py --strategy recreate"
+    )
+    return 0
+
+
+def _cmd_modal_matrix_list(args) -> int:
+    from mailroom_sandbox.modal_matrix import list_modal_models
+
+    rows = list_modal_models()
+    if getattr(args, "json", False):
+        _print({"models": rows})
+        return 0
+    print(f"{'default':8} {'gpu':14} {'quant':8} {'ctx':6} {'tp':3} model")
+    for row in rows:
+        flag = "*" if row.get("default") else " "
+        print(
+            f"{flag:8} {str(row.get('gpu') or '-'):14} "
+            f"{str(row.get('quantization') or '-'):8} "
+            f"{str(row.get('max_model_len') or '-'):6} "
+            f"{str(row.get('tp_size') or 1):3} {row['model']}"
+        )
+    print("\n* = default specialist cost-eval posture (docs/benchmark-l4.md)")
+    return 0
+
+
+def _cmd_modal_matrix_show(args) -> int:
+    from mailroom_sandbox.modal_matrix import cutover_hints, resolve_modal_row
+
+    resolved = resolve_modal_row(args.model, gpu_override=args.gpu)
+    if getattr(args, "json", False):
+        _print({**resolved, "hints": cutover_hints(resolved)})
+        return 0
+    print(f"model:          {resolved['model']}")
+    print(f"gpu:            {resolved['gpu']}")
+    print(f"quantization:   {resolved['quantization'] or '(none / bf16 or auto-FP8)'}")
+    print(f"max_model_len:  {resolved['max_model_len']}")
+    print(f"tp_size:        {resolved['tp_size']}")
+    print(f"default_posture:{resolved['is_default']}")
+    if resolved.get("notes"):
+        print(f"notes:          {resolved['notes']}")
+    print("env:")
+    for k, v in resolved["env"].items():
+        print(f"  export {k}={v}")
+    print("hints:")
+    for h in cutover_hints(resolved):
+        print(f"  - {h}")
+    return 0
+
+
+def _cmd_modal_matrix_env(args) -> int:
+    from mailroom_sandbox.modal_matrix import env_exports
+
+    sys.stdout.write(env_exports(args.model, gpu_override=args.gpu))
     return 0
 
 
@@ -997,6 +1485,13 @@ def _cmd_run_start(args) -> int:
     from mailroom_sandbox.job.spec import run_dir
 
     spec, _ = _run_load_spec(args)
+    # DMR-072: the job path must activate the runtime profile like every other
+    # live CLI path. Without it the vendored pipeline loads its own default
+    # config (openrouter, no key) and the sorter node falls through to the
+    # graph's doc_type="unknown" default — a 50-item "run" then "completes" in
+    # seconds with 0.0 scores, ok=True rows, and zero endpoint calls (the
+    # silent-fallback trap; now also hard-guarded in runner._predict_row).
+    activate(spec.profile, model=getattr(args, "model", None), agent_models=_agent_models(args))
     if getattr(args, "mock", None) is not None or getattr(args, "local", None) is not None:
         spec.job.mock = bool(args.mock)
     report = preflight.preflight(
@@ -1158,6 +1653,12 @@ def _cmd_run_resume(args) -> int:
     from mailroom_sandbox.job.spec import run_dir
 
     run_id = _run_id_required(args)
+    # DMR-072: same profile-activation contract as `run start` — resuming an
+    # endpoint-mode job must not re-enter the unactivated silent-fallback path.
+    if getattr(args, "config", None):
+        from mailroom_sandbox.job.spec import load_run_spec
+
+        activate(load_run_spec(args.config).profile, model=getattr(args, "model", None), agent_models=_agent_models(args))
     store = RunStore(run_dir(run_id))
     if not store.read_lock():
         _print({"run_id": run_id, "error": "no locked run to resume"})
@@ -1259,12 +1760,163 @@ def _cmd_prompts_show(args) -> int:
 
 
 def _cmd_metrics_help(args):
-    print("Use: sandbox metrics compare --runs a,b[,c] | --log")
+    print(
+        "Use: sandbox metrics compare --runs a,b[,c] | --log | "
+        "--sorter-vs-modernbert [--runs sorter,modernbert]\n"
+        "     sandbox metrics extrapolate --run <id> [--corpus-size N] "
+        "[--docs-per-day D]\n"
+        "     sandbox metrics estimate-suite [--suite track-a|track-b|full] "
+        "[--configs run-30-….yaml,…] [--corpus-size N]"
+    )
+    return 0
+
+
+_DEFAULT_SPECIALIST_SUITE = (
+    "config/runs/run-30-contracts-specialist.yaml",
+    "config/runs/run-30-merger-specialist.yaml",
+    "config/runs/run-30-corporate-records-specialist.yaml",
+    "config/runs/run-30-correspondence-specialist.yaml",
+    "config/runs/run-30-insurance-claims-specialist.yaml",
+)
+
+
+def _cmd_metrics_estimate_suite(args) -> int:
+    from pathlib import Path
+
+    from mailroom_sandbox.job import metrics
+    from mailroom_sandbox.job.spec import FAMILY_CORPUS_SIZE
+
+    paths: list[str] = []
+    suite_name = (getattr(args, "suite", None) or "").strip()
+    if suite_name:
+        from mailroom_sandbox.job.suite import load_suite
+
+        try:
+            suite = load_suite(suite_name)
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        paths = [str(p) for p in suite.configs]
+        print(
+            f"# suite={suite.suite_id} track={suite.track} "
+            f"scaledown={suite.scaledown_seconds} configs={len(paths)}",
+            file=sys.stderr,
+        )
+    else:
+        raw_configs = (getattr(args, "configs", None) or "").strip()
+        if raw_configs:
+            paths.extend(p.strip() for p in raw_configs.split(",") if p.strip())
+        for p in getattr(args, "config_paths", None) or []:
+            if p and str(p).strip():
+                paths.append(str(p).strip())
+        if not paths:
+            paths = list(_DEFAULT_SPECIALIST_SUITE)
+
+    missing = [p for p in paths if not Path(p).is_file()]
+    if missing:
+        print(
+            "error: missing run YAML(s):\n  " + "\n  ".join(missing),
+            file=sys.stderr,
+        )
+        return 1
+
+    corpus = None
+    if not getattr(args, "no_corpus", False):
+        corpus = (
+            int(args.corpus_size)
+            if args.corpus_size is not None
+            else FAMILY_CORPUS_SIZE
+        )
+
+    result = metrics.estimate_suite(
+        paths,
+        gpu_usd_per_hour_rate=getattr(args, "gpu_usd_per_hour", None),
+        sec_per_doc_override=getattr(args, "sec_per_doc", None),
+        cold_start_seconds=float(args.cold_start_seconds),
+        scaledown_seconds=getattr(args, "scaledown_seconds", None),
+        inter_run_gap_seconds=float(args.inter_run_gap_seconds),
+        corpus_size=corpus,
+        gen_tok_per_s=getattr(args, "gen_tok_per_s", None),
+    )
+    if suite_name:
+        result["suite_ref"] = suite_name
+    if getattr(args, "json", False):
+        _print(result)
+    else:
+        print(result.get("markdown", ""))
+    return 0
+
+
+def _cmd_metrics_extrapolate(args) -> int:
+    from mailroom_sandbox.job import metrics
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import FAMILY_CORPUS_SIZE, run_dir
+
+    run_id = str(args.run_id).strip()
+    store = RunStore(run_dir(run_id))
+    if not store.lock_path.is_file():
+        print(
+            f"error: run {run_id!r} has no lock at {store.lock_path} — "
+            "preflight + start a live run before extrapolating",
+            file=sys.stderr,
+        )
+        return 1
+    lock = store.read_lock() or {}
+    items = store.load_items()
+    if not items:
+        print(
+            f"error: run {run_id!r} has no items.jsonl — nothing to extrapolate",
+            file=sys.stderr,
+        )
+        return 1
+    engine = lock.get("engine") or {}
+    modal = (engine.get("modal") or {}) if isinstance(engine, dict) else {}
+    gpu = str(modal.get("gpu") or "").split(":")[0] or None
+    rec = metrics.record_from_run(
+        run_id=run_id,
+        spec_hash=store.spec_hash() or "",
+        task=lock.get("task", "?"),
+        profile=lock.get("profile", "?"),
+        model=(engine.get("model") if isinstance(engine, dict) else None) or "?",
+        prompt_version=str(
+            (lock.get("prompt") or {}).get("default", {}).get("source") or "code-default"
+        ),
+        dataset_fingerprint=(lock.get("dataset") or {}).get("sha256", "") or "",
+        items=items,
+        gpu=gpu,
+        mock=bool((lock.get("job") or {}).get("mock")),
+    )
+    if not rec.get("cost_per_document") and not rec.get("gpu_cost_per_document"):
+        print(
+            "error: run has neither token nor GPU $/doc — refusing silent $0 "
+            "extrapolation. Ensure live items record usage tokens and/or set "
+            "MODAL_BILLED_GPU_SECONDS.",
+            file=sys.stderr,
+        )
+        return 1
+    corpus = int(args.corpus_size) if args.corpus_size is not None else FAMILY_CORPUS_SIZE
+    result = metrics.extrapolate_cost(
+        rec,
+        corpus_size=corpus,
+        docs_per_day=args.docs_per_day,
+        docs_per_month=args.docs_per_month,
+        cold_start_seconds=float(args.cold_start_seconds),
+        scaledown_seconds=float(args.scaledown_seconds),
+        concurrency=int(args.concurrency),
+        gpu=gpu,
+    )
+    if getattr(args, "json", False):
+        _print(result)
+    else:
+        print(result.get("markdown", ""))
     return 0
 
 
 def _cmd_metrics_compare(args) -> int:
     from mailroom_sandbox.job import metrics
+
+    if getattr(args, "sorter_vs_modernbert", False):
+        return _cmd_metrics_sorter_vs_modernbert(args)
 
     records = []
     if getattr(args, "log", False):
@@ -1290,6 +1942,9 @@ def _cmd_metrics_compare(args) -> int:
                 return 1
             lock = store.read_lock() or {}
             items = store.load_items()
+            engine = lock.get("engine") or {}
+            modal = (engine.get("modal") or {}) if isinstance(engine, dict) else {}
+            gpu = str(modal.get("gpu") or "").split(":")[0] or None
             rec = metrics.record_from_run(
                 run_id=run_id,
                 spec_hash=store.spec_hash() or "",
@@ -1299,9 +1954,91 @@ def _cmd_metrics_compare(args) -> int:
                 prompt_version=str((lock.get("prompt") or {}).get("default", {}).get("source") or "code-default"),
                 dataset_fingerprint=(lock.get("dataset") or {}).get("sha256", "") or "",
                 items=items,
+                gpu=gpu,
             )
             records.append(rec)
     result = metrics.compare(records)
+    if getattr(args, "json", False):
+        _print(result)
+    else:
+        print(result.get("markdown", ""))
+    return 0
+
+
+def _cmd_metrics_sorter_vs_modernbert(args) -> int:
+    """Compare LLM sorter vs ModernBERT from fixtures or two run stores."""
+    from mailroom_sandbox.datasets import load_sorter_vs_modernbert_fixtures
+    from mailroom_sandbox.job import metrics
+
+    def _scores_from_items(items: list) -> dict | None:
+        pairs = [
+            (str(i.get("expected") or ""), str(i.get("predicted") or ""))
+            for i in items
+            if i.get("ok", True) is not False and i.get("predicted") not in (None, "")
+        ]
+        if not pairs:
+            return None
+        from mailroom_sandbox.eval import scoring as sc
+
+        return sc.score_classification([e for e, _ in pairs], [p for _, p in pairs])
+
+    run_ids = [x.strip() for x in getattr(args, "runs", "").split(",") if x.strip()]
+    if len(run_ids) >= 2:
+        from mailroom_sandbox.job.checkpoint import RunStore
+        from mailroom_sandbox.job.spec import run_dir
+
+        stores = []
+        for run_id in run_ids[:2]:
+            store = RunStore(run_dir(run_id))
+            if not store.lock_path.is_file():
+                print(
+                    f"error: run {run_id!r} has no lock — refusing sorter vs ModernBERT compare",
+                    file=sys.stderr,
+                )
+                return 1
+            lock = store.read_lock() or {}
+            engine = lock.get("engine") or {}
+            modal = (engine.get("modal") or {}) if isinstance(engine, dict) else {}
+            gpu = str(modal.get("gpu") or "").split(":")[0] or None
+            items = store.load_items()
+            stores.append(
+                metrics.record_from_run(
+                    run_id=run_id,
+                    spec_hash=store.spec_hash() or "",
+                    task=lock.get("task", "sorter"),
+                    profile=lock.get("profile", "?"),
+                    model=(engine.get("model") if isinstance(engine, dict) else None) or "?",
+                    prompt_version=str(
+                        (lock.get("prompt") or {}).get("default", {}).get("source") or "code-default"
+                    ),
+                    dataset_fingerprint=(lock.get("dataset") or {}).get("sha256", "") or "",
+                    items=items,
+                    scores=_scores_from_items(items),
+                    gpu=gpu,
+                )
+            )
+        # Heuristic: modernbert-tagged profile/model second, else order as given.
+        left, right = stores[0], stores[1]
+        right_blob = f"{right.get('profile')}{right.get('model')}{right.get('serving_kind')}".lower()
+        if "modernbert" in right_blob or "bert" in right_blob:
+            sorter_rec, mb_rec = left, right
+        elif "modernbert" in f"{left.get('profile')}{left.get('model')}".lower():
+            sorter_rec, mb_rec = right, left
+        else:
+            sorter_rec, mb_rec = left, right
+    else:
+        fixtures = load_sorter_vs_modernbert_fixtures()
+        sorter_rec = fixtures.get("sorter") or {}
+        mb_rec = fixtures.get("modernbert") or {}
+        if not sorter_rec or not mb_rec:
+            print(
+                "error: sorter_vs_modernbert fixtures missing — expected "
+                "data/fixtures/serving/sorter_vs_modernbert.json",
+                file=sys.stderr,
+            )
+            return 1
+
+    result = metrics.compare_sorter_vs_modernbert(sorter_rec, mb_rec)
     if getattr(args, "json", False):
         _print(result)
     else:

@@ -1,0 +1,88 @@
+# Specialist extract: insurance_claims_specialist on 30 INSURANCE_CLAIM docs.
+# All 6 claim subclasses (CMS + LOB), 3× the run-50-five-types per-class
+# quotas. Test has 114 insurance_claim rows — N=30 fits comfortably.
+#
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║ CUT SPEND (DMR-076/077/078) — MANDATORY operator posture                 ║
+# ║  1. ONE warm sandbox-vllm app through YOUR TRACK (or all five if solo).  ║
+# ║  2. Do NOT tear down / redeploy / stop between classes.                  ║
+# ║  3. Teardown ONLY after THIS (last in track): ./deploy/teardown_vllm.sh  ║
+# ║  4. scaledown_seconds: 120 (attended). Unattended/overnight → restore 600║
+# ║  5. Default model: Qwen/Qwen3-8B bf16. AWQ optional (DMR-068 gate).       ║
+# ║  6. Two-operator: sandbox run suite --suite track-a|track-b (DMR-077).   ║
+# ║  7. DMR-078: concurrency=5, cost_cap=$0.50, wall=3000s.                   ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+#
+#   # Same warm app — do NOT redeploy. Teardown AFTER this run.
+#   sandbox run preflight --config config/runs/run-30-insurance-claims-specialist.yaml --live
+#   sandbox run start --config config/runs/run-30-insurance-claims-specialist.yaml --job-mode endpoint --watch
+#   ./deploy/teardown_vllm.sh   # ONLY after the full 5×30 suite
+schema: sandbox.run/v1
+run_id: run-30-insurance-claims-specialist
+task: insurance_claims_specialist
+profile: modal-vllm
+
+prompt:
+  # Pinned local production text (config/prompts/insurance_claims_specialist_production.txt) for reproducible
+  # Modal L4 Qwen runs — not Langfuse floating production. DMR-074/078.
+  default: {source: code-default}
+  agents:
+    insurance_claims_specialist:
+      source: local
+      file: insurance_claims_specialist_production
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  # split: test — 114 insurance_claim rows; N=30 fits
+  split: test
+  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      # insurance_claim (114 test rows): all 6 subclasses → 30
+      - doc_class: insurance_claim
+        sub_buckets:
+          - {subclass: auto, count: 6}                 # avail 34
+          - {subclass: carrier, count: 6}              # avail 20
+          - {subclass: property, count: 6}             # avail 16
+          - {subclass: inpatient, count: 6}            # avail 15
+          - {subclass: outpatient, count: 3}           # avail 15
+          - {subclass: pde, count: 3}                  # avail 14
+  limit: 30
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B
+  vllm:
+    max_model_len: 16384      # boot-valid cap for L4-bf16 8B (v0.29.0 raises above)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 256
+    quantization: ""
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    # Attended cost-saver (DMR-076). Unattended/overnight: restore 600 here
+    # and export MODAL_VLLM_SCALEDOWN_SECONDS=600 before redeploy.
+    scaledown_seconds: 120
+    max_containers: 1         # cost guard — do not raise for specialist runs
+    min_containers: 0         # scale-to-zero after idle
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 5              # DMR-078 per-doc-type (short↑ / long↓)
+  cost_cap_usd: 0.5        # abort if wall×L4 $/hr exceeds
+  max_wall_seconds: 3000    # hard wall abort
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-30
+  tags: [sandbox, job, specialist, insurance, qwen3-8b, l4, benchmark]

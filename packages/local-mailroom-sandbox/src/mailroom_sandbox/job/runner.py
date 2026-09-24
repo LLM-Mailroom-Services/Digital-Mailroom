@@ -18,11 +18,15 @@ from mailroom_sandbox.eval import runners as eval_runners  # noqa: F401
 from mailroom_sandbox.job.checkpoint import RunStore, utc_now
 from mailroom_sandbox.job.metrics import record_from_run
 from mailroom_sandbox.job.otel import job_span
+from mailroom_sandbox.job.usage_capture import (
+    merge_item_metrics,
+    usage_from_pipeline,
+)
 
 _log = logging.getLogger("mailroom_sandbox.job.runner")
 
 PER_ITEM_TASKS = ("sorter", "legalbench")
-_WHOLE_RUN_TASKS = ("pipeline", "extract", "chained", "local_vs_api", "isolated")
+_WHOLE_RUN_TASKS = ("pipeline", "extract", "chained", "local_vs_api", "sorter_vs_modernbert", "isolated")
 
 # DMR-056: every registered isolated agent (SPECS in eval/agents.py) is also a
 # runnable whole-run job task — registering a new AgentSpec is the ONE-file
@@ -73,23 +77,44 @@ def _predict_row(
     mock: bool,
     model: str | None,
     run_id: str | None = None,
-) -> tuple[Any, bool]:
+) -> tuple[Any, dict[str, Any]]:
+    """Run one row; return ``(prediction, item_metrics)``.
+
+    ``item_metrics`` carries ``prompt_tokens`` / ``completion_tokens`` /
+    ``llm_calls`` when the live path recorded OpenAI-compatible usage.
+    TTFT is never inferred here (streaming-only); leave it absent.
+    """
     if task == "sorter":
         if mock:
-            return eval_runners._classify_mock(row), True
+            return eval_runners._classify_mock(row), {}
+        # DMR-072 live-or-loud: the unactivated graph falls through to
+        # doc_type="unknown" WITHOUT touching the LLM (the vendored default
+        # config resolves providers that don't exist here) — that is not a
+        # prediction, and recording it ok=True once lied through a whole run.
+        from mailroom_sandbox.runtime import active as _runtime_active
+
+        if _runtime_active() is None:
+            raise RuntimeError(
+                "runtime profile not activated — refusing a live sorter run on "
+                "a dead pipeline; activate(profile) before running (the "
+                "unactivated graph returns doc_type='unknown' without any LLM "
+                "call and would record ok=True lies)"
+            )
         result = eval_runners._run_pipeline_doc(row, mock=False, run_id=run_id)
         doc_type = result.get("doc_type")
-        if not doc_type:
+        if not doc_type or str(doc_type).strip().lower() == "unknown":
             raise RuntimeError(
-                f"live pipeline returned no doc_type for row "
-                f"{row.get('id') or row.get('filename') or '?'} — refusing to "
-                f"score a dead live path as 'unknown' (recorded ok=True would lie)"
+                f"live pipeline returned no real doc_type for row "
+                f"{row.get('id') or row.get('filename') or '?'} "
+                f"(got {doc_type!r}) — refusing to score a dead live path as "
+                f"'unknown' (recorded ok=True would lie)"
             )
-        return doc_type, True
+        return doc_type, usage_from_pipeline()
     if task == "legalbench":
         if mock:
-            return eval_runners._mock_legalbench_answer(row), True
-        return eval_runners._live_legalbench_answer(row, model=model), True
+            return eval_runners._mock_legalbench_answer(row), {}
+        answer, usage = eval_runners._live_legalbench_answer_with_usage(row, model=model)
+        return answer, usage
     raise ValueError(f"task {task!r} is not a per-item task in v1")
 
 
@@ -186,6 +211,8 @@ def _run_whole_run(
             result = eval_runners.run_chained_eval(rows=locked_rows, **kwargs)
         elif task == "local_vs_api":
             result = eval_runners.run_local_vs_api_eval(**kwargs)
+        elif task == "sorter_vs_modernbert":
+            result = eval_runners.run_sorter_vs_modernbert_eval(**kwargs)
         elif task == "isolated":
             # Historical alias: `isolated` runs the sorter spec (docs/jobs.md).
             result = eval_runners.run_isolated_eval("sorter", rows=locked_rows, **kwargs)
@@ -247,8 +274,30 @@ _MAX_CONCURRENCY = 64
 
 
 def _concurrency(store: RunStore) -> int:
-    value = int(_task_defaults(store).get("concurrency", 1) or 1)
+    value = int(_task_defaults(store).get("concurrency", 4) or 4)
     return max(1, min(value, _MAX_CONCURRENCY))
+
+
+def _cost_cap_usd(store: RunStore) -> float | None:
+    raw = _task_defaults(store).get("cost_cap_usd")
+    if raw is None or raw == "":
+        return None
+    return float(raw)
+
+
+def _max_wall_seconds(store: RunStore) -> int | None:
+    raw = _task_defaults(store).get("max_wall_seconds")
+    if raw is None or raw == "":
+        return None
+    return int(raw)
+
+
+def _estimate_run_gpu_usd(store: RunStore, wall_seconds: float) -> float:
+    """Wall-clock GPU $ estimate for abort caps (Modal endpoint = warm GPU)."""
+    from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
+
+    gpu = _lock_gpu(store) or "L4"
+    return float(estimate_gpu_cost_usd(wall_seconds, gpu=gpu) or 0.0)
 
 
 def verify_dataset_lock(store: RunStore) -> None:
@@ -327,6 +376,17 @@ def _apply_prompt_overrides(store: RunStore) -> None:
         )
 
 
+def _lock_gpu(store: RunStore) -> str | None:
+    """Modal GPU class from the lock's engine.modal block (e.g. ``L4``)."""
+    engine = (store.read_lock() or {}).get("engine") or {}
+    if not isinstance(engine, dict):
+        return None
+    modal = engine.get("modal") or {}
+    if isinstance(modal, dict) and modal.get("gpu"):
+        return str(modal["gpu"]).split(":")[0]
+    return None
+
+
 def _build_record(
     store: RunStore, task: str, model: str | None, scores: dict[str, Any], *, mock: bool
 ) -> dict[str, Any]:
@@ -346,6 +406,8 @@ def _build_record(
         dataset_fingerprint=_fingerprint(store),
         items=store.load_items(),
         scores=scores or None,
+        gpu=_lock_gpu(store),
+        mock=bool(mock),
     )
     record["experiment_name"] = f"sandbox_{task}_{store.run_id}"
     record["mock"] = bool(mock)
@@ -435,39 +497,56 @@ def run_job(
     done_count = len(completed)
     last_error: str | None = None
     last_error_item: str | None = None
-    retries = _max_retries(store)
     fail_fast = _fail_fast(store)
+    retries = _max_retries(store)
+    run_started = time.perf_counter()
+    cost_cap = _cost_cap_usd(store)
+    max_wall = _max_wall_seconds(store)
+    cap_abort_reason: str | None = None
 
-    def _attempt(index: int) -> tuple[Any, str | None, float]:
-        """Run one row (with retries) and return (value, error, latency_ms)."""
+    def _attempt(index: int) -> tuple[Any, str | None, float, dict[str, Any]]:
+        """Run one row (with retries); return (value, error, latency_ms, usage)."""
         row = rows[index]
-        item_id = str(row.get("id") or row.get("filename") or index)
         started = time.perf_counter()
         value: Any = None
         error: str | None = None
+        usage: dict[str, Any] = {}
         with job_span(tracer, "job.item", item_index=str(index), task=task):
             attempt = 0
             while attempt < retries + 1:
                 attempt += 1
                 try:
-                    value, _ = _predict_row(task, row, mock=mock, model=model, run_id=store.run_id)
+                    value, usage = _predict_row(
+                        task, row, mock=mock, model=model, run_id=store.run_id
+                    )
+                    if not isinstance(usage, dict):
+                        # Back-compat for test monkeypatches that still return
+                        # the old ``(value, ok: bool)`` shape.
+                        usage = {}
                     error = None
                     break
                 except Exception as exc:  # noqa: BLE001
                     error = f"{type(exc).__name__}: {str(exc)[:512]}"
+                    usage = {}
                     if attempt <= retries:
                         time.sleep(0.2)
         latency_ms = round((time.perf_counter() - started) * 1000.0, 3)
-        return value, error, latency_ms
+        return value, error, latency_ms, usage
 
-    def _record(index: int, value: Any, error: str | None, latency_ms: float) -> bool:
+    def _record(
+        index: int,
+        value: Any,
+        error: str | None,
+        latency_ms: float,
+        usage: dict[str, Any] | None = None,
+    ) -> bool:
         """Persist one result (always from the calling thread) and return ok.
 
         The main thread owns every RunStore write in BOTH the serial and the
         concurrent paths — worker threads only compute, so append_item /
         append_event / write_checkpoint / on_event never race.
         """
-        nonlocal ok_count, error_count, done_count, last_error, last_error_item
+        nonlocal ok_count, error_count, done_count, last_error, last_error_item, cap_abort_reason
         row = rows[index]
         item_id = str(row.get("id") or row.get("filename") or index)
         ok = error is None
@@ -479,19 +558,27 @@ def run_job(
             last_error_item = item_id
         done_count += 1
         predicted[index] = str(value) if value is not None else ""
-        store.append_item(
-            {
-                "item_id": item_id,
-                "index": index,
-                "expected": _expected_for(task, row),
-                "predicted": predicted[index],
-                "ok": ok,
-                "error": error,
-                "latency_ms": latency_ms,
-                "trace_id": "",
-                "ts": utc_now(),
-            }
+        item: dict[str, Any] = {
+            "item_id": item_id,
+            "index": index,
+            "expected": _expected_for(task, row),
+            "predicted": predicted[index],
+            "ok": ok,
+            "error": error,
+            "trace_id": "",
+            "ts": utc_now(),
+        }
+        item.update(
+            merge_item_metrics(latency_ms=latency_ms, usage=usage or {})
         )
+        if not mock and ok and not item.get("prompt_tokens") and not item.get("completion_tokens"):
+            _log.warning(
+                "item %s ok but recorded 0 tokens — estimated_cost_usd will be "
+                "absent for this run unless other items carry usage (live "
+                "OpenAI-compatible responses must expose usage.prompt_tokens)",
+                item_id,
+            )
+        store.append_item(item)
         store.append_event(
             "item_" + ("done" if ok else "failed"), "info" if ok else "warn", index=index, item_id=item_id
         )
@@ -505,7 +592,39 @@ def run_job(
                     "stop updating while the run continues: %s",
                     exc,
                 )
+        # DMR-078: cost / wall abort guards (Modal warm-GPU wall × $/hr).
+        if not mock and cap_abort_reason is None:
+            wall_s = time.perf_counter() - run_started
+            if max_wall is not None and wall_s >= float(max_wall):
+                cap_abort_reason = (
+                    f"max_wall_seconds={max_wall} exceeded "
+                    f"(wall={wall_s:.1f}s) — aborting to protect spend"
+                )
+            elif cost_cap is not None:
+                est = _estimate_run_gpu_usd(store, wall_s)
+                if est >= float(cost_cap):
+                    cap_abort_reason = (
+                        f"cost_cap_usd={cost_cap} exceeded "
+                        f"(est_gpu_usd={est:.4f} at wall={wall_s:.1f}s) — aborting"
+                    )
         return ok
+
+    def _cap_abort_failed():
+        """Write the cost/wall abort checkpoint and return the summary."""
+        store.write_checkpoint(
+            state="failed",
+            cursor=done_count,
+            total=total,
+            last_error={
+                "type": "cost_cap" if cost_cap is not None else "max_wall",
+                "message": cap_abort_reason,
+                "at": utc_now(),
+                "item_id": last_error_item,
+                "retryable": False,
+            },
+        )
+        store.append_event("cost_cap_abort", "error", message=cap_abort_reason)
+        return store.summary()
 
     def _fail_fast_failed():
         """Write the fail_fast failed checkpoint and return the summary."""
@@ -527,8 +646,10 @@ def run_job(
     concurrency = _concurrency(store)
     if concurrency <= 1:
         for index in pending:
-            value, error, latency_ms = _attempt(index)
-            _record(index, value, error, latency_ms)
+            value, error, latency_ms, usage = _attempt(index)
+            _record(index, value, error, latency_ms, usage)
+            if cap_abort_reason:
+                return _cap_abort_failed()
             if fail_fast and error is not None:
                 return _fail_fast_failed()
     else:
@@ -562,11 +683,18 @@ def run_job(
                 for fut in done:
                     index = futures.pop(fut)
                     try:
-                        value, error, latency_ms = fut.result()
+                        value, error, latency_ms, usage = fut.result()
                     except Exception as exc:  # noqa: BLE001 — never drop a row
-                        value, error, latency_ms = None, f"{type(exc).__name__}: {str(exc)[:512]}", 0.0
-                    ok = _record(index, value, error, latency_ms)
-                    if fail_fast and not ok:
+                        value, error, latency_ms, usage = (
+                            None,
+                            f"{type(exc).__name__}: {str(exc)[:512]}",
+                            0.0,
+                            {},
+                        )
+                    ok = _record(index, value, error, latency_ms, usage)
+                    if cap_abort_reason:
+                        stopped = True
+                    elif fail_fast and not ok:
                         # Stop SCHEDULING new rows; in-flight requests still
                         # finish and persist (their GPU work is already spent).
                         stopped = True
@@ -575,6 +703,8 @@ def run_job(
                         if not _submit_next():
                             break
         if stopped:
+            if cap_abort_reason:
+                return _cap_abort_failed()
             return _fail_fast_failed()
 
     final_cursor = len(store.load_items())

@@ -1,0 +1,6 @@
+# AUTO-GENERATED from pyproject.toml by scripts/sync_requirements.py — do not
+# hand-edit. Source of truth: [project] / [project.optional-dependencies].
+# Refresh: python3 scripts/sync_requirements.py
+
+# Convenience shim — offline-dev surface (base + [dev]).
+-r requirements/dev.txt

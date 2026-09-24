@@ -294,6 +294,29 @@ def test_cli_local_vs_api_dry_run(capsys):
     assert "ttft_seconds" in payload["headlines"]
 
 
+def test_sorter_vs_modernbert_fixtures(tmp_path, monkeypatch):
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    log = tmp_path / "experiment_log.jsonl"
+    monkeypatch.setenv("EXPERIMENT_LOG_PATH", str(log))
+    monkeypatch.setattr(experiment_log, "jsonl_path", lambda: log)
+    monkeypatch.setattr(experiment_log, "md_path", lambda: tmp_path / "experiment_log.md")
+    plan = runners.run_sorter_vs_modernbert_eval(mock=True, dry_run=True)
+    assert plan["task"] == "sorter_vs_modernbert"
+    result = runners.run_sorter_vs_modernbert_eval(
+        mock=True, experiment_name="test_sorter_vs_modernbert"
+    )
+    assert result["scores"]["accuracy_modernbert"] == pytest.approx(0.96)
+    assert result["comparison"]["agent"] == "sorter_vs_modernbert"
+    assert "Sorter vs ModernBERT" in (result["comparison"].get("markdown") or "")
+
+
+def test_cli_sorter_vs_modernbert_dry_run(capsys):
+    rc = main(["eval", "sorter_vs_modernbert", "--mock", "--dry-run"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["task"] == "sorter_vs_modernbert"
+
+
 @pytest.mark.local_llm
 def test_live_ollama_health():
     if os.environ.get("SANDBOX_LOCAL_LLM", "").strip() not in {"1", "true", "yes"}:

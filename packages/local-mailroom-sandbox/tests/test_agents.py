@@ -25,6 +25,7 @@ def test_eval_task_roster_covers_live_agents():
         "sorter",
         "sorter_reviewer",
         "contracts_specialist",
+        "merger_agreement_specialist",
         "corporate_records_specialist",
         "correspondence_specialist",
         "insurance_claims_specialist",
@@ -39,6 +40,7 @@ def test_eval_task_roster_covers_live_agents():
         assert name in agents.SPECS
     assert "pipeline" in agents.EVAL_TASKS
     assert "local_vs_api" in agents.EVAL_TASKS
+    assert "sorter_vs_modernbert" in agents.EVAL_TASKS
     assert "court_opinions_specialist" not in agents.SPECS
     # HUB-015 reduced profile: the reporter AGENT is retired; the compile
     # stage is the procedural compile_report node (no LLM call).

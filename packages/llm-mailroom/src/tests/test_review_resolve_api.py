@@ -245,6 +245,38 @@ def test_resolve_resume_override_doc_type_form_compat(client, temp_base_dir, moc
     assert r2.json()["resume"]["doc_type"] == "correspondence"
 
 
+def test_resolve_class_override_not_persisted_on_validation_400(client, temp_base_dir):
+    """Hub #155: a 400 on resume must not persist class_override on the manifest."""
+    from pipeline.bins import manifests_dir, ensure_dirs, load_manifest, save_manifest
+    from schemas.manifest import DocumentManifest, PipelineStage
+
+    ensure_dirs(manifests_dir())
+    manifest = DocumentManifest(
+        doc_id="doc-archived-1",
+        matter_id="MATTER-A",
+        original_filename="done.txt",
+        stage=PipelineStage.ARCHIVED,
+        doc_type="contract",
+        doc_subclass="msa",
+    )
+    save_manifest(manifest)
+
+    r = client.post(
+        "/review/doc-archived-1/resolve",
+        headers=_auth(),
+        json={
+            "decision": "approved",
+            "disposition": "resume",
+            "doc_type": "insurance_claim",
+            "doc_subclass": "pde",
+        },
+    )
+    assert r.status_code == 400
+    m = load_manifest("doc-archived-1")
+    assert m.doc_type == "contract"
+    assert m.doc_subclass == "msa"
+
+
 def test_resolve_doc_type_alias_and_requeue_sidecar(client, temp_base_dir, mocker):
     """The-Mailroom PR #20 sends doc_type (not override_doc_type)."""
     from pipeline.bins import inbox_dir, read_inbox_meta, load_manifest

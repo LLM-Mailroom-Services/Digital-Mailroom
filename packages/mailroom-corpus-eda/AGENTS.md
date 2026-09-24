@@ -200,4 +200,4 @@ License note: the corpus card is CC-BY-4.0; v8 additions are Apache-2.0
 CC-BY-NC-4.0 and were excluded; INSURBIAS (CC-BY-4.0) is deferred to v9
 (narratives only, no decision GT).
 
-See the `huggingface` opencode skill for the full Hub-interfacing workflow.
+See the `hf-dataset-publish` opencode skill (monorepo `.opencode/skills/hf-dataset-publish/`) for the full Hub-interfacing workflow.

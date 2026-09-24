@@ -37,10 +37,6 @@ confidence:
       high: 0.98
       low: 0.90
       judge_band_high: 0.97
-    compliance_filing:
-      high: 0.97
-      low: 0.88
-      judge_band_high: 0.95
     corporate_record:
       high: 0.96
       low: 0.86
@@ -81,12 +77,6 @@ doc_classes:
     specialist: correspondence_specialist
     stamp: "#e8b478"
     subclasses: [demand_letter, memo, notice, engagement_letter]
-  - key: compliance_filing
-    label: Compliance Filing
-    schema: ComplianceFilingExtraction
-    specialist: compliance_specialist
-    stamp: "#7a8fb0"
-    subclasses: [10-k, 10-q, 8-k, state_filing]
   - key: insurance_claim
     label: Insurance Claim
     schema: InsuranceClaimExtraction
@@ -126,12 +116,6 @@ agents:
     role: extract
     desk: desk-correspondence
     character: jim
-    room: bay-b
-  compliance_specialist:
-    label: Compliance
-    role: extract
-    desk: desk-compliance
-    character: toby
     room: bay-b
   insurance_claims_specialist:
     label: Insurance Claims

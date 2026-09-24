@@ -128,5 +128,5 @@ metadata, line-boundary-safe JSONL, parquet staging) · `docclass_uploader`
 (**LEGACY** — frozen v8 `mailroom-corpus` v7-schema publish only; the live
 v9 corpus publishes via `scripts/build/build_v9.py` → `v9_build` →
 `hf_interface`) · `intent_backfill`
-(checkpointed correspondence intent hydration). See the `huggingface`
-opencode skill for the full workflow.
+(checkpointed correspondence intent hydration). See the `hf-dataset-publish`
+opencode skill (`.opencode/skills/hf-dataset-publish/`) for the full workflow.

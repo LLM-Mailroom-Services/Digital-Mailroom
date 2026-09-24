@@ -654,12 +654,11 @@ async def resolve_review(doc_id: str, request: Request):
     except ValueError as exc:
         raise HTTPException(400, str(exc))
 
-    if class_override and disposition in {"record", "requeue", "resume", "complete"}:
-        manifest.touch()
-        save_manifest(manifest)
-
     # --- record: paper trail only (any stage) ---------------------------------
     if disposition == "record":
+        if class_override:
+            manifest.touch()
+            save_manifest(manifest)
         event = "review_recorded"
         detail = {
             "decision": decision,
@@ -735,6 +734,10 @@ async def resolve_review(doc_id: str, request: Request):
             f"Document is not in review (current stage: {manifest.stage}); "
             "use disposition=record or disposition=requeue",
         )
+
+    if class_override:
+        manifest.touch()
+        save_manifest(manifest)
 
     # --- complete: human-supplied extraction, archive without LLM ------------
     if disposition == "complete":

@@ -70,6 +70,10 @@ def test_compose_fail_fast_and_single_front_door():
     observer = next(ln for ln in env if ln.startswith("MAILROOM_OBSERVER="))
     assert "${MAILROOM_OBSERVER:-1}" in observer
 
+    # #79: compose must not opt the process into guessable defaults.
+    env_blob = "\n".join(env)
+    assert "MAILROOM_OPERATOR_ALLOW_DEV_DEFAULTS=1" not in env_blob
+
 
 def test_nginx_proxy_locations_have_no_try_files():
     conf = NGINX.read_text(encoding="utf-8")

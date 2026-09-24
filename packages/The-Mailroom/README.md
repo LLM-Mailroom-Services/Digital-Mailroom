@@ -309,7 +309,9 @@ ONLY published port, `MAILROOM_OBSERVER=1` runs the in-process bin watcher
 inside `mailroom` (no `mailroom-observer` sidecar — issue #78), and
 `MAILROOM_OPERATOR_JWT_SECRET` /
 `MAILROOM_OPERATOR_ADMIN_PASSWORD` are fail-fast (`${VAR:?}`, no dev
-defaults):
+defaults). The same secrets are required outside compose (bare
+`docker run` / k8s / `mailroom-web`) unless you opt in with
+`MAILROOM_OPERATOR_ALLOW_DEV_DEFAULTS=1` or `MAILROOM_ENV=development`:
 
 ```bash
 cd operator_desk

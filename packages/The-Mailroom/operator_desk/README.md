@@ -11,12 +11,16 @@
 
 ## Running
 
-Required env (fail fast — compose exits if unset):
+Required env (fail fast — compose exits if unset; the operator process
+also refuses missing / known-unsafe values outside explicit DEV mode):
 
 | Var | Purpose |
 | :--- | :--- |
 | `MAILROOM_OPERATOR_JWT_SECRET` | JWT signing secret (or `JWT_SECRET` alias) |
 | `MAILROOM_OPERATOR_ADMIN_PASSWORD` | Admin login password |
+
+Local DX without those secrets: `MAILROOM_OPERATOR_ALLOW_DEV_DEFAULTS=1`
+or `MAILROOM_ENV=development`. Compose `${VAR:?}` is unchanged.
 
 ```bash
 cd packages/The-Mailroom/operator_desk

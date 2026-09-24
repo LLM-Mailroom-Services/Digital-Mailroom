@@ -31,9 +31,14 @@ mailroom-observer                # optional standalone → POST /v1/ops/events
                                  # (set MAILROOM_OBSERVER=0 first; never both)
 ```
 
-Default admin is `admin` / `changeme` until `MAILROOM_OPERATOR_ADMIN_PASSWORD`
-is set. Use `MAILROOM_OPERATOR_JWT_SECRET` (or `JWT_SECRET`) — never reuse
-`MAILROOM_PIPELINE_TOKEN`.
+`MAILROOM_OPERATOR_JWT_SECRET` (or `JWT_SECRET`) and
+`MAILROOM_OPERATOR_ADMIN_PASSWORD` are **required** outside explicit DEV
+mode — missing or known-unsafe values (`dev-secret-change-me` / `changeme`)
+abort at boot / migrate (bare `docker run`, k8s, and `mailroom-web` included).
+Local DX may opt in with `MAILROOM_OPERATOR_ALLOW_DEV_DEFAULTS=1` or
+`MAILROOM_ENV=development` (`MAILROOM_DEPLOY_MODE` / `ENV` aliases). Never
+reuse `MAILROOM_PIPELINE_TOKEN` as the JWT secret. Compose `${VAR:?}`
+guards are unchanged.
 
 Compose — single front door, operator edition (visualizer + nginx; nginx
 `:80` is the only published port; the visualizer builds the `operator`

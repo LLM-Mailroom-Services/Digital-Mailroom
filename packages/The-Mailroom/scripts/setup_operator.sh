@@ -18,4 +18,5 @@ echo "  mailroom-web            # visualizer + /v1/auth /v1/archive /v1/ops /ws/
 echo "  mailroom-observer       # optional standalone CLI (set MAILROOM_OBSERVER=0 first; not in compose)"
 echo "  docker compose -f operator_desk/docker-compose.yml up --build"
 echo "    (requires MAILROOM_OPERATOR_JWT_SECRET and _ADMIN_PASSWORD — fail-fast;"
+echo "     process also refuses missing/unsafe secrets outside DEV opt-in;"
 echo "     front door is http://localhost — nginx :80, desk at /desk)"

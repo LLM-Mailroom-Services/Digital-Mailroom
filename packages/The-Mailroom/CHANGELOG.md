@@ -6,6 +6,18 @@ All notable changes to The-Mailroom are documented here, following
 
 ## [Unreleased]
 
+### Security
+
+- **#79: operator desk fail-closed secrets outside compose.** Bare
+  `docker run` / k8s / `mailroom-web` no longer silently use
+  `dev-secret-change-me` / `changeme`. `MAILROOM_OPERATOR_JWT_SECRET`
+  (or `JWT_SECRET`) and `MAILROOM_OPERATOR_ADMIN_PASSWORD` are required;
+  those known-unsafe fingerprints are refused. Local DX opts in with
+  `MAILROOM_OPERATOR_ALLOW_DEV_DEFAULTS=1` or `MAILROOM_ENV=development`
+  (`ENV` / `MAILROOM_DEPLOY_MODE` aliases). Compose `${VAR:?}` guards
+  are unchanged. The `/desk` login placeholder no longer teaches
+  `changeme`.
+
 ### Fixed
 
 - **Issue #78: dual bin observer in operator-desk compose.** Default

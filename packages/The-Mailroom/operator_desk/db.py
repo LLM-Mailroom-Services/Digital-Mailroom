@@ -16,6 +16,8 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Optional
 
+from .credentials import configured_admin_password
+
 log = logging.getLogger("mailroom.operator.db")
 
 ROLES = frozenset({"admin", "reviewer", "viewer"})
@@ -146,7 +148,7 @@ def migrate() -> Path:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_docs_type ON documents(doc_type)")
         if conn.execute("SELECT COUNT(*) FROM ui_users").fetchone()[0] == 0:
             username = os.environ.get("MAILROOM_OPERATOR_ADMIN_USER", "admin").strip() or "admin"
-            password = os.environ.get("MAILROOM_OPERATOR_ADMIN_PASSWORD", "changeme")
+            password = configured_admin_password()
             conn.execute(
                 "INSERT INTO ui_users (username, password_hash, role) VALUES (?, ?, 'admin')",
                 (username, hash_password(password)),

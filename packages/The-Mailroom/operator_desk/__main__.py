@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from .auth import jwt_secret
 from .db import ensure_bins, migrate
 from .mount import operator_status
 
@@ -15,6 +16,7 @@ if __name__ == "__main__":
         load_dotenv()
     except ImportError:
         pass
+    jwt_secret()  # fail closed before seeding
     ensure_bins()
     path = migrate()
     print(f"Migrations applied to {path}")

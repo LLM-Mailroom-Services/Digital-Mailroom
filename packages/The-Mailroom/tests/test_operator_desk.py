@@ -6,6 +6,7 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from mailroom_ui.langfuse_source import LangfuseSource
@@ -28,7 +29,7 @@ def _client():
     return TestClient(create_app(LangfuseSource(client=FakeClient(traces))))
 
 
-def _login(client: TestClient, password: str = "changeme") -> dict:
+def _login(client: TestClient, password: str = "test-operator-password") -> dict:
     r = client.post("/v1/auth/login", json={"username": "admin", "password": password})
     assert r.status_code == 200, r.text
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
@@ -225,3 +226,116 @@ def test_health_and_meta_surface_operator_module():
         assert "/ws/pipeline" in paths
         src = c.get("/api/debug/source").json()
         assert src["operator"]["auth"] is True
+
+
+def _clear_dev_opt_in(monkeypatch) -> None:
+    monkeypatch.delenv("MAILROOM_OPERATOR_ALLOW_DEV_DEFAULTS", raising=False)
+    monkeypatch.delenv("MAILROOM_ENV", raising=False)
+    monkeypatch.delenv("MAILROOM_DEPLOY_MODE", raising=False)
+    monkeypatch.delenv("ENV", raising=False)
+    monkeypatch.delenv("JWT_SECRET", raising=False)
+
+
+def test_jwt_secret_fails_closed_when_unset(monkeypatch):
+    from operator_desk.auth import jwt_secret
+    from operator_desk.credentials import UnsafeOperatorCredentials
+
+    _clear_dev_opt_in(monkeypatch)
+    monkeypatch.delenv("MAILROOM_OPERATOR_JWT_SECRET", raising=False)
+    with pytest.raises(UnsafeOperatorCredentials, match="MAILROOM_OPERATOR_JWT_SECRET"):
+        jwt_secret()
+
+
+def test_jwt_secret_refuses_known_unsafe_fingerprint(monkeypatch):
+    from operator_desk.auth import jwt_secret
+    from operator_desk.credentials import DEV_JWT_SECRET, UnsafeOperatorCredentials
+
+    _clear_dev_opt_in(monkeypatch)
+    monkeypatch.setenv("MAILROOM_OPERATOR_JWT_SECRET", DEV_JWT_SECRET)
+    with pytest.raises(UnsafeOperatorCredentials, match="known-unsafe"):
+        jwt_secret()
+
+
+def test_jwt_secret_dev_opt_in_allows_fallback(monkeypatch):
+    from operator_desk import auth
+    from operator_desk.credentials import DEV_JWT_SECRET
+
+    _clear_dev_opt_in(monkeypatch)
+    monkeypatch.delenv("MAILROOM_OPERATOR_JWT_SECRET", raising=False)
+    monkeypatch.setenv("MAILROOM_OPERATOR_ALLOW_DEV_DEFAULTS", "1")
+    auth._warned_default_secret = False
+    assert auth.jwt_secret() == DEV_JWT_SECRET
+
+
+def test_jwt_secret_env_development_allows_fallback(monkeypatch):
+    from operator_desk.auth import jwt_secret
+    from operator_desk.credentials import DEV_JWT_SECRET
+
+    _clear_dev_opt_in(monkeypatch)
+    monkeypatch.delenv("MAILROOM_OPERATOR_JWT_SECRET", raising=False)
+    monkeypatch.setenv("ENV", "development")
+    assert jwt_secret() == DEV_JWT_SECRET
+
+
+def test_migrate_fails_closed_without_admin_password(tmp_path, monkeypatch):
+    from operator_desk.credentials import UnsafeOperatorCredentials
+    from operator_desk.db import migrate
+
+    _clear_dev_opt_in(monkeypatch)
+    monkeypatch.setenv("MAILROOM_OPERATOR_DB", str(tmp_path / "operator.db"))
+    monkeypatch.delenv("MAILROOM_OPERATOR_ADMIN_PASSWORD", raising=False)
+    with pytest.raises(UnsafeOperatorCredentials, match="MAILROOM_OPERATOR_ADMIN_PASSWORD"):
+        migrate()
+
+
+def test_migrate_refuses_changeme_without_opt_in(tmp_path, monkeypatch):
+    from operator_desk.credentials import DEV_ADMIN_PASSWORD, UnsafeOperatorCredentials
+    from operator_desk.db import migrate
+
+    _clear_dev_opt_in(monkeypatch)
+    monkeypatch.setenv("MAILROOM_OPERATOR_DB", str(tmp_path / "operator.db"))
+    monkeypatch.setenv("MAILROOM_OPERATOR_ADMIN_PASSWORD", DEV_ADMIN_PASSWORD)
+    with pytest.raises(UnsafeOperatorCredentials, match="known-unsafe"):
+        migrate()
+
+
+def test_migrate_dev_opt_in_seeds_admin(tmp_path, monkeypatch):
+    from operator_desk.credentials import DEV_ADMIN_PASSWORD
+    from operator_desk.db import lookup_user, migrate, verify_password
+
+    _clear_dev_opt_in(monkeypatch)
+    monkeypatch.setenv("MAILROOM_OPERATOR_DB", str(tmp_path / "operator.db"))
+    monkeypatch.delenv("MAILROOM_OPERATOR_ADMIN_PASSWORD", raising=False)
+    monkeypatch.setenv("MAILROOM_OPERATOR_ALLOW_DEV_DEFAULTS", "1")
+    migrate()
+    row = lookup_user("admin")
+    assert row is not None
+    assert verify_password(DEV_ADMIN_PASSWORD, row["password_hash"])
+
+
+def test_create_app_fails_closed_without_jwt_secret(monkeypatch):
+    from operator_desk.credentials import UnsafeOperatorCredentials
+
+    _clear_dev_opt_in(monkeypatch)
+    monkeypatch.delenv("MAILROOM_OPERATOR_JWT_SECRET", raising=False)
+    with pytest.raises(UnsafeOperatorCredentials, match="MAILROOM_OPERATOR_JWT_SECRET"):
+        create_app(LangfuseSource(client=FakeClient([])))
+
+
+def test_create_app_fails_closed_without_admin_password(monkeypatch):
+    from operator_desk.credentials import UnsafeOperatorCredentials
+
+    _clear_dev_opt_in(monkeypatch)
+    monkeypatch.delenv("MAILROOM_OPERATOR_ADMIN_PASSWORD", raising=False)
+    with pytest.raises(UnsafeOperatorCredentials, match="MAILROOM_OPERATOR_ADMIN_PASSWORD"):
+        create_app(LangfuseSource(client=FakeClient([])))
+
+
+def test_login_form_does_not_teach_changeme():
+    src = (
+        Path(__file__).resolve().parent.parent
+        / "ui" / "src" / "components" / "LoginForm.tsx"
+    ).read_text(encoding="utf-8")
+    assert 'placeholder="changeme"' not in src
+    assert "changeme" not in src
+

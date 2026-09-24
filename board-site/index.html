@@ -1976,6 +1976,29 @@
                 return `${d}d ago`;
             }
 
+            const ALLOWED_PRIORITIES = new Set(['critical', 'high', 'medium', 'low']);
+
+            function safePriority(value) {
+                const v = String(value || 'medium').toLowerCase();
+                return ALLOWED_PRIORITIES.has(v) ? v : 'medium';
+            }
+
+            function safeCardDate(value) {
+                const raw = String(value || '').slice(0, 10);
+                return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : new Date().toISOString().slice(0, 10);
+            }
+
+            function normalizeImportCard(raw) {
+                const id = String(raw.id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40) || 'IMPORT';
+                return {
+                    ...raw,
+                    id,
+                    title: String(raw.title || 'Untitled').slice(0, 500),
+                    priority: safePriority(raw.priority),
+                    date: safeCardDate(raw.date),
+                };
+            }
+
             // ─── RENDERING ───
             function renderBoard() {
                 boardContainer.innerHTML = '';
@@ -2142,7 +2165,8 @@
             function createCardElement(card) {
                 const el = document.createElement('div');
                 const laneClass = card.lane === 'unassigned' ? ' lane-unassigned' : '';
-                el.className = `card priority-${card.priority || 'medium'}${laneClass}`;
+                const pri = safePriority(card.priority);
+                el.className = `card priority-${pri}${laneClass}`;
                 el.dataset.cardId = card.id;
                 el.draggable = true;
                 el.setAttribute('role', 'button');
@@ -2157,7 +2181,7 @@
                     </span>`;
                 }).join('');
 
-                const priorityLabel = (card.priority || 'medium').toUpperCase();
+                const priorityLabel = pri.toUpperCase();
 
                 const laneIdx = LANES.findIndex((l) => l.id === card.lane);
                 const canMovePrev = laneIdx > 0;
@@ -2176,7 +2200,7 @@
                     <div class="card-top">
                         <span class="card-id" data-copy-id title="Tap to copy ID">${escapeHtml(card.id || 'N/A')}</span>
                         <span class="card-top-right">
-                            <span class="card-priority-badge ${card.priority || 'medium'}">${escapeHtml(priorityLabel)}</span>
+                            <span class="card-priority-badge ${pri}">${escapeHtml(priorityLabel)}</span>
                             ${ghLink}
                         </span>
                     </div>
@@ -2185,7 +2209,7 @@
                     <div class="card-meta">
                         <div class="card-agents">${agentsHtml || '<span class="agent-chip unclaimed"><span class="agent-avatar">?</span>unclaimed</span>'}</div>
                         <span style="display:flex;align-items:center;gap:0.35rem">
-                            <span class="card-date">${card.date || '—'}</span>
+                            <span class="card-date">${escapeHtml(card.date || '—')}</span>
                             ${ageHtml}
                         </span>
                     </div>
@@ -2302,11 +2326,11 @@
                         el.innerHTML = `
                             <span class="archive-badge">✓</span>
                             <div class="card-top">
-                                <span class="card-id">${card.id}</span>
+                                <span class="card-id">${escapeHtml(card.id)}</span>
                             </div>
                             <div class="card-title">${escapeHtml(card.title || 'Untitled')}</div>
                             <div class="card-meta">
-                                <span class="card-date">${card.date || '—'}</span>
+                                <span class="card-date">${escapeHtml(card.date || '—')}</span>
                             </div>
                         `;
                         el.addEventListener('click', () => {
@@ -2687,7 +2711,7 @@
                             renderArchive();
                             return;
                         }
-                        state.cards = data.cards;
+                        state.cards = data.cards.map(normalizeImportCard);
                         state.offlineError = null;
                         renderBoard();
                         renderArchive();

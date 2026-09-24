@@ -94,6 +94,16 @@ def test_lookup_by_doc_id_trace_and_filename(client, temp_base_dir):
     assert bad.status_code == 400
 
 
+def test_lookup_by_filename_skips_manifest_missing_doc_id(client, temp_base_dir):
+    from pipeline.bins import manifests_dir, ensure_dirs
+
+    ensure_dirs(manifests_dir())
+    sidecar = manifests_dir() / "orphan-sidecar.json"
+    sidecar.write_text(json.dumps({"original_filename": "orphan-no-id.txt"}))
+    r = client.get("/lookup", params={"filename": "orphan-no-id.txt"}, headers=_auth())
+    assert r.status_code == 404
+
+
 def test_review_queue_lists_tray_actions(client, temp_base_dir):
     _park_review(temp_base_dir)
     r = client.get("/review/queue", headers=_auth())

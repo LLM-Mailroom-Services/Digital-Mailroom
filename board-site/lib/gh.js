@@ -64,7 +64,7 @@ function actor(req) {
   return raw ? raw.slice(0, 60) : "anonymous";
 }
 
-async function gh(path, { method = "GET", body, query, ifNoneMatch } = {}) {
+async function gh(path, { method = "GET", body, query } = {}) {
   let url = `${GITHUB_API}${path}`;
   if (query) {
     const qs = new URLSearchParams(query);
@@ -76,7 +76,6 @@ async function gh(path, { method = "GET", body, query, ifNoneMatch } = {}) {
     "User-Agent": "mailroom-dispatch-board",
     Authorization: `Bearer ${token()}`,
   };
-  if (ifNoneMatch) headers["If-None-Match"] = ifNoneMatch;
   const opts = { method, headers };
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -88,8 +87,6 @@ async function gh(path, { method = "GET", body, query, ifNoneMatch } = {}) {
   } catch (err) {
     throw new HttpError(502, `GitHub unreachable: ${err.message}`);
   }
-  // Return 304 Not Modified upstream to caller for conditional-request flow
-  if (res.status === 304) return { _notModified: true, _etag: res.headers.get("etag") };
   const text = await res.text();
   let data = null;
   if (text) {
@@ -100,7 +97,7 @@ async function gh(path, { method = "GET", body, query, ifNoneMatch } = {}) {
         // Live-or-loud (DMR-061): a 2xx with a non-JSON body is not "empty" —
         // mark it so callers never treat the phantom object as real data.
         console.warn(`[gh] ${url} answered 2xx with a non-JSON body:`, text.slice(0, 200));
-        return { _etag: res.headers.get("etag"), _nonJsonBody: text.slice(0, 300) };
+        return { _nonJsonBody: text.slice(0, 300) };
       }
     }
   }
@@ -108,12 +105,10 @@ async function gh(path, { method = "GET", body, query, ifNoneMatch } = {}) {
     const msg = (data && (data.message || JSON.stringify(data))) || `GitHub ${res.status}`;
     throw new HttpError(res.status, msg);
   }
-  // Attach _etag metadata without corrupting arrays
   if (Array.isArray(data)) {
-    data._etag = res.headers.get("etag");
     return data;
   }
-  return { ...data, _etag: res.headers.get("etag") };
+  return data;
 }
 
 // ---- issue -> board card normalization ---------------------------------

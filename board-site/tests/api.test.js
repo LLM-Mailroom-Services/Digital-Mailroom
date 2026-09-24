@@ -289,5 +289,50 @@ function reset() {
     assert.ok(src.includes("setFormLaneOptions(false);"), "edit path must restore the full lane set");
   });
 
+  await check("GET board without GITHUB_TOKEN returns 500", async () => {
+    reset();
+    const saved = process.env.GITHUB_TOKEN;
+    delete process.env.GITHUB_TOKEN;
+    try {
+      const res = await runHandler(boardHandler, makeReq("GET", "/api/board"));
+      assert.strictEqual(res.statusCode, 500, `expected 500 got ${res.statusCode}`);
+      assert.ok(res._body.includes("GITHUB_TOKEN"), res._body);
+    } finally {
+      process.env.GITHUB_TOKEN = saved;
+    }
+  });
+
+  await check("GET board passes through GitHub 401", async () => {
+    reset();
+    const origFetch = global.fetch;
+    global.fetch = async () => ({
+      ok: false,
+      status: 401,
+      headers: new Map(),
+      text: async () => JSON.stringify({ message: "Bad credentials" }),
+    });
+    try {
+      const res = await runHandler(boardHandler, makeReq("GET", "/api/board"));
+      assert.strictEqual(res.statusCode, 401, res._body);
+    } finally {
+      global.fetch = origFetch;
+    }
+  });
+
+  await check("GET board maps fetch network failure to 502", async () => {
+    reset();
+    const origFetch = global.fetch;
+    global.fetch = async () => {
+      throw new Error("ECONNRESET");
+    };
+    try {
+      const res = await runHandler(boardHandler, makeReq("GET", "/api/board"));
+      assert.strictEqual(res.statusCode, 502, res._body);
+      assert.ok(res._body.includes("unreachable"), res._body);
+    } finally {
+      global.fetch = origFetch;
+    }
+  });
+
   console.log(`\n${passed} checks passed`);
 })();

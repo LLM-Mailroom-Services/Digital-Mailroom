@@ -8,12 +8,18 @@ import pytest
 
 from llm_dojo_scoring.emitter import LangfuseSink, LocalManifestSink
 
+from src.env_utils import REPO_ROOT
 from src.score_emitter import (
+    DEFAULT_MANIFEST_PATH,
     build_emitter,
     dashboard_names,
     emit_run_scores,
     headline_names,
 )
+
+
+def test_default_manifest_path_is_package_anchored():
+    assert DEFAULT_MANIFEST_PATH == REPO_ROOT / "reports" / "scores_manifest.jsonl"
 
 
 def test_build_emitter_local_sink(tmp_path):

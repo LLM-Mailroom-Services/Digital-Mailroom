@@ -23,7 +23,7 @@ from typing import Any
 from llm_dojo_scoring.emitter import Emitter, LangfuseSink, LocalManifestSink
 from llm_dojo_scoring.pruning import dashboard_metrics, headline_metrics
 
-from src.env_utils import load_env
+from src.env_utils import REPO_ROOT, load_env
 
 __all__ = [
     "DEFAULT_MANIFEST_PATH",
@@ -39,7 +39,8 @@ __all__ = [
     "headline_names",
 ]
 
-DEFAULT_MANIFEST_PATH = Path("reports/scores_manifest.jsonl")
+# Package-anchored sink — never CWD-relative (hub #183 split-brain guard).
+DEFAULT_MANIFEST_PATH = REPO_ROOT / "reports" / "scores_manifest.jsonl"
 
 # Docclass hierarchical task metrics (KANBAN-101). These live in the
 # experiment-log / Langfuse eval runners but are not yet in the shared

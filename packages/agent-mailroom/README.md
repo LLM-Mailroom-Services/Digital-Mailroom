@@ -21,7 +21,7 @@ A self-contained legal-document mailroom: one state machine per document, specia
 | Feature | Description |
 | :--- | :--- |
 | **Core pipeline** | intake → classify → extract → judge → report → archive. Happy path: **two LLM calls** |
-| **Six live doc classes** | `contract`, `merger_agreement`, `corporate_record`, `correspondence`, `compliance_filing`, `insurance_claim` |
+| **Five live doc classes** | `contract`, `merger_agreement`, `corporate_record`, `correspondence`, `insurance_claim` (aligned with llm-mailroom producer taxonomy) |
 | **Pared extraction** | CUAD/MAUD/insurance checklists + semantic trio (`intent` / `subject_matter` / `keywords`) |
 | **Inbox watcher** | txt / md / pdf / docx land in the inbox; the watcher claims each file once |
 | **Hub datasets** | Pull [Lucius-Morningstar](https://huggingface.co/Lucius-Morningstar) rows onto the same inbox |

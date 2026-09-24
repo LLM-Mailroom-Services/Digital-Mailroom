@@ -177,11 +177,20 @@ def run_bert_intake(
         return handoff
 
     try:
-        classifier = module.inference.classify_document  # type: ignore[attr-defined]
-        try:
+        # M6a seam (#102/#103): the lane's call shape is classify_document(
+        # doc_text, filename=...) — the default-bundle entrypoint matches it
+        # exactly and never raises for a missing bundle (fail-open failure
+        # shape with machine-readable reasons). Older mailroom-ml without
+        # the seam keeps the raw TypeError dance below.
+        classifier = getattr(module.inference, "classify_document_default", None)
+        if classifier is not None:
             result = classifier(doc_text, filename=filename)
-        except TypeError:
-            result = classifier(doc_text)
+        else:
+            classifier = module.inference.classify_document  # type: ignore[attr-defined]
+            try:
+                result = classifier(doc_text, filename=filename)
+            except TypeError:
+                result = classifier(doc_text)
     except Exception as exc:  # model load / inference / malformed bundle
         logger.exception(
             "bert_classify_failed",

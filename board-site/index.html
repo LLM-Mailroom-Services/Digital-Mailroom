@@ -1770,7 +1770,14 @@
                         }
                         data = {};
                     }
-                    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+                    if (!res.ok) {
+                        const err = new Error(data.error || `HTTP ${res.status}`);
+                        if (data.rateLimited) {
+                            err.rateLimited = true;
+                            err.retryAfter = data.retryAfter;
+                        }
+                        throw err;
+                    }
                     return data;
                 });
             }
@@ -1794,15 +1801,22 @@
                     state.repo = data.repo || null;
                     setSyncBadge('live', `● LIVE · ${state.cards.length} cards`);
                 } catch (err) {
-                    // Live-only board: never inject a snapshot. If the proxy is
-                    // unreachable, drop to a clear offline state — the board is
-                    // the GitHub issues, nothing else.
                     console.warn('board unreachable:', err);
-                    state.cards = [];
-                    state.offlineError = err.message || 'cannot reach the live board';
-                    state.loading = false;
-                    state.lastSyncedAt = null;
-                    setSyncBadge('offline', '● OFFLINE · no live connection');
+                    if (err.rateLimited) {
+                        state.offlineError = err.message || 'GitHub rate limited';
+                        state.loading = false;
+                        const sec = err.retryAfter ? ` · retry ~${err.retryAfter}s` : '';
+                        setSyncBadge('offline', '● RATE LIMITED' + sec);
+                    } else {
+                        // Live-only board: never inject a snapshot. If the proxy is
+                        // unreachable, drop to a clear offline state — the board is
+                        // the GitHub issues, nothing else.
+                        state.cards = [];
+                        state.offlineError = err.message || 'cannot reach the live board';
+                        state.loading = false;
+                        state.lastSyncedAt = null;
+                        setSyncBadge('offline', '● OFFLINE · no live connection');
+                    }
                 }
                 updateFreshBadge();
                 updateRepoContext();
@@ -1829,8 +1843,16 @@
                 updateTabTitle();
             }
 
+            function snapshotCard(card) {
+                if (!card) return null;
+                return {
+                    ...card,
+                    agents: Array.isArray(card.agents) ? card.agents.slice() : [],
+                };
+            }
+
             async function writeThrough(cardId, patch) {
-                const prev = state.cards.find((c) => c.id === cardId);
+                const prev = snapshotCard(state.cards.find((c) => c.id === cardId));
                 try {
                     const fresh = await apiFetch('PATCH', '/api/board/' + encodeURIComponent(cardId), patch);
                     if (fresh && fresh.id) {
@@ -1852,7 +1874,6 @@
                     }
                     renderBoard();
                     showToast(`❌ ${cardId} save failed: ${err.message}`, 'error');
-                    throw err;
                 }
             }
 
@@ -2424,7 +2445,7 @@
                 const patch = { lane: newLane, priority: card.priority };
                 writeThrough(cardId, patch).then(() => {
                     showToast(`✅ ${card.id} moved to ${LANES.find(l => l.id === newLane)?.title}`, 'success');
-                });
+                }).catch(() => {});
             }
 
             function archiveCard(cardId) {
@@ -2437,7 +2458,7 @@
                 updateStats();
                 updateTabTitle();
                 ensureAgent();
-                writeThrough(cardId, { archived: true, lane: 'done' });
+                writeThrough(cardId, { archived: true, lane: 'done' }).catch(() => {});
             }
 
             function unarchiveCard(cardId) {
@@ -2450,7 +2471,7 @@
                 updateStats();
                 updateTabTitle();
                 ensureAgent();
-                writeThrough(cardId, { archived: false, lane: 'unassigned' });
+                writeThrough(cardId, { archived: false, lane: 'unassigned' }).catch(() => {});
             }
 
             function deleteCard(cardId) {
@@ -2483,7 +2504,7 @@
                         priority: cardData.priority,
                         agents: cardData.agents,
                         evidence: cardData.evidence,
-                    });
+                    }).catch(() => {});
                 } else {
                     // New card -> create a GitHub issue; server assigns DMR-0NN.
                     const tmp = tmpNewCardId || cardData.id;

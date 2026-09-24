@@ -26,19 +26,20 @@ pip install -e ".[dev]"
 pip install -e ".[operator]"     # bcrypt, PyJWT, watchdog, PyMuPDF
 scripts/setup_operator.sh
 mailroom-web                     # mounts the desk on :8001
-MAILROOM_OBSERVER=1 mailroom-web # in-process bin watcher
-mailroom-observer                # standalone → POST /v1/ops/events
+MAILROOM_OBSERVER=1 mailroom-web # in-process bin watcher (compose default)
+mailroom-observer                # optional standalone → POST /v1/ops/events
+                                 # (set MAILROOM_OBSERVER=0 first; never both)
 ```
 
 Default admin is `admin` / `changeme` until `MAILROOM_OPERATOR_ADMIN_PASSWORD`
 is set. Use `MAILROOM_OPERATOR_JWT_SECRET` (or `JWT_SECRET`) — never reuse
 `MAILROOM_PIPELINE_TOKEN`.
 
-Compose — single front door, operator edition (visualizer + observer +
-nginx; nginx `:80` is the only published port; the visualizer builds the
-`operator` image target — `.[operator]` extras + the baked React `ui/dist`,
-served at `/desk` — while the headless observer builds the lean
-`operator-core` target with no Node stage):
+Compose — single front door, operator edition (visualizer + nginx; nginx
+`:80` is the only published port; the visualizer builds the `operator`
+image target — `.[operator]` extras + the baked React `ui/dist`, served
+at `/desk` — and runs the in-process bin watcher via `MAILROOM_OBSERVER=1`.
+Do not start a second `mailroom-observer` container on the same volume):
 
 ```bash
 export MAILROOM_OPERATOR_JWT_SECRET="$(openssl rand -hex 32)"
@@ -48,8 +49,10 @@ docker compose -f operator_desk/docker-compose.yml up --build
 ```
 
 Both secrets are fail-fast (`${VAR:?}` — compose refuses to start without
-them). `MAILROOM_OPERATOR_INGEST_TOKEN` stays optional. The old `mailroom-ui`
-sidecar service and the backend's `8001:8001` publish are gone.
+them). `MAILROOM_OPERATOR_INGEST_TOKEN` is only needed for the optional
+standalone `mailroom-observer` CLI; the default compose path does not run
+that sidecar. The old `mailroom-ui` sidecar, the `mailroom-observer`
+sidecar, and the backend's `8001:8001` publish are gone.
 
 See `operator_desk/README.md` and `.env.example` (`MAILROOM_OPERATOR_*`).
 

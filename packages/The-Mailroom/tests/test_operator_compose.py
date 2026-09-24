@@ -1,9 +1,10 @@
-"""Pins for the operator-desk single-front-door compose (DMR-076).
+"""Pins for the operator-desk single-front-door compose (DMR-076 / issue #78).
 
 These are file-read tests (no docker daemon, no network): they pin the
 compose and nginx invariants that the operator-desk hardening must not
 regress — fail-fast secrets, nginx :80 as the only published port, no
-mailroom-ui sidecar, and no try_files inside a proxy_pass location.
+mailroom-ui sidecar, a single in-process bin watcher (no mailroom-observer
+sidecar on the same volume), and no try_files inside a proxy_pass location.
 """
 
 from __future__ import annotations
@@ -31,8 +32,11 @@ def _compose():
 
 def test_compose_fail_fast_and_single_front_door():
     cfg = _compose()
-    # mailroom-ui sidecar is gone; nginx is the only service with ports.
-    assert set(cfg["services"]) == {"mailroom", "mailroom-observer", "nginx"}
+    # Issue #78 Option A: in-process watcher only. mailroom-ui sidecar is
+    # gone; mailroom-observer sidecar is gone; nginx is the only service
+    # with ports.
+    assert set(cfg["services"]) == {"mailroom", "nginx"}
+    assert "mailroom-observer" not in cfg["services"]
     services_with_ports = [
         name for name, svc in cfg["services"].items() if "ports" in svc
     ]
@@ -41,18 +45,17 @@ def test_compose_fail_fast_and_single_front_door():
     assert "ports" not in cfg["services"]["mailroom"]
 
     # The visualizer builds the full `operator` target (baked ui/dist →
-    # /desk); the headless observer builds the lean `operator-core` target
-    # (no Node stage, no ui/dist). Both install the extras via the arg.
-    for name, target in (("mailroom", "operator"), ("mailroom-observer", "operator-core")):
-        build = cfg["services"][name]["build"]
-        assert build["target"] == target
-        assert build.get("args", {}).get("MAILROOM_EXTRAS") == "operator"
+    # /desk). The lean `operator-core` target is no longer a compose
+    # service — it stays a Dockerfile stage for optional standalone
+    # `docker build --target operator-core` (CLI `mailroom-observer`).
+    build = cfg["services"]["mailroom"]["build"]
+    assert build["target"] == "operator"
+    assert build.get("args", {}).get("MAILROOM_EXTRAS") == "operator"
 
-    # nginx + observer wait for a healthy backend (nginx resolves the
-    # `mailroom` upstream at boot; the operator SQLite needs /data writable).
-    for name in ("mailroom-observer", "nginx"):
-        deps = cfg["services"][name]["depends_on"]
-        assert deps["mailroom"]["condition"] == "service_healthy"
+    # nginx waits for a healthy backend (nginx resolves the `mailroom`
+    # upstream at boot; the operator SQLite needs /data writable).
+    deps = cfg["services"]["nginx"]["depends_on"]
+    assert deps["mailroom"]["condition"] == "service_healthy"
 
     # The required secrets are fail-fast and carry no `:-` dev default.
     env = cfg["services"]["mailroom"]["environment"]
@@ -60,6 +63,12 @@ def test_compose_fail_fast_and_single_front_door():
         line = next(ln for ln in env if ln.startswith(f"{var}="))
         assert ":?" in line, f"{var} must be fail-fast (${var}:? )"
         assert ":-" not in line, f"{var} must not carry a dev default"
+
+    # In-process observer is the compose default (`MAILROOM_OBSERVER=1`).
+    # A second sidecar on the same volume double-emits /ws/pipeline events
+    # when the ingest token is set, or 401s + wastes CPU when it is not.
+    observer = next(ln for ln in env if ln.startswith("MAILROOM_OBSERVER="))
+    assert "${MAILROOM_OBSERVER:-1}" in observer
 
 
 def test_nginx_proxy_locations_have_no_try_files():

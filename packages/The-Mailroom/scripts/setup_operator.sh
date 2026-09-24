@@ -15,7 +15,7 @@ python -m operator_desk
 
 echo "=== Setup complete. ==="
 echo "  mailroom-web            # visualizer + /v1/auth /v1/archive /v1/ops /ws/pipeline"
-echo "  mailroom-observer       # optional standalone bin watcher (or MAILROOM_OBSERVER=1)"
+echo "  mailroom-observer       # optional standalone CLI (set MAILROOM_OBSERVER=0 first; not in compose)"
 echo "  docker compose -f operator_desk/docker-compose.yml up --build"
 echo "    (requires MAILROOM_OPERATOR_JWT_SECRET and _ADMIN_PASSWORD — fail-fast;"
 echo "     front door is http://localhost — nginx :80, desk at /desk)"

@@ -6,6 +6,19 @@ All notable changes to The-Mailroom are documented here, following
 
 ## [Unreleased]
 
+### Fixed
+
+- **Issue #78: dual bin observer in operator-desk compose.** Default
+  `operator_desk/docker-compose.yml` ran both `MAILROOM_OBSERVER=1`
+  in-process on `mailroom` **and** a dedicated `mailroom-observer` sidecar
+  on the same `mailroom-data` volume — duplicate `/ws/pipeline` events when
+  `MAILROOM_OPERATOR_INGEST_TOKEN` was set, or silent 401 + wasted CPU when
+  unset. Option A: drop the sidecar; keep the in-process watcher
+  (`MAILROOM_OBSERVER=1`). Standalone `mailroom-observer` remains an optional
+  CLI for independent-lifecycle deploys (set `MAILROOM_OBSERVER=0` first).
+  `tests/test_operator_compose.py` pins services `{mailroom, nginx}` and the
+  in-process default.
+
 ### Changed
 
 - **DMR-076: operator desk single front door — Docker production path.**

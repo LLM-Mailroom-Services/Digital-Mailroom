@@ -76,7 +76,7 @@ mailroom-hosted           # → public Observatory on 0.0.0.0 (container-ready)
 mailroom-tui              # typed-command REPL (floor/corpus/repos/inspect)
 pip install -e ".[operator]"  # optional: operator desk (auth / archive / observer)
 pip install -e ".[ui]"        # marker only; React desk still needs Node
-mailroom-observer         # bin watcher (or MAILROOM_OBSERVER=1 on mailroom-web)
+mailroom-observer         # optional CLI bin watcher (compose uses MAILROOM_OBSERVER=1)
 # optional React desk: cd ui && npm install && npm run build  →  /desk
 ```
 
@@ -301,10 +301,13 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
 **Operator edition (single front door):** the root `Dockerfile` also ships
 `--target operator` — the hosted runtime + `.[operator]` extras + the baked
 React desk at `/desk` — plus the lean `--target operator-core` (extras, no
-Node stage) for the headless observer, and an `observatory` alias keeps
-`docker build .` (no `--target`) byte-identical to the hosted image above.
+Node stage) for an optional standalone observer image. An `observatory`
+alias keeps `docker build .` (no `--target`) byte-identical to the hosted
+image above.
 Compose is the production path for the operator desk: nginx `:80` is the
-ONLY published port, and `MAILROOM_OPERATOR_JWT_SECRET` /
+ONLY published port, `MAILROOM_OBSERVER=1` runs the in-process bin watcher
+inside `mailroom` (no `mailroom-observer` sidecar — issue #78), and
+`MAILROOM_OPERATOR_JWT_SECRET` /
 `MAILROOM_OPERATOR_ADMIN_PASSWORD` are fail-fast (`${VAR:?}`, no dev
 defaults):
 

@@ -144,7 +144,12 @@ module.exports = async function handler(req, res) {
     return sendJson(res, 200, card);
   } catch (err) {
     const status = err.status || 500;
-    return sendJson(res, status, { error: err.message || String(err) });
+    const payload = { error: err.message || String(err) };
+    if (err.rateLimited) {
+      payload.rateLimited = true;
+      payload.retryAfter = err.retryAfter;
+    }
+    return sendJson(res, status, payload);
   }
 };
 

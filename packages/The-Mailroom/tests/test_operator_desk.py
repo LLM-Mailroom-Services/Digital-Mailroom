@@ -161,15 +161,28 @@ def test_ingest_event_broadcasts_on_pipeline_ws():
             assert event["doc_id"] == "doc-1"
 
 
+def test_pipeline_ws_accepts_first_message_auth():
+    with _client() as c:
+        headers = _login(c)
+        token = headers["Authorization"].split(" ", 1)[1]
+        with c.websocket_connect("/ws/pipeline") as ws:
+            ws.send_json({"action": "auth", "token": token})
+            ws.send_json({"action": "subscribe", "matter_id": "matter-auth"})
+            ack = ws.receive_json()
+            assert ack["type"] == "subscribed"
+
+
 def test_pipeline_ws_rejects_missing_token():
     from starlette.websockets import WebSocketDisconnect
 
     with _client() as c:
-        try:
-            with c.websocket_connect("/ws/pipeline"):
-                raise AssertionError("unauthenticated websocket should not connect")
-        except WebSocketDisconnect as exc:
-            assert exc.code == 4401
+        with c.websocket_connect("/ws/pipeline") as ws:
+            ws.send_json({"action": "auth", "token": "not-a-valid-jwt"})
+            try:
+                ws.receive_json()
+                raise AssertionError("bad auth websocket should close with 4401")
+            except WebSocketDisconnect as exc:
+                assert exc.code == 4401
 
 
 def test_observer_bin_move_indexes_archive(tmp_path, monkeypatch):

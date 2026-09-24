@@ -28,6 +28,11 @@ def test_optional_package_points_at_this_visualizer():
     assert "/api/review/resolve" in REVIEW
     assert "/api/review-queue" in REVIEW
     assert "/ws/pipeline" in WS
+    assert "params.set('token'" not in WS, "JWT must not ride the WS query string (hub#173)"
+    assert "action: 'auth'" in WS
+    assert "maxBackoffMs" in WS
+    LAYOUT = (ROOT / "ui" / "src" / "components" / "Layout.tsx").read_text(encoding="utf-8")
+    assert "setConnected(live)" in LAYOUT
     STORE = (ROOT / "ui" / "src" / "stores" / "pipelineStore.ts").read_text(encoding="utf-8")
     BOARD = (ROOT / "ui" / "src" / "components" / "PipelineBoard.tsx").read_text(encoding="utf-8")
     assert "mergePolledQueue" in BOARD, "poll must merge into WS state (hub#172)"

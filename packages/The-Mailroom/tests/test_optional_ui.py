@@ -28,6 +28,8 @@ def test_optional_package_points_at_this_visualizer():
     assert "/api/review/resolve" in REVIEW
     assert "/api/review-queue" in REVIEW
     assert "/ws/pipeline" in WS
+    STORE = (ROOT / "ui" / "src" / "stores" / "pipelineStore.ts").read_text(encoding="utf-8")
+    assert "stageToBin(stage)" in STORE, "WS stage updates must use stageToBin (hub#171)"
     assert "url.includes('/v1/')" in CLIENT
     assert "default pip install never needs this package" in PKG
 

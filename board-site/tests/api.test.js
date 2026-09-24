@@ -319,6 +319,38 @@ function reset() {
     }
   });
 
+  await check("GET board returns rateLimited JSON after GitHub 429 (hub#166)", async () => {
+    reset();
+    const origFetch = global.fetch;
+    let hits = 0;
+    global.fetch = async () => {
+      hits++;
+      return {
+        ok: false,
+        status: 429,
+        headers: { get: (name) => (name === "retry-after" ? "0" : null) },
+        text: async () => JSON.stringify({ message: "API rate limit exceeded" }),
+      };
+    };
+    try {
+      const res = await runHandler(boardHandler, makeReq("GET", "/api/board"));
+      assert.strictEqual(res.statusCode, 503, res._body);
+      const body = JSON.parse(res._body);
+      assert.strictEqual(body.rateLimited, true);
+      assert.ok(hits >= 3, "expected retries before surfacing rate limit");
+    } finally {
+      global.fetch = origFetch;
+    }
+  });
+
+  await check("index.html keeps cards when refresh hits rateLimited (hub#166)", () => {
+    const src = require("node:fs").readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    assert.ok(src.includes("if (err.rateLimited)"), "refreshBoard must branch on rateLimited");
+    assert.ok(src.includes("● RATE LIMITED"), "rate limit badge copy present");
+    const rateBranch = src.slice(src.indexOf("if (err.rateLimited)"), src.indexOf("} else {", src.indexOf("if (err.rateLimited)")));
+    assert.ok(!rateBranch.includes("state.cards = []"), "rate limit branch must not wipe cards");
+  });
+
   await check("GET board maps fetch network failure to 502", async () => {
     reset();
     const origFetch = global.fetch;
@@ -332,6 +364,15 @@ function reset() {
     } finally {
       global.fetch = origFetch;
     }
+  });
+
+  await check("writeThrough snapshots card before mutation (hub#168)", () => {
+    const src = require("node:fs").readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    assert.ok(src.includes("function snapshotCard(card)"), "snapshot helper required");
+    assert.ok(src.includes("const prev = snapshotCard("), "writeThrough must snapshot before PATCH");
+    const wt = src.slice(src.indexOf("async function writeThrough"), src.indexOf("// ─── STATE MANAGEMENT"));
+    assert.ok(!wt.includes("throw err"), "writeThrough must not rethrow after toast");
+    assert.match(src, /writeThrough\(cardId, \{ archived: true[\s\S]*?\.catch\(\(\) => \{\}\)/, "archive must catch");
   });
 
   console.log(`\n${passed} checks passed`);

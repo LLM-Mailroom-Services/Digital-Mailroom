@@ -102,6 +102,11 @@ def _diff_vs_workspace(vendored_root: Path, workspace_root: Path) -> list[str]:
     return problems
 
 
+def _monorepo_workspace_layout() -> bool:
+    """True when this checkout is the hub monorepo (workspace packages expected)."""
+    return (WORKSPACE / "packages" / "llm-mailroom" / "src").is_dir()
+
+
 @pytest.mark.parametrize(
     "vendored_root,workspace_root,label",
     _SNAPSHOTS,
@@ -110,10 +115,15 @@ def _diff_vs_workspace(vendored_root: Path, workspace_root: Path) -> list[str]:
 def test_vendor_tracks_workspace(vendored_root, workspace_root, label):
     """The vendored snapshot is byte-identical to the workspace package
     (excluding sandbox-local glue). A lagging vendor tree fails here."""
-    if not vendored_root.is_dir():
-        pytest.skip(f"vendor tree not present: {vendored_root}")
     if not workspace_root.is_dir():
         pytest.skip(f"workspace package not present: {workspace_root}")
+    if not vendored_root.is_dir():
+        if _monorepo_workspace_layout():
+            pytest.fail(
+                f"{label} vendor tree missing in monorepo layout — refresh with "
+                f"`python scripts/sync_vendor.py` from the hub root (hub#62)"
+            )
+        pytest.skip(f"vendor tree not present: {vendored_root}")
     problems = _diff_vs_workspace(vendored_root, workspace_root)
     assert not problems, (
         f"{label} vendor snapshot drifted from the workspace package — refresh "

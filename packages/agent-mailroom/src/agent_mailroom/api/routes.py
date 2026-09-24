@@ -274,19 +274,30 @@ def resolve(
     decision = body.decision.lower()
     disposition = body.disposition.lower()
     override = body.override_doc_type or body.doc_type
+    if decision not in {"approved", "rejected"}:
+        raise HTTPException(status_code=400, detail="decision must be 'approved' or 'rejected'")
+    if disposition not in {"resume", "record", "requeue", "complete"}:
+        raise HTTPException(
+            status_code=400,
+            detail="disposition must be 'resume', 'record', 'requeue', or 'complete'",
+        )
 
     if disposition == "record":
         from agent_mailroom.storage.audit import write_audit
         from agent_mailroom.storage.catalog import upsert_document
         from agent_mailroom.schemas.manifest import DocumentManifest, PipelineStage
 
+        try:
+            stage = PipelineStage(row["stage"])
+        except ValueError:
+            stage = PipelineStage.REVIEW
         upsert_document(
             DocumentManifest(
                 doc_id=doc_id,
                 matter_id=row["matter_id"],
                 original_filename=row["original_filename"],
-                stage=PipelineStage.REVIEW,
-                graph_node="human_review",
+                stage=stage,
+                graph_node=row.get("graph_node"),
                 doc_type=override or row.get("doc_type"),
                 doc_subclass=body.doc_subclass or row.get("doc_subclass"),
                 classification_confidence=row.get("classification_confidence"),
@@ -315,8 +326,14 @@ def resolve(
         _accept_inbox(parked.read_bytes(), parked.name, doc_id=new_id, matter_id=row["matter_id"], source="requeue")
         from agent_mailroom.storage.audit import write_audit
 
-        write_audit(doc_id=doc_id, matter_id=row["matter_id"], event="review_requeued", actor="human", detail={})
-        return {"status": "requeued", "doc_id": doc_id}
+        write_audit(
+            doc_id=doc_id,
+            matter_id=row["matter_id"],
+            event="review_requeued",
+            actor="human",
+            detail={"new_doc_id": new_id},
+        )
+        return {"status": "requeued", "doc_id": new_id, "from_doc_id": doc_id}
 
     if disposition == "complete" and decision != "approved":
         raise HTTPException(status_code=400, detail="disposition=complete requires decision=approved")

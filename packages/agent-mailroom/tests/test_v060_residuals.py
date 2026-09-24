@@ -158,6 +158,18 @@ def test_complete_rejected_decision_400(samples):
     assert resp.status_code == 400
 
 
+def test_mutating_routes_require_auth_when_token_configured(monkeypatch):
+    monkeypatch.setenv("MAILROOM_API_TOKEN", "secret")
+    client = TestClient(create_app())
+    assert client.post("/v1/demo").status_code == 401
+    assert client.get("/v1/floor").status_code == 401
+    assert client.get("/v1/hive").status_code == 401
+    headers = {"Authorization": "Bearer secret"}
+    assert client.get("/v1/meta", headers=headers).status_code == 200
+    demo = client.post("/v1/demo", headers=headers)
+    assert demo.status_code == 200
+
+
 def test_active_api_tokens_rotation(monkeypatch):
     monkeypatch.setenv("MAILROOM_API_TOKEN", "primary")
     monkeypatch.setenv("MAILROOM_API_TOKENS", "rot-a, rot-b")
@@ -167,9 +179,10 @@ def test_active_api_tokens_rotation(monkeypatch):
     client = TestClient(create_app())
     denied = client.get("/v1/queue", headers={"Authorization": "Bearer primary"})
     assert denied.status_code == 401
-    ok = client.get("/v1/queue", headers={"Authorization": "Bearer rot-a"})
+    headers = {"Authorization": "Bearer rot-a"}
+    ok = client.get("/v1/queue", headers=headers)
     assert ok.status_code == 200
-    assert client.get("/v1/meta").json()["auth_required"] is True
+    assert client.get("/v1/meta", headers=headers).json()["auth_required"] is True
 
 
 def test_requeue_stale_processing_idempotent():

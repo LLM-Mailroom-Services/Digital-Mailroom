@@ -1,0 +1,27 @@
+# DMR-077 — Single-operator full suite (all five specialists, one warm app).
+# Prefer the two-operator tracks when two Modal credit balances are available
+# (track-a + track-b) — same spend posture, half the wall-clock.
+#
+# Activate: modal profile activate hermes-agent-jjb   # or SANDBOX_MODAL_PROFILE_TRACK_A
+# Estimate: sandbox metrics estimate-suite --suite full
+# Check:    sandbox run benchmark-check --suite full
+# Chain:    sandbox run suite --suite full
+# Teardown: ./deploy/teardown_vllm.sh  ONLY after the fifth
+schema: sandbox.suite/v1
+suite_id: run-30-specialists-full
+track: full
+title: "Single operator — all five run-30 specialists (alternative to A∥B)"
+rationale: |
+  Original DMR-076 warm-once path: contracts → merger → corporate →
+  correspondence → insurance on one Hermes wallet. Use when only one Modal
+  account is available; otherwise prefer track-a ∥ track-b for parallel wall.
+modal_profile_env: SANDBOX_MODAL_PROFILE_TRACK_A
+modal_profile_default: hermes-agent-jjb
+scaledown_seconds: 120
+warm_once: true
+configs:
+  - config/runs/run-30-contracts-specialist.yaml
+  - config/runs/run-30-merger-specialist.yaml
+  - config/runs/run-30-corporate-records-specialist.yaml
+  - config/runs/run-30-correspondence-specialist.yaml
+  - config/runs/run-30-insurance-claims-specialist.yaml

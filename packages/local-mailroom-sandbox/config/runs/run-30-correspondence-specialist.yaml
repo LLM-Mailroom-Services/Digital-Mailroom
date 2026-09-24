@@ -1,0 +1,88 @@
+# Specialist extract: correspondence_specialist on 30 CORRESPONDENCE docs.
+# All 7 subclasses present in the pinned test split (attorney_demand is
+# train-only / scarce). Test has 62 correspondence rows — N=30 fits.
+#
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║ CUT SPEND (DMR-076/077/078) — MANDATORY operator posture                 ║
+# ║  1. ONE warm sandbox-vllm app through YOUR TRACK (or all five if solo).  ║
+# ║  2. Do NOT tear down / redeploy / stop between classes.                  ║
+# ║  3. Teardown ONLY after your last: ./deploy/teardown_vllm.sh             ║
+# ║  4. scaledown_seconds: 120 (attended). Unattended/overnight → restore 600║
+# ║  5. Default model: Qwen/Qwen3-8B bf16. AWQ optional (DMR-068 gate).       ║
+# ║  6. Two-operator: sandbox run suite --suite track-a|track-b (DMR-077).   ║
+# ║  7. DMR-078: concurrency=5 (short docs), cost_cap=$0.40, wall=2400s.      ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+#
+#   # Same warm app — do NOT redeploy before this run.
+#   sandbox run preflight --config config/runs/run-30-correspondence-specialist.yaml --live
+#   sandbox run start --config config/runs/run-30-correspondence-specialist.yaml --job-mode endpoint --watch
+schema: sandbox.run/v1
+run_id: run-30-correspondence-specialist
+task: correspondence_specialist
+profile: modal-vllm
+
+prompt:
+  # Pinned local production text (config/prompts/correspondence_specialist_production.txt) for reproducible
+  # Modal L4 Qwen runs — not Langfuse floating production. DMR-074/078.
+  default: {source: code-default}
+  agents:
+    correspondence_specialist:
+      source: local
+      file: correspondence_specialist_production
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  # split: test — 62 correspondence rows; N=30 fits
+  split: test
+  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      # correspondence (62 test rows): all 7 test subclasses → 30
+      - doc_class: correspondence
+        sub_buckets:
+          - {subclass: email, count: 12}               # avail 30
+          - {subclass: letter, count: 3}               # avail 9
+          - {subclass: press_release, count: 3}        # avail 8
+          - {subclass: memo, count: 3}                 # avail 5
+          - {subclass: meeting_request, count: 3}      # avail 4
+          - {subclass: demand, count: 3}               # avail 3
+          - {subclass: notice, count: 3}               # avail 3
+  limit: 30
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B
+  vllm:
+    max_model_len: 16384      # boot-valid cap for L4-bf16 8B (v0.29.0 raises above)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 256
+    quantization: ""
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    # Attended cost-saver (DMR-076). Unattended/overnight: restore 600 here
+    # and export MODAL_VLLM_SCALEDOWN_SECONDS=600 before redeploy.
+    scaledown_seconds: 120
+    max_containers: 1         # cost guard — do not raise for specialist runs
+    min_containers: 0         # scale-to-zero after idle
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 5              # DMR-078 per-doc-type (short↑ / long↓)
+  cost_cap_usd: 0.4        # abort if wall×L4 $/hr exceeds
+  max_wall_seconds: 2400    # hard wall abort
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-30
+  tags: [sandbox, job, specialist, correspondence, qwen3-8b, l4, benchmark]

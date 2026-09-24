@@ -1,0 +1,22 @@
+# AUTO-GENERATED from pyproject.toml by scripts/sync_requirements.py — do not
+# hand-edit. Source of truth: [project] / [project.optional-dependencies].
+# Refresh: python3 scripts/sync_requirements.py
+
+-r base.txt
+
+langchain-core>=0.3
+langchain-openai>=0.2
+langgraph>=0.2
+requests>=2.31
+watchdog>=4.0
+sqlalchemy>=2.0
+aiosqlite>=0.20
+greenlet>=3.0
+pypdf>=4.0
+pdfplumber>=0.11
+pillow>=10.0
+huggingface_hub>=0.24
+pyarrow>=15.0
+langfuse>=4.0,<5
+opentelemetry-sdk>=1.25
+opentelemetry-exporter-otlp-proto-http>=1.25

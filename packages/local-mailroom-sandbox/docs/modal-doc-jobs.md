@@ -106,7 +106,9 @@ vendored family), with a document front door:
 
 Phase A is gated on three human decisions. Each is documented with the
 default the plan assumes and the alternative; none is settled by this doc.
-Record the decision and close the gate row in `governance/TASKS.md`.
+Record the decision and close the gate row on the local **`SAND`** board
+(`governance/TASKS.md` — cards `SAND-014` / `SAND-014-1..3`). Do not file
+these as `DMR-*` (family MESSAGE_BOARD); they are sandbox-isolated gates.
 
 | # | Decision | Plan default (pending) | Alternative |
 | --- | --- | --- | --- |

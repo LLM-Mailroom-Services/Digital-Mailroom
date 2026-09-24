@@ -1,0 +1,26 @@
+# DMR-077 — Operator B track (2 specialist runs, one warm 1×L4 app).
+# Pair with Track A on a *separate* Modal account. Do not share tokens.
+# DMR-078: merger uses dedicated merger_agreement_specialist + concurrency=3.
+#
+# Set the second account profile name (no default — avoid accidental Hermes share):
+#   export SANDBOX_MODAL_PROFILE_TRACK_B=<your-second-modal-profile>
+#   modal profile activate "$SANDBOX_MODAL_PROFILE_TRACK_B"
+# Estimate: sandbox metrics estimate-suite --suite track-b
+# Check:    sandbox run benchmark-check --suite track-b --allow-non-hermes
+# Chain:    sandbox run suite --suite track-b
+# Teardown: ./deploy/teardown_vllm.sh  ONLY after the last config below
+schema: sandbox.suite/v1
+suite_id: run-30-specialists-track-b
+track: b
+title: "Operator B — merger + insurance_claims"
+rationale: |
+  DMR-075/078: merger (heaviest, c=3, dedicated merger_agreement_specialist) +
+  insurance (c=5). Avoids stacking merger+contracts on one wallet.
+modal_profile_env: SANDBOX_MODAL_PROFILE_TRACK_B
+# Leave empty: require SANDBOX_MODAL_PROFILE_TRACK_B (second Modal account).
+modal_profile_default: ""
+scaledown_seconds: 120
+warm_once: true
+configs:
+  - config/runs/run-30-merger-specialist.yaml
+  - config/runs/run-30-insurance-claims-specialist.yaml

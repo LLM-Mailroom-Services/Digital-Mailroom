@@ -1,0 +1,7 @@
+# AUTO-GENERATED from pyproject.toml by scripts/sync_requirements.py — do not
+# hand-edit. Source of truth: [project] / [project.optional-dependencies].
+# Refresh: python3 scripts/sync_requirements.py
+
+-r base.txt
+
+modal==1.5.5

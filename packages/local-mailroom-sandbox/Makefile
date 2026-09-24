@@ -4,6 +4,13 @@ install:
 	pip install -e ".[dev,notebooks]"
 	@if [ ! -f .env ]; then cp config/.env.example .env; else echo "(.env already exists — left untouched)"; fi
 
+# Regenerate requirements/*.txt from pyproject.toml (DMR-078b).
+requirements-sync:
+	python3 scripts/sync_requirements.py
+
+requirements-check:
+	python3 scripts/sync_requirements.py --check
+
 test:
 	pytest -v
 

@@ -12,18 +12,24 @@ export class PipelineWebSocket {
   private listeners: Set<(event: unknown) => void> = new Set()
   private matterId: string | null = null
   private closed = false
+  private backoffMs = 3000
+  private readonly maxBackoffMs = 30000
+  private onConnectionChange: ((connected: boolean) => void) | null = null
 
-  connect(matterId?: string) {
+  connect(matterId?: string, onConnectionChange?: (connected: boolean) => void) {
     this.closed = false
     this.matterId = matterId || null
-    const token = localStorage.getItem('mailroom_token') || ''
-    const params = new URLSearchParams()
-    if (token) params.set('token', token)
-    const query = params.toString()
-    const url = `${wsOrigin()}/ws/pipeline${query ? `?${query}` : ''}`
+    if (onConnectionChange) this.onConnectionChange = onConnectionChange
+    const url = `${wsOrigin()}/ws/pipeline`
     this.ws = new WebSocket(url)
 
     this.ws.onopen = () => {
+      this.backoffMs = 3000
+      const token = localStorage.getItem('mailroom_token') || ''
+      if (token) {
+        this.ws?.send(JSON.stringify({ action: 'auth', token }))
+      }
+      this.onConnectionChange?.(true)
       if (this.matterId) {
         this.ws?.send(JSON.stringify({ action: 'subscribe', matter_id: this.matterId }))
       }
@@ -38,9 +44,16 @@ export class PipelineWebSocket {
       }
     }
 
+    this.ws.onerror = () => {
+      this.onConnectionChange?.(false)
+    }
+
     this.ws.onclose = () => {
+      this.onConnectionChange?.(false)
       if (this.closed) return
-      this.reconnectTimer = setTimeout(() => this.connect(this.matterId || undefined), 3000)
+      const delay = this.backoffMs
+      this.backoffMs = Math.min(this.backoffMs * 2, this.maxBackoffMs)
+      this.reconnectTimer = setTimeout(() => this.connect(this.matterId || undefined), delay)
     }
   }
 
@@ -54,6 +67,7 @@ export class PipelineWebSocket {
   disconnect() {
     this.closed = true
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
+    this.onConnectionChange?.(false)
     this.ws?.close()
     this.ws = null
   }

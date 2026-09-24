@@ -21,11 +21,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }, [dark])
 
   useEffect(() => {
-    pipelineWS.connect()
+    pipelineWS.connect(undefined, (live) => setConnected(live))
     const unsub = pipelineWS.onMessage((event: unknown) => {
       const payload = event as WSEvent
       setLastEvent(payload)
-      setConnected(true)
       if (payload.type === 'stage_change' && typeof payload.doc_id === 'string') {
         updateDocumentStage(payload.doc_id, String(payload.to_stage || 'processing'))
       }

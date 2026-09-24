@@ -397,11 +397,14 @@ def check_taxonomy_yaml(source: str, canon: set[str]) -> list[str]:
                     problems.append(f"{TAXONOMY_YAML}: live class {entry['key']!r} missing {field!r}")
     merger = next((e for e in entries if e["key"] == "merger_agreement"), None)
     if merger and merger.get("status") != "retired":
-        if merger.get("specialist") != "contracts_specialist" or merger.get("schema") != "ContractExtraction":
+        if (
+            merger.get("specialist") != "merger_agreement_specialist"
+            or merger.get("schema") != "MergerAgreementExtraction"
+        ):
             problems.append(
                 f"{TAXONOMY_YAML}: merger_agreement must route to "
-                "contracts_specialist / ContractExtraction while staying a "
-                "distinct class (plan §6/§81); got "
+                "merger_agreement_specialist / MergerAgreementExtraction "
+                "(DMR-078 dedicated MAUD specialist); got "
                 f"specialist={merger.get('specialist')!r} schema={merger.get('schema')!r}"
             )
     return problems

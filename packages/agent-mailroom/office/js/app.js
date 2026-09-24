@@ -230,7 +230,7 @@ function appendLog(event) {
   consoleLog.textContent = logLines.slice(-80).join("\n");
 }
 
-let DOC_CLASSES = ["contract", "merger_agreement", "corporate_record", "correspondence", "compliance_filing", "insurance_claim"];
+let DOC_CLASSES = ["contract", "merger_agreement", "corporate_record", "correspondence", "insurance_claim"];
 let SUBCLASS_CATALOG = {};
 let archiveReconsiderOnly = false;
 

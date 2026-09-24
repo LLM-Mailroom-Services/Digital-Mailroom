@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { stageToBin } from '@/api/documents'
 import type { Document, PipelineQueue } from '@/types/api'
 
 interface PipelineState {
@@ -42,9 +43,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
     const found = allDocs(queue).find((d) => d.doc_id === docId)
     const rest = allDocs(queue).filter((d) => d.doc_id !== docId)
     if (found) {
-      found.status = (['inbox', 'processing', 'classified', 'review', 'failed', 'archive'].includes(stage)
-        ? stage
-        : 'processing') as Document['status']
+      found.status = stageToBin(stage)
       found.stage = stage
       rest.push(found)
     }

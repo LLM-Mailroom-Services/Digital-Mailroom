@@ -67,11 +67,14 @@ Thumbs.db
 *.swo
 *~
 *.db
-data/mailroom.db-shm
-data/mailroom.db-wal
+data/*.db-shm
+data/*.db-wal
+data/watcher_heartbeat
 data/watcher_heartbeat.tmp
+data/runtime/
+data/pipeline/
+data/archive/
 
 # Vercel serverless functions (board-site deploy root)
 .vercel/
 .vercel
-scripts/tests/__pycache__/

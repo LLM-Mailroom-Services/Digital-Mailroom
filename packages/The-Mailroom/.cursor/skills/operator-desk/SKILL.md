@@ -32,7 +32,9 @@ python -m operator_desk
 # Compose = single front door: nginx :80 only published port, /desk baked
 # into the `operator` image target, in-process watcher via MAILROOM_OBSERVER=1.
 # Fail-fast required env:
-# MAILROOM_OPERATOR_JWT_SECRET / MAILROOM_OPERATOR_ADMIN_PASSWORD.
+# MAILROOM_OPERATOR_JWT_SECRET / MAILROOM_OPERATOR_ADMIN_PASSWORD
+# (${VAR:?} plus in-process fail-closed outside MAILROOM_ENV=development
+# / MAILROOM_OPERATOR_ALLOW_DEV_DEFAULTS=1).
 docker compose -f operator_desk/docker-compose.yml up --build
 ```
 

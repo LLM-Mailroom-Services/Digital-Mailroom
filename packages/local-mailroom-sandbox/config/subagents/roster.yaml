@@ -1,0 +1,6 @@
+# Effective roster for this checkout (local-mailroom-sandbox).
+# Canonical family manifest: family-roster.yaml
+
+version: 1
+package: local-mailroom-sandbox
+extends: family-roster.yaml

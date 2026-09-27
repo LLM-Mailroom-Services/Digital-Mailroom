@@ -1,4 +1,4 @@
-# Fast-forwards main to feeder sync commit dc5eeb1d via git bundle.
+# Fast-forwards main to merged feeder sync via git bundle.
 name: Apply feeder resync bundle
 
 on:
@@ -14,7 +14,7 @@ permissions:
 
 env:
   BUNDLE_BASE: https://raw.githubusercontent.com/Exios66/llm-dojo-scoring/cursor/feeder-bundle-host-d595/tools/digital-mailroom-feeder-resync
-  TARGET_SHA: dc5eeb1d8b83a05b1463a5e8c78c521c362bac42
+  TARGET_SHA: 00f263e3b413c7a9daed33424c4ac4a2ee6f02f2
 
 jobs:
   apply:
@@ -43,8 +43,8 @@ jobs:
           base64 -d /tmp/feeder-resync.bundle.b64 > /tmp/feeder-resync.bundle
           git bundle verify /tmp/feeder-resync.bundle
 
-      - name: Force-update main to bundle HEAD
+      - name: Fast-forward main to bundle HEAD
         if: steps.skip.outputs.skip != 'true'
         run: |
           git fetch /tmp/feeder-resync.bundle HEAD:refs/heads/feeder-resync
-          git push --force-with-lease origin refs/heads/feeder-resync:main
+          git push origin refs/heads/feeder-resync:main

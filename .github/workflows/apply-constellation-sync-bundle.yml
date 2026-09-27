@@ -1,0 +1,29 @@
+# One-shot import of the verified constellation feeder sync (211 paths).
+# After merging the PR that adds tools/constellation-sync.bundle.b64, run this
+# workflow manually (Actions → Apply constellation sync bundle → Run workflow).
+name: Apply constellation sync bundle
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decode bundle
+        run: |
+          cat tools/constellation-sync.bundle.b64.part* > /tmp/constellation-sync.bundle.b64
+          base64 -d /tmp/constellation-sync.bundle.b64 > /tmp/constellation-sync.bundle
+          git bundle verify /tmp/constellation-sync.bundle
+
+      - name: Fast-forward main to bundled sync commit
+        run: |
+          git fetch /tmp/constellation-sync.bundle HEAD:refs/heads/constellation-feeder-sync
+          git push origin refs/heads/constellation-feeder-sync:main

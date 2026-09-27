@@ -533,7 +533,7 @@ Suite: 209 passed / 5 skipped (was 193/5).
     pattern.
   - `arbiter` — Judgment Arbitration (tasks verify/review, bundle `audit`,
     ground-truth-free): escalation lane when an in-pipeline judge verdict
-    fails.
+  fails.
   Audit profiles never require ground truth (they verify specialist output,
   not GT fields). All bundles resolve eagerly; existing 14 profiles unchanged.
 

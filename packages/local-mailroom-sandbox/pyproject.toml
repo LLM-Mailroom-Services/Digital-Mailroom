@@ -46,11 +46,18 @@ pipeline = [
     "langgraph>=0.2",
     "requests>=2.31",
     "watchdog>=4.0",
-    # DMR-067: vendored graph's live storage surface (storage.catalog /
-    # storage.audit_log in build_graph.py) + llm.prompts importable roster —
-    # absent before, every live doc logged catalog_upsert_error (non-fatal)
-    # and the agent roster degraded to the static 18.
+    # DMR-067/078: vendored graph live storage (storage.catalog / audit_log)
+    # uses ``sqlite+aiosqlite://`` by default — sqlalchemy alone is not enough.
+    # greenlet is required for SQLAlchemy asyncio on the platforms we run.
     "sqlalchemy>=2.0",
+    "aiosqlite>=0.20",
+    "greenlet>=3.0",
+    # PDF / page-image path used by specialist extract + intake (pypdf /
+    # pdfplumber / pillow). Soft-imported in agents, but Modal + Docker
+    # specialist runs must have them present.
+    "pypdf>=4.0",
+    "pdfplumber>=0.11",
+    "pillow>=10.0",
 ]
 notebooks = [
     "jupyterlab>=4.2",

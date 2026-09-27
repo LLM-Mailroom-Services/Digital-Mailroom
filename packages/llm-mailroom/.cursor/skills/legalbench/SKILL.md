@@ -30,8 +30,10 @@ PYTHONPATH=src python -m legalbench.cli --task family_classification --n 20 --mo
 `--mock` uses a deterministic fake model (`mock/mock-legalbench` in the log).
 Corpus is local (`data/cuad/`). Reuses `BaseAgent` retry/usage — no extra deps.
 
-Do **not** hand-edit `docs/reports/experiments/experiment_log.md` (synced
-mirror). Observation name for answers: `answer-question` (index in metadata).
+Do **not** hand-edit the synced experiment log under
+`packages/llm-entity-extraction/reports/experiment_log.{jsonl,md}` (regenerate via
+`render_experiment_log.py` in that package). Observation name for answers:
+`answer-question` (index in metadata).
 
 ## Related
 

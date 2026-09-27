@@ -45,10 +45,16 @@ plain-proxies it. See [`../operator_desk/README.md`](../operator_desk/README.md)
 cd ../operator_desk
 export MAILROOM_OPERATOR_JWT_SECRET="$(openssl rand -hex 32)"
 export MAILROOM_OPERATOR_ADMIN_PASSWORD='<strong-password>'
-docker compose up --build          # → http://localhost/desk
+docker compose -f operator_desk/docker-compose.yml up --build          # → http://localhost/desk
 ```
 
 `ui/Dockerfile` remains as an **optional standalone** UI image (serves the
-build at `/desk/` and proxies `/api` `/v1` `/ws` to a backend reachable as
+build at `/` and proxies `/api` `/v1` `/ws` to a backend reachable as
 `mailroom:8001` on a shared network). It is not part of the production
-compose.
+compose. To build/run the standalone image for development/evaluation:
+
+```bash
+docker build -t mailroom-ui ./ui        # VITE_BASE=/ → serves SPA at /
+# run on a network shared with the backend, then open :5174
+docker run --network mailroom-net -p 5174:80 mailroom-ui
+```

@@ -43,10 +43,11 @@ job:
   mock: true
   max_retries: 2
   fail_fast: false
-  # Throughput (Modal vllm_throughput exemplar): 1 = serial default; set
-  # 4-16 when scoring against a vLLM endpoint so the runner fills the
-  # engine's continuous batching (docs/jobs.md).
-  concurrency: 1
+  # Throughput (Modal vllm_throughput exemplar): default JobSpec.concurrency
+  # is 4 (efficient conservative vs a vLLM endpoint). Set 1 explicitly for
+  # CPU Ollama or per-item latency-sensitive runs; 4-16 fills continuous
+  # batching (docs/jobs.md).
+  concurrency: 4
 
 trace:
   sink: none                 # none | langfuse | phoenix | otlp
@@ -59,11 +60,11 @@ trace:
 #     provider: huggingface
 #     repo: Lucius-Morningstar/mailroom-dataset
 #     config: ground_truth          # labels + doc_text joined on filename
-#     split: test
+#     split: all                    # train+test; required for 40/100-per-class
 #     revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (MAILROOM_HF_REVISION)
 #     strata:
-#       expected: [insurance_claim, contract]
-#     limit: 50
+#       buckets:
+#         - {doc_class: merger_agreement, count: 40}   # max 152 at the family pin
 #     sample_seed: 42
 #
 # Live Langfuse sink (needs LANGFUSE_PUBLIC_KEY/SECRET_KEY/HOST in .env):

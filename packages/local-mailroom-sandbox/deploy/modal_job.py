@@ -87,17 +87,35 @@ image = (
         remote_path=f"{SANDBOX_ROOT}/vendor/llm-dojo-scoring/src",
     )
     .uv_pip_install(
-        "httpx",
+        # Keep in sync with pyproject.toml extras used by specialist Modal jobs
+        # (base + pipeline + observability). requirements/modal-job.txt mirrors
+        # this list; tests/test_requirements.py guards both surfaces.
+        "httpx>=0.27",
         "openai>=1.30",
         "pydantic>=2.0",
         "pyyaml>=6.0",
         "python-dotenv>=1.0",
         "structlog>=24.0",
-        "huggingface_hub",
-        "pyarrow",
+        "numpy>=1.26",
+        "pandas>=2.0",
+        "matplotlib>=3.8",
+        "openpyxl>=3.1",
+        "huggingface_hub>=0.24",
+        "pyarrow>=15.0",
+        "langchain-core>=0.3",
+        "langchain-openai>=0.2",
+        "langgraph>=0.2",
+        "requests>=2.31",
+        "watchdog>=4.0",
+        "sqlalchemy>=2.0",
+        "aiosqlite>=0.20",
+        "greenlet>=3.0",
+        "pypdf>=4.0",
+        "pdfplumber>=0.11",
+        "pillow>=10.0",
         "langfuse>=4.0,<5",
-        "opentelemetry-sdk",
-        "opentelemetry-exporter-otlp-proto-http",
+        "opentelemetry-sdk>=1.25",
+        "opentelemetry-exporter-otlp-proto-http>=1.25",
     )
     .env(
         {

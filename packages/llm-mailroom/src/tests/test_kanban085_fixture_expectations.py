@@ -37,23 +37,31 @@ def test_every_literal_key_resolves_to_existing_file():
 
 
 def test_every_glob_matches_at_least_one_fixture():
+    missing: list[str] = []
     for key, _ in vp.FIXTURE_EXPECTATIONS.items():
         if not key.endswith("/*"):
             continue
         d = REPO_ROOT / key[:-2]
         if not d.is_dir():
-            pytest.skip(f"glob directory absent (pruned heavy asset in monorepo): {key}")
-        assert d.is_dir(), f"glob directory missing: {key}"
+            missing.append(key)
+            continue
         assert any(d.glob("*")), f"glob matches zero fixtures: {key}"
+    if missing:
+        pytest.skip(
+            "pruned heavy-asset glob dirs absent in monorepo: "
+            + ", ".join(missing)
+        )
 
 
 def test_matcher_engages_for_every_entry():
     """_expectation_for() returns each entry's expected class for a real path."""
+    missing_globs: list[str] = []
     for key, (expected_cls, expected_subtype) in vp.FIXTURE_EXPECTATIONS.items():
         if key.endswith("/*"):
             d = REPO_ROOT / key[:-2]
             if not d.is_dir():
-                pytest.skip(f"glob directory absent (pruned heavy asset in monorepo): {key}")
+                missing_globs.append(key)
+                continue
             path = sorted(d.glob("*"))[0]
         else:
             path = REPO_ROOT / key
@@ -62,6 +70,10 @@ def test_matcher_engages_for_every_entry():
         if expected_subtype is not None:
             assert subtype == expected_subtype
         assert stage is None  # intrinsic fixtures carry no stage expectation
+    if missing_globs:
+        pytest.skip(
+            "skipped matcher checks for pruned glob dirs: " + ", ".join(missing_globs)
+        )
 
 
 def test_registry_shape_unchanged():

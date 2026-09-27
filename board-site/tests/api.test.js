@@ -289,5 +289,91 @@ function reset() {
     assert.ok(src.includes("setFormLaneOptions(false);"), "edit path must restore the full lane set");
   });
 
+  await check("GET board without GITHUB_TOKEN returns 500", async () => {
+    reset();
+    const saved = process.env.GITHUB_TOKEN;
+    delete process.env.GITHUB_TOKEN;
+    try {
+      const res = await runHandler(boardHandler, makeReq("GET", "/api/board"));
+      assert.strictEqual(res.statusCode, 500, `expected 500 got ${res.statusCode}`);
+      assert.ok(res._body.includes("GITHUB_TOKEN"), res._body);
+    } finally {
+      process.env.GITHUB_TOKEN = saved;
+    }
+  });
+
+  await check("GET board passes through GitHub 401", async () => {
+    reset();
+    const origFetch = global.fetch;
+    global.fetch = async () => ({
+      ok: false,
+      status: 401,
+      headers: new Map(),
+      text: async () => JSON.stringify({ message: "Bad credentials" }),
+    });
+    try {
+      const res = await runHandler(boardHandler, makeReq("GET", "/api/board"));
+      assert.strictEqual(res.statusCode, 401, res._body);
+    } finally {
+      global.fetch = origFetch;
+    }
+  });
+
+  await check("GET board returns rateLimited JSON after GitHub 429 (hub#166)", async () => {
+    reset();
+    const origFetch = global.fetch;
+    let hits = 0;
+    global.fetch = async () => {
+      hits++;
+      return {
+        ok: false,
+        status: 429,
+        headers: { get: (name) => (name === "retry-after" ? "0" : null) },
+        text: async () => JSON.stringify({ message: "API rate limit exceeded" }),
+      };
+    };
+    try {
+      const res = await runHandler(boardHandler, makeReq("GET", "/api/board"));
+      assert.strictEqual(res.statusCode, 503, res._body);
+      const body = JSON.parse(res._body);
+      assert.strictEqual(body.rateLimited, true);
+      assert.ok(hits >= 3, "expected retries before surfacing rate limit");
+    } finally {
+      global.fetch = origFetch;
+    }
+  });
+
+  await check("index.html keeps cards when refresh hits rateLimited (hub#166)", () => {
+    const src = require("node:fs").readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    assert.ok(src.includes("if (err.rateLimited)"), "refreshBoard must branch on rateLimited");
+    assert.ok(src.includes("● RATE LIMITED"), "rate limit badge copy present");
+    const rateBranch = src.slice(src.indexOf("if (err.rateLimited)"), src.indexOf("} else {", src.indexOf("if (err.rateLimited)")));
+    assert.ok(!rateBranch.includes("state.cards = []"), "rate limit branch must not wipe cards");
+  });
+
+  await check("GET board maps fetch network failure to 502", async () => {
+    reset();
+    const origFetch = global.fetch;
+    global.fetch = async () => {
+      throw new Error("ECONNRESET");
+    };
+    try {
+      const res = await runHandler(boardHandler, makeReq("GET", "/api/board"));
+      assert.strictEqual(res.statusCode, 502, res._body);
+      assert.ok(res._body.includes("unreachable"), res._body);
+    } finally {
+      global.fetch = origFetch;
+    }
+  });
+
+  await check("writeThrough snapshots card before mutation (hub#168)", () => {
+    const src = require("node:fs").readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    assert.ok(src.includes("function snapshotCard(card)"), "snapshot helper required");
+    assert.ok(src.includes("const prev = snapshotCard("), "writeThrough must snapshot before PATCH");
+    const wt = src.slice(src.indexOf("async function writeThrough"), src.indexOf("// ─── STATE MANAGEMENT"));
+    assert.ok(!wt.includes("throw err"), "writeThrough must not rethrow after toast");
+    assert.match(src, /writeThrough\(cardId, \{ archived: true[\s\S]*?\.catch\(\(\) => \{\}\)/, "archive must catch");
+  });
+
   console.log(`\n${passed} checks passed`);
 })();

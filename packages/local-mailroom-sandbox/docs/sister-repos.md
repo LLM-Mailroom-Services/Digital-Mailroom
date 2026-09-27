@@ -13,8 +13,10 @@ the code it imports at runtime ships as tracked snapshots under `vendor/`:
 
 Umbrella map: [llm-mailroom/docs/sister-repos.md](https://github.com/Exios66/llm-mailroom/blob/main/docs/sister-repos.md).
 
-Do not duplicate the 13-node graph here. Do not create a second kanban board;
-cross-repo work stays on llm-entity-extraction's MESSAGE_BOARD.
+Do not duplicate the 13-node graph here. Sandbox-isolated tasks use the local
+**`SAND-*`** board ([`governance/TASKS.md`](../governance/TASKS.md)); do not
+open `DMR-*` cards in this repo. Cross-repo / family-pipeline work stays on
+llm-entity-extraction's MESSAGE_BOARD as **`DMR-*`**.
 
 Sandbox traces use the same Langfuse v4 contract as llm-mailroom
 (`document-pipeline` chain, `NODE_OBSERVATION_TYPES`, `mailroom` tag) so

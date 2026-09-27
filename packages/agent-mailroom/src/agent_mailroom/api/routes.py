@@ -113,6 +113,33 @@ def _hive_stats() -> dict[str, Any]:
     }
 
 
+MAX_UPLOAD_BYTES = int(os.environ.get("MAILROOM_MAX_UPLOAD_BYTES", 50 * 1024 * 1024))
+
+
+def _database_reachable() -> bool:
+    from agent_mailroom.storage.db import connect, init_db
+
+    init_db()
+    try:
+        with connect() as conn:
+            conn.execute("SELECT 1").fetchone()
+        return True
+    except Exception:
+        return False
+
+
+def _document_stage_totals() -> dict[str, int]:
+    from agent_mailroom.storage.db import connect, init_db, locked
+
+    init_db()
+    totals: dict[str, int] = {}
+    with locked():
+        with connect() as conn:
+            for row in conn.execute("SELECT stage, COUNT(*) AS n FROM documents GROUP BY stage"):
+                totals[row["stage"]] = int(row["n"])
+    return totals
+
+
 @router.get("/health")
 def health() -> dict[str, Any]:
     watch = watcher_status()
@@ -129,7 +156,7 @@ def health() -> dict[str, Any]:
         "checks": {
             "llm_provider": provider_status()["active"],
             "llm": provider_status(),
-            "database": True,
+            "database": _database_reachable(),
             "watcher": lamp,
             "watcher_embedded": watch["running"],
             "inbox_pending": watch["inbox_pending"],
@@ -206,9 +233,12 @@ async def upload(
     suffix = Path(file.filename or "document.txt").suffix.lower()
     if suffix not in accepted_extensions():
         raise HTTPException(status_code=400, detail=f"unsupported extension {suffix}")
-    raw = await file.read()
-    if len(raw) > 20 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="file too large")
+    raw = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"file exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB upload limit",
+        )
     doc_id = str(uuid4())
     _accept_inbox(raw, file.filename or "upload.bin", doc_id=doc_id, matter_id=matter_id, source="upload")
     return JSONResponse(
@@ -274,19 +304,30 @@ def resolve(
     decision = body.decision.lower()
     disposition = body.disposition.lower()
     override = body.override_doc_type or body.doc_type
+    if decision not in {"approved", "rejected"}:
+        raise HTTPException(status_code=400, detail="decision must be 'approved' or 'rejected'")
+    if disposition not in {"resume", "record", "requeue", "complete"}:
+        raise HTTPException(
+            status_code=400,
+            detail="disposition must be 'resume', 'record', 'requeue', or 'complete'",
+        )
 
     if disposition == "record":
         from agent_mailroom.storage.audit import write_audit
         from agent_mailroom.storage.catalog import upsert_document
         from agent_mailroom.schemas.manifest import DocumentManifest, PipelineStage
 
+        try:
+            stage = PipelineStage(row["stage"])
+        except ValueError:
+            stage = PipelineStage.REVIEW
         upsert_document(
             DocumentManifest(
                 doc_id=doc_id,
                 matter_id=row["matter_id"],
                 original_filename=row["original_filename"],
-                stage=PipelineStage.REVIEW,
-                graph_node="human_review",
+                stage=stage,
+                graph_node=row.get("graph_node"),
                 doc_type=override or row.get("doc_type"),
                 doc_subclass=body.doc_subclass or row.get("doc_subclass"),
                 classification_confidence=row.get("classification_confidence"),
@@ -315,8 +356,14 @@ def resolve(
         _accept_inbox(parked.read_bytes(), parked.name, doc_id=new_id, matter_id=row["matter_id"], source="requeue")
         from agent_mailroom.storage.audit import write_audit
 
-        write_audit(doc_id=doc_id, matter_id=row["matter_id"], event="review_requeued", actor="human", detail={})
-        return {"status": "requeued", "doc_id": doc_id}
+        write_audit(
+            doc_id=doc_id,
+            matter_id=row["matter_id"],
+            event="review_requeued",
+            actor="human",
+            detail={"new_doc_id": new_id},
+        )
+        return {"status": "requeued", "doc_id": new_id, "from_doc_id": doc_id}
 
     if disposition == "complete" and decision != "approved":
         raise HTTPException(status_code=400, detail="disposition=complete requires decision=approved")
@@ -401,6 +448,7 @@ def queue(authorization: str | None = Header(default=None)) -> dict[str, Any]:
                 "path": str(path),
             }
         )
+    stage_totals = _document_stage_totals()
     docs = list_documents(200)
     return {
         "inbox": hopper,
@@ -410,8 +458,9 @@ def queue(authorization: str | None = Header(default=None)) -> dict[str, Any]:
         "recent": [document_view(d) for d in docs[:20]],
         "counts": {
             "inbox": len(hopper),
-            "processing": sum(1 for d in docs if d["stage"] in {"processing", "classified"}),
-            "review": sum(1 for d in docs if d["stage"] == "review"),
+            "processing": stage_totals.get("processing", 0) + stage_totals.get("classified", 0),
+            "review": stage_totals.get("review", 0),
+            "truncated_sample": len(docs) < sum(stage_totals.values()),
         },
     }
 
@@ -513,7 +562,8 @@ def matter(matter_id: str, authorization: str | None = Header(default=None)) -> 
 
 
 @router.get("/floor")
-def floor() -> dict[str, Any]:
+def floor(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    _auth(authorization)
     docs = list_documents(80)
     runs = [floor_run(row) for row in docs]
     trays = floor_bins(runs)
@@ -577,15 +627,13 @@ def run_detail(doc_id: str, authorization: str | None = Header(default=None)) ->
 @router.get("/metrics")
 def metrics(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     _auth(authorization)
+    stage_totals = _document_stage_totals()
     docs = list_documents(500)
     runs = [floor_run(row) for row in docs]
-    stages: dict[str, int] = {}
-    for run in runs:
-        stage = str(run.get("stage") or "unknown")
-        stages[stage] = stages.get(stage, 0) + 1
     return {
-        "documents": len(runs),
-        "stages": stages,
+        "documents": sum(stage_totals.values()),
+        "stages": stage_totals,
+        "truncated_sample": len(docs) < sum(stage_totals.values()),
         "field_scoring": metrics_summary(),
         "observability": flush_health(),
         "bins": floor_bins(runs),
@@ -593,7 +641,8 @@ def metrics(authorization: str | None = Header(default=None)) -> dict[str, Any]:
 
 
 @router.get("/hive")
-def hive() -> dict[str, Any]:
+def hive(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    _auth(authorization)
     roster = roster_status()
     inboxes = {name: list_inbox(name, 8) for name in roster}
     board_path = hive_dir() / "board.md"
@@ -619,12 +668,14 @@ def hive_board(authorization: str | None = Header(default=None)) -> dict[str, An
 
 
 @router.get("/console")
-def console() -> dict[str, Any]:
+def console(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    _auth(authorization)
     return {"events": recent(120)}
 
 
 @router.get("/meta")
-def meta() -> dict[str, Any]:
+def meta(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    _auth(authorization)
     tax = taxonomy()
     return {
         "service": "agent-mailroom",
@@ -903,8 +954,12 @@ def ops_sweep(authorization: str | None = Header(default=None)) -> dict[str, Any
 
 
 @router.post("/demo")
-def demo(body: DemoBody | None = None) -> dict[str, Any]:
+def demo(
+    body: DemoBody | None = None,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
     """Drop fixture samples onto the floor (mock LLM, no keys)."""
+    _auth(authorization)
     body = body or DemoBody()
     root = Path(__file__).resolve().parents[3] / "fixtures" / "samples"
     if not root.exists():

@@ -5,7 +5,8 @@
 `operator_desk/` is a dedicated submodule on the visualizer process. It is
 **not** a document-display source. Pixel console and Observatory stay the
 default vanilla desks. An optional React package lives in `ui/` and mounts
-at `/desk` only after `npm run build`.
+at `/desk` only after `npm run build` (or when baked into the `operator`
+Docker image target).
 
 ## What it adds
 
@@ -25,27 +26,39 @@ pip install -e ".[dev]"
 pip install -e ".[operator]"     # bcrypt, PyJWT, watchdog, PyMuPDF
 scripts/setup_operator.sh
 mailroom-web                     # mounts the desk on :8001
-MAILROOM_OBSERVER=1 mailroom-web # in-process bin watcher
-mailroom-observer                # standalone → POST /v1/ops/events
+MAILROOM_OBSERVER=1 mailroom-web # in-process bin watcher (compose default)
+mailroom-observer                # optional standalone → POST /v1/ops/events
+                                 # (set MAILROOM_OBSERVER=0 first; never both)
 ```
 
-Default admin is `admin`; set `MAILROOM_OPERATOR_ADMIN_PASSWORD` before any
-shared exposure (a local-dev fallback exists). Use
-`MAILROOM_OPERATOR_JWT_SECRET` (or `JWT_SECRET`) — never reuse
-`MAILROOM_PIPELINE_TOKEN`.
+`MAILROOM_OPERATOR_JWT_SECRET` (or `JWT_SECRET`) and
+`MAILROOM_OPERATOR_ADMIN_PASSWORD` are **required** outside explicit DEV
+mode — missing or known-unsafe values (`dev-secret-change-me` / `changeme`)
+abort at boot / migrate (bare `docker run`, k8s, and `mailroom-web` included).
+Local DX may opt in with `MAILROOM_OPERATOR_ALLOW_DEV_DEFAULTS=1` or
+`MAILROOM_ENV=development` (`MAILROOM_DEPLOY_MODE` / `ENV` aliases). Never
+reuse `MAILROOM_PIPELINE_TOKEN` as the JWT secret. Compose `${VAR:?}`
+guards are unchanged.
 
-Compose — the production path (visualizer + observer + nginx, no local
-Langfuse). The `operator` image target installs `.[operator]` and bakes the
-React `/desk` build; nginx `:80` is the single front door. Both
-`MAILROOM_OPERATOR_JWT_SECRET` and `MAILROOM_OPERATOR_ADMIN_PASSWORD` are
-required (compose fails fast):
+Compose — single front door, operator edition (visualizer + nginx; nginx
+`:80` is the only published port; the visualizer builds the `operator`
+image target — `.[operator]` extras + the baked React `ui/dist`, served
+at `/desk` — and runs the in-process bin watcher via `MAILROOM_OBSERVER=1`).
+Do not start a second `mailroom-observer` container on the same volume):
 
 ```bash
-cd packages/The-Mailroom/operator_desk
 export MAILROOM_OPERATOR_JWT_SECRET="$(openssl rand -hex 32)"
 export MAILROOM_OPERATOR_ADMIN_PASSWORD='<strong-password>'
-docker compose up --build          # → http://localhost/ , /live , /desk
+docker compose -f operator_desk/docker-compose.yml up --build
+# → http://localhost/desk
 ```
+```
+
+Both secrets are fail-fast (`${VAR:?}` — compose refuses to start without
+them). `MAILROOM_OPERATOR_INGEST_TOKEN` is only needed for the optional
+standalone `mailroom-observer` CLI; the default compose path does not run
+that sidecar. The old `mailroom-ui` sidecar, the `mailroom-observer`
+sidecar, and the backend's `8001:8001` publish are gone.
 
 See `operator_desk/README.md` and `.env.example` (`MAILROOM_OPERATOR_*`).
 
@@ -53,7 +66,13 @@ Optional React desk, docker-free (Node 22+, never required for `mailroom-web`):
 
 ```bash
 cd ui && npm install && npm run build
-# then GET http://127.0.0.1:8001/desk
+# then GET http://127.0.0.1:8001/desk   (local non-docker path)
+```
+
+Standalone container (dev only — production uses the baked operator image):
+
+```bash
+docker build -t mailroom-ui ./ui && docker run -p 5174:80 mailroom-ui
 ```
 
 See `ui/README.md`. Extra `[ui]` is a marker only.

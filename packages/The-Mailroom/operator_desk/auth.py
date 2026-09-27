@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
+from .credentials import DEV_JWT_SECRET, configured_jwt_secret
 from .db import lookup_user, migrate, verify_password, write_audit
 
 log = logging.getLogger("mailroom.operator.auth")
@@ -53,20 +54,15 @@ def auth_required() -> bool:
 
 
 def jwt_secret() -> str:
+    """JWT signing secret. Fails closed unless DEV defaults are opted in."""
     global _warned_default_secret
-    secret = (
-        os.environ.get("MAILROOM_OPERATOR_JWT_SECRET")
-        or os.environ.get("JWT_SECRET")
-        or ""
-    ).strip()
-    if not secret:
-        secret = "dev-secret-change-me"
-        if not _warned_default_secret:
-            log.warning(
-                "MAILROOM_OPERATOR_JWT_SECRET unset — using the local-dev default. "
-                "Set a dedicated secret; do not reuse MAILROOM_PIPELINE_TOKEN."
-            )
-            _warned_default_secret = True
+    secret = configured_jwt_secret()
+    if secret == DEV_JWT_SECRET and not _warned_default_secret:
+        log.warning(
+            "MAILROOM_OPERATOR_JWT_SECRET unset or set to the local-dev default. "
+            "Set a dedicated secret; do not reuse MAILROOM_PIPELINE_TOKEN."
+        )
+        _warned_default_secret = True
     return secret
 
 

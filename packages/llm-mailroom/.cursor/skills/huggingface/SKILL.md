@@ -79,7 +79,10 @@ Re-probe: `PYTHONPATH=src python src/scripts/probe_hosted_spaces.py`.
 - `legalbench-full` is a LegalBench CLI pack, not document-pipeline ingest
   ([legalbench](../legalbench/SKILL.md)).
 - `merger_agreement` is its own class (not a CUAD alias).
-- Attribution: `docs/examples/samples/ATTRIBUTION.md`.
+- Attribution: sample licenses are documented in `AGENTS.md` (Pilot samples /
+  `docs/examples/samples/` when present in a full checkout) and regenerated via
+  `src/scripts/fetch_external_samples.py` — there is no committed
+  `docs/examples/samples/ATTRIBUTION.md` in a minimal monorepo clone.
 
 ## Related
 

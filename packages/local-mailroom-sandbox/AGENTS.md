@@ -48,6 +48,10 @@ unless explicitly opted in.
 
 ```bash
 pip install -e ".[dev]"
+# or: pip install -r requirements.txt   # → requirements/dev.txt (mirrors pyproject)
+# specialist / Modal live path also needs:
+#   pip install -e ".[pipeline,deploy]"
+#   # or: pip install -r requirements/pipeline.txt && pip install -r requirements/deploy.txt
 cp config/.env.example .env
 sandbox profiles
 sandbox agents list
@@ -64,7 +68,8 @@ sandbox eval pipeline --mock        # connected graph scores
 sandbox eval local_vs_api --mock    # Ollama vs OpenRouter serving (no API key)
 sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0 --mock --dry-run
 pytest -v                           # network-free; live LLM tests need SANDBOX_LOCAL_LLM=1
-sandbox datasets pull               # LIVE pinned Hub pull → data/cache/ (network; exit 1 on failure)
+sandbox datasets pull               # LIVE pinned FULL Hub pull (train+test, 3302 rows) → data/cache/
+sandbox datasets sample --per-class 40  # offline 40/class draw from that cache (20/40/100…)
 sandbox datasets prepare            # offline JSONL under data/runtime/prepared/
 sandbox up --compose-profile jupyter  # Lab on :8888 (deploy/Dockerfile)
 sandbox tunnel plan|up|status|down    # SSH forward for vllm-remote (HUB-026)
@@ -99,6 +104,12 @@ sandbox metrics compare --runs local,modal,api   # serving metrics comparison
   (corpus strata vocabulary) + `expected_fields` (27-key GT schema subset:
   intent + provenance, sentiment, claims/entity fields) propagated into every
   eval row.
+- **1:1 live-class specialists:** `contract` → `contracts_specialist`,
+  `merger_agreement` → `merger_agreement_specialist`, `corporate_record` →
+  `corporate_records_specialist`, `correspondence` →
+  `correspondence_specialist`, `insurance_claim` →
+  `insurance_claims_specialist`. Merger no longer rides the CUAD contracts
+  agent.
 
 ## Architecture gotchas
 
@@ -110,7 +121,13 @@ sandbox metrics compare --runs local,modal,api   # serving metrics comparison
 - Scoring + pipeline are pinned by the tracked snapshots: `vendor/llm-mailroom/VENDOR.md` + `vendor/llm-dojo-scoring/VENDOR.md` — both track the monorepo workspace packages (hub#62 doctrine); refresh with `python scripts/sync_vendor.py` (monorepo root) or `sandbox fetch-deps` and commit the diff. `get_suite("local_vs_api")` compares offline vs API-key serving metrics (table + scorecard + cost; TTFT never inferred; GPU/KV stripped on API records).
 - Isolated evals call vendored agent classes (always importable now); the `offline_fallback` path still exists for missing deps.
 - `scripts/` and `legalbench/` are not in the installed `mailroom` wheel — they ARE in the vendored tree, which also supplies `PYTHONPATH` for `sandbox pipeline watcher` / `sandbox pipeline api` (`_mailroom_env` adds both vendored srcs).
-- No second kanban board in this repo. Cross-family work stays on llm-entity-extraction's MESSAGE_BOARD.
+- Sandbox-isolated work uses the local **`SAND-*`** board in
+  [`governance/TASKS.md`](governance/TASKS.md) (prefix cheat-sheet:
+  [`governance/PREFIX.md`](governance/PREFIX.md)). Do **not** open `DMR-*`
+  cards here. Cross-family / mailroom-pipeline work stays on
+  llm-entity-extraction's MESSAGE_BOARD as **`DMR-*`** — cite `Related:
+  DMR-NNN` on a SAND card when a sandbox change is driven by family work.
+  Do not invent a second family MESSAGE_BOARD in this repo.
 
 ## Tests
 

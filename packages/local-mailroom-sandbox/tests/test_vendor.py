@@ -83,6 +83,7 @@ def test_agent_prompt_names_merge_vendor_templates_and_static_roster():
         "observability.scores",
         "graph.build_graph",
         "agents.sorter",
+        "agents.merger_agreement_specialist",
         "llm_dojo_scoring.serving",
         "llm_dojo_scoring.experiment",
     ],

@@ -23,7 +23,7 @@ truth**; the standalone repos remain standalone and operational.
 python scripts/sync_packages.py status                       # drift report (fetches upstreams; --json for machines)
 python scripts/sync_packages.py pull  --package <name> --squash   # import upstream commits
 python scripts/sync_packages.py push  --package <name>       # publish monorepo commits upstream
-python scripts/sync_packages.py push  --package <name> --patch    # non-fast-forward fallback (HUB-012)
+python scripts/sync_packages.py push  --package <name> --patch    # content-only fast path (DMR-070); never for deletion-bearing deltas
 python scripts/sync_packages.py snapshot [--package <name>] [--force]  # re-baseline cursors (content-verified)
 ```
 
@@ -37,10 +37,11 @@ python scripts/sync_packages.py snapshot [--package <name>] [--force]  # re-base
   the whole range) is now structurally impossible without `--force`.
 - `pull` skips the subtree merge when the upstream tip is already contained
   in the package (the re-import loop killer).
-- `push --patch` is the scripted HUB-012 workaround: it rebuilds the
+- `push --patch` is the **content-only fast path** (DMR-070): it rebuilds the
   package's tracked files on top of the real upstream tip and lands ONE
-  fast-forward commit upstream, then re-baselines the cursor (`--dry-run`
-  prints the plan first).
+  fast-forward commit upstream, then re-baselines the cursor. It **refuses**
+  deletion-bearing monorepo deltas (exit 5) — use a full subtree `push`
+  without `--patch` for those. (`--dry-run` prints the plan first.)
 - `status` shows per-package `CURSOR GAP` flags and the monorepo-ahead file
   count — the unpushed delta, i.e. the release-train payload (HUB-005).
 - **The release-train sweep (HUB-005 propagation):** the all-packages

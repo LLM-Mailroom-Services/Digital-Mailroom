@@ -27,7 +27,6 @@ def classify(text: str) -> dict[str, Any]:
             ("board of directors", "resolved,", "written consent", "bylaws"),
         ),
         (
-            "compliance_filing",
             0.98,
             ("form 10-k", "form 10-q", "securities and exchange", "item 1a"),
         ),
@@ -117,15 +116,6 @@ def extract(doc_type: str, text: str) -> dict[str, Any]:
             "subject_matter": "Unpaid invoices and material breach",
             "keywords": ["demand", "breach", "invoices"],
             "confidence": 0.94,
-        }
-    if doc_type == "compliance_filing":
-        return {
-            "filing_type": _first(r"(Form 10-K|Form 10-Q|Form 8-K|S-1)", text) or "Form 10-K",
-            "regulatory_body": "SEC",
-            "entity_name": _first(r"([A-Z][A-Za-z0-9 .,&]+(?:, Inc\.))", text),
-            "status": "filed",
-            "key_requirements": ["Risk factors", "Financial statements"],
-            "confidence": 0.96,
         }
     if doc_type == "insurance_claim":
         return {

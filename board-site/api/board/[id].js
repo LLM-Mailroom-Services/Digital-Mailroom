@@ -48,7 +48,10 @@ module.exports = async function handler(req, res) {
     if (body.desc !== undefined) want.desc = String(body.desc).trim();
     if (body.evidence !== undefined) want.evidence = String(body.evidence).trim();
     if (body.agents !== undefined) {
-      want.agents = Array.isArray(body.agents) ? body.agents.map((a) => String(a).trim()).filter(Boolean) : [];
+      if (!Array.isArray(body.agents)) {
+        return sendJson(res, 400, { error: "agents must be an array" });
+      }
+      want.agents = body.agents.map((a) => String(a).trim()).filter(Boolean);
     }
     if (Object.keys(want).length === 0) return sendJson(res, 400, { error: "empty patch" });
     // hub#48: agent-facing contract — validate priority against the known
@@ -99,7 +102,9 @@ module.exports = async function handler(req, res) {
     }
 
     // 3. Title / body sections
-    const patch = { labels: nextLabels };
+    const patch = {};
+    const touchesLabels = "lane" in want || "priority" in want;
+    if (touchesLabels) patch.labels = nextLabels;
     if ("title" in want && want.title) patch.title = `${cardId}: ${want.title}`;
     if ("desc" in want || "evidence" in want || "lane" in want || "priority" in want || "agents" in want) {
       let nb = issue.body || "";
@@ -144,7 +149,12 @@ module.exports = async function handler(req, res) {
     return sendJson(res, 200, card);
   } catch (err) {
     const status = err.status || 500;
-    return sendJson(res, status, { error: err.message || String(err) });
+    const payload = { error: err.message || String(err) };
+    if (err.rateLimited) {
+      payload.rateLimited = true;
+      payload.retryAfter = err.retryAfter;
+    }
+    return sendJson(res, status, payload);
   }
 };
 

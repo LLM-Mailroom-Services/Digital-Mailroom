@@ -74,18 +74,36 @@ def test_modal_gpu_and_pin_validation():
 
 def test_job_concurrency_validation():
     # Modal vLLM throughput alignment: bounded concurrent per-item runs.
-    # Default stays 1 (serial, deterministic); validated [1, 64] so a runaway
-    # spec value is rejected at preflight, not discovered as a cost spike.
+    # Default is 4 (efficient conservative sweet spot vs continuous batching);
+    # validated [1, 64] so a runaway spec value is rejected at preflight.
     from mailroom_sandbox.job.spec import JobSpec
 
-    assert JobSpec().concurrency == 1
+    assert JobSpec().concurrency == 4
     assert JobSpec(concurrency=16).concurrency == 16
+    assert JobSpec(concurrency=1).concurrency == 1  # explicit serial still allowed
     with pytest.raises(ValidationError):
         JobSpec(concurrency=0)
     with pytest.raises(ValidationError):
         JobSpec(concurrency=65)
     # Behavioral knob: it must be covered by the spec hash like the others.
     assert spec_hash(_spec(job={"concurrency": 4})) != spec_hash(_spec(job={"concurrency": 8}))
+
+
+def test_modal_spec_efficient_defaults():
+    from mailroom_sandbox.job.spec import ModalSpec
+
+    m = ModalSpec()
+    assert m.gpu == "L4"
+    assert m.max_containers == 1
+    assert m.min_containers == 0
+    assert m.scaledown_seconds == 600
+    with pytest.raises(ValidationError):
+        ModalSpec(min_containers=-1)
+    with pytest.raises(ValidationError):
+        RunSpec(
+            profile="modal-vllm",
+            engine={"kind": "modal-vllm", "modal": {"min_containers": 2, "max_containers": 1}},
+        )
 
 
 def test_prompt_ref_invariants():
@@ -154,3 +172,37 @@ def test_strata_values_counts_mismatch_rejected():
 def test_strata_unknown_keys_rejected():
     with pytest.raises(ValueError, match="unknown keys"):
         DatasetSpec(strata={"bogus": 1})
+
+
+def test_strata_nested_sub_buckets_validates():
+    spec = RunSpec(
+        task="sorter",
+        profile="ollama",
+        dataset=DatasetSpec(
+            strata={
+                "buckets": [
+                    {
+                        "doc_class": "insurance_claim",
+                        "sub_buckets": [
+                            {"subclass": "auto", "count": 2},
+                            {"subclass": "pde", "count": 1},
+                        ],
+                    },
+                    {"doc_class": "contract", "count": 3},
+                ]
+            }
+        ),
+    )
+    buckets = spec.dataset.strata["buckets"]
+    assert buckets[0]["sub_buckets"][0] == {"subclass": "auto", "count": 2}
+
+
+def test_strata_nested_sub_buckets_shape_rejected():
+    for bad in (
+        {"buckets": [{"doc_class": "contract", "sub_buckets": []}]},
+        {"buckets": [{"doc_class": "contract", "sub_buckets": [{"subclass": "license"}]}]},
+        {"buckets": [{"doc_class": "contract", "sub_buckets": [{"count": 2}]}]},
+        {"buckets": [{"doc_class": "contract", "sub_buckets": [{"subclass": "license", "count": 0}]}]},
+    ):
+        with pytest.raises(ValueError):
+            DatasetSpec(strata=bad)

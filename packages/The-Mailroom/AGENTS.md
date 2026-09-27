@@ -57,7 +57,7 @@ python -m pytest tests/ -q     # whole suite (never hits real Langfuse)
 python -m server.main          # FastAPI web server on :8001 (also: mailroom-web)
 mailroom-hosted                # Observatory on 0.0.0.0 (public /live UI)
 mailroom-tui                   # TUI console (planned, M4)
-mailroom-observer              # optional operator bin watcher (or MAILROOM_OBSERVER=1)
+mailroom-observer              # optional CLI bin watcher (not compose; or MAILROOM_OBSERVER=1)
 pip install -e ".[operator]"   # bcrypt / PyJWT / watchdog / PyMuPDF
 python -m operator_desk        # migrate operator SQLite
 scripts/setup_operator.sh      # bins + migrate (no npm)
@@ -105,8 +105,9 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
   - `js/floor.js` — canvas conveyor renderer (stations, rollers, envelope animation, review/failed sidings, RECONSIDER parked on REVIEW even when stage is archived, tombstones for clean archived/failed runs). `js/api.js` (fetch + WS with reconnect + global error banner), `js/inspector.js`, `js/sessions.js`, `js/history.js`, `js/metrics.js`, `js/review.js`, `js/console.js`, `js/main.js` (app shell).
 - `operator_desk/` — operator submodule (not a display source): JWT auth
   (`/v1/auth`), local archive index (`/v1/archive`), Langfuse-backed ops
-  (`/v1/ops`), `/ws/pipeline`, and `mailroom-observer` (in-process via
-  `MAILROOM_OBSERVER=1`, or standalone POST to `/v1/ops/events`). Mounted
+  (`/v1/ops`), `/ws/pipeline`, and the bin observer (in-process via
+  `MAILROOM_OBSERVER=1` — compose default; optional standalone CLI POST to
+  `/v1/ops/events`, never both on the same bins). Mounted
   from `server/main.py` via `mount_operator`. Never imports `api.main`.
   Extra `[operator]`; default `[dev]` uses stdlib password/JWT fallbacks.
   Optional React desk lives in `ui/` (extra `[ui]` is a marker; Node is

@@ -73,8 +73,12 @@ local_catalog:
 
 # Per-model Modal+vLLM deploy matrix (MODAL_VLLM_MODEL / MODAL_VLLM_GPU /
 # MODAL_VLLM_QUANTIZATION / MODAL_VLLM_MAX_MODEL_LEN / MODAL_VLLM_TP_SIZE).
-# One deployment = one model; swap by re-exporting the knobs + `modal deploy
-# --strategy recreate`. Quantization must be left EMPTY for FP16 (bf16).
+# One deployment = one model; swap with:
+#   eval "$(sandbox modal-matrix env <HF-id> [--gpu GPU])"
+#   modal deploy deploy/modal_vllm.py --strategy recreate
+# Default specialist cost-eval posture: Qwen/Qwen3-8B @ L4 (do not change
+# run-30 YAMLs for one-off swaps — see docs/benchmark-l4.md).
+# Quantization must be left EMPTY for FP16 (bf16).
 modal_models:
   Qwen/Qwen3-8B:
     gpu: L4

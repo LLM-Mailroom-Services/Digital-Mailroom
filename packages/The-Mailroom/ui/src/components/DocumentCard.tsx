@@ -23,9 +23,10 @@ export default function DocumentCard({ document }: Props) {
   const stamp = document.updated_at || document.created_at
 
   return (
-    <div
+    <button
+      type="button"
       onClick={() => selectDocument(isSelected ? null : document)}
-      className={`p-3 rounded-md border cursor-pointer transition-all ${
+      className={`w-full text-left p-3 rounded-md border cursor-pointer transition-all ${
         isSelected
           ? 'border-primary bg-primary/5'
           : 'border-border bg-background hover:border-muted-foreground/30'
@@ -63,6 +64,6 @@ export default function DocumentCard({ document }: Props) {
           )}
         </div>
       </div>
-    </div>
+    </button>
   )
 }

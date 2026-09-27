@@ -1,15 +1,11 @@
-<div align="center">
-
 # 🖥️ Operator Desk
+
+**Docker Compose configuration for the Mailroom Operator Desk — single front door.**
 
 **JWT-gated operator surface: the optional React desk (`/desk`) and its
 auth / archive / ops / pipeline-WS backend.**
 
 Auth is minted **against this visualizer, not the producer.**
-
-</div>
-
----
 
 ## Structure
 
@@ -84,31 +80,43 @@ builds the `operator` target of `../Dockerfile`, which installs
 
 Two secrets are **required** and the compose file fails fast without them:
 
+Required env (fail fast — compose exits if unset; the operator process
+also refuses missing / known-unsafe values outside explicit DEV mode):
+
+| Var | Purpose |
+| :--- | :--- |
+| `MAILROOM_OPERATOR_JWT_SECRET` | JWT signing secret (or `JWT_SECRET` alias) |
+| `MAILROOM_OPERATOR_ADMIN_PASSWORD` | Admin login password |
+
+Local DX without those secrets: `MAILROOM_OPERATOR_ALLOW_DEV_DEFAULTS=1`
+or `MAILROOM_ENV=development`. Compose `${VAR:?}` is unchanged.
+
 ```bash
 cd packages/The-Mailroom/operator_desk
 export MAILROOM_OPERATOR_JWT_SECRET="$(openssl rand -hex 32)"
 export MAILROOM_OPERATOR_ADMIN_PASSWORD='<strong-password>'
-# optional: LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY for live data
-docker compose up --build
-```
+export MAILROOM_OPERATOR_JWT_SECRET="$(openssl rand -hex 32)"
+export MAILROOM_OPERATOR_ADMIN_PASSWORD='<strong-password>'
 
-| URL | Surface |
-| :--- | :--- |
-| `http://localhost/` | pixel console |
-| `http://localhost/live` | Observatory |
-| `http://localhost/desk` | React operator desk (login) |
-| `http://localhost/api/…`, `/v1/…`, `/ws`, `/ws/pipeline` | proxied to the backend |
+docker compose -f operator_desk/docker-compose.yml up --build
 
-Set the secrets in the invoking shell (or pass `docker compose --env-file`)
-before `up`; `${VAR:?…}` aborts the whole compose run if either is unset or
-empty. Generate a fresh JWT secret per deployment — never reuse
-`MAILROOM_PIPELINE_TOKEN`. Compose stores operator data in the
-`mailroom-data` volume (`/data/operator.db`).
+Front door: **http://localhost** — nginx `:80` is the only published port;
+the desk is at **`/desk`**. The backend port `8001` is NOT published. The
+visualizer builds the root Dockerfile's `operator` target (installs
+`.[operator]` via the `MAILROOM_EXTRAS` build arg and bakes `ui/dist`) and
+runs the in-process bin watcher (`MAILROOM_OBSERVER=1`). Do not add a
+`mailroom-observer` sidecar on the same volume (issue #78).
 
----
+## Services
 
-## Related Files
+| Service | Image | Purpose |
+| :--- | :--- | :--- |
+| `mailroom` | root `Dockerfile` → `target: operator` | Visualizer + `/v1/auth` `/v1/archive` `/v1/ops` `/ws/pipeline`, serves `/desk`, in-process bin watcher |
+| `nginx` | `nginx:alpine` | Reverse proxy — the only published front door (`:80`) |
 
-- `ui/` — React operator desk source (`/desk` mount enabled by `ui/dist`)
+The standalone `mailroom-observer` CLI (`python -m operator_desk.observer`,
+POST `/v1/ops/events`) is optional and **not** part of this compose file.
+If you run it, set `MAILROOM_OBSERVER=0` on `mailroom` first so the two
+watchers do not double-emit.
 - `hosted/` — Observatory (hosted edition)
 - `server/` — Backend server (`mount_operator` is wired at `server/main.py`)

@@ -1,16 +1,17 @@
-# Optional React operator desk — STANDALONE image.
-#
-# NOTE: production does NOT use this image. The operator compose builds the
-# `operator` target of the root Dockerfile, which bakes the same Vite build
-# into the backend image and serves it at /desk behind the single nginx front
-# door. This image exists only for isolating the React UI (e.g. `docker run`
-# against a backend reachable as `mailroom:8001` on a shared network).
+# Optional React operator desk — STANDALONE / manual use only.
+# Production compose (operator_desk/docker-compose.yml) does NOT use this
+# image: the desk is baked into the `operator` target of the root Dockerfile
+# and served at /desk via nginx (`:80`, single front door). This image is for local
+# evaluation: docker build -t mailroom-ui ./ui && docker run -p 5174:80 mailroom-ui
 FROM node:22-alpine AS builder
 ENV NODE_ENV=production
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm ci --no-audit --no-fund || npm install --no-audit --no-fund
 COPY . .
+# Standalone container serves the SPA at / (nginx root); the baked operator
+# desk inside the root image keeps the /desk/ base from vite.config.ts.
+ENV VITE_BASE=/
 RUN npm run build
 
 FROM nginx:alpine

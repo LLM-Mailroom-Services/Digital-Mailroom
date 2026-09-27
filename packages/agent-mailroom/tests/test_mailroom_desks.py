@@ -176,3 +176,39 @@ def test_sweep_and_meta(samples):
     sweep = client.post("/v1/ops/sweep").json()
     assert "escalated" in sweep
     assert "review" in sweep
+
+
+def test_record_on_archived_doc_preserves_stage(samples):
+    state = run_document(samples / "harborpoint_msa.txt", matter_id="ARC-REC")
+    assert state.stage == "archived"
+    client = TestClient(create_app())
+    recorded = client.post(
+        f"/v1/review/{state.doc_id}/resolve",
+        json={"decision": "approved", "disposition": "record", "notes": "note"},
+    )
+    assert recorded.status_code == 200
+    row = get_document(state.doc_id)
+    assert row["stage"] == "archived"
+
+
+def test_review_requeue_returns_new_doc_id(samples):
+    state = run_document(samples / "ambiguous_memo.txt", matter_id="RQ-NEW")
+    assert state.stage == "review"
+    client = TestClient(create_app())
+    body = client.post(
+        f"/v1/review/{state.doc_id}/resolve",
+        json={"decision": "approved", "disposition": "requeue"},
+    ).json()
+    assert body["status"] == "requeued"
+    assert body["from_doc_id"] == state.doc_id
+    assert body["doc_id"] != state.doc_id
+
+
+def test_resolve_rejects_invalid_decision(samples):
+    state = run_document(samples / "ambiguous_memo.txt", matter_id="BAD-DEC")
+    client = TestClient(create_app())
+    r = client.post(
+        f"/v1/review/{state.doc_id}/resolve",
+        json={"decision": "maybe", "disposition": "resume"},
+    )
+    assert r.status_code == 400

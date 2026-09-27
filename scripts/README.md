@@ -17,6 +17,7 @@
 | [`taxonomy_parity.py`](taxonomy_parity.py) | Doc-class taxonomy drift (CI gate) | `python scripts/taxonomy_parity.py` |
 | [`release_chain.py`](release_chain.py) | Hub release chain: changelog ↔ semver tags ↔ hub version (CI gate) | `python scripts/release_chain.py check` |
 | [`sync_packages.py`](sync_packages.py) | Reconcile package mirrors (status/pull/push/snapshot) | `python scripts/sync_packages.py status` |
+| [`sync_vendor.py`](sync_vendor.py) | Refresh sandbox vendor snapshots (byte-identical workspace packages) | `python scripts/sync_vendor.py` (`--check` for CI drift gate) |
 | [`release_notes.py`](release_notes.py) | Generate release notes from the changelog | `python scripts/release_notes.py` |
 | [`audit_references.py`](audit_references.py) | Org-migration reference audit (CI gate) | `python scripts/audit_references.py` |
 | [`deploy_gh_pages.py`](deploy_gh_pages.py) | Deploy the hub GitHub Pages surface | `python scripts/deploy_gh_pages.py` |
@@ -33,6 +34,14 @@ python scripts/sync_packages.py snapshot   # create snapshot
 ```
 
 Cursor state is stored in `scripts/packages_sync.json`.
+
+## Tests
+
+Hermetic unit tests for the governance/sync scripts:
+
+```bash
+python3 -m unittest discover scripts/tests
+```
 
 ## Related Scripts
 

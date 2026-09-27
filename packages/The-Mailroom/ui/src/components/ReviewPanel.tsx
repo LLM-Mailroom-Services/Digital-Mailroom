@@ -109,8 +109,9 @@ export default function ReviewPanel() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Disposition</label>
+              <label className="text-sm font-medium" htmlFor="review-disposition">Disposition</label>
               <select
+                id="review-disposition"
                 value={disposition}
                 onChange={(e) => setDisposition(e.target.value as ReviewResolution['disposition'])}
                 className="w-full mt-1 px-3 py-2 rounded-md border border-input bg-background text-sm"
@@ -123,8 +124,9 @@ export default function ReviewPanel() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Review comment</label>
+              <label className="text-sm font-medium" htmlFor="review-comment">Review comment</label>
               <textarea
+                id="review-comment"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 className="w-full mt-1 px-3 py-2 rounded-md border border-input bg-background text-sm"

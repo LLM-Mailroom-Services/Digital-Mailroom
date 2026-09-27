@@ -70,7 +70,7 @@ def regenerate_markdown(jsonl: Path | None = None) -> Path:
         )
         card = rec.get("serving_markdown")
         if not card:
-            nested = rec.get("local_vs_api") or {}
+            nested = rec.get("local_vs_api") or rec.get("sorter_vs_modernbert") or {}
             card = nested.get("markdown") if isinstance(nested, dict) else None
         if card:
             lines.extend(["", str(card).rstrip(), ""])

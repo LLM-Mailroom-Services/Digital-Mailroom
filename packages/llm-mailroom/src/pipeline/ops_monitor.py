@@ -68,6 +68,10 @@ class OpsMonitor:
         logger.info("ops_monitor_stopped")
 
     async def _sweep(self):
+        await self.sweep_once()
+
+    async def sweep_once(self) -> dict:
+        """Public one-shot sweep: gather metrics and Boss analysis (API contract)."""
         metrics = await self._gather_metrics()
         findings = await self._analyze_metrics(metrics)
         if findings.get("recommended_action") in ("alert", "pause_ingestion"):
@@ -87,6 +91,7 @@ class OpsMonitor:
                     logger.critical("ops_monitor_paused_ingestion")
                 else:
                     logger.error("ops_monitor_pause_write_failed")
+        return {"metrics": metrics, "findings": findings}
 
     async def _gather_metrics(self) -> dict:
         metrics = {

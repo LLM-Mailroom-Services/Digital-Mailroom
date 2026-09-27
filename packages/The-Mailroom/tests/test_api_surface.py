@@ -58,7 +58,7 @@ def test_every_meta_endpoint_is_reachable():
                 r = c.post(path, json={"href": "http://test", "events": []})
                 assert r.status_code == 200 and r.json()["ok"] is True
             elif method == "POST" and path == "/v1/auth/login":
-                r = c.post(path, json={"username": "admin", "password": "changeme"})
+                r = c.post(path, json={"username": "admin", "password": "test-operator-password"})
                 assert r.status_code == 200, f"{path} -> {r.status_code} {r.text[:200]}"
                 assert r.json()["token_type"] == "bearer"
 

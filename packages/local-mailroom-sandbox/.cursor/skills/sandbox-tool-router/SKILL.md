@@ -18,6 +18,7 @@ Read this skill **first** when the task touches providers, tracing, datasets, Do
 | Hosted eval / experiment logs (opt-in) | Braintrust | [braintrust](../braintrust/SKILL.md) | Braintrust as the default offline sink |
 | Hub datasets / model cards / HF cache | Hugging Face Hub + `sandbox datasets pull` | [huggingface](../huggingface/SKILL.md) | Live Hub pulls in default pytest |
 | Offline fixture prep | `sandbox datasets prepare` + notebooks | (prep helpers; no cloud) | Hub network in CI |
+| Sandbox-isolated tasks / governance | Local **`SAND-*`** board (`governance/TASKS.md`) | (this router + `governance/PREFIX.md`) | Family **`DMR-*`** MESSAGE_BOARD (cross-repo only) |
 
 ## Observability precedence (`OBSERVABILITY_PROVIDER`)
 

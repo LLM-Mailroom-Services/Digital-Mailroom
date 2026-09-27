@@ -52,7 +52,7 @@ def test_run_job_mock_completes(tmp_path):
     assert summary["state"] == "done"
     assert summary["cursor"] == 3 and summary["ok"] == 3
     items = store.load_items()
-    assert [i["index"] for i in items] == [0, 1, 2]
+    assert sorted(i["index"] for i in items) == [0, 1, 2]
     assert summary["scores"]["exact_match"] == 1.0
 
 
@@ -171,7 +171,7 @@ def test_run_job_concurrent_fail_fast_stops_scheduling(tmp_path, monkeypatch):
         if row.get("id") == "d0":
             raise RuntimeError("boom")
         cls = "contract" if str(row.get("id")) in {"d1", "d3"} else "insurance_claim"
-        return cls, True
+        return cls, {}
 
     monkeypatch.setattr(runner, "_predict_row", _boom_predict)
     summary = runner.run_job(store, mock=None)
@@ -375,3 +375,35 @@ def test_whole_run_failure_writes_failed_checkpoint(tmp_path, monkeypatch):
 
 
 pytestmark = pytest.mark.usefixtures("job_data_dir")
+
+
+# --- DMR-072: live sorter dead-path guards (silent-fallback trap) ---------
+
+def test_live_sorter_without_runtime_activation_raises(tmp_path, monkeypatch):
+    """The unactivated graph returns doc_type='unknown' without any LLM call —
+    _predict_row must refuse to score it as ok=True."""
+    import mailroom_sandbox.runtime as runtime_mod
+
+    monkeypatch.setattr(runtime_mod, "_ACTIVE", None)  # isolation: test_eval activates globally
+    store = _prepped_store(tmp_path, rows=1, job={"mock": False, "max_retries": 0})
+    row = store.dataset_rows()[0]
+    with pytest.raises(RuntimeError, match="profile not activated"):
+        runner._predict_row("sorter", row, mock=False, model=None, run_id="x")
+
+
+def test_live_sorter_unknown_doc_type_raises(tmp_path, monkeypatch):
+    """Even WITH an activated runtime, a graph that falls through to the
+    'unknown' default is a dead path — hard-fail, never ok=True with 0.0."""
+    store = _prepped_store(tmp_path, rows=1, job={"mock": False, "max_retries": 0})
+    row = store.dataset_rows()[0]
+
+    import mailroom_sandbox.runtime as runtime_mod
+    import mailroom_sandbox.eval.runners as eval_runners
+
+    monkeypatch.setattr(runtime_mod, "_ACTIVE", object())
+    monkeypatch.setattr(
+        eval_runners, "_run_pipeline_doc",
+        lambda row, *, mock, run_id=None: {"doc_type": "unknown"},
+    )
+    with pytest.raises(RuntimeError, match="no real doc_type"):
+        runner._predict_row("sorter", row, mock=False, model=None, run_id="x")

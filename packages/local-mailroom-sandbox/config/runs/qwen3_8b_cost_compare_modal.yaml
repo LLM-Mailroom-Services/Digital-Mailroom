@@ -1,0 +1,95 @@
+# sandbox job run spec — Modal (self-hosted vLLM) leg of the cost-per-token
+# experiment, Qwen3-8B on the CLASSIFIER (sorter, ISOLATED).
+#
+# Driven by deploy/run_modal_classifier_cost.py, which pre-warms + deploys
+# deploy/modal_vllm.py, waits for /v1/models, fires uncounted warm-ups, runs
+# this spec against the endpoint through a token-counting proxy, records the
+# GPU cost identity (gpu_hourly_usd, warm_span_seconds, gpu_cost_usd) on the
+# experiment-log row, prints the cost card + OpenRouter-leg comparison, then
+# tears down with `modal app stop sandbox-vllm`.
+#
+# Pairs with config/runs/qwen3_8b_cost_compare.yaml (the OpenRouter leg,
+# run_id qwen3-8b-openrouter-sorter): same dataset fixture, same sample
+# (20 / seed 42), same prompts, same concurrency — the only differences are
+# the profile/engine bucket (modal-vllm vs openrouter) and the GPU cost
+# identity. Shared shape: task=isolated (NOT task: sorter, which dispatches
+# the FULL 13-node pipeline and bills the whole graph).
+#
+# Secrets policy: no URLs/keys here. The profile resolves them from env:
+#   modal-vllm -> VLLM_BASE_URL / VLLM_API_KEY (+ MODAL_WORKSPACE at deploy;
+#                  MODAL_VLLM_API_TOKEN is the deployed bearer token).
+#
+# THINKING-MODE (Qwen3-8B ChatML): the model ships enable_thinking ON by
+# default; with response_format json_object that adds thinking tokens
+# (inflating completion tokens and skewing cost-per-token vs OpenRouter) and
+# can conflict with grammar decoding. deploy/run_modal_classifier_cost.py
+# disables it for its warm-up bodies via chat_template_kwargs, but the
+# MEASURED sorter calls are built by the isolated sorter eval (sandbox CLI)
+# inside the sandbox, NOT by the driver — verify/force enable_thinking=false
+# there before a billed run.
+
+schema: sandbox.run/v1
+run_id: qwen3-8b-modal-sorter
+# isolated -> ONLY the sorter classifier (SorterAgent.classify), one LLM
+# call/doc. Do NOT use task: sorter here — that dispatches the full graph.
+task: isolated
+profile: modal-vllm
+experiment_name: qwen3-8b-cost-per-token   # informational: RunSpec ignores unknown keys
+
+prompt:
+  # default resolution for every agent not overridden below.
+  default: {source: code-default}
+  agents:
+    sorter_reviewer: {source: local, file: sorter_reviewer_local_v0}
+    judge: {source: local, file: judge_local_v0}
+
+dataset:
+  provider: file
+  # CWD-relative (run from the repo/package root): the small offline HF
+  # fixture — no network. Fixed sample at seed 42 for both legs.
+  local_path: data/fixtures/hf/docclass_mini.jsonl
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B
+  vllm:
+    max_model_len: 16384      # L4-bf16 8B boot-valid cap (DMR-056)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 256
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0        # pinned (never 'latest'); matches deploy/modal_vllm.py default
+    scaledown_seconds: 900
+    max_containers: 1
+    prewarm: true
+    # Weight pin so pre-warm and serve boot the SAME Qwen/Qwen3-8B commit —
+    # otherwise --revision is never passed and the Hub tip can drift between
+    # pre-warm and eval. Propagated to MODAL_VLLM_REVISION by the driver.
+    # PIN ME: replace with the exact 40-hex commit before any --run. Get it
+    # from the HF snapshot you intend to serve (snapshot_download prints the
+    # commit) or the Qwen/Qwen3-8B release/tag page — a branch/tag name works
+    # too but floats, so prefer the full sha.
+    revision: b968826d9c46dd6066d109eabc6255188de91218
+
+job:
+  mode: endpoint              # the driver runs the eval locally against the endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  # Throughput: fill the endpoint's continuous batching (docs/jobs.md) —
+  # 4-16 is the documented range for a vLLM endpoint.
+  concurrency: 8
+
+trace:
+  sink: none                  # none | langfuse | phoenix | otlp (none = offline)
+  otlp: true
+  environment: pilot
+  tags: [sandbox, job, cost-per-token]
+
+# The GPU bucket's cost identity (gpu_hourly_usd, warm_span_seconds,
+# revision, image_tag, gpu_memory_utilization, max_num_seqs) is recorded on
+# the experiment-log row via experiment_log.PROVIDER_IDENTITY_KEYS and priced
+# as wall-clock (hourly rate x warm span), never an OpenRouter token price.

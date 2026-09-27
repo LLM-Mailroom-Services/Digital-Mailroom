@@ -137,6 +137,43 @@ def test_datasets_pull_success_prints_rows_and_exit0(monkeypatch, capsys):
     assert captured["spec"].limit == 7
 
 
+def test_datasets_pull_zero_max_rows_is_full_corpus(monkeypatch, capsys):
+    captured: dict = {}
+
+    def fake_prepare(spec, dest):
+        captured["spec"] = spec
+        return {
+            "rows": 3302,
+            "sha256": "c" * 64,
+            "revision_resolved": "46a4d3c2",
+            "metadata": {"source": "huggingface"},
+        }
+
+    monkeypatch.setattr("mailroom_sandbox.corpus.prepare_subset", fake_prepare)
+    args = _args(
+        dataset="Lucius-Morningstar/mailroom-dataset",
+        max_rows=0,
+        revision="",
+        config="ground_truth",
+        split="all",
+        per_class=0,
+        sample_seed=42,
+    )
+    assert cli._cmd_datasets_pull(args) == 0
+    assert captured["spec"].limit is None
+    assert captured["spec"].split == "all"
+    assert "pulled 3302 row(s)" in capsys.readouterr().out
+
+
+def test_datasets_sample_missing_cache_is_exit1(capsys, tmp_path, monkeypatch):
+    from mailroom_sandbox import datasets as ds
+
+    monkeypatch.setattr(ds, "full_corpus_cache_path", lambda **k: tmp_path / "missing.jsonl")
+    args = _args(per_class=20, sample_seed=42, classes="", source="", out="")
+    assert cli._cmd_datasets_sample(args) == 1
+    assert "full corpus cache missing" in capsys.readouterr().out
+
+
 def test_datasets_pull_failure_is_exit1(monkeypatch, capsys):
     def boom(spec, dest):
         raise RuntimeError("network down")

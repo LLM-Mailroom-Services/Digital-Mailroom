@@ -12,6 +12,8 @@ def test_health_and_meta():
     assert health["checks"]["tilesets"]["present"] is True
     assert health["checks"]["tilesets"]["credit"]["author"] == "LimeZu"
     meta = client.get("/v1/meta").json()
+    assert len(meta["doc_classes"]) == 5
+    assert "compliance_filing" not in meta["doc_classes"]
     assert "contract" in meta["doc_classes"]
     assert "boss" in meta["agents"]
     providers = client.get("/v1/providers").json()

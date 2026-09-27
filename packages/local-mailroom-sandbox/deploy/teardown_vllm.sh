@@ -5,6 +5,12 @@
 # warm burning L4 $ after a run. Volumes (weights + vLLM compile cache)
 # persist; a later `modal deploy` reuses them. Idempotent: safe to re-run.
 #
+# Specialist suite (DMR-076/077): one warm app per operator track (or all
+# five for single-operator --suite full); call this ONLY after the last
+# config in that track. max_containers=1, min_containers=0, scaledown=120
+# (attended; 600 unattended) — teardown STILL required after the last run
+# so you do not wait out the scaledown window.
+#
 #   ./deploy/teardown_vllm.sh [app-name]
 #
 # Exit 0 = app stopped and verified; exit 1 = verification failed (loud).

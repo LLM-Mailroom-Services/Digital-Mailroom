@@ -48,6 +48,7 @@ def test_no_side_experiment_logs_exist():
         f"reports/experiment_log.jsonl (the single source of truth)")
 
 
+@pytest.mark.artifact
 def test_run_file_tree_is_exactly_one_to_n():
     """docs/data/runs/ holds exactly {001..N}.json, one per canonical row,
     with no gaps or orphans."""
@@ -63,6 +64,7 @@ def test_run_file_tree_is_exactly_one_to_n():
         f"orphan={sorted(set(on_disk) - set(expected))[:5]}")
 
 
+@pytest.mark.artifact
 def test_build_site_check_detects_orphan_run_files(tmp_path):
     """--check must fail when a stale run file exists beyond N — the exact
     KANBAN-094 incident shape (index length alone missed it)."""
@@ -106,6 +108,7 @@ def test_pre_render_hook_reexecs_without_scoring_package():
     assert r.returncode == 0, f"pre-render failed under system python3:\n{r.stderr[-400:]}"
 
 
+@pytest.mark.artifact
 def test_merged_side_rows_are_hazard_free_and_ordered():
     """The 2026-08-24 merge absorbed all 9 side rows losslessly: every
     merged name is present, sits in the appended tail in its own merge

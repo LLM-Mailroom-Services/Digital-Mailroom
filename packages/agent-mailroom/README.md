@@ -8,8 +8,8 @@ A self-contained legal-document mailroom: one state machine per document, specia
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom%20v0.7.0-blue)](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
-[![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring%20v0.14.0-purple)](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
+[![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom%20v0.7.1-blue)](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
+[![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring%20v0.15.0-purple)](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
 [![Contributor](https://img.shields.io/badge/contributor-Exios66-blue)](https://github.com/Exios66)
 
 </div>
@@ -21,7 +21,7 @@ A self-contained legal-document mailroom: one state machine per document, specia
 | Feature | Description |
 | :--- | :--- |
 | **Core pipeline** | intake → classify → extract → judge → report → archive. Happy path: **two LLM calls** |
-| **Six live doc classes** | `contract`, `merger_agreement`, `corporate_record`, `correspondence`, `compliance_filing`, `insurance_claim` |
+| **Five live doc classes** | `contract`, `merger_agreement`, `corporate_record`, `correspondence`, `insurance_claim` (aligned with llm-mailroom producer taxonomy) |
 | **Pared extraction** | CUAD/MAUD/insurance checklists + semantic trio (`intent` / `subject_matter` / `keywords`) |
 | **Inbox watcher** | txt / md / pdf / docx land in the inbox; the watcher claims each file once |
 | **Hub datasets** | Pull [Lucius-Morningstar](https://huggingface.co/Lucius-Morningstar) rows onto the same inbox |

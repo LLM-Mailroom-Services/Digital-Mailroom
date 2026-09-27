@@ -37,6 +37,8 @@ and reviewed like code:
 | `.opencode/agents/modal-specialist.md` | Modal SDK-grounded primitives/CLI/GPU discipline + the repo's deploy apps |
 | `.opencode/agents/prompt-engineer.md` | the GEPA diagnostic evaluator / prompt engineer |
 | `.opencode/agents/PROMPT_ENGINEER_GEPA_PROVENANCE.md` | provenance documentation for the prompt-engineer agent — **not** a callable subagent |
+| `.opencode/agents/lucius.md` | HuggingFace & data science (project-local by design — no global mirror) |
+| `.opencode/agents/board-evidence-auditor.md` | board/card evidence audits (project-local) |
 
 ## Global agent files (all worktrees) + committed mirrors
 
@@ -48,7 +50,6 @@ mirrors** under `.opencode/agents/`:
 | Global file (`~/.config/opencode/agents/`) | Committed mirror (`.opencode/agents/`) |
 | --- | --- |
 | `athena-database-agent.md` | identical copy |
-| `lucius.md` | identical copy |
 | `atom.md` | identical copy |
 | `hazel-ui-software-master.md` | identical copy |
 | `jarvis-systems-maximizer.md` | identical copy |
@@ -60,10 +61,9 @@ mirrors** under `.opencode/agents/`:
 The project copy is a harmless no-op while identical (project config
 overrides global with the same content). **Drift between the two is a
 housekeeping defect** — `diff -r ~/.config/opencode/agents .opencode/agents`
-must stay clean for the mirrored names. Project-local specialists
-(`prompt-engineer`, `vllm-specialist`, `modal-specialist`,
-`board-evidence-auditor`) stay project files by design (repo-specific
-protocols).
+must stay clean for the mirrored names. Project-local specialists (`prompt-engineer`, `vllm-specialist`,
+`modal-specialist`, `board-evidence-auditor`, `lucius`) stay project files
+by design (repo-specific protocols).
 
 ## The orchestrator-governor dispatch protocol
 
@@ -111,8 +111,8 @@ agents. Verify with `opencode agent list`.
 - **Specialists verify current upstream docs** (vLLM stable, Modal SDK, HF
   Hub APIs, Langfuse) before writing configuration; a report that quotes a
   version without checking it is incomplete.
-- **Skills are the second layer.** Load the `huggingface`, `langfuse`, or
-  `customize-opencode` skill when a task matches its description, and the
+- **Skills are the second layer.** Load the `hf-dataset-publish` or `langfuse`
+  opencode skill (`.opencode/skills/`) when a task matches its description, and the
   package-local `.cursor/skills/` (openrouter, ollama, modal, langfuse,
   apache-phoenix, braintrust, huggingface, langgraph, dojo-scoring,
   legalbench) for provider/sink depth inside a package.

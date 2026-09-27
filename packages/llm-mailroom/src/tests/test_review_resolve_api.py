@@ -94,6 +94,16 @@ def test_lookup_by_doc_id_trace_and_filename(client, temp_base_dir):
     assert bad.status_code == 400
 
 
+def test_lookup_by_filename_skips_manifest_missing_doc_id(client, temp_base_dir):
+    from pipeline.bins import manifests_dir, ensure_dirs
+
+    ensure_dirs(manifests_dir())
+    sidecar = manifests_dir() / "orphan-sidecar.json"
+    sidecar.write_text(json.dumps({"original_filename": "orphan-no-id.txt"}))
+    r = client.get("/lookup", params={"filename": "orphan-no-id.txt"}, headers=_auth())
+    assert r.status_code == 404
+
+
 def test_review_queue_lists_tray_actions(client, temp_base_dir):
     _park_review(temp_base_dir)
     r = client.get("/review/queue", headers=_auth())
@@ -233,6 +243,38 @@ def test_resolve_resume_override_doc_type_form_compat(client, temp_base_dir, moc
     assert r2.status_code == 200
     assert r2.json()["disposition"] == "resume"
     assert r2.json()["resume"]["doc_type"] == "correspondence"
+
+
+def test_resolve_class_override_not_persisted_on_validation_400(client, temp_base_dir):
+    """Hub #155: a 400 on resume must not persist class_override on the manifest."""
+    from pipeline.bins import manifests_dir, ensure_dirs, load_manifest, save_manifest
+    from schemas.manifest import DocumentManifest, PipelineStage
+
+    ensure_dirs(manifests_dir())
+    manifest = DocumentManifest(
+        doc_id="doc-archived-1",
+        matter_id="MATTER-A",
+        original_filename="done.txt",
+        stage=PipelineStage.ARCHIVED,
+        doc_type="contract",
+        doc_subclass="msa",
+    )
+    save_manifest(manifest)
+
+    r = client.post(
+        "/review/doc-archived-1/resolve",
+        headers=_auth(),
+        json={
+            "decision": "approved",
+            "disposition": "resume",
+            "doc_type": "insurance_claim",
+            "doc_subclass": "pde",
+        },
+    )
+    assert r.status_code == 400
+    m = load_manifest("doc-archived-1")
+    assert m.doc_type == "contract"
+    assert m.doc_subclass == "msa"
 
 
 def test_resolve_doc_type_alias_and_requeue_sidecar(client, temp_base_dir, mocker):

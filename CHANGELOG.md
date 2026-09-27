@@ -20,8 +20,22 @@ belongs to the standalone mailroom lineage that became `packages/llm-mailroom`
 and is recorded there, not here.
 
 ## [Unreleased]
+### Removed
+
+- **`.github/workflows/ci.yml`:** dropped the hub#176 per-package pytest matrix on
+  GitHub Actions — it was manually disabled yet still registered as a required
+  check, and recent runs failed on unrelated suite drift (entity-extraction
+  scorer label test, sandbox vendor/fixture gaps). Local/PR verification stays
+  per `docs/TESTING.md`; governance gates remain in `board-governance.yml`.
+
 ### Changed
 
+- **Hub governance + docs truth (post-v0.7.0 sweep):** DMR-074 sync/release law in
+  `AGENTS.md` + specialist tails (`0135382a`/`bbcfdce1`); board-site +
+  `scripts/board_state.py` fixes (`dc4e685b`); Served-Board POST lane contract +
+  serve harness (`4369e1c2`); HF dataset card/pin drift re-pin to `46a4d3c2`
+  (`238795a6`); wiki roster/hub version truth (`e16e9b1c`); root `.gitignore`
+  package gaps (`c8828cc4`); uv workspace/lock regen (`243d10f0`, `0cafccd7`).
 - **Subclass taxonomies re-pinned to the current dataset pin (DMR-071):** the
   HUB-041 canonical `expected_subclass` vocabularies now pin to
   **mailroom-dataset v9** (`Lucius-Morningstar/mailroom-dataset`, tip

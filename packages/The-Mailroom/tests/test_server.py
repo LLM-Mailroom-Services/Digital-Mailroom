@@ -7,7 +7,8 @@ from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 
 from mailroom_ui.langfuse_source import LangfuseSource
-from server.main import create_app
+from mailroom_ui.models import PipelineRun, Stage
+from server.main import UTC_MIN, _run_sort_key, create_app
 from tests.fake_langfuse import FakeClient, make_trace
 
 
@@ -25,6 +26,22 @@ def _fresh_traces():
 def _client():
     src = LangfuseSource(client=FakeClient(_fresh_traces()))
     return TestClient(create_app(src))
+
+
+def test_run_sort_key_never_mixes_naive_and_aware_datetimes():
+    """Runs with both timestamps None used to insert datetime.min and 500."""
+    bare = PipelineRun(doc_id="bare", trace_id="bare", filename="x.pdf", stage=Stage.UNKNOWN)
+    aware = PipelineRun(
+        doc_id="aware",
+        trace_id="aware",
+        filename="y.pdf",
+        stage=Stage.UNKNOWN,
+        created_at=datetime.now(timezone.utc),
+    )
+    ordered = sorted([bare, aware], key=_run_sort_key, reverse=True)
+    assert ordered[0].doc_id == "aware"
+    assert _run_sort_key(bare).tzinfo is not None
+    assert UTC_MIN.tzinfo is not None
 
 
 def test_metrics_aggregates_enriched_runs():

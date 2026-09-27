@@ -1,0 +1,72 @@
+# Copy-paste template: N rows per live doc type from the FULL Hub corpus.
+#
+# The Hub `test` split cannot back 40/100-per-class (merger_agreement ≈17 in
+# test / 152 train+test). Use split: all, or sample offline from the cache:
+#
+#   sandbox datasets pull                         # 3302-row ground_truth_all.jsonl
+#   sandbox datasets sample --per-class 40        # 200 rows, seed 42
+#
+# Then either keep the Hub block below (parquet cache under data/cache/hf) or
+# switch to provider: file + local_path of the sampled JSONL.
+#
+# Per-class ceilings at FAMILY_HF_REVISION: contract 600, corporate_record 450,
+# correspondence 1000, insurance_claim 1100, merger_agreement 152.
+schema: sandbox.run/v1
+run_id: example-per-class-20
+task: sorter
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca
+  sample_seed: 42
+  strata:
+    buckets:
+      - {doc_class: contract, count: 20}            # bump to 40 or 100
+      - {doc_class: corporate_record, count: 20}
+      - {doc_class: correspondence, count: 20}
+      - {doc_class: insurance_claim, count: 20}
+      - {doc_class: merger_agreement, count: 20}    # max 152
+  limit: 100   # = 5 × per-class; raise with the bucket counts
+
+# Offline after `sandbox datasets sample --per-class 40`:
+# dataset:
+#   provider: file
+#   local_path: data/cache/Lucius-Morningstar__mailroom-dataset__46a4d3c240a3/ground_truth_all_perclass40.jsonl
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B
+  vllm:
+    max_model_len: 16384
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 256
+    quantization: ""
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 1
+    min_containers: 0
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: true
+  max_retries: 2
+  fail_fast: false
+  concurrency: 4
+
+trace:
+  sink: none
+  otlp: false
+  environment: per-class
+  tags: [sandbox, job, example]

@@ -64,10 +64,16 @@ Compose for Modal profile only starts **langfuse** (no local vLLM container).
 | `MODAL_VLLM_TP_SIZE` | from GPU `:N` suffix (1 single-GPU) — must match `MODAL_VLLM_GPU="A100-80GB:2"` for 70B-class |
 | `MODAL_VLLM_API_TOKEN` | empty (bearer) |
 | `HF_TOKEN` | optional Hub auth |
-| `MODAL_VLLM_SCALEDOWN_SECONDS` | `900` |
+| `MODAL_VLLM_SCALEDOWN_SECONDS` | `120` (attended specialist default; set `600` unattended/overnight) |
 | `MODAL_VLLM_MAX_CONTAINERS` | `1` (cost guard) |
 | `MODAL_VLLM_MIN_CONTAINERS` | `0` (scale-to-zero) |
 | `MODAL_VLLM_STARTUP_TIMEOUT_SECONDS` | `1200` |
+
+Specialist 5×30 runbooks (`config/runs/run-30-*-specialist.yaml`) pin
+**Qwen/Qwen3-8B** on 1×L4 and use per-doc-type concurrency / `cost_cap_usd` /
+`max_wall_seconds` from `job/specialist_posture.py` (DMR-078). Overlay
+`max_tokens` / `max_input_chars` fit `max_model_len=16384`. Merger runs use
+dedicated `merger_agreement_specialist`.
 
 Cost: L4 ≈ $0.80/hr while warm (rates: modal.com/pricing, verified
 2026-09-09); GPU billing stops after the scaledown window; `download_model`

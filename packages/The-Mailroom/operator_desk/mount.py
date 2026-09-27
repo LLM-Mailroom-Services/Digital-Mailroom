@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
 from .archive import router as archive_router
-from .auth import router as auth_router
+from .auth import jwt_secret, router as auth_router
 from .db import db_path, ensure_bins, migrate
 from .observer import observer_enabled, start_observer
 from .ops import router as ops_router, set_runs_provider
@@ -65,6 +65,7 @@ def mount_operator(
     runs_provider: Optional[Callable[[], list]] = None,
 ) -> None:
     """Attach ``/v1/auth``, ``/v1/archive``, ``/v1/ops``, ``/ws/pipeline``."""
+    jwt_secret()  # fail closed before seeding / serving
     migrate()
     ensure_bins()
     set_runs_provider(runs_provider)

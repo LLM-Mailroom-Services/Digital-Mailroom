@@ -52,3 +52,9 @@ llm-entity-extraction = { workspace = true }
 mailroom = { workspace = true }
 mailroom-sandbox = { workspace = true }
 the-mailroom = { workspace = true }
+
+[tool.pytest.ini_options]
+markers = [
+    "no_langchain_mock: llm-mailroom provider-seam tests that disable the conftest LangChain mock",
+    "artifact: optional contract pins that require gitignored report artifacts or sibling repos",
+]

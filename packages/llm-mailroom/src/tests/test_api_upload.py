@@ -137,6 +137,23 @@ class TestHealthWatcherLamp:
         r = client.get("/health")
         assert r.json()["checks"]["watcher"] == "live"
 
+    def test_health_llm_ping_runs_off_event_loop(self, client, monkeypatch):
+        import api.main as main_mod
+
+        called = {"n": 0}
+
+        def fake_ping(provider, model):
+            called["n"] += 1
+            return "ok", f"{provider}:{model}"
+
+        monkeypatch.setattr(main_mod, "_sync_ping_llm_models", fake_ping)
+        monkeypatch.setattr(main_mod, "_LLM_HEALTH_CACHE", None)
+        monkeypatch.setattr(main_mod, "_LLM_HEALTH_CACHE_AT", 0.0)
+        r = client.get("/health")
+        assert r.status_code == 200
+        assert called["n"] == 1
+        assert "llm_provider" in r.json()["checks"]
+
 
 class TestWatcherMatterInference:
     def test_sidecar_matter_id_wins_over_filename(self, temp_base_dir):

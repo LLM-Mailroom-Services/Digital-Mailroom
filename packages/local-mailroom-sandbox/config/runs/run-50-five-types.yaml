@@ -1,0 +1,129 @@
+# DMR-072 — Corrected 50-doc run: 10 per doc type x 5 doc types, subclass-
+# stratified WITHIN each type (expected_subclass), zero duplicates, seeded.
+#
+# Fixes both prior specs:
+#   - run-50-modal-hf.yaml (DMR-063): filtered on `strata.expected` where
+#     `expected_doc_class` is CONSTANT `contract` in the joined ground_truth
+#     config -> silently contract x N (documented no-op; sort-first truncation).
+#   - run-50-subclass.yaml (DMR-066): stratified on expected_subclass but all
+#     13 target strata were CONTRACT-family subclasses -> still 1 of 5 types.
+#
+# This spec uses nested doc_class buckets (sub_buckets): per-class subclass
+# quota draws, each quota <= observed availability in the pinned test split
+# (46a4d3c240a36671cde0182fff4960f6b8b73aca, ground_truth/test, n=300).
+# Quota sums = 50; strata guards HARD-FAIL on absence, constant-field, or
+# draw/limit drops; over-quota sub_buckets now fail loudly too (DMR-072).
+#
+# Engine posture: 1 x L4 (hard cap 2 per mission brief), Qwen/Qwen3-8B bf16
+# (parity with the DMR-062 live parity pilot 7/7 F1=1.0; no quantization
+# change this run), vLLM v0.29.0 pinned. Cost guards: max_containers 1,
+# scaledown 600s, prewarm on, teardown after run.
+schema: sandbox.run/v1
+run_id: run-50-five-types
+task: sorter
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: test
+  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      # insurance_claim (114 rows): all 6 subclasses, 10 rows
+      - doc_class: insurance_claim
+        sub_buckets:
+          - {subclass: auto, count: 2}                 # avail 34
+          - {subclass: carrier, count: 2}              # avail 20
+          - {subclass: property, count: 2}             # avail 16
+          - {subclass: inpatient, count: 2}            # avail 15
+          - {subclass: outpatient, count: 1}           # avail 15
+          - {subclass: pde, count: 1}                  # avail 14
+      # contract (60 rows): 9 largest of 19 subclasses, 10 rows
+      - doc_class: contract
+        sub_buckets:
+          - {subclass: service, count: 2}              # avail 8
+          - {subclass: supply, count: 1}               # avail 5
+          - {subclass: distributor, count: 1}          # avail 5
+          - {subclass: co_branding, count: 1}          # avail 5
+          - {subclass: ip, count: 1}                   # avail 4
+          - {subclass: development, count: 1}          # avail 4
+          - {subclass: maintenance, count: 1}          # avail 4
+          - {subclass: strategic_alliance, count: 1}   # avail 4
+          - {subclass: sponsorship, count: 1}          # avail 3
+      # merger_agreement (17 rows, scarcest type): all 4 subclasses, 10 rows
+      - doc_class: merger_agreement
+        sub_buckets:
+          - {subclass: all_cash, count: 4}             # avail 6
+          - {subclass: other, count: 3}                # avail 8
+          - {subclass: all_stock, count: 2}            # avail 2
+          - {subclass: mixed_cash_stock, count: 1}     # avail 1
+      # correspondence (62 rows): all 7 subclasses, 10 rows
+      - doc_class: correspondence
+        sub_buckets:
+          - {subclass: email, count: 4}                # avail 30
+          - {subclass: letter, count: 1}               # avail 9
+          - {subclass: press_release, count: 1}        # avail 8
+          - {subclass: memo, count: 1}                 # avail 5
+          - {subclass: meeting_request, count: 1}      # avail 4
+          - {subclass: demand, count: 1}               # avail 3
+          - {subclass: notice, count: 1}               # avail 3
+      # corporate_record (47 rows): all 9 subclasses, 10 rows
+      - doc_class: corporate_record
+        sub_buckets:
+          - {subclass: subsidiary_list, count: 2}      # avail 10
+          - {subclass: charter_amendment, count: 1}    # avail 9
+          - {subclass: officer_certificate, count: 1}  # avail 7
+          - {subclass: board_resolution, count: 1}     # avail 5
+          - {subclass: articles_of_incorporation, count: 1}  # avail 5
+          - {subclass: indenture, count: 1}            # avail 4
+          - {subclass: powers_of_attorney, count: 1}   # avail 3
+          - {subclass: rights_instrument, count: 1}    # avail 3
+          - {subclass: bylaws, count: 1}               # avail 1
+  limit: 50
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B
+  vllm:
+    max_model_len: 16384      # boot-valid cap for L4-bf16 8B (v0.29.0 raises above)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 256
+    quantization: ""
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0        # parity pin (DMR-062 pilot)
+    scaledown_seconds: 600
+    max_containers: 1         # DMR-072: 1 GPU (hard cap 2 per mission brief);
+                              # single L4 saturates continuous batching at
+                              # concurrency 8; 2nd replica would ~double
+                              # GPU-hours for ~2x wall-clock speedup (no cost
+                              # win on a one-shot 50-doc eval)
+    min_containers: 0         # scale-to-zero (efficient conservative)
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 4              # DMR-072 rev2: 8-way on ONE replica piled requests
+                              # at the Modal web proxy (48-121s/call, models
+                              # endpoint timing out, modal-client cancellations
+                              # discarding decode work); DMR-063's proven in-
+                              # flight per replica was ~4-5. 4 pipeline graphs
+                              # x ~1-2 streams fits the L4; docs/jobs.md
+                              # recommends 4-16 vs Modal vLLM (4-8 for 1 GPU)
+
+trace:
+  sink: none
+  otlp: false
+  environment: five-types
+  tags: [sandbox, job]

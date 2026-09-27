@@ -12,7 +12,7 @@
 
 | Path | Contents |
 |:---|:---|
-| [`audits/`](audits/) | Baseline audits and structural analysis |
+| [`scores_manifest.jsonl`](scores_manifest.jsonl) | Top-level score-manifest index beside this README |
 | [`docs/reports/audits/docclass_merged_baseline.md`](../docs/reports/audits/docclass_merged_baseline.md) | Canonical baseline audit for the mailroom corpus (docclass-merged lineage) |
 | [`docs/reports/audits/docclass_merged_baseline.json`](../docs/reports/audits/docclass_merged_baseline.json) | Machine-readable baseline data |
 

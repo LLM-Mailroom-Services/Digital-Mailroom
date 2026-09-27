@@ -250,7 +250,8 @@ A dedicated submodule mounted on the visualizer — **not** a second display
 source. JWT auth (`/v1/auth`) gates archive file access (`/v1/archive`) and
 ops snapshots (`/v1/ops`). Ops numbers come from the same Langfuse
 `PipelineRun` window as METRICS. The bin observer (`MAILROOM_OBSERVER=1`
-in-process, or `mailroom-observer` POSTing `/v1/ops/events`) publishes
+in-process — the compose default; optional standalone `mailroom-observer`
+POSTing `/v1/ops/events`, never both on the same bins) publishes
 filesystem bin moves on `/ws/pipeline`. SQLite tables live in
 `MAILROOM_OPERATOR_DB`; the producer's `documents` table is never required.
 Display `/api/*` and floor `/ws` stay open.

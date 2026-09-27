@@ -17,7 +17,7 @@ Four surfaces share one display API (`/api/*` + `/ws`):
 | Pixel-art console | `mailroom-web` → `http://127.0.0.1:8001/` | the CRT conveyor floor |
 | Hosted Observatory | `mailroom-hosted` (also `/live` on the same server) | public operations desk |
 | TUI | `mailroom-tui` | typed-command REPL (`MAILROOM_API_URL`) |
-| Terminal site | `…/terminal/` on GH Pages | owlcot-style TTY: `ls`/`cat`/`cd`, `corpus ls | show`,`repos` |
+| Terminal site | `…/terminal/` on GH Pages (pending live publish — DMR-013; URL 404s until `publish_pages.sh` lands) | owlcot-style TTY: `ls`/`cat`/`cd`, `corpus ls | show`,`repos` |
 
 The terminal site and the TUI both add a **dataset viewer** (`corpus …`
 commands over `Lucius-Morningstar/mailroom-dataset` — slim windowed
@@ -76,7 +76,7 @@ mailroom-hosted           # → public Observatory on 0.0.0.0 (container-ready)
 mailroom-tui              # typed-command REPL (floor/corpus/repos/inspect)
 pip install -e ".[operator]"  # optional: operator desk (auth / archive / observer)
 pip install -e ".[ui]"        # marker only; React desk still needs Node
-mailroom-observer         # bin watcher (or MAILROOM_OBSERVER=1 on mailroom-web)
+mailroom-observer         # optional CLI bin watcher (compose uses MAILROOM_OBSERVER=1)
 # optional React desk: cd ui && npm install && npm run build  →  /desk
 ```
 
@@ -302,11 +302,33 @@ Pages snapshot and not the pixel-art console.
 
 ```bash
 mailroom-hosted                          # 0.0.0.0:8001  →  / and /live
-docker build -t mailroom-observatory .
+docker build -t mailroom-observatory .   # default `observatory` target = hosted
 docker run --rm -p 7860:7860 --env-file .env mailroom-observatory
 python scripts/publish_space.py --check  # Hugging Face Docker Space payload
 # Railway: see docs/deployment.md (.railway/railway.py IaC + PORT preference;
 # GET /health = liveness (+ platform, build_sha), GET /api/health = Langfuse)
+```
+
+**Operator edition (single front door):** the root `Dockerfile` also ships
+`--target operator` — the hosted runtime + `.[operator]` extras + the baked
+React desk at `/desk` — plus the lean `--target operator-core` (extras, no
+Node stage) for an optional standalone observer image. An `observatory`
+alias keeps `docker build .` (no `--target`) byte-identical to the hosted
+image above.
+Compose is the production path for the operator desk: nginx `:80` is the
+ONLY published port, `MAILROOM_OBSERVER=1` runs the in-process bin watcher
+inside `mailroom` (no `mailroom-observer` sidecar — issue #78), and
+`MAILROOM_OPERATOR_JWT_SECRET` /
+`MAILROOM_OPERATOR_ADMIN_PASSWORD` are fail-fast (`${VAR:?}`, no dev
+defaults). The same secrets are required outside compose (bare
+`docker run` / k8s / `mailroom-web`) unless you opt in with
+`MAILROOM_OPERATOR_ALLOW_DEV_DEFAULTS=1` or `MAILROOM_ENV=development`:
+
+```bash
+cd operator_desk
+export MAILROOM_OPERATOR_JWT_SECRET="$(openssl rand -hex 32)"
+export MAILROOM_OPERATOR_ADMIN_PASSWORD='<strong-password>'
+docker compose up --build                # → http://localhost/desk
 ```
 
 Hugging Face Space: SDK **Docker**, root directory **empty** (repo-root

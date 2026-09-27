@@ -26,6 +26,10 @@ packages/llm-entity-extraction/config/environments/braintrust-sandbox.env
 packages/llm-entity-extraction/config/environments/langfuse.env
 packages/llm-entity-extraction/config/environments/*.env.local
 
+# Hub #183: stale repo-root copy of the entity-extraction scores manifest (canonical:
+# packages/llm-entity-extraction/reports/scores_manifest.jsonl).
+reports/scores_manifest.jsonl
+
 # Local run artifacts (regenerated locally)
 packages/llm-entity-extraction/data/manifests/*
 !packages/llm-entity-extraction/data/manifests/README.md
@@ -67,11 +71,14 @@ Thumbs.db
 *.swo
 *~
 *.db
-data/mailroom.db-shm
-data/mailroom.db-wal
+data/*.db-shm
+data/*.db-wal
+data/watcher_heartbeat
 data/watcher_heartbeat.tmp
+data/runtime/
+data/pipeline/
+data/archive/
 
 # Vercel serverless functions (board-site deploy root)
 .vercel/
 .vercel
-scripts/tests/__pycache__/

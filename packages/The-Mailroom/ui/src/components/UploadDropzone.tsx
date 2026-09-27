@@ -19,10 +19,15 @@ export default function UploadDropzone() {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="upload-hint-title"
+    >
       <div className="w-full max-w-md p-6 rounded-xl bg-card border border-border shadow-lg">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Document ingest</h2>
+          <h2 id="upload-hint-title" className="text-lg font-semibold">Document ingest</h2>
           <button type="button" onClick={() => setOpen(false)} className="p-1 rounded-md hover:bg-muted">
             <X className="h-4 w-4" />
           </button>

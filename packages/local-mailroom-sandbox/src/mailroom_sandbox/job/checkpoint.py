@@ -197,9 +197,10 @@ class RunStore:
         if not self.dataset_path.is_file():
             return []
         rows = []
-        for line in self.dataset_path.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                rows.append(json.loads(line))
+        with self.dataset_path.open(encoding="utf-8") as fh:
+            for line in fh:
+                if line.strip():
+                    rows.append(json.loads(line))
         return rows
 
     def dataset_sha256(self) -> str | None:

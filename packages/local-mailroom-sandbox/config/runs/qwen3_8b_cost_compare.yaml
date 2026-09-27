@@ -1,0 +1,88 @@
+# sandbox job run spec — cost-per-token: OpenRouter API vs Modal self-hosted vLLM
+#
+# Qwen3-8B (Qwen/Qwen3-8B) on the sorter (classify-document) eval. A run spec
+# is single-profile: this file is the API (OpenRouter) leg; the Modal leg is
+# the fully-specified commented variant below — run both, then:
+#   sandbox metrics compare --runs <api_run_id>,<modal_run_id>
+# Shared shape: task=sorter, sample=20 (seed 42), concurrency=8, model family
+# Qwen3-8B, experiment_name "qwen3-8b-cost-per-token".
+#
+# Secrets policy: no URLs/keys here. The profile resolves them from env:
+#   openrouter -> OPENROUTER_BASE_URL / OPENROUTER_API_KEY
+#   modal-vllm -> VLLM_BASE_URL / VLLM_API_KEY (+ MODAL_WORKSPACE at deploy)
+
+schema: sandbox.run/v1
+run_id: qwen3-8b-openrouter-sorter
+# isolated -> ONLY the sorter classifier (SorterAgent.classify), one LLM
+# call/doc. Do NOT use task: sorter here — in a run spec that dispatches to
+# the FULL 13-node pipeline (_run_pipeline_doc) and bills the whole graph.
+task: isolated
+profile: openrouter            # ollama | vllm-local | vllm-remote | modal-vllm | openrouter
+experiment_name: qwen3-8b-cost-per-token   # informational: RunSpec ignores unknown keys
+
+prompt:
+  # default resolution for every agent not overridden below.
+  default: {source: code-default}
+  agents:
+    sorter_reviewer: {source: local, file: sorter_reviewer_local_v0}
+    judge: {source: local, file: judge_local_v0}
+
+dataset:
+  provider: file
+  # CWD-relative (run from the repo/package root): the small offline HF
+  # fixture — no network. Fixed 20-row sample at seed 42 for both legs.
+  local_path: data/fixtures/hf/docclass_mini.jsonl
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: vllm-remote           # remote /v1 endpoint; the openrouter profile supplies it
+  model: qwen/qwen3-8b        # OpenRouter slug
+  vllm:
+    max_model_len: 16384
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 256
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  # Throughput: fill the endpoint's continuous batching (docs/jobs.md) —
+  # 4-16 is the documented range for a vLLM endpoint.
+  concurrency: 8
+
+trace:
+  sink: none                 # none | langfuse | phoenix | otlp (none = offline)
+  otlp: true
+  environment: pilot
+  tags: [sandbox, job, cost-per-token]
+
+# ── Modal leg (self-hosted vLLM on Modal) — flip profile + engine for the
+#    GPU bucket, keep everything else identical (same sample, same prompts,
+#    same concurrency) so the two legs are like-for-like:
+#
+# run_id: qwen3-8b-modal-sorter
+# profile: modal-vllm
+# experiment_name: qwen3-8b-cost-per-token
+#
+# engine:
+#   kind: modal-vllm
+#   model: Qwen/Qwen3-8B
+#   vllm:
+#     max_model_len: 16384      # L4-bf16 8B boot-valid cap (DMR-056)
+#     gpu_memory_utilization: 0.90
+#     max_num_seqs: 256
+#   modal:
+#     app: sandbox-vllm
+#     gpu: L4
+#     image_tag: v0.28.0        # pinned (never 'latest')
+#     scaledown_seconds: 900
+#     max_containers: 1
+#     prewarm: true
+#
+# The GPU bucket's cost identity (gpu_hourly_usd, warm_span_seconds,
+# revision, image_tag, gpu_memory_utilization, max_num_seqs) is recorded on
+# the experiment-log row via experiment_log.PROVIDER_IDENTITY_KEYS and priced
+# as wall-clock (hourly rate × warm span), never an OpenRouter token price.

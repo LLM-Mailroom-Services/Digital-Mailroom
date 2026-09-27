@@ -519,6 +519,11 @@ Prefer the `/v1` prefix; unversioned routes remain during the deprecation window
 | `GET` | `/v1/status/{doc_id}` | Document pipeline status |
 | `GET` | `/v1/matters/{matter_id}` | All documents in a matter |
 | `GET` | `/v1/audit/{doc_id}` | Hash-chained audit trail + validity check |
+| `GET` | `/v1/lookup` | Resolve a document by `doc_id`, `trace_id`, or `filename` |
+| `GET` | `/v1/review/queue` | REVIEW tray (catalog + on-disk manifests) |
+| `GET` | `/v1/documents/{doc_id}/source` | Parked document text for review |
+| `GET` | `/v1/audit` | Global audit chain head |
+| `GET` / `POST` | `/v1/api/relations/mode` | Relations clerk live/pilot posture |
 | `GET` | `/v1/ops/status` | Pipeline-wide operational metrics |
 | `POST` | `/v1/ops/sweep` | Run a one-off Boss ops-monitor sweep |
 | `POST` | `/v1/ops/resume` | Clear the ingestion-pause flag |

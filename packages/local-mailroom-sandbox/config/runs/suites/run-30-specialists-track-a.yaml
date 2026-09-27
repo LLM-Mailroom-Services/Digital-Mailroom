@@ -1,0 +1,25 @@
+# DMR-077 — Operator A track (3 specialist runs, one warm 1×L4 app).
+# Pair with Track B on a *separate* Modal account. Do not share tokens.
+# DMR-078: per-doc-type concurrency / cost_cap / wall (see specialist_posture).
+#
+# Activate: modal profile activate "${SANDBOX_MODAL_PROFILE_TRACK_A:-hermes-agent-jjb}"
+# Estimate: sandbox metrics estimate-suite --suite track-a
+# Check:    sandbox run benchmark-check --suite track-a
+# Chain:    sandbox run suite --suite track-a   # prints loop; add --execute to run
+# Teardown: ./deploy/teardown_vllm.sh  ONLY after the last config below
+schema: sandbox.suite/v1
+suite_id: run-30-specialists-track-a
+track: a
+title: "Operator A — contracts + corporate_records + correspondence"
+rationale: |
+  DMR-075/078 sec/doc bands (L4 $0.80/hr): contracts c=4 + corporate c=4 +
+  correspondence c=5. Track B (merger c=3 + insurance c=5) stays within ~$0.06
+  without stacking both heavies (merger+contracts) on one operator.
+modal_profile_env: SANDBOX_MODAL_PROFILE_TRACK_A
+modal_profile_default: hermes-agent-jjb
+scaledown_seconds: 120
+warm_once: true
+configs:
+  - config/runs/run-30-contracts-specialist.yaml
+  - config/runs/run-30-corporate-records-specialist.yaml
+  - config/runs/run-30-correspondence-specialist.yaml

@@ -147,7 +147,7 @@ Every package mirrors an independent `Exios66/*` repository. The monorepo is the
 python scripts/sync_packages.py status                  # live status
 python scripts/sync_packages.py pull --all              # sync from upstream
 python scripts/sync_packages.py push --package llm-mailroom
-python scripts/sync_packages.py push --package llm-mailroom --patch   # non-fast-forward fallback
+python scripts/sync_packages.py push --package llm-mailroom --patch   # content-only fast path (DMR-070); never for deletion-bearing deltas
 python scripts/sync_packages.py snapshot                # cursor verification
 ```
 

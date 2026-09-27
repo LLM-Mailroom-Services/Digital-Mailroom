@@ -137,3 +137,54 @@ v9 corpus publishes via `scripts/build/build_v9.py` → `v9_build` →
 `hf_interface`) · `intent_backfill`
 (checkpointed correspondence intent hydration). See the `hf-dataset-publish`
 opencode skill (`.opencode/skills/hf-dataset-publish/`) for the full workflow.
+
+## Offline hub cache (`mailroom-issues/data/hf_cache`)
+
+The constellation shares **pre-fetched parquet bins** for
+`Lucius-Morningstar/mailroom-dataset` instead of vendoring them into
+Digital-Mailroom. Canonical bytes live in the
+[`mailroom-issues`](https://github.com/LLM-Mailroom-Services/mailroom-issues)
+sister repo under `data/hf_cache/corpus/` (generation tracked on
+[mailroom-issues#201](https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/201);
+operator README: `data/hf_cache/README.md` once published there).
+
+**Pinned revision for the v9.1 quality revision** (code-only drift from the
+v9 tip; same 3,302 rows): `ed7576b676343e0b402ec5412cded301e629bdee` — keep
+this SHA aligned with revision pins in
+[Digital-Mailroom#110](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/110)
+and `FULL_CORPUS_REVISION` in `packages/llm-mailroom/src/pipeline/hf_corpora.py`.
+
+### Sparse checkout (engineers)
+
+```bash
+git clone --filter=blob:none --sparse \
+  https://github.com/LLM-Mailroom-Services/mailroom-issues.git
+cd mailroom-issues
+git sparse-checkout set data/hf_cache/corpus
+```
+
+### Call path (constellation loaders)
+
+| Surface | Module | Cache knob |
+| --- | --- | --- |
+| **llm-mailroom** (canonical) | `packages/llm-mailroom/src/pipeline/hf_corpus_loader.py` — `load_corpus()` / `load_config_frame()` join `ground_truth` + `default` on `filename` | `MAILROOM_HF_CACHE_DIR` (default `{MAILROOM_BASE_DIR}/hf_cache/corpus`) |
+| Notebook 14 / `gmail_pilot_lab.py` | same loader (`pick_document`, committed snapshot fallback) | same env var via `cache_dir()` |
+| **local-mailroom-sandbox** | vendored `hf_corpus_loader` when the pipeline path is active; sandbox `datasets pull` uses its own `data/cache/` JSONL layout | set `MAILROOM_HF_CACHE_DIR` to the hub `corpus/` dir to reuse parquet bins |
+| **The-Mailroom** | `mailroom_ui/hf_corpus.py` pages `/rows` only — **no** `MAILROOM_HF_CACHE_DIR` today | live Hub or rate-limited export |
+| **mailroom-corpus-eda** | `mailroom_eda.download` → `data/parquet` | separate from the loader cache |
+
+Loader mechanics: `_cached_get_bytes()` GETs the datasets-server `/parquet`
+URL for the requested config/split/revision and writes
+`<cache_dir>/<label>_<sha256(url)[:24]>.bin` where `label` is
+`Lucius-Morningstar__mailroom-dataset_<config>_<split>`. A warm hub cache
+directory must contain the bins for **both** `ground_truth` and `default`
+at the pinned revision or the first load still hits the network.
+
+Example `.env` (see `packages/llm-mailroom/.env.example`):
+
+```bash
+MAILROOM_HF_CACHE_DIR=/path/to/mailroom-issues/data/hf_cache/corpus
+```
+
+Do **not** commit the parquet binaries into Digital-Mailroom; refresh the
+hub cache on mailroom-issues and re-sparse-checkout when the pin moves.

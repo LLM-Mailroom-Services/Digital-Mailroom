@@ -8,9 +8,29 @@ Default experiment posture (specialist 5×30 cost eval)
 ------------------------------------------------------
 ``MODAL_VLLM_MODEL=Qwen/Qwen3-8B`` on ``MODAL_VLLM_GPU=L4``,
 ``max_containers=1``, ``scaledown=120`` (attended; restore **600** for
-unattended/overnight), job concurrency 4 — see ``docs/benchmark-l4.md``.
-Leave knobs unset to get this posture. One warm app for all five runs;
-teardown only after the fifth.
+unattended/overnight), job concurrency 4 — see ``sandbox runbook show l4-qwen3-8b``.
+
+L4 long-prompt engine pins (≈9.7k-token specialist prompts):
+
+* ``max_num_seqs=6`` — 8 concurrent ~8k-prompt long-decode sequences
+  exhaust the L4 KV cache (latency cliff); 4–6 stays below the cliff
+  while still batching.
+* ``gpu_memory_utilization=0.90`` + ``--enable-prefix-caching`` — APC
+  amortizes the shared system/prompt prefill across requests.
+* ``--enforce-eager`` — skip CUDA-graph capture for faster cold boot
+  (Modal ``vllm_inference`` FAST_BOOT posture).
+* HF + vLLM Volumes — weights / compile artifacts survive cold starts.
+
+Second L4 = **data parallelism**, not tensor parallelism: raise
+``MODAL_VLLM_MAX_CONTAINERS=2`` (one independent vLLM replica per L4).
+Modal's ``@web_server`` distributes requests across replicas (even /
+round-robin style). Do **not** set ``MODAL_VLLM_GPU=L4:2`` + TP for
+8B-class — TP adds PCIe all-reduce with no meaningful latency win when
+the model fits on one GPU. APC is per-replica (shared prefixes cached
+twice); concurrency gain outweighs the duplicate cache.
+
+Leave knobs unset to get the single-L4 posture. One warm app for all
+five specialist runs; teardown only after the fifth.
 
 Advanced: swap model / GPU (one control surface)
 ------------------------------------------------
@@ -81,9 +101,26 @@ QUANTIZATION = os.environ.get("MODAL_VLLM_QUANTIZATION", "")
 MAX_MODEL_LEN = os.environ.get("MODAL_VLLM_MAX_MODEL_LEN", "16384")
 REVISION = os.environ.get("MODAL_VLLM_REVISION", "")
 GPU_MEMORY_UTILIZATION = os.environ.get("MODAL_VLLM_GPU_MEMORY_UTILIZATION", "0.90")
-MAX_NUM_SEQS = os.environ.get("MODAL_VLLM_MAX_NUM_SEQS", "256")
+# L4 long-prompt default: 4–6 active sequences (cap at 6). Override to 256
+# for short-doc scale-matrix cells where the admission cap is non-binding.
+MAX_NUM_SEQS = os.environ.get("MODAL_VLLM_MAX_NUM_SEQS", "6")
+# Explicit APC + eager: v0.29.0 already defaults APC on for decoder-only,
+# but we pin the flag so deploy logs / argv stay auditable. enforce_eager
+# skips CUDA-graph capture (faster cold boot; trade steady-state tok/s).
+ENABLE_PREFIX_CACHING = os.environ.get("MODAL_VLLM_ENABLE_PREFIX_CACHING", "1")
+ENFORCE_EAGER = os.environ.get("MODAL_VLLM_ENFORCE_EAGER", "1")
 ATTENTION_BACKEND = os.environ.get("MODAL_VLLM_ATTENTION_BACKEND", "")
 ASYNC_SCHEDULING = os.environ.get("MODAL_VLLM_ASYNC_SCHEDULING", "")
+# SAND-027: reasoning / tool-call parsers. Empty = vLLM default (Qwen path is
+# unchanged). Granite-4.2 needs `--reasoning-parser granite_thinking_parser`
+# (native on vLLM >= 0.30; on the pinned v0.29.0-era image fall back to IBM's
+# plugin via MODAL_VLLM_REASONING_PARSER_PLUGIN) and tool calling via the
+# qwen3_coder parser. The deploy smoke (SAND-027-6) verifies these on the
+# actually-pinned image tag before the Granite matrix runs.
+REASONING_PARSER = os.environ.get("MODAL_VLLM_REASONING_PARSER", "")
+REASONING_PARSER_PLUGIN = os.environ.get("MODAL_VLLM_REASONING_PARSER_PLUGIN", "")
+TOOL_CALL_PARSER = os.environ.get("MODAL_VLLM_TOOL_CALL_PARSER", "")
+ENABLE_AUTO_TOOL_CHOICE = os.environ.get("MODAL_VLLM_ENABLE_AUTO_TOOL_CHOICE", "")
 TP_SIZE = os.environ.get("MODAL_VLLM_TP_SIZE", "") or str(
     int(os.environ.get("MODAL_VLLM_GPU", "L4").split(":")[1])
     if ":" in os.environ.get("MODAL_VLLM_GPU", "L4")
@@ -106,9 +143,15 @@ CONFIG_ENV_KEYS = (
     "MODAL_VLLM_MAX_MODEL_LEN",
     "MODAL_VLLM_GPU_MEMORY_UTILIZATION",
     "MODAL_VLLM_MAX_NUM_SEQS",
+    "MODAL_VLLM_ENABLE_PREFIX_CACHING",
+    "MODAL_VLLM_ENFORCE_EAGER",
     "MODAL_VLLM_TP_SIZE",
     "MODAL_VLLM_ATTENTION_BACKEND",
     "MODAL_VLLM_ASYNC_SCHEDULING",
+    "MODAL_VLLM_REASONING_PARSER",
+    "MODAL_VLLM_REASONING_PARSER_PLUGIN",
+    "MODAL_VLLM_TOOL_CALL_PARSER",
+    "MODAL_VLLM_ENABLE_AUTO_TOOL_CHOICE",
     "MODAL_VLLM_REVISION",
     "MODAL_VLLM_API_TOKEN",
     # HF_TOKEN deliberately absent: it lives in the named Modal secret
@@ -209,6 +252,20 @@ def build_vllm_command(model: str) -> list[str]:
         cmd += ["--attention-backend", ATTENTION_BACKEND]
     if _truthy(ASYNC_SCHEDULING):
         cmd += ["--async-scheduling"]
+    if _truthy(ENABLE_PREFIX_CACHING):
+        cmd += ["--enable-prefix-caching"]
+    elif ENABLE_PREFIX_CACHING.strip() != "":
+        cmd += ["--no-enable-prefix-caching"]
+    if _truthy(ENFORCE_EAGER):
+        cmd += ["--enforce-eager"]
+    if REASONING_PARSER:
+        cmd += ["--reasoning-parser", REASONING_PARSER]
+    if REASONING_PARSER_PLUGIN:
+        cmd += ["--reasoning-parser-plugin", REASONING_PARSER_PLUGIN]
+    if TOOL_CALL_PARSER:
+        cmd += ["--tool-call-parser", TOOL_CALL_PARSER]
+    if _truthy(ENABLE_AUTO_TOOL_CHOICE):
+        cmd += ["--enable-auto-tool-choice"]
     cmd += ["--no-enable-log-requests"]
     return cmd
 
@@ -224,11 +281,21 @@ def _masked_config() -> dict[str, str]:
         "max_model_len": MAX_MODEL_LEN,
         "gpu_memory_utilization": GPU_MEMORY_UTILIZATION,
         "max_num_seqs": MAX_NUM_SEQS,
+        "enable_prefix_caching": (
+            "on" if _truthy(ENABLE_PREFIX_CACHING)
+            else ("off" if ENABLE_PREFIX_CACHING.strip() else "unset(engine-default)")
+        ),
+        "enforce_eager": "on" if _truthy(ENFORCE_EAGER) else "off",
         "tensor_parallel_size": TP_SIZE,
+        "max_containers": str(MAX_CONTAINERS),
         "quantization": QUANTIZATION or "unset(bf16)",
         "revision": REVISION or "unset(tip)",
         "attention_backend": ATTENTION_BACKEND or "unset(engine-default)",
         "async_scheduling": "on" if _truthy(ASYNC_SCHEDULING) else "off",
+        "reasoning_parser": REASONING_PARSER or "unset(engine-default)",
+        "reasoning_parser_plugin": REASONING_PARSER_PLUGIN or "unset",
+        "tool_call_parser": TOOL_CALL_PARSER or "unset(engine-default)",
+        "auto_tool_choice": "on" if _truthy(ENABLE_AUTO_TOOL_CHOICE) else "off",
         "VLLM_API_KEY": presence("MODAL_VLLM_API_TOKEN"),
         "HF_TOKEN": presence("HF_TOKEN"),
         "scaledown_seconds": str(SCALEDOWN_SECONDS),

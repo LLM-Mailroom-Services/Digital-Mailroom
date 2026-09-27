@@ -56,7 +56,11 @@ def test_vllm_range_validation():
     # 8B-class rows on v0.29.0 — 32768 RAISES at the KV admission check), not
     # the pre-DMR-056 32768; AWQ/FP8 rows opt up explicitly.
     assert VLLMSpec().max_model_len == 16384
+    assert VLLMSpec().max_num_seqs == 6
+    assert VLLMSpec().enable_prefix_caching is True
+    assert VLLMSpec().enforce_eager is True
     VLLMSpec(max_model_len=32768)  # explicit opt-up stays valid
+    VLLMSpec(max_num_seqs=256)  # scale-matrix short-doc override
     with pytest.raises(ValidationError):
         VLLMSpec(gpu_memory_utilization=1.5)
     with pytest.raises(ValidationError):

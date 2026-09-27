@@ -67,8 +67,11 @@ def test_prompt_lock_block_rejects_unknown_agent():
 def test_apply_runtime_overrides_no_crash():
     # Neither llm.prompts nor langchain_agents is necessarily importable in
     # the test env; the override should degrade to [] without raising.
-    result = pr.apply_runtime_overrides({"sorter": "X", "judge": "Y"})
-    assert isinstance(result, list)
+    try:
+        result = pr.apply_runtime_overrides({"sorter": "X", "judge": "Y"})
+        assert isinstance(result, list)
+    finally:
+        pr.deactivate_runtime_overrides()
 
 
 def test_apply_runtime_overrides_warns_on_unimportable_family(caplog, monkeypatch):
@@ -79,7 +82,10 @@ def test_apply_runtime_overrides_warns_on_unimportable_family(caplog, monkeypatc
     monkeypatch.setitem(sys.modules, "langchain_agents.prompts", None)
     monkeypatch.setitem(sys.modules, "llm.prompts", None)
     with caplog.at_level("WARNING", logger="mailroom_sandbox.prompt_registry"):
-        result = pr.apply_runtime_overrides({"sorter": "X", "judge": "Y"})
+        try:
+            result = pr.apply_runtime_overrides({"sorter": "X", "judge": "Y"})
+        finally:
+            pr.deactivate_runtime_overrides()
     assert result == []
     assert "prompt overrides not applied" in caplog.text
     assert "sorter" in caplog.text and "judge" in caplog.text

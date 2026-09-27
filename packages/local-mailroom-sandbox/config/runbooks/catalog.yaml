@@ -1,0 +1,439 @@
+# Operator runbook catalog (SAND-031)
+#
+# THIS IS THE EDIT SURFACE. After changing this file:
+#   sandbox runbook check    # catalog vs live pins (deploy / models.yaml / run YAMLs)
+#   sandbox runbook write    # regenerate docs/runbooks/*.md
+#   sandbox runbook show <id>
+#
+# Do NOT copy serving numbers into markdown by hand. Per-class concurrency,
+# cost caps, and prompt stems stay in specialist_posture.py and are rendered
+# live. Suite order stays in config/runs/suites/*.yaml.
+schema: sandbox.runbook/v1
+catalog_id: sandbox-operator-runbooks
+title: Sandbox Modal + vLLM operator runbooks
+
+how_to_edit: |
+  1. Change serving pins, variants, or a runbook's steps / configs here.
+  2. Run `sandbox runbook check` — it must stay green against deploy defaults,
+     config/models.yaml, and the cited run YAMLs.
+  3. Run `sandbox runbook write` so docs/runbooks/ matches the renderer.
+  4. Commit the catalog + generated docs together.
+
+ops:
+  app: sandbox-vllm
+  profile: modal-vllm
+  job_mode: endpoint
+  teardown: ./deploy/teardown_vllm.sh
+  prewarm: modal run deploy/modal_vllm.py::download_model
+  deploy: modal deploy deploy/modal_vllm.py
+  gpu_usd_per_hour: 0.80
+  scaledown_unattended: 600
+  track_a_profile_env: SANDBOX_MODAL_PROFILE_TRACK_A
+  track_a_profile_default: hermes-agent-jjb
+  track_b_profile_env: SANDBOX_MODAL_PROFILE_TRACK_B
+  dataset_repo: Lucius-Morningstar/mailroom-dataset
+  sample_seed: 42
+  never:
+    - Share one Modal token / ~/.modal.toml profile across operators
+    - Tear down or modal deploy --strategy recreate between classes on one track
+    - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
+    - Edit run-30-*-specialist.yaml for a one-off model swap
+
+serving:
+  # Singular L4, one container, Qwen3-8B — the default cost-eval posture.
+  # Must match deploy/modal_vllm.py defaults + models.yaml + run-30 YAML engine.
+  baseline:
+    model: Qwen/Qwen3-8B
+    gpu: L4
+    image_tag: v0.29.0
+    max_model_len: 16384
+    max_num_seqs: 6
+    gpu_memory_utilization: "0.90"
+    enable_prefix_caching: 1
+    enforce_eager: 1
+    max_containers: 1
+    min_containers: 0
+    scaledown_seconds: 120
+    quantization: ""
+    tp_size: 1
+  variants:
+    awq-16k:
+      model: Qwen/Qwen3-8B-AWQ
+      quantization: awq
+      max_model_len: 16384
+    awq-32k:
+      model: Qwen/Qwen3-8B-AWQ
+      quantization: awq
+      max_model_len: 32768
+    granite-fp8:
+      model: ibm-granite/granite-4.2-8b-fp8
+      quantization: compressed-tensors
+      max_model_len: 32768
+      extra_env:
+        MODAL_VLLM_REASONING_PARSER: granite_thinking_parser
+        MODAL_VLLM_TOOL_CALL_PARSER: qwen3_coder
+        MODAL_VLLM_ENABLE_AUTO_TOOL_CHOICE: "1"
+    second-l4-dp:
+      max_containers: 2
+    scale-short-doc:
+      max_num_seqs: 256
+      scaledown_seconds: 600
+
+aliases:
+  l4: l4-qwen3-8b
+  singular: l4-qwen3-8b
+  qwen: l4-qwen3-8b
+  qwen3-8b: l4-qwen3-8b
+  track-a: l4-qwen3-8b-track-a
+  track-b: l4-qwen3-8b-track-b
+  full: l4-qwen3-8b
+  n20: l4-qwen3-8b-n20
+  awq: improved-awq
+  awq-c8: improved-awq-c8
+  granite: improved-granite-fp8
+
+runbooks:
+  l4-qwen3-8b:
+    family: baseline
+    title: Singular 1×L4 / 1-container Qwen3-8B (full 5×30)
+    summary: >
+      Default cost-eval path. One sandbox-vllm replica on one L4 serving
+      Qwen/Qwen3-8B bf16 (max_model_len 16384, max_containers 1). Warm once,
+      chain all five specialist classes, teardown after the last.
+    serving: baseline
+    suite: full
+    modal_profile: track-a
+    assert_engine: true
+    steps:
+      - env
+      - activate_profile
+      - estimate
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - suite
+      - teardown
+      - after
+    after:
+      - sandbox metrics extrapolate --run run-30-contracts-specialist --corpus-size 3302 --docs-per-day 10000
+      - sandbox metrics compare --runs run-30-contracts-specialist,run-30-merger-specialist,run-30-corporate-records-specialist,run-30-correspondence-specialist,run-30-insurance-claims-specialist
+    notes:
+      - Prefer two-operator tracks (l4-qwen3-8b-track-a ∥ track-b) when two Modal wallets exist — same spend, ~½ wall.
+      - "Attended scaledown is 120s. Unattended/overnight: set scaledown_seconds 600 in the catalog variant or export MODAL_VLLM_SCALEDOWN_SECONDS=600 before deploy."
+      - Merger uses merger_agreement_specialist (not contracts) and the train split.
+      - Prompts are eval-environment frozen v1 simplified stems (sandbox runbook show prints the live posture table).
+
+  l4-qwen3-8b-track-a:
+    family: baseline
+    title: Operator A — 1×L4 Qwen3-8B (contracts → corporate → correspondence)
+    summary: >
+      Track A on the Hermes wallet (hermes-agent-jjb). Same singular L4 /
+      1-container serving as l4-qwen3-8b. Do not share this profile with Operator B.
+    serving: baseline
+    suite: track-a
+    modal_profile: track-a
+    assert_engine: true
+    steps:
+      - env
+      - activate_profile
+      - estimate
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - suite
+      - teardown
+
+  l4-qwen3-8b-track-b:
+    family: baseline
+    title: Operator B — 1×L4 Qwen3-8B (merger → insurance)
+    summary: >
+      Track B on a second Modal account. SANDBOX_MODAL_PROFILE_TRACK_B is
+      required. Never activate hermes-agent-jjb here if Operator A is using it.
+    serving: baseline
+    suite: track-b
+    modal_profile: track-b
+    assert_engine: true
+    allow_non_hermes: true
+    steps:
+      - env
+      - activate_profile
+      - estimate
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - suite
+      - teardown
+
+  l4-qwen3-8b-n20:
+    family: baseline
+    title: Singular 1×L4 Qwen3-8B — 20-contract probe
+    summary: >
+      SAND-018 single-class sibling of the 5×30 suite. Same L4 / 1-container
+      Qwen3-8B pins, 20 contract docs from split=all seed 42.
+    serving: baseline
+    configs:
+      - config/runs/run-20-contracts-specialist.yaml
+    modal_profile: track-a
+    assert_engine: true
+    steps:
+      - env
+      - activate_profile
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+
+  improved-awq:
+    family: improved
+    title: AWQ on 1×L4 (Qwen3-8B-AWQ, contracts N=20)
+    summary: >
+      Optional cost-saver. Official Qwen3-8B AWQ is a drop-in Hub id. The
+      DMR-068 accuracy gate (≥1.5× docs/min and ≥98% accuracy) is NOT green
+      in-repo — do not flip the default 5×30 suite. This run YAML still boots
+      at 16384; prefer improved-awq-c8 for the corrected 32768 window.
+    serving: awq-16k
+    modal_matrix: Qwen/Qwen3-8B-AWQ
+    configs:
+      - config/runs/run-20-contracts-awq.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    steps:
+      - env
+      - activate_profile
+      - matrix_hint
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+    notes:
+      - Keep run-30-*-specialist.yaml on bf16 Qwen3-8B. Copy a YAML if an alternate scorecard needs matching engine.model.
+      - benchmark-check accepts AWQ as a warning, not an error.
+
+  improved-awq-c8:
+    family: improved
+    title: AWQ + 32768 + concurrency 8 (contracts N=20)
+    summary: >
+      SAND-019 corrected contracts path. Window 32768 clears the 16k 400;
+      run-scoped max_tokens 8192 clears LengthFinish; concurrency 8 on one L4.
+      Same seed-42 draw as run-20-contracts-awq.
+    serving: awq-32k
+    modal_matrix: Qwen/Qwen3-8B-AWQ
+    configs:
+      - config/runs/run-20-contracts-awq-c8.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    start_force: true
+    extra_env:
+      SANDBOX_AGENT_KNOBS: '{"contracts_specialist":{"max_tokens":8192,"max_input_chars":24000}}'
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - matrix_hint
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+
+  improved-correspondence-awq:
+    family: improved
+    title: AWQ 32768 correspondence N=20 (concurrency 5)
+    summary: SAND-019 short-doc AWQ path. Same 1×L4 / 1-container topology.
+    serving: awq-32k
+    modal_matrix: Qwen/Qwen3-8B-AWQ
+    configs:
+      - config/runs/run-20-correspondence-awq.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    steps:
+      - env
+      - activate_profile
+      - matrix_hint
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+
+  improved-correspondence-awq-c8:
+    family: improved
+    title: AWQ 32768 correspondence N=20 (concurrency 8)
+    summary: >
+      Same seed-42 correspondence draw as improved-correspondence-awq
+      (fingerprint 285f423d3708). Only concurrency changes (5 → 8).
+    serving: awq-32k
+    modal_matrix: Qwen/Qwen3-8B-AWQ
+    configs:
+      - config/runs/run-20-correspondence-awq-c8.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    steps:
+      - env
+      - activate_profile
+      - matrix_hint
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+
+  improved-correspondence-fp16-c8:
+    family: improved
+    title: FP16 isolation twin of correspondence AWQ-c8
+    summary: >
+      issue #21. Same draw (fingerprint 285f423d3708) and concurrency 8, but
+      Qwen/Qwen3-8B bf16 at 16384. PREPARED ONLY until spend/auth are approved.
+    serving: baseline
+    configs:
+      - config/runs/run-20-correspondence-fp16-c8.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    blocked: true
+    blocked_reason: spend/auth not approved (issue #21) — do not modal deploy or sandbox run start
+    steps:
+      - env
+      - activate_profile
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+    notes:
+      - Confirm lock fingerprint 285f423d3708 before scoring.
+      - Prompt pin is correspondence_specialist_production (isolation twin), not the simplified catalog stem.
+
+  improved-granite-fp8:
+    family: improved
+    title: Granite 4.2-8B FP8 on 1×L4 (SAND-027 Leg A swap-in)
+    summary: >
+      Same singular L4 / 1-container topology as the Qwen baseline, swapped to
+      ibm-granite/granite-4.2-8b-fp8 at 32768. Do not edit run-30 YAMLs — live
+      /v1/models probe requires engine.model to match, so copy specs after smoke.
+    serving: granite-fp8
+    modal_matrix: ibm-granite/granite-4.2-8b-fp8
+    suite: full
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: false
+    skip_check: true
+    extra_env:
+      MODAL_VLLM_REASONING_PARSER: granite_thinking_parser
+      MODAL_VLLM_TOOL_CALL_PARSER: qwen3_coder
+      MODAL_VLLM_ENABLE_AUTO_TOOL_CHOICE: "1"
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - matrix_hint
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - smoke
+      - teardown
+    smoke:
+      - Confirm /v1/models data[0].id is ibm-granite/granite-4.2-8b-fp8
+      - Confirm the replica booted at max_model_len=32768 (bf16 Granite 32k fails on 1×L4)
+      - One structured-output json_object completion succeeds
+      - Thinking spans are separable (granite_thinking_parser; plugin fallback on v0.29.0)
+    notes:
+      - sandbox run benchmark-check is Qwen-only. Skip it for Granite.
+      - After smoke, copy run-30-*-specialist.yaml and set engine.model / vllm.max_model_len / quantization to this variant before --live preflight.
+      - Draw one 100-row bucket per class (seed 42) and slice 20/50 — do not re-draw.
+      - OpenRouter twin id is ibm-granite/granite-4.2-8b (same string as the HF bf16 repo). Reports must say the Modal leg served -fp8.
+      - Live deploy + H5 tag decision remain SAND-027-6; this runbook is the operator path, not an authorization to spend.
+
+  improved-second-l4:
+    family: improved
+    title: Second L4 — data parallel (still 1 GPU / container)
+    summary: >
+      Raise MAX_CONTAINERS to 2. Each replica is a full vLLM on its own L4
+      with the baseline Qwen3-8B knobs. Modal @web_server round-robins.
+      Do not use GPU=L4:2 + tensor parallel for 8B.
+    serving: second-l4-dp
+    suite: full
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: false
+    steps:
+      - env
+      - activate_profile
+      - estimate
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - suite
+      - teardown
+    notes:
+      - Per-replica max_num_seqs stays 6 (total admission ≈ 8–12).
+      - Doubles $/hr while warm. Only raise after measured queueing.
+
+  improved-scale-matrix:
+    family: improved
+    title: L4 scale-matrix cells (not the singular 1-container path)
+    summary: >
+      DMR-068 / SAND-022 throughput protocol. These cells pin replica fleets
+      (often 4×L4) and short-doc max_num_seqs=256. GPU cells pending spend.
+    serving: scale-short-doc
+    configs:
+      - config/runs/scale-c1-4xl4-c16.yaml
+      - config/runs/scale-d1-awq-4xl4-c16.yaml
+      - config/runs/scale-e1-fp8-l4-4xl4-c16.yaml
+      - config/runs/scale-f1-qwen35-9b-fp8-4xl4-c16.yaml
+      - config/runs/scale-g1-qwen35-35b-tp2-1xl4x2-c16.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: false
+    skip_check: true
+    extra_env:
+      MODAL_VLLM_MAX_NUM_SEQS: "256"
+    steps:
+      - env
+      - extra_env
+      - activate_profile
+    notes:
+      - See docs/scale-matrix.md for the decision rule (D1 vs C1 AWQ gate).
+      - Pin MIN_CONTAINERS = MAX_CONTAINERS = R per cell. Teardown after every cell.
+      - G1 is the only cell that uses GPU=L4:2 + TP (model does not fit one L4).
+      - Execution pending spend approval — this runbook documents the specs; it does not authorize GPU time.
+
+anti_patterns:
+  - anti: Independent sandbox run start per config
+    cost: a cold boot per run
+    instead: sandbox run suite (or a catalog runbook with warm-once steps)
+  - anti: modal deploy --strategy recreate between classes
+    cost: image + weight reload
+    instead: deploy once per matrix / track
+  - anti: Concurrency 3–4 on light classes after a c8 probe
+    cost: leftover continuous-batching headroom
+    instead: re-derive per class (keep ≤ replicas × max_num_seqs)
+  - anti: scaledown 600 while iterating attended
+    cost: container dies mid-matrix, re-pay boot
+    instead: 120 attended / 600 overnight only
+  - anti: H100 for n≤100 specialist docs
+    cost: ~4.9× $/hr without a matching wall cut
+    instead: stay on 1×L4

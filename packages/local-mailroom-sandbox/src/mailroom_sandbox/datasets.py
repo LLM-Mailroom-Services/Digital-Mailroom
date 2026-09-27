@@ -200,6 +200,24 @@ def serving_fixture_path() -> Path:
     return fixtures_dir() / "serving" / "local_vs_api.json"
 
 
+def cost_compare_fixture_path() -> Path:
+    return fixtures_dir() / "serving" / "cost_compare.json"
+
+
+def load_cost_compare_fixtures() -> dict[str, Any]:
+    """Grant-style local / Modal / API serving triple (no live GPU)."""
+    path = cost_compare_fixture_path()
+    if not path.is_file():
+        _log.warning(
+            "cost-compare fixture missing: %s — metrics compare --fixture "
+            "will have empty sides",
+            path,
+        )
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload if isinstance(payload, dict) else {}
+
+
 def load_serving_fixtures() -> dict[str, Any]:
     """Synthetic local vs API serving records (no live LLM, no API key)."""
     path = serving_fixture_path()

@@ -519,11 +519,6 @@ Prefer the `/v1` prefix; unversioned routes remain during the deprecation window
 | `GET` | `/v1/status/{doc_id}` | Document pipeline status |
 | `GET` | `/v1/matters/{matter_id}` | All documents in a matter |
 | `GET` | `/v1/audit/{doc_id}` | Hash-chained audit trail + validity check |
-| `GET` | `/v1/lookup` | Resolve a document by `doc_id`, `trace_id`, or `filename` |
-| `GET` | `/v1/review/queue` | REVIEW tray (catalog + on-disk manifests) |
-| `GET` | `/v1/documents/{doc_id}/source` | Parked document text for review |
-| `GET` | `/v1/audit` | Global audit chain head |
-| `GET` / `POST` | `/v1/api/relations/mode` | Relations clerk live/pilot posture |
 | `GET` | `/v1/ops/status` | Pipeline-wide operational metrics |
 | `POST` | `/v1/ops/sweep` | Run a one-off Boss ops-monitor sweep |
 | `POST` | `/v1/ops/resume` | Clear the ingestion-pause flag |
@@ -630,7 +625,7 @@ Mailroom is the pipeline at the center of a small constellation of governed repo
 | --- | --- | --- |
 | [Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) | **Monorepo** — one uv workspace holding every constellation repo as a git-subtree package (`packages/llm-mailroom` ⇄ this repo), with the sub-package sync driver + `governance/TASKS.md` cross-repo task board | **Development home** — the monorepo is the source of truth for active development (DMR-era cards); standalone-repo work ships through `scripts/sync_packages.py` (`pull`/`push`) |
 | [llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction) | Prompt-experiment loop (prompt versions × models over CUAD/LegalBench/MAUD) | **Sister repo** — source of the vendored sorter/contracts prompts; shares ONE kanban board with this repo |
-| [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Deterministic field-type-aware scoring engine | **Upstream dependency**, pinned `@v0.14.0` in `pyproject.toml` |
+| [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Deterministic field-type-aware scoring engine | **Upstream dependency**, pinned `@v0.16.0` in `pyproject.toml` |
 | [Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment) | EDA + correspondence dataset from the CMU Enron corpus | **Corpus feed** for the `correspondence` doc class |
 | [claims-data-eda](https://github.com/Exios66/claims-data-eda) | Insurance-claims candidate-corpus EDA (CMS DE-SynPUF) | **Corpus feed (candidate)** for `insurance_claim` |
 | [atticus-investigation](https://github.com/Exios66/atticus-investigation) | LegalBench classification prompt-engineering pipeline | **Eval sibling** — same methodology |

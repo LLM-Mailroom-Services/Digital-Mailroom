@@ -19,11 +19,16 @@ Cost honesty
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import statistics
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Sequence, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mailroom_sandbox.job.checkpoint import RunStore
 
 from llm_dojo_scoring.serving import compare_serving, estimate_cost
 
@@ -201,9 +206,10 @@ def _gpu_seconds_from_items(
 ) -> float | None:
     """GPU-seconds attribution for a run.
 
-    Prefer an explicit billed window (Modal warm interval). Else sum ok-item
-    ``latency_ms`` as a busy-time lower bound (overcounts under concurrency —
-    still better than silent $0).
+    Prefer an explicit billed window (Modal warm interval: measured wall +
+    cold boot, or ``MODAL_BILLED_GPU_SECONDS``). Else sum ok-item ``latency_ms``
+    as a busy-time lower bound — that sum **overcounts** billed GPU time when
+    ``concurrency`` > 1 and is only a last-resort fallback.
     """
     if billed_window_seconds is not None and billed_window_seconds > 0:
         return float(billed_window_seconds)
@@ -345,6 +351,258 @@ def record_from_run(
     return {k: v for k, v in rec.items() if v is not None}
 
 
+TTFT_NEVER_INFERRED_NOTE = (
+    "TTFT never inferred (served locally; do not infer from e2e)"
+)
+
+
+def _parse_item_ts(ts: Any) -> float | None:
+    if ts is None or ts == "":
+        return None
+    try:
+        raw = str(ts).replace("Z", "+00:00")
+        return datetime.fromisoformat(raw).timestamp()
+    except (TypeError, ValueError):
+        return None
+
+
+def infer_wall_seconds_from_items(items: Sequence[Mapping[str, Any]]) -> float | None:
+    """Wall clock span from item ``ts`` stamps (first → last), when present."""
+    stamps = [_parse_item_ts(i.get("ts")) for i in items]
+    stamps = [s for s in stamps if s is not None]
+    if len(stamps) < 2:
+        return None
+    return round(max(stamps) - min(stamps), 3)
+
+
+def infer_wall_seconds_from_store(store: RunStore) -> float | None:
+    """Best-effort wall seconds from items or the run event journal."""
+    wall = infer_wall_seconds_from_items(store.load_items())
+    if wall is not None:
+        return wall
+    events = store.events()
+    stamps: list[float] = []
+    for ev in events:
+        ts = _parse_item_ts(ev.get("ts"))
+        if ts is not None:
+            stamps.append(ts)
+    if len(stamps) < 2:
+        return None
+    return round(max(stamps) - min(stamps), 3)
+
+
+def _prompt_version_from_lock(lock: Mapping[str, Any]) -> str:
+    prompt_block = lock.get("prompt") or {}
+    task = str(lock.get("task") or "")
+    agents = prompt_block.get("agents") or {} if isinstance(prompt_block, dict) else {}
+    ref = agents.get(task) if isinstance(agents, dict) else None
+    if isinstance(ref, dict) and ref.get("source") == "local" and ref.get("file"):
+        stem = str(ref["file"])
+        from mailroom_sandbox.eval_environment_lineage import eval_environment_key_for
+
+        return eval_environment_key_for(agent=task, stem=stem) or stem
+    default = (prompt_block.get("default") or {}) if isinstance(prompt_block, dict) else {}
+    if isinstance(default, dict) and default.get("source") == "local":
+        stem = str(default.get("file") or "").strip()
+        if stem:
+            return stem
+    return str(default.get("source") or "code-default")
+
+
+def _dataset_fingerprint_from_store(store: RunStore) -> str:
+    ds = (store.read_lock() or {}).get("dataset") or {}
+    if isinstance(ds, dict) and ds.get("sha256"):
+        return str(ds["sha256"])[:12]
+    rows = store.dataset_rows()
+    if not rows:
+        return ""
+    from mailroom_sandbox.datasets import dataset_fingerprint
+
+    return dataset_fingerprint(rows)
+
+
+def enrich_serving_report(
+    record: dict[str, Any],
+    *,
+    items: Sequence[Mapping[str, Any]],
+    wall_seconds: float | None = None,
+    concurrency: int = 1,
+    cold_boot_seconds: float | None = None,
+    gpu: str | None = None,
+    scores: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Extend a ``record_from_run`` dict with wall/concurrency/latency_sum fields.
+
+    Also adds the SAND-028-1 idle-fraction block when wall and latency sums exist.
+    """
+    out = dict(record)
+    if scores:
+        out["scores"] = dict(scores)
+    ok_items = [i for i in items if i.get("ok", True) is not False]
+    latencies_ms = [
+        float(i["latency_ms"])
+        for i in ok_items
+        if i.get("latency_ms") is not None
+    ]
+    if wall_seconds is None:
+        wall_seconds = infer_wall_seconds_from_items(items)
+    latency_sum = sum(latencies_ms) / 1000.0 if latencies_ms else None
+    conc = max(1, int(concurrency or 1))
+
+    if latencies_ms:
+        out.setdefault(
+            "e2e_latency_seconds",
+            round(statistics.mean(latencies_ms) / 1000.0, 6),
+        )
+        out.setdefault(
+            "latency_p50_seconds",
+            round(statistics.median(latencies_ms) / 1000.0, 6),
+        )
+        out.setdefault(
+            "latency_max_seconds",
+            round(max(latencies_ms) / 1000.0, 6),
+        )
+    if wall_seconds is not None and wall_seconds > 0:
+        out["wall_seconds"] = round(float(wall_seconds), 3)
+    if conc > 1:
+        out["concurrency"] = conc
+    if cold_boot_seconds is not None:
+        out["cold_boot_seconds"] = round(float(cold_boot_seconds), 3)
+    if latency_sum is not None:
+        out["latency_sum_seconds"] = round(latency_sum, 3)
+        if wall_seconds and wall_seconds > 0:
+            out["latency_sum_over_wall"] = round(latency_sum / wall_seconds, 2)
+    total_tokens = int(out.get("total_tokens") or 0)
+    if wall_seconds and wall_seconds > 0 and total_tokens > 0:
+        out["tokens_per_second"] = round(total_tokens / wall_seconds, 2)
+    if out.get("ttft_seconds") is None:
+        out["ttft_seconds"] = None
+        out["ttft_note"] = TTFT_NEVER_INFERRED_NOTE
+
+    kind = bucket_kind(out)
+    gpu_class = gpu or out.get("gpu")
+    if kind == "modal" and wall_seconds and wall_seconds > 0:
+        billed = float(wall_seconds) + (
+            float(cold_boot_seconds) if cold_boot_seconds is not None else 0.0
+        )
+        out["gpu_seconds"] = round(billed, 3)
+        gpu_cost = estimate_gpu_cost_usd(billed, gpu=gpu_class)
+        if gpu_cost is not None:
+            out["estimated_gpu_cost_usd"] = gpu_cost
+            n_ok = len(ok_items) or int(out.get("n") or 0)
+            if n_ok > 0:
+                out["gpu_cost_per_document"] = round(gpu_cost / n_ok, 8)
+
+    if (
+        wall_seconds
+        and wall_seconds > 0
+        and latency_sum is not None
+        and kind in {"modal", "local"}
+    ):
+        busy_slot = latency_sum / conc
+        out["busy_slot_seconds"] = round(busy_slot, 3)
+        out["slot_utilization"] = round(busy_slot / float(wall_seconds), 4)
+        idle_container = max(0.0, float(wall_seconds) - busy_slot)
+        out["idle_container_seconds"] = round(idle_container, 3)
+        idle_usd = estimate_gpu_cost_usd(idle_container, gpu=gpu_class)
+        if idle_usd is not None:
+            out["idle_estimated_usd"] = idle_usd
+        if cold_boot_seconds is not None:
+            boot_usd = estimate_gpu_cost_usd(float(cold_boot_seconds), gpu=gpu_class)
+            if boot_usd is not None:
+                out["boot_estimated_usd"] = boot_usd
+
+    return out
+
+
+def serving_record_from_store(
+    store: RunStore,
+    *,
+    wall_seconds: float | None = None,
+    scores: Mapping[str, Any] | None = None,
+    mock: bool | None = None,
+) -> dict[str, Any]:
+    """Build a full serving JSON payload from a completed run store."""
+    lock = store.read_lock() or {}
+    items = store.load_items()
+    if not items:
+        raise ValueError(f"run {store.run_id!r} has no items.jsonl rows")
+    engine = lock.get("engine") or {}
+    modal = (engine.get("modal") or {}) if isinstance(engine, dict) else {}
+    gpu = str(modal.get("gpu") or "").split(":")[0] or None
+    job = lock.get("job") or {}
+    concurrency = int(job.get("concurrency") or 1)
+    if mock is None:
+        mock = bool(job.get("mock"))
+    cold_boot = store.read_cold_boot()
+    cold_boot_seconds = (
+        float(cold_boot["cold_boot_seconds"])
+        if cold_boot and cold_boot.get("cold_boot_seconds") is not None
+        else None
+    )
+    wall = wall_seconds if wall_seconds is not None else infer_wall_seconds_from_store(store)
+    env_billed = _env_float("MODAL_BILLED_GPU_SECONDS")
+    billed_window = env_billed if env_billed and env_billed > 0 else None
+    if billed_window is None and wall is not None:
+        billed_window = float(wall) + (cold_boot_seconds or 0.0)
+    base = record_from_run(
+        run_id=store.run_id,
+        spec_hash=store.spec_hash() or "",
+        task=str(lock.get("task") or "?"),
+        profile=str(lock.get("profile") or "?"),
+        model=(engine.get("model") if isinstance(engine, dict) else None) or "?",
+        prompt_version=_prompt_version_from_lock(lock),
+        dataset_fingerprint=_dataset_fingerprint_from_store(store),
+        items=items,
+        scores=scores,
+        gpu=gpu,
+        billed_window_seconds=billed_window if billed_window and billed_window > 0 else None,
+        mock=bool(mock),
+    )
+    return enrich_serving_report(
+        base,
+        items=items,
+        wall_seconds=wall,
+        concurrency=concurrency,
+        cold_boot_seconds=cold_boot_seconds,
+        gpu=gpu,
+        scores=scores,
+    )
+
+
+def default_serving_json_path(run_id: str) -> Path:
+    from mailroom_sandbox.paths import repo_root
+
+    return repo_root() / "reports" / "serving" / f"{run_id}.serving.json"
+
+
+def write_serving_json(
+    store: RunStore,
+    path: Path | None = None,
+    *,
+    wall_seconds: float | None = None,
+    scores: Mapping[str, Any] | None = None,
+) -> Path:
+    """Write ``reports/serving/<run_id>.serving.json`` (or ``path``)."""
+    payload = serving_record_from_store(
+        store, wall_seconds=wall_seconds, scores=scores
+    )
+    dest = Path(path) if path is not None else default_serving_json_path(store.run_id)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    _atomic_write_serving_json(dest, payload)
+    return dest
+
+
+def _atomic_write_serving_json(path: Path, payload: Mapping[str, Any]) -> None:
+    tmp = path.with_name(path.name + ".tmp")
+    text = json.dumps(dict(payload), indent=2, sort_keys=True, default=str) + "\n"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(text)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, path)
+
+
 def _provider_for(profile: str) -> str:
     if profile in MODAL_PROFILES:
         return "vllm"
@@ -396,8 +654,9 @@ def aggregate_bucket(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "tokens_per_s": round((prom + comp) / dur, 2) if dur else None,
         "estimated_cost_usd": round(sum(cost), 6) if cost else None,
         "estimated_gpu_cost_usd": round(sum(gpu_cost), 6) if gpu_cost else None,
-        "mean_cost_per_document": _mean(cpd),
-        "mean_gpu_cost_per_document": _mean(gcpd),
+        # 8 dp — Grant token-proxy $/doc is ~1e-5; _mean's 4 dp rounded it to 0.
+        "mean_cost_per_document": round(statistics.mean(cpd), 8) if cpd else None,
+        "mean_gpu_cost_per_document": round(statistics.mean(gcpd), 8) if gcpd else None,
     }
 
 
@@ -461,7 +720,18 @@ def compare(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
 def _score_quality(rec: Mapping[str, Any]) -> dict[str, float | None]:
     scores = rec.get("scores") if isinstance(rec.get("scores"), Mapping) else {}
     out: dict[str, float | None] = {}
-    for key in ("accuracy", "exact_match", "f1_macro", "doc_type_accuracy", "subclass_accuracy"):
+    for key in (
+        "accuracy",
+        "exact_match",
+        "f1_macro",
+        "doc_type_accuracy",
+        "subclass_accuracy",
+        "overall_extraction_score",
+        "extraction_f1",
+        "parse_error_rate",
+        "schema_valid_rate",
+        "schema_adherence_rate",
+    ):
         val = scores.get(key) if scores else rec.get(key)
         if val is not None:
             try:
@@ -626,6 +896,10 @@ def _sorter_vs_modernbert_md(
     return "\n".join(lines)
 
 
+def _cell(value: Any) -> str:
+    return "-" if value is None else str(value)
+
+
 def _markdown(summary: dict[str, Any], deltas: dict[str, Any], pairs: dict[str, Any]) -> str:
     lines = ["## Serving metrics (local vs Modal vs API)", ""]
     header = (
@@ -638,18 +912,18 @@ def _markdown(summary: dict[str, Any], deltas: dict[str, Any], pairs: dict[str, 
         if not agg:
             continue
         lines.append(
-            f"| {kind} | {agg['n']} | {agg['mean_e2e_s'] or '-'} | "
-            f"{agg['mean_ttft_s'] or '-'} | {agg['tokens_per_s'] or '-'} | "
-            f"{agg['total_tokens'] or '-'} | {agg['estimated_cost_usd'] or '-'} | "
-            f"{agg.get('estimated_gpu_cost_usd') or '-'} | "
-            f"{agg.get('mean_cost_per_document') or '-'} |"
+            f"| {kind} | {agg['n']} | {_cell(agg['mean_e2e_s'])} | "
+            f"{_cell(agg['mean_ttft_s'])} | {_cell(agg['tokens_per_s'])} | "
+            f"{_cell(agg['total_tokens'])} | {_cell(agg['estimated_cost_usd'])} | "
+            f"{_cell(agg.get('estimated_gpu_cost_usd'))} | "
+            f"{_cell(agg.get('mean_cost_per_document'))} |"
         )
     lines.append("")
     lines.append("### Delta vs API (%)")
     lines.append("| metric | local | modal |")
     lines.append("| --- | --- | --- |")
     for metric, d in deltas.items():
-        lines.append(f"| {metric} | {d.get('local') or '-'} | {d.get('modal') or '-'} |")
+        lines.append(f"| {metric} | {_cell(d.get('local'))} | {_cell(d.get('modal'))} |")
     for name, pair in pairs.items():
         md = pair.get("markdown") if isinstance(pair, dict) else None
         if md:

@@ -60,8 +60,13 @@ agents:
     reasoning_effort: "none"
   contracts_specialist:
     temperature: 0.1
+    # SAND-018: 4096 decode (2048 truncated contract JSON). Input cap sized for
+    # the measured ~2.4 chars/token of dense filings AND the ~3100-token v33
+    # prompt overhead: 18000 chars ≈ 7500 tokens + 4096 decode + 4000 reserve
+    # ≤ 16384. (35000 chars = 14337 tokens, 24000 = 12289 — both 400 the 16k
+    # window; raising the window to 32k for AWQ is the follow-up to restore it.)
     max_tokens: 4096
-    max_input_chars: 35000
+    max_input_chars: 18000
     reasoning_effort: "none"
   merger_agreement_specialist:
     temperature: 0.1

@@ -1,0 +1,93 @@
+# SAND-018 (AWQ variant) — Specialist extract: contracts_specialist on 20
+# CONTRACT docs drawn as a seeded random sample from the FULL mailroom-dataset
+# (split=all, 3,302 rows). Same draw as run-20-contracts-specialist; the only
+# change is the engine: Qwen/Qwen3-8B-AWQ so decode is ~2x faster and the KV
+# cache fits concurrency 4 on one L4.
+#
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║ WHY AWQ (SAND-018 postmortem)                                            ║
+# ║  The bf16 run took 49:50 because (1) the isolated specialist path ran     ║
+# ║  serially, ignoring concurrency; (2) the vendored LangChain client        ║
+# ║  hardcodes timeout=120, so 4096-token decodes laddered 5x; (3) 35k-char   ║
+# ║  inputs overflowed the 16k window. AWQ halves weight bytes (faster        ║
+# ║  decode + KV headroom); the harness now honors concurrency and pins the   ║
+# ║  call timeout from run_limits; contracts max_tokens is 2048.              ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+#
+# Deploy (AWQ env — see `sandbox modal-matrix env Qwen/Qwen3-8B-AWQ`):
+#   modal profile activate hermes-agent-jjb
+#   export SANDBOX_PROFILE=modal-vllm MODAL_VLLM_MODEL=Qwen/Qwen3-8B-AWQ \
+#     MODAL_VLLM_QUANTIZATION=awq MODAL_VLLM_MAX_MODEL_LEN=16384 \
+#     MODAL_VLLM_GPU=L4 MODAL_VLLM_IMAGE_TAG=v0.29.0 \
+#     MODAL_VLLM_MAX_CONTAINERS=1 MODAL_VLLM_SCALEDOWN_SECONDS=120
+#   modal run deploy/modal_vllm.py::download_model
+#   modal deploy deploy/modal_vllm.py --strategy recreate
+#   sandbox run benchmark-check --config config/runs/run-20-contracts-awq.yaml
+#   sandbox run preflight --config config/runs/run-20-contracts-awq.yaml --live
+#   sandbox run start --config config/runs/run-20-contracts-awq.yaml --job-mode endpoint --watch
+#   ./deploy/teardown_vllm.sh
+schema: sandbox.run/v1
+run_id: run-20-contracts-awq
+task: contracts_specialist
+profile: modal-vllm
+
+prompt:
+  # SAND-026 simplified pin (config/prompts/contracts_specialist_v33_simplified.txt) for
+  # reproducible Modal L4 Qwen runs — not Langfuse floating production. DMR-074/078.
+  default: {source: code-default}
+  agents:
+    contracts_specialist:
+      source: local
+      file: contracts_specialist_v33_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  # split: all — the FULL corpus (train+test, 3,302 rows). The 20-contract draw
+  # is a seeded random sample from the contract class (600 available at the pin).
+  split: all
+  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      - doc_class: contract
+        count: 20
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 16384      # prompts fit 16k; AWQ buys speed + KV headroom
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: awq
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    # Attended cost-saver (DMR-076). Unattended/overnight: restore 600 here
+    # and export MODAL_VLLM_SCALEDOWN_SECONDS=600 before redeploy.
+    scaledown_seconds: 120
+    max_containers: 1         # cost guard — do not raise for specialist runs
+    min_containers: 0         # scale-to-zero after idle
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 4              # DMR-078 per-doc-type (short↑ / long↓)
+  cost_cap_usd: 0.55        # abort if wall×L4 $/hr exceeds (20-doc posture)
+  max_wall_seconds: 3200    # hard wall abort (20-doc posture)
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-20-awq
+  tags: [sandbox, job, specialist, contracts, qwen3-8b-awq, l4, benchmark, sand-018]

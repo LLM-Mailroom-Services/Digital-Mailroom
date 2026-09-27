@@ -223,7 +223,14 @@ def normalize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             raise ValueError(f"corpus integrity: content_sha256 mismatch on {row.get('id') or row.get('filename')}")
         if not content_sha:
             content_sha = sha256_text(text)
+        # SAND-019: the pinned HF ``ground_truth`` config names its field-level
+        # labels ``gt_fields`` (a JSON string); ``expected_fields`` only exists
+        # on the local fixture/derived shape. Reading only the latter silently
+        # produced {} for all 3,302 corpus rows, so every specialist extraction
+        # scored null. Prefer the explicit key, then fall back to the Hub column.
         expected_fields = row.get("expected_fields")
+        if expected_fields is None:
+            expected_fields = row.get("gt_fields")
         if isinstance(expected_fields, str):
             # Same parser discipline as datasets.parse_expected_fields — a JSON
             # string is decoded, never silently flattened to {} (DMR-049).
@@ -479,6 +486,18 @@ def _bucket_candidates(
     return [r for r in rows if value is None or r["expected_doc_class"] == value]
 
 
+def _seeded_prefix(
+    candidates: list[dict[str, Any]], count: int, *, seed: int
+) -> list[dict[str, Any]]:
+    """Deterministic prefix of a seeded shuffle (nested draws: k ⊂ m when k < m)."""
+    if count >= len(candidates):
+        return list(candidates)
+    rng = random.Random(seed)
+    ordered = list(candidates)
+    rng.shuffle(ordered)
+    return ordered[:count]
+
+
 def _draw_buckets(
     rows: list[dict[str, Any]],
     buckets: list[dict[str, Any]],
@@ -539,7 +558,7 @@ def _draw_buckets(
                     if sample_seed is None:
                         raise ValueError("sample_seed required for stratified draws")
                     sub_seed = int(hashlib.sha256(f"{sample_seed}:{bucket_key}".encode()).hexdigest()[:16], 16)
-                    picked = random.Random(sub_seed).sample(sub_candidates, k=c)
+                    picked = _seeded_prefix(sub_candidates, c, seed=sub_seed)
                 else:
                     picked = sub_candidates
                 drawn.extend(picked)
@@ -563,7 +582,7 @@ def _draw_buckets(
                     raise ValueError("sample_seed required for stratified draws")
                 bucket_key = f"{field}::{value}"
                 sub_seed = int(hashlib.sha256(f"{sample_seed}:{bucket_key}".encode()).hexdigest()[:16], 16)
-                drawn = random.Random(sub_seed).sample(candidates, k=count)
+                drawn = _seeded_prefix(candidates, count, seed=sub_seed)
             else:
                 drawn = candidates
             keep.update(_stable_key(r) for r in drawn)

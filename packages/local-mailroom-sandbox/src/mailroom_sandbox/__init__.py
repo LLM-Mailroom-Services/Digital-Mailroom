@@ -22,5 +22,5 @@ for _vendored in (vendored_mailroom_src(), vendored_dojo_src()):
 
 from mailroom_sandbox.runtime import activate
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = ["activate", "__version__"]

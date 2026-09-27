@@ -32,7 +32,7 @@ pool; AWQ rows opt up to 32768). Compose substitution reads your shell env or
 | `VLLM_MODEL` | `Qwen/Qwen3-8B` | HF repo id |
 | `VLLM_MAX_MODEL_LEN` | `16384` | KV-cache budget (boot-valid for bf16 8B on L4; AWQ rows set 32768) |
 | `VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | vLLM's default is `0.92`; 0.90 leaves headroom on a 24 GB L4 / shared GPU |
-| `VLLM_MAX_NUM_SEQS` | `256` | concurrency cap (matches the Modal default) |
+| `VLLM_MAX_NUM_SEQS` | `6` | L4 long-prompt concurrency cap (matches the Modal default; scale-matrix → 256) |
 | `VLLM_API_KEY` | empty | when set, `/v1/*` requires the bearer (same contract as Modal) |
 | `HF_TOKEN` | empty | gated/private weights |
 
@@ -72,7 +72,8 @@ sandbox run benchmark-check --config config/runs/run-30-contracts-specialist.yam
 sandbox health --profile modal-vllm              # 401 = token mismatch
 ```
 
-Full specialist suite + cost extrapolation: [`docs/benchmark-l4.md`](benchmark-l4.md).
+Full specialist suite + cost extrapolation: [`docs/runbooks/l4-qwen3-8b.md`](runbooks/l4-qwen3-8b.md)
+(`sandbox runbook show l4-qwen3-8b`). Index: [`docs/benchmark-l4.md`](benchmark-l4.md).
 
 Cost posture (specialist suite): `scaledown=120` attended / `600` unattended,
 `max_containers=1`, one warm app for all five runs then

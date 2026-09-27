@@ -23,13 +23,13 @@ task: insurance_claims_specialist
 profile: modal-vllm
 
 prompt:
-  # Pinned local production text (config/prompts/insurance_claims_specialist_production.txt) for reproducible
+  # SAND-026 simplified pin (config/prompts/insurance_claims_specialist_simplified.txt). Reproducible
   # Modal L4 Qwen runs — not Langfuse floating production. DMR-074/078.
   default: {source: code-default}
   agents:
     insurance_claims_specialist:
       source: local
-      file: insurance_claims_specialist_production
+      file: insurance_claims_specialist_simplified
 
 dataset:
   provider: huggingface
@@ -58,7 +58,9 @@ engine:
   vllm:
     max_model_len: 16384      # boot-valid cap for L4-bf16 8B (v0.29.0 raises above)
     gpu_memory_utilization: 0.90
-    max_num_seqs: 256
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
     quantization: ""
     revision: ""
   modal:

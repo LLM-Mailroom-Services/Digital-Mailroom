@@ -239,6 +239,19 @@ def test_serving_ttft_not_inferred_from_e2e():
     assert any("ttft" in g for g in run["honest_gaps"])
 
 
+def test_isolated_eval_record_uses_bound_prompt_not_mailroom_default(tmp_path, monkeypatch):
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path / "data"))
+    row = {
+        "id": "d0",
+        "filename": "d0.txt",
+        "doc_text": "t",
+        "expected": "contract",
+        "expected_doc_class": "contract",
+    }
+    result = runners.run_isolated_eval("sorter", mock=True, rows=[row], dry_run=False)
+    assert result["record"]["prompt_version"] != "mailroom-default"
+
+
 def test_compare_from_log_pairs_local_and_api(tmp_path, monkeypatch):
     monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
     log = tmp_path / "experiment_log.jsonl"
@@ -325,3 +338,28 @@ def test_live_ollama_health():
 
     result = health_check("ollama")
     assert result["ok"] is True
+
+
+def test_score_extraction_row_reads_nested_suite_overall(monkeypatch):
+    """SAND-019: mailroom suites return a flat dict with the real aggregate
+    nested at ``result["extraction"].overall_score``. Reading only top-level
+    keys left every specialist row null (extraction_f1 computed, headline
+    score not) even after ground truth was wired in.
+    """
+
+    class _Nested:
+        overall_score = 0.42
+
+    class _StubSuite:
+        field_types: dict = {}
+
+        def score(self, expected, predicted, doc_text=None):
+            return {"extraction": _Nested(), "extraction_f1": 0.4}
+
+    monkeypatch.setattr(scoring, "suite_for_doc_type", lambda doc_type: _StubSuite())
+    out = scoring.score_extraction_row("correspondence", {"a": 1}, {"a": 1})
+    assert out["overall_extraction_score"] == 0.42
+    assert out["extraction_f1"] == 0.4
+    assert out["scoring_method"] == "suite"
+    assert out["parse_error"] is False
+    assert "schema_valid" in out

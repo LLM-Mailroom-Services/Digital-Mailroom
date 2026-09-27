@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import sys
@@ -144,14 +145,34 @@ def activate(
     base_url: str | None = None,
     load_env_file: bool = True,
     agent_models: dict[str, str] | None = None,
+    agent_knobs: dict | None = None,
 ) -> Activation:
     """Load overlay, write runtime taxonomy, patch mailroom, set env.
 
     Safe to call more than once; last call wins.
+
+    ``agent_knobs`` (SAND-019) is a run-scoped generation-budget override —
+    ``{agent: {max_tokens, max_input_chars, temperature, ...}}`` — applied after
+    the global overlay so a run on a wider window (e.g. AWQ 32768) can raise its
+    own decode/input budget. When None, it is read from the
+    ``SANDBOX_AGENT_KNOBS`` env var (JSON), which is how ``sandbox run`` carries
+    it without threading a new field through every call site.
     """
     global _ACTIVE
     if load_env_file:
         _load_dotenv()
+    if agent_knobs is None:
+        raw = os.environ.get("SANDBOX_AGENT_KNOBS")
+        if raw:
+            try:
+                parsed = json.loads(raw)
+                agent_knobs = parsed if isinstance(parsed, dict) else None
+            except json.JSONDecodeError:
+                _log.warning(
+                    "SANDBOX_AGENT_KNOBS is not valid JSON — ignoring run-scoped "
+                    "generation-budget override"
+                )
+                agent_knobs = None
     name = profile_name or os.environ.get("SANDBOX_PROFILE") or "ollama"
     profile = load_profile(name)
     apply_profile_env(profile, base_url_override=base_url)
@@ -179,11 +200,25 @@ def activate(
         )
 
     taxonomy = build_merged_taxonomy(
-        profile, model_override=model, agent_models=agent_models
+        profile,
+        model_override=model,
+        agent_models=agent_models,
+        agent_knobs=agent_knobs,
     )
     taxonomy_path = write_runtime_taxonomy(taxonomy)
     os.environ["MAILROOM_TAXONOMY"] = str(taxonomy_path)
     patched = patch_mailroom_config(taxonomy_path)
+
+    # SAND-018: the vendored LangChain agents hardcode timeout=120 (drift-
+    # guarded). Apply the taxonomy's run_limits pin so a long L4 generation does
+    # not ladder through the retry contract instead of completing.
+    try:
+        from mailroom_sandbox.llm_timeout import apply_llm_timeout
+
+        limits = taxonomy.get("run_limits") or {}
+        apply_llm_timeout(limits.get("llm_call_timeout_seconds"))
+    except Exception as exc:  # noqa: BLE001 — never block activation
+        _log.warning("llm timeout override failed — 120s vendor default stands: %s", exc)
 
     patched_prompts = False
     if prompt_variant:

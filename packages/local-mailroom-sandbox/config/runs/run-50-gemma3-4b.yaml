@@ -84,7 +84,9 @@ engine:
   vllm:
     max_model_len: 16384      # boot-valid cap; KV pool fits comfortably
     gpu_memory_utilization: 0.90
-    max_num_seqs: 256
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
     quantization: ""
     revision: ""
   modal:

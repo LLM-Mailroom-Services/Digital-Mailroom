@@ -1,5 +1,5 @@
 {
-  "note": "Per-package sync cursor against the standalone Exios66/* repositories. Baseline per issue #2: monorepo aligned with the standalone repos as of 2026-08-31T00:06:57Z (2026-08-30 19:06 CST). Cursor writes are content-verified (HUB-021) — upstream tip must be contained in the package tree unless snapshot --force is passed.",
+  "note": "Per-package sync cursor against the standalone Exios66/* repositories. Baseline per issue #2: monorepo aligned with the standalone repos as of 2026-08-31T00:06:57Z (2026-08-30 19:06 CST). Cursor writes are content-verified (HUB-021) \u2014 upstream tip must be contained in the package tree unless snapshot --force is passed.",
   "packages": {
     "Enron-Evaluation-Environment": {
       "branch": "main",

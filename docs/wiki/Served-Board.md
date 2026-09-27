@@ -40,7 +40,8 @@ from the repo root limited to `board-site/`):
 ```
 board-site/
 ├── index.html          static single-page dispatch board (fetches /api/board)
-├── vercel.json         clean URLs + api maxDuration
+├── vercel.json         clean URLs + api maxDuration + ignoreCommand (skip deploy when board-site/ unchanged)
+├── scripts/ignore-build.sh  monorepo Ignored Build Step (doc-only PRs do not burn Vercel quota)
 ├── api/
 │   ├── board.js        GET  live cards (labels=kanban) · POST new card
 │   └── board/[id].js   PATCH write-back for one card

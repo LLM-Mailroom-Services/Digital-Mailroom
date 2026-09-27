@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "ignoreCommand": "bash ./scripts/ignore-build.sh",
   "cleanUrls": true,
   "functions": {
     "api/**/*.js": { "maxDuration": 10 }

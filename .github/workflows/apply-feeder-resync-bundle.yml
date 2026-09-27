@@ -1,0 +1,27 @@
+# Applies agent-built feeder resync bundle onto main (workflow_dispatch).
+name: Apply feeder resync bundle
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decode bundle
+        run: |
+          cat tools/feeder-resync/bundle.b64.* > /tmp/feeder-resync.bundle.b64
+          base64 -d /tmp/feeder-resync.bundle.b64 > /tmp/feeder-resync.bundle
+          git bundle verify /tmp/feeder-resync.bundle
+
+      - name: Fast-forward main
+        run: |
+          git fetch /tmp/feeder-resync.bundle HEAD:refs/heads/feeder-resync
+          git push origin refs/heads/feeder-resync:main

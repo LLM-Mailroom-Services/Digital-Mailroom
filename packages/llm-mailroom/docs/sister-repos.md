@@ -328,7 +328,12 @@ PYTHONPATH=src python src/scripts/bump_dojo_scoring.py --apply --tag v0.14.0
   for the whole family (`md5(filename) % 10 == 0 → test`), owned by
   entity-extraction's publisher scripts. Local committed PDFs under
   `docs/examples/samples/` remain PDF-ingest fixtures — they are not the
-  class catalog.
+  class catalog. **Offline parquet bins** for the loader
+  (`MAILROOM_HF_CACHE_DIR` → `pipeline.hf_corpus_loader`) live in
+  [`mailroom-issues`](https://github.com/LLM-Mailroom-Services/mailroom-issues)
+  `data/hf_cache/corpus` (sparse-checkout; v9.1 SHA
+  `ed7576b676343e0b402ec5412cded301e629bdee`) — hub wiki
+  `docs/wiki/HF-Corpus.md` § Offline hub cache; not vendored here.
 
 ## Governance notes
 

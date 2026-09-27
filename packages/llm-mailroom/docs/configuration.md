@@ -316,6 +316,7 @@ See `.env.example` for the complete list:
 | `MAILROOM_VISION_DPI` | No | `150` | Render DPI for page images (overrides `vision.dpi`) |
 | `MAILROOM_PILOT_COST_ABORT` | No | `2.00` (HF pilot) / `0.20` (committed-sample `run_pilot.py`) | Cumulative USD cap; abort the pilot when exceeded |
 | `MAILROOM_DOCCLASS_PROMPTS` | No | off | Opt-in KANBAN-090 docclass prompt arm (`1`/`true`/`yes`/`on`). Runtime fetches `mailroom-docclass-<key>` with the in-repo append as fallback; production `mailroom-<agent>` templates are unchanged. `run_hf_pilot.py --docclass` sets this. |
+| `MAILROOM_HF_CACHE_DIR` | No | `<MAILROOM_BASE_DIR>/hf_cache/corpus` | On-disk parquet cache for `pipeline.hf_corpus_loader` (`load_corpus`, notebook 14). For offline work, sparse-checkout [`mailroom-issues`](https://github.com/LLM-Mailroom-Services/mailroom-issues) `data/hf_cache/corpus` (v9.1 pin `ed7576b676343e0b402ec5412cded301e629bdee`) and set this to that absolute path — see hub wiki `docs/wiki/HF-Corpus.md` § Offline hub cache and `.env.example`. |
 
 The-Mailroom (not this process) reads `MAILROOM_PIPELINE_URL`,
 `MAILROOM_PIPELINE_TOKEN`, and `MAILROOM_PIPELINE_API_PREFIX=/v1`. A Space

@@ -1,1 +1,1 @@
-FROM_WORKSPACE:/workspace/Digital-Mailroom/tools/feeder-resync/bundle.b64.aa
+FROM_FILE:/tmp/push_args_1.json

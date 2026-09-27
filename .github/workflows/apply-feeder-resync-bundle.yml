@@ -1,20 +1,15 @@
-# Fast-forwards main to merged feeder sync via git bundle.
+# Applies merged feeder sync onto main via downloadable git bundle.
 name: Apply feeder resync bundle
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/apply-feeder-resync-bundle.yml"
-      - "tools/feeder-resync/BUNDLE_SOURCE"
 
 permissions:
   contents: write
 
 env:
-  BUNDLE_BASE: https://raw.githubusercontent.com/Exios66/llm-dojo-scoring/585721f/tools/digital-mailroom-feeder-resync
-  TARGET_SHA: 00f263e3b413c7a9daed33424c4ac4a2ee6f02f2
+  BUNDLE_BASE: https://raw.githubusercontent.com/Exios66/llm-dojo-scoring/b155825/tools/digital-mailroom-feeder-resync
+  TARGET_SHA: 357ac5bef3a6a92cbba49ad2633c3252fa192514
 
 jobs:
   apply:
@@ -27,9 +22,7 @@ jobs:
       - name: Skip if already applied
         id: skip
         run: |
-          if git rev-parse HEAD^{commit} | grep -qi "^${TARGET_SHA:0:7}"; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          elif git merge-base --is-ancestor "$TARGET_SHA" HEAD; then
+          if git merge-base --is-ancestor "$TARGET_SHA" HEAD; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -43,8 +36,11 @@ jobs:
           base64 -d /tmp/feeder-resync.bundle.b64 > /tmp/feeder-resync.bundle
           git bundle verify /tmp/feeder-resync.bundle
 
-      - name: Fast-forward main to bundle HEAD
+      - name: Merge bundle HEAD into main
         if: steps.skip.outputs.skip != 'true'
         run: |
           git fetch /tmp/feeder-resync.bundle HEAD:refs/heads/feeder-resync
-          git push origin refs/heads/feeder-resync:main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git merge --no-edit feeder-resync
+          git push origin HEAD:main

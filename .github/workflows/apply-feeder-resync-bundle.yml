@@ -1,4 +1,4 @@
-# Applies merged feeder sync onto main via downloadable git bundle.
+# Applies merged feeder sync via PR branch (main is protected).
 name: Apply feeder resync bundle
 
 on:
@@ -14,6 +14,7 @@ permissions:
 env:
   BUNDLE_BASE: https://raw.githubusercontent.com/Exios66/llm-dojo-scoring/b155825/tools/digital-mailroom-feeder-resync
   TARGET_SHA: 357ac5bef3a6a92cbba49ad2633c3252fa192514
+  PR_BRANCH: cursor/feeder-sync-d595
 
 jobs:
   apply:
@@ -23,7 +24,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Skip if already applied
+      - name: Skip if already on main
         id: skip
         run: |
           if git merge-base --is-ancestor "$TARGET_SHA" HEAD; then
@@ -40,11 +41,11 @@ jobs:
           base64 -d /tmp/feeder-resync.bundle.b64 > /tmp/feeder-resync.bundle
           git bundle verify /tmp/feeder-resync.bundle
 
-      - name: Merge bundle HEAD into main
+      - name: Publish merged sync to PR branch
         if: steps.skip.outputs.skip != 'true'
         run: |
           git fetch /tmp/feeder-resync.bundle HEAD:refs/heads/feeder-resync
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git merge --no-edit feeder-resync
-          git push origin HEAD:main
+          git push --force origin HEAD:"$PR_BRANCH"

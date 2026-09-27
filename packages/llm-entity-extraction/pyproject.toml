@@ -9,17 +9,6 @@ description = "LangChain agents (sorter, specialists, judge) + prompt experiment
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-# CORE runtime floor (KANBAN-081): exactly what the agent -> prompt -> scoring
-# chain imports (AST-derived census, tests/test_dependency_manifests.py pins
-# this contract). Everything task-specific lives in the extras below — install
-# only what your operative task needs:
-#     pip install -e .                      # core: agents, prompts, scoring
-#     pip install -e ".[tracing]"           # Langfuse + Arize Phoenix observability
-#     pip install -e ".[evals]"             # Braintrust dataset streaming + eval harness
-#     pip install -e ".[datasets]"          # HF Hub publishers + PDF/vision ingestion
-#     pip install -e ".[reporting]"         # decks, EDA plots, xlsx exports
-#     pip install -e ".[embeddings]"        # local embedding rescue (pulls torch!)
-#     pip install -e ".[all]"               # everything non-dev in one flag
 dependencies = [
     "langchain-core>=1.0",
     "langchain-openai>=0.3",
@@ -31,9 +20,6 @@ dependencies = [
     "llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.16.0",
 ]
 
-# Purpose-scoped batches mirroring requirements/<batch>.txt (KANBAN-081).
-# Membership is evidence-derived: every package here is imported by code on
-# the matching task surface, and nothing else. The pinning test enforces it.
 [project.optional-dependencies]
 tracing = [
     "arize-phoenix>=4.0",
@@ -41,56 +27,21 @@ tracing = [
     "opentelemetry-exporter-otlp-proto-http>=1.20",
     "langfuse>=3.0",
 ]
-evals = [
-    "braintrust>=0.31",
-]
-datasets = [
-    "huggingface_hub>=0.24",
-    "Pillow>=10.4.0",
-    "pdf2image>=1.17",
-]
-reporting = [
-    "numpy>=1.26.0",
-    "matplotlib>=3.9.0",
-    "openpyxl>=3.1",
-]
+evals = ["braintrust>=0.31"]
+datasets = ["huggingface_hub>=0.24", "Pillow>=10.4.0", "pdf2image>=1.17"]
+reporting = ["numpy>=1.26.0", "matplotlib>=3.9.0", "openpyxl>=3.1"]
 embeddings = ["sentence-transformers>=3.0"]
-notebooks = [
-    "nbformat>=5.10",
-    "nbclient>=0.10",
-    "ipykernel>=6.29",
-]
-# Modal-deployed vLLM serving (KANBAN-096, deploy/modal_vllm.py). Deploy-time
-# only — the runtime eval pipeline never imports modal. Install with:
-#   pip install -e ".[deploy]"
-deploy = [
-    "modal==1.5.5",
-]
-dev = [
-    "pytest>=8.0",
-    "pytest-mock>=3.14",
-    "llm-entity-extraction[tracing]",
-]
-all = [
-    "llm-entity-extraction[tracing,evals,datasets,reporting,embeddings,notebooks,deploy]",
-]
-pdf = ["llm-entity-extraction[datasets]"]  # legacy alias for [datasets]
+notebooks = ["nbformat>=5.10", "nbclient>=0.10", "ipykernel>=6.29"]
+deploy = ["modal==1.5.5"]
+dev = ["pytest>=8.0", "pytest-mock>=3.14", "llm-entity-extraction[tracing]"]
+all = ["llm-entity-extraction[tracing,evals,datasets,reporting,embeddings,notebooks,deploy]"]
+pdf = ["llm-entity-extraction[datasets]"]
 
-# Flat top-level package layout: llm-mailroom (and the eval scripts) import
-# the agents/specialists/judges directly, e.g.
-#     from agents.sorter_agent import SorterAgent
-#     from agents.judge_agent import JudgeAgent
-#     from src.prompts import get_prompt
-# The config/ package ships taxonomy.yaml next to the code so the taxonomy
-# loader works from both editable and wheel installs.
 [tool.setuptools]
 packages = ["agents", "src", "config"]
 
 [tool.setuptools.package-data]
 config = ["*.yaml"]
 
-# Monorepo dev: resolve the shared scoring engine from the workspace instead
-# of the release git pin above (bumped 0.10.0 -> workspace 0.14.0 in dev).
-# Plain `pip install .` keeps using the pin.
 [tool.uv.sources]
 llm-dojo-scoring = { workspace = true }

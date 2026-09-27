@@ -1,1 +1,1 @@
-FROM_WORKSPACE_FILE
+FROM_WORKSPACE:/workspace/Digital-Mailroom/tools/feeder-resync/bundle.b64.aa

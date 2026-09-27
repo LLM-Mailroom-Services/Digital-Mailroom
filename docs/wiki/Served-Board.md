@@ -164,6 +164,12 @@ section's content) and recovers bodies previously corrupted by an old bug.
 
 ## Deploy / redeploy
 
+**Preview / PR deploys:** `board-site/vercel.json` sets `git.deploymentEnabled`
+to `main` only and `ignoreCommand` → `scripts/ignore-build.sh` (skip when
+`board-site/` is unchanged). The Vercel project also disables preview
+deployments while the hobby-tier build quota is tight — production `main`
+deploys are unaffected.
+
 **Git integration (live since DMR-004, 2026-09-09):** a push to `main` builds
 `board-site/` automatically — the Vercel GitHub App is installed on the
 `LLM-Mailroom-Services` org and project `digital-mailroom` is Git-linked

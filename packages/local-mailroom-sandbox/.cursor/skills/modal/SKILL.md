@@ -56,16 +56,20 @@ Compose for Modal profile only starts **langfuse** (no local vLLM container).
 | `MODAL_VLLM_MODEL` | `Qwen/Qwen3-8B` |
 | `MODAL_VLLM_GPU` | `L4` |
 | `MODAL_VLLM_MAX_MODEL_LEN` | `16384` (DMR-056: boot-valid cap for L4-bf16 8B rows — v0.29.0 raises at 32768; AWQ/FP8 rows set 32768) |
+| `MODAL_VLLM_MAX_NUM_SEQS` | `6` (L4 long-prompt 4–6; cliff at ~8 × ~8k; scale-matrix overrides to 256) |
+| `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` |
+| `MODAL_VLLM_ENABLE_PREFIX_CACHING` | `1` (`--enable-prefix-caching`) |
+| `MODAL_VLLM_ENFORCE_EAGER` | `1` (`--enforce-eager` — faster cold boot) |
 | `MODAL_VLLM_ATTENTION_BACKEND` | empty (`flashinfer` for throughput runs — Modal vllm_throughput exemplar) |
 | `MODAL_VLLM_ASYNC_SCHEDULING` | empty (`1` enables the async scheduler; not all vLLM features supported under it) |
 | `MODAL_VLLM_QUANTIZATION` | empty |
 | `MODAL_VLLM_IMAGE_TAG` | `v0.29.0` (pin; never `latest`) |
 | `MODAL_VLLM_REVISION` | empty (HF revision) |
-| `MODAL_VLLM_TP_SIZE` | from GPU `:N` suffix (1 single-GPU) — must match `MODAL_VLLM_GPU="A100-80GB:2"` for 70B-class |
+| `MODAL_VLLM_TP_SIZE` | from GPU `:N` suffix (1 single-GPU) — only for models that won't fit one GPU; second L4 on 8B → raise `MAX_CONTAINERS` |
 | `MODAL_VLLM_API_TOKEN` | empty (bearer) |
 | `HF_TOKEN` | optional Hub auth |
 | `MODAL_VLLM_SCALEDOWN_SECONDS` | `120` (attended specialist default; set `600` unattended/overnight) |
-| `MODAL_VLLM_MAX_CONTAINERS` | `1` (cost guard) |
+| `MODAL_VLLM_MAX_CONTAINERS` | `1` (cost guard; `2` = data-parallel second L4, Modal round-robins) |
 | `MODAL_VLLM_MIN_CONTAINERS` | `0` (scale-to-zero) |
 | `MODAL_VLLM_STARTUP_TIMEOUT_SECONDS` | `1200` |
 

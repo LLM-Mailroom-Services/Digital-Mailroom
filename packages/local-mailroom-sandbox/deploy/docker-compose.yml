@@ -103,12 +103,15 @@ services:
   # `vllm serve`; v0.29.0 made per-request logging opt-in
   # (`--enable-log-requests`), so `--no-enable-log-requests` pins it off (the
   # pre-0.28 `--disable-log-requests` flag no longer exists).
-  # Memory posture (TEST sandbox on an L4 24 GB): 0.90 of GPU memory (vLLM
-  # default 0.92) and 256 concurrent sequences (vLLM's own L4/OpenAI-server
-  # default), pinned for local<->Modal parity. Compose substitution reads the
-  # shell env or deploy/.env (the compose project directory):
+  # Memory posture (TEST sandbox on an L4 24 GB, long-prompt specialist):
+  # 0.90 of GPU memory, max_num_seqs=6 (4–6 stays below the KV latency cliff
+  # for ~8–10k-token prompts), APC + enforce-eager for shared-prefix amortize
+  # and faster cold boot. Scale-matrix short-doc cells override to 256 via
+  # VLLM_MAX_NUM_SEQS. Compose substitution reads the shell env or
+  # deploy/.env (the compose project directory):
   #   VLLM_MODEL, VLLM_MAX_MODEL_LEN, VLLM_GPU_MEMORY_UTILIZATION,
-  #   VLLM_MAX_NUM_SEQS, VLLM_TP_SIZE, VLLM_API_KEY, HF_TOKEN.
+  #   VLLM_MAX_NUM_SEQS, VLLM_ENABLE_PREFIX_CACHING, VLLM_ENFORCE_EAGER,
+  #   VLLM_TP_SIZE, VLLM_API_KEY, HF_TOKEN.
   # Quantization is encoded in the model id (e.g. Qwen/Qwen3-8B-AWQ); the
   # compose command has no --quantization/--revision substitution (an empty
   # value would break vLLM boot) — use the Modal app for those knobs.
@@ -139,9 +142,11 @@ services:
       - --gpu-memory-utilization
       - ${VLLM_GPU_MEMORY_UTILIZATION:-0.90}
       - --max-num-seqs
-      - ${VLLM_MAX_NUM_SEQS:-256}
+      - ${VLLM_MAX_NUM_SEQS:-6}
       - --tensor-parallel-size
       - ${VLLM_TP_SIZE:-1}
+      - --enable-prefix-caching
+      - --enforce-eager
       - --no-enable-log-requests
     # DMR-061: `docker compose ps` reports unhealthy instead of relying on the
     # CLI probe alone. Python-stdlib bearer-aware /v1/models check (the vllm

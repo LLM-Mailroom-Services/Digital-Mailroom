@@ -17,6 +17,10 @@ from mailroom_sandbox.eval import experiment_log
 from mailroom_sandbox.eval import runners as eval_runners  # noqa: F401
 from mailroom_sandbox.job.checkpoint import RunStore, utc_now
 from mailroom_sandbox.job.metrics import record_from_run
+from mailroom_sandbox.eval.prompt_provenance import (
+    resolve_logged_prompt_version,
+    stamp_prompt_provenance,
+)
 from mailroom_sandbox.job.otel import job_span
 from mailroom_sandbox.job.usage_capture import (
     merge_item_metrics,
@@ -138,16 +142,29 @@ def _lock_prompt_source(store: RunStore) -> str:
     return str((prompt_block.get("default") or {}).get("source") or "code-default")
 
 
-def _lock_prompt_variant(store: RunStore) -> str | None:
-    """The lock's default LOCAL prompt variant stem, when pinned.
+def _lock_prompt_variant(store: RunStore, task: str | None = None) -> str | None:
+    """The lock's LOCAL prompt variant stem for this task, when pinned.
+
+    Specialist run YAMLs pin ``prompt.agents.<task>`` with ``default:
+    code-default``. Looking only at the default dropped the eval-environment
+    stem, so ``activate(prompt_variant=)`` never ran and records could not
+    name the frozen v1 key.
 
     The runners' ``prompt_version`` param is a local variant stem (e.g.
-    ``sorter_local_v0``), never the source string — passing 'code-default'
-    would trigger the prompt-patch machinery. Langfuse/code-default locks
-    pass None (overrides are already applied in-process).
+    ``correspondence_specialist_simplified``), never the source string —
+    passing 'code-default' would trigger the prompt-patch machinery.
     """
     lock = store.read_lock() or {}
-    default = (lock.get("prompt") or {}).get("default") or {}
+    prompt_block = lock.get("prompt") or {}
+    task_name = task or str(lock.get("task") or "")
+    agents = prompt_block.get("agents") or {}
+    if task_name and isinstance(agents, dict):
+        ref = agents.get(task_name)
+        if isinstance(ref, dict) and ref.get("source") == "local":
+            stem = str(ref.get("file") or "").strip()
+            if stem:
+                return stem
+    default = prompt_block.get("default") or {}
     if isinstance(default, dict) and default.get("source") == "local":
         return str(default.get("file") or "") or None
     return None
@@ -160,6 +177,7 @@ def _run_whole_run(
     mock: bool,
     model: str | None,
     profile: str | None,
+    on_event: Any = None,
 ) -> dict[str, Any]:
     """Delegate a whole-run task to the existing public eval runner.
 
@@ -176,7 +194,7 @@ def _run_whole_run(
     lock = store.read_lock() or {}
     prompt_block = lock.get("prompt") or {}
     default_ref = _lock_prompt_source(store)
-    prompt_variant = _lock_prompt_variant(store)
+    prompt_variant = _lock_prompt_variant(store, task=task)
     kwargs: dict[str, Any] = {
         "mock": mock,
         "dry_run": False,
@@ -202,6 +220,37 @@ def _run_whole_run(
             f"re-run `sandbox datasets pull/prepare` with a nonzero limit"
         )
     locked_rows = locked_rows or None
+    # SAND-018: the measured cold boot (written by `preflight --live`) travels
+    # into the whole-run record too — isolated agent tasks append their own
+    # experiment-log copy, so it must be passed through explicitly.
+    cold_boot = store.read_cold_boot()
+    cold_boot_seconds = (
+        float(cold_boot["cold_boot_seconds"])
+        if cold_boot and cold_boot.get("cold_boot_seconds") is not None
+        else None
+    )
+    # SAND-018: the isolated-agent path used to be serial and ignore
+    # job.concurrency / cost_cap / max_wall. Pass them through so a specialist
+    # run is concurrent, measurable, and bounded.
+    concurrency = _concurrency(store)
+    max_wall = _max_wall_seconds(store)
+    cost_cap = _cost_cap_usd(store)
+    gpu = _lock_gpu(store)
+    # SAND-018: the isolated-agent path used to show nothing until it finished.
+    # Write a running checkpoint per completed item and forward events so
+    # `sandbox run status` (and --watch) track a live specialist run.
+    store.write_checkpoint(state="running", cursor=0, total=len(locked_rows or []), remote=None)
+
+    def _progress(done: int, total: int, ok: int, errors: int) -> None:
+        store.write_checkpoint(state="running", cursor=done, total=total, remote=None)
+        if on_event is not None:
+            try:
+                on_event(
+                    {"cursor": done, "total": total, "ok": ok, "errors": errors, "state": "running"}
+                )
+            except Exception as exc:  # noqa: BLE001
+                _log.warning("on_event callback raised — --watch may stop updating: %s", exc)
+
     try:
         if task == "pipeline":
             result = eval_runners.run_pipeline_eval(connected=True, rows=locked_rows, **kwargs)
@@ -215,11 +264,31 @@ def _run_whole_run(
             result = eval_runners.run_sorter_vs_modernbert_eval(**kwargs)
         elif task == "isolated":
             # Historical alias: `isolated` runs the sorter spec (docs/jobs.md).
-            result = eval_runners.run_isolated_eval("sorter", rows=locked_rows, **kwargs)
+            result = eval_runners.run_isolated_eval(
+                "sorter",
+                rows=locked_rows,
+                cold_boot_seconds=cold_boot_seconds,
+                concurrency=concurrency,
+                max_wall_seconds=max_wall,
+                cost_cap_usd=cost_cap,
+                gpu=gpu,
+                progress_cb=_progress,
+                **kwargs,
+            )
         elif task in _agent_task_names():
             # DMR-056: any registered AgentSpec name is a whole-run job task —
             # `task: judge` / `task: gmail_triage` (once registered) etc.
-            result = eval_runners.run_isolated_eval(task, rows=locked_rows, **kwargs)
+            result = eval_runners.run_isolated_eval(
+                task,
+                rows=locked_rows,
+                cold_boot_seconds=cold_boot_seconds,
+                concurrency=concurrency,
+                max_wall_seconds=max_wall,
+                cost_cap_usd=cost_cap,
+                gpu=gpu,
+                progress_cb=_progress,
+                **kwargs,
+            )
         else:
             raise ValueError(f"task {task!r} is not runnable")
     except Exception as exc:  # noqa: BLE001
@@ -243,9 +312,18 @@ def _run_whole_run(
     # though the runner appended its own log copy.
     record = result.get("record") if isinstance(result, dict) else None
     if isinstance(record, dict):
+        lock_prompt = store.read_prompt_lock()
+        logged, sha = resolve_logged_prompt_version(
+            prompt_variant,
+            task=task,
+            prompt_lock=lock_prompt,
+        )
         record.setdefault("spec_hash", store.spec_hash() or "")
         record.setdefault("dataset_fingerprint", _fingerprint(store))
-        record.setdefault("prompt_version", prompt_variant or default_ref)
+        record.setdefault("prompt_version", logged or default_ref)
+        if sha:
+            record.setdefault("prompt_sha256", sha)
+        stamp_prompt_provenance(record, record["prompt_version"], record.get("prompt_sha256"))
         record.setdefault("run_id", store.run_id)
     store.write_checkpoint(state="done", cursor=processed, total=processed, remote=None)
     store.append_event("done", "info", cursor=processed, ok_count=processed)
@@ -388,14 +466,53 @@ def _lock_gpu(store: RunStore) -> str | None:
 
 
 def _build_record(
-    store: RunStore, task: str, model: str | None, scores: dict[str, Any], *, mock: bool
+    store: RunStore, task: str, model: str | None, scores: dict[str, Any], *, mock: bool,
+    wall_seconds: float | None = None,
 ) -> dict[str, Any]:
     lock = store.read_lock() or {}
     prompt_block = lock.get("prompt") or {}
     profile = str(lock.get("profile") or "ollama")
     engine = lock.get("engine") or {}
     model = model or (engine.get("model") if isinstance(engine, dict) else None) or "unknown"
-    prompt_version = str((prompt_block.get("default") or {}).get("source") or "code-default")
+    prompt_variant = _lock_prompt_variant(store, task=task)
+    logged_prompt, prompt_sha = resolve_logged_prompt_version(
+        prompt_variant,
+        task=task,
+        prompt_lock=store.read_prompt_lock(),
+    )
+    prompt_version = logged_prompt
+    items = store.load_items()
+    # SAND-018: carry the live engine-probe cold-boot measurement (written by
+    # `preflight --live`, the step right after deploy) into the experiment-log
+    # record — a measured boot, never the assumed 120 s estimate constant.
+    cold_boot = store.read_cold_boot()
+    cold_boot_seconds = (
+        float(cold_boot["cold_boot_seconds"])
+        if cold_boot and cold_boot.get("cold_boot_seconds") is not None
+        else None
+    )
+    busy_sum_seconds = sum(float(i.get("latency_ms") or 0) for i in items) / 1000.0
+    if wall_seconds is None:
+        from mailroom_sandbox.job.metrics import infer_wall_seconds_from_items
+
+        wall_seconds = infer_wall_seconds_from_items(items)
+    # Cost accuracy: bill the warm interval (measured wall + cold boot). Summed
+    # item latency overstates Modal spend under concurrency>1; keep the sum only
+    # as a fallback when wall clock is unknown. MODAL_BILLED_GPU_SECONDS wins.
+    import os
+
+    env_billed = (os.environ.get("MODAL_BILLED_GPU_SECONDS") or "").strip()
+    billed_window: float | None = None
+    if env_billed:
+        try:
+            billed_window = float(env_billed)
+        except ValueError:
+            billed_window = None
+    if billed_window is None:
+        if wall_seconds is not None and wall_seconds > 0:
+            billed_window = float(wall_seconds) + (cold_boot_seconds or 0.0)
+        elif busy_sum_seconds > 0:
+            billed_window = busy_sum_seconds + (cold_boot_seconds or 0.0)
     record = record_from_run(
         run_id=store.run_id,
         spec_hash=store.spec_hash() or "",
@@ -404,13 +521,18 @@ def _build_record(
         model=model,
         prompt_version=prompt_version,
         dataset_fingerprint=_fingerprint(store),
-        items=store.load_items(),
+        items=items,
         scores=scores or None,
         gpu=_lock_gpu(store),
+        billed_window_seconds=billed_window if billed_window and billed_window > 0 else None,
         mock=bool(mock),
     )
     record["experiment_name"] = f"sandbox_{task}_{store.run_id}"
     record["mock"] = bool(mock)
+    if cold_boot_seconds is not None:
+        record["cold_boot_seconds"] = cold_boot_seconds
+    if prompt_sha:
+        record["prompt_sha256"] = prompt_sha
     return record
 
 
@@ -448,7 +570,7 @@ def run_job(
 
         if task not in known_tasks():
             raise ValueError(f"task {task!r} is not runnable; have {sorted(known_tasks())}")
-        return _run_whole_run(store, task, mock=mock, model=model, profile=profile)
+        return _run_whole_run(store, task, mock=mock, model=model, profile=profile, on_event=on_event)
 
     if not rows:
         store.write_checkpoint(state="done", cursor=0, total=0, remote=None)
@@ -762,7 +884,8 @@ def run_job(
     )
     if error_count:
         scores["error_count"] = error_count
-    record = _build_record(store, task, model, scores, mock=mock)
+    wall_seconds = round(time.perf_counter() - run_started, 3)
+    record = _build_record(store, task, model, scores, mock=mock, wall_seconds=wall_seconds)
     experiment_log.append(record)
     store.append_event("done", "info", cursor=final_cursor, ok_count=ok_count)
     store.write_checkpoint(state="done", cursor=final_cursor, total=total, remote=None)

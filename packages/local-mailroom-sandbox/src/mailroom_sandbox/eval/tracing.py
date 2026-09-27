@@ -10,6 +10,7 @@ and nest the one relevant observation so a partial conveyor is plottable.
 
 from __future__ import annotations
 
+import contextvars
 import json
 import logging
 import os
@@ -25,7 +26,9 @@ _log = logging.getLogger("mailroom_sandbox.tracing")
 _TRACING_WARNED: set[str] = set()
 _SCORE_EMIT_FAILURES = 0
 _FLUSH_FAILURES = 0
-_VENDOR_DEGRADED = False
+_VENDOR_DEGRADED = 0
+_BT_INIT_FAILURES = 0
+_BT_SPAN_FAILURES = 0
 
 
 def _warn_once(key: str, message: str, exc: BaseException | None = None) -> None:
@@ -40,6 +43,8 @@ def tracing_failure_counts() -> dict[str, int]:
         "score_emit_failures": _SCORE_EMIT_FAILURES,
         "flush_failures": _FLUSH_FAILURES,
         "vendor_degraded": 1 if _VENDOR_DEGRADED else 0,
+        "braintrust_init_failures": _BT_INIT_FAILURES,
+        "braintrust_span_failures": _BT_SPAN_FAILURES,
     }
 
 try:
@@ -214,6 +219,184 @@ def _sdk_client():
         return None
 
 
+# --------------------------------------------------------------------------
+# Braintrust backend (hosted, opt-in — NEVER the The-Mailroom sink)
+#
+# Selected with OBSERVABILITY_PROVIDER=braintrust. The sink is the sandbox
+# process: the eval runner owns the prompt, the completion and the token
+# counts, so spans are opened here and NOT inside the vLLM container (adding
+# the SDK to the serving image would change the image mid-mission and leak
+# the key into the serving path for no extra signal).
+#
+# Verified against braintrust 0.42.0: `init_logger(project_id=..., async_flush=)`,
+# `Logger.start_span(name=, type=, **event)`, `Span.log(**event)` where event
+# accepts input/output/expected/metadata/metrics/scores/tags/error, `Span.end()`,
+# `Logger.flush()`. There is no `start_root_span`, no `Logger.score` and no
+# `Span.score` in 0.42 — scores ride the log event's `scores` mapping, and the
+# current span is tracked by this module's own stack (see _BT_SPAN_STACK).
+# --------------------------------------------------------------------------
+
+# Langfuse-style node types -> Braintrust SpanType vocabulary. Braintrust has
+# no chain/agent/retriever/evaluator, so LLM-ish nodes become "llm" and
+# deterministic steps become "function" rather than being dropped.
+_BT_TYPE_MAP = {
+    "chain": "task",
+    "task": "task",
+    "agent": "llm",
+    "generation": "llm",
+    "evaluator": "llm",
+    "classifier": "classifier",
+    "retriever": "facet",
+    "tool": "tool",
+    "function": "function",
+    "span": "function",
+}
+_BT_DEFAULT_TYPE = "function"
+_BT_SPAN_STACK: contextvars.ContextVar[tuple[Any, ...]] = contextvars.ContextVar(
+    "braintrust_span_stack", default=()
+)
+_BT_LOGGER: Any = None
+
+
+def _braintrust_type(as_type: str | None) -> str:
+    return _BT_TYPE_MAP.get((as_type or "").strip().lower(), _BT_DEFAULT_TYPE)
+
+
+def braintrust_configured() -> bool:
+    """True when a Braintrust sink is selected *and* credentialed."""
+    return tracing_backend() == "braintrust" and bool(os.environ.get("BRAINTRUST_API_KEY"))
+
+
+def _braintrust_logger() -> Any:
+    """Return the process-wide Braintrust logger, initializing it once.
+
+    Returns None when unconfigured. Never raises: an unreachable sink must not
+    abort an eval run, but every failure path is logged at ERROR and counted so
+    a selected-but-dead sink is loud instead of a silent no-op.
+    """
+    global _BT_LOGGER, _BT_INIT_FAILURES
+    if _BT_LOGGER is not None:
+        return _BT_LOGGER
+    if not os.environ.get("BRAINTRUST_API_KEY"):
+        return None
+    kwargs: dict[str, Any] = {}
+    if os.environ.get("BRAINTRUST_PROJECT_ID"):
+        kwargs["project_id"] = os.environ["BRAINTRUST_PROJECT_ID"]
+    elif os.environ.get("BRAINTRUST_PROJECT"):
+        kwargs["project"] = os.environ["BRAINTRUST_PROJECT"]
+    else:
+        _warn_once(
+            "braintrust-no-project",
+            "BRAINTRUST_API_KEY is set but neither BRAINTRUST_PROJECT_ID nor "
+            "BRAINTRUST_PROJECT is — braintrust spans will NOT be recorded",
+        )
+        return None
+    try:
+        import braintrust
+
+        # async_flush=False: a CLI eval run wants writes to be deterministic so
+        # flush_traces() at run end is a real durability barrier.
+        _BT_LOGGER = braintrust.init_logger(async_flush=False, **kwargs)
+        return _BT_LOGGER
+    except Exception as exc:
+        _BT_INIT_FAILURES += 1
+        _log.error(
+            "Braintrust logger init FAILED — braintrust spans/scores will NOT be "
+            "recorded (OBSERVABILITY_PROVIDER selected braintrust)",
+            exc_info=exc,
+        )
+        return None
+
+
+def _braintrust_current_span() -> Any:
+    stack = _BT_SPAN_STACK.get()
+    return stack[-1] if stack else None
+
+
+class _BraintrustSpan:
+    """Adapter exposing the span surface the eval runners use.
+
+    Keeps the Langfuse-shaped call sites (``update``/``score``) working while
+    emitting real braintrust events, so switching sinks does not fork the
+    runner code.
+    """
+
+    def __init__(self, span: Any) -> None:
+        self._span = span
+
+    @property
+    def id(self) -> str | None:
+        return getattr(self._span, "id", None)
+
+    def log(self, **event: Any) -> None:
+        """braintrust-native log (``input``/``output``/``metrics``/``scores``...)."""
+        self._span.log(**{k: v for k, v in event.items() if v is not None})
+
+    def update(self, **kwargs: Any) -> None:
+        event = {
+            k: v
+            for k, v in kwargs.items()
+            if k in {"input", "output", "expected", "metadata", "metrics", "scores", "error", "tags"}
+        }
+        if event:
+            self._span.log(**{k: v for k, v in event.items() if v is not None})
+
+    def score(self, name: str, value: Any, *, comment: str | None = None, data_type: str | None = None) -> None:
+        meta: dict[str, Any] = {}
+        if comment:
+            meta["comment"] = comment
+        if data_type:
+            meta["data_type"] = data_type
+        self._span.log(scores={name: value}, **({"metadata": meta} if meta else {}))
+
+    def __enter__(self) -> "_BraintrustSpan":
+        self._token = _BT_SPAN_STACK.set(_BT_SPAN_STACK.get() + (self,))
+        return self
+
+    def __exit__(self, *exc_info: Any) -> None:
+        _BT_SPAN_STACK.reset(getattr(self, "_token"))
+        self.end()
+
+    def end(self) -> None:
+        try:
+            self._span.end()
+        except Exception as exc:
+            global _BT_SPAN_FAILURES
+            _BT_SPAN_FAILURES += 1
+            _log.error("Braintrust span end() failed — span may be LOST", exc_info=exc)
+
+
+def _braintrust_start(
+    *,
+    name: str,
+    as_type: str | None,
+    input: Any,
+    metadata: Any,
+    tags: list[str] | None = None,
+    parent: Any = None,
+) -> Any:
+    """Open a braintrust span, counting (loudly) any failure. None on failure."""
+    global _BT_SPAN_FAILURES
+    start = _braintrust_logger().start_span if parent is None else parent.start_span
+    try:
+        raw = start(
+            name=name,
+            type=_braintrust_type(as_type),
+            input=input,
+            metadata=metadata,
+            tags=list(tags) if tags else None,
+        )
+    except Exception as exc:
+        _BT_SPAN_FAILURES += 1
+        _log.error(
+            "Braintrust start_span(%r) FAILED — this span and its scores are LOST",
+            name,
+            exc_info=exc,
+        )
+        return None
+    return _BraintrustSpan(raw)
+
+
 @contextmanager
 def document_pipeline_trace(
     *,
@@ -231,6 +414,22 @@ def document_pipeline_trace(
     tag_list = tags or default_tags()
     meta = {"pipeline": "mailroom", **(metadata or {})}
     uid = user_id or os.environ.get("MAILROOM_TRACE_USER_ID") or None
+    if uid:
+        meta = {**meta, "user_id": uid}
+    if tracing_backend() == "braintrust" and _braintrust_logger() is not None:
+        # Braintrust takes precedence over the vendored langfuse setup: the
+        # operator explicitly selected this sink, and silently landing the trace
+        # in Langfuse instead would be a mislabeled run.
+        span = _braintrust_start(
+            name=name, as_type="chain", input=input, metadata=meta, tags=tag_list
+        )
+        if span is None:
+            yield _NoopSpan()
+            return
+        with span:
+            record_trace_id(span.id, session_id=session_id)
+            yield span
+        return
     setup = _mailroom_setup()
     if setup is not None:
         with setup.pipeline_trace(
@@ -308,6 +507,27 @@ def child_observation(
     model: str | None = None,
 ) -> Iterator[Any]:
     obs_type = as_type or observation_type_for(name)
+    if tracing_backend() == "braintrust" and _braintrust_logger() is not None:
+        parent = _braintrust_current_span()
+        span = _braintrust_start(
+            name=name,
+            as_type=obs_type,
+            input=input,
+            metadata=metadata,
+            parent=parent._span if isinstance(parent, _BraintrustSpan) else None,
+        )
+        if span is None:
+            yield _NoopSpan()
+            return
+        # Nest on this module's stack so scores emitted inside the block attach
+        # to this span, then close it (braintrust flushes on end()).
+        token = _BT_SPAN_STACK.set(_BT_SPAN_STACK.get() + (span,))
+        try:
+            yield span
+        finally:
+            _BT_SPAN_STACK.reset(token)
+            span.end()
+        return
     setup = _mailroom_setup()
     if setup is not None:
         with setup.observation(name, as_type=obs_type, input=input, metadata=metadata, model=model) as span:
@@ -336,6 +556,23 @@ def emit_langfuse_score(
     """Attach a SCORE_CONFIGS-compatible score to the current trace."""
     global _SCORE_EMIT_FAILURES
     wire = langfuse_score_name(name)
+    if tracing_backend() == "braintrust":
+        span = _braintrust_current_span()
+        if span is None:
+            _warn_once(
+                "braintrust-score-outside-span",
+                "braintrust score %r emitted with no active span — no trace to attach "
+                "it to; the score is LOST",
+                wire,
+            )
+            _SCORE_EMIT_FAILURES += 1
+            return
+        try:
+            span.score(wire, value, comment=comment, data_type=data_type)
+        except Exception as exc:
+            _SCORE_EMIT_FAILURES += 1
+            _log.error("Braintrust score %r=%r could not be emitted — score is LOST", wire, value, exc_info=exc)
+        return
     setup = _mailroom_setup()
     if setup is not None:
         try:
@@ -363,7 +600,6 @@ def emit_langfuse_score(
         try:
             client.create_score(name=wire, value=value)
         except Exception as exc:
-            global _SCORE_EMIT_FAILURES
             _SCORE_EMIT_FAILURES += 1
             _log.error(
                 "Langfuse score %r=%r could not be emitted (SDK path AND "
@@ -376,6 +612,15 @@ def emit_langfuse_score(
 
 def flush_traces() -> None:
     global _FLUSH_FAILURES
+    if tracing_backend() == "braintrust":
+        logger = _braintrust_logger()
+        if logger is not None:
+            try:
+                logger.flush()
+            except Exception as exc:
+                _FLUSH_FAILURES += 1
+                _log.error("Braintrust flush failed — buffered traces may be lost", exc_info=exc)
+        return
     setup = _mailroom_setup()
     if setup is not None and hasattr(setup, "flush_langfuse"):
         try:
@@ -402,10 +647,11 @@ def export_traces(dest: Path | None = None) -> Path:
     """Write a bookmark: Langfuse host + last session/trace ids (+ Phoenix sidecar)."""
     out = dest or (data_dir() / "traces" / "export.json")
     out.parent.mkdir(parents=True, exist_ok=True)
+    backend = tracing_backend()
     host = os.environ.get("LANGFUSE_HOST") or os.environ.get("LANGFUSE_BASE_URL") or "http://localhost:3000"
     payload: dict[str, Any] = {
         "exported_at": datetime.now(timezone.utc).isoformat(),
-        "tracing_backend": tracing_backend(),
+        "tracing_backend": backend,
         "langfuse_host": host,
         "langfuse_ui": host,
         "session_id": _LAST_SESSION_ID,
@@ -435,5 +681,20 @@ def export_traces(dest: Path | None = None) -> Path:
         payload["phoenix_health"] = resp.status_code
     except Exception as exc:  # noqa: BLE001 — probe only
         payload["phoenix_health"] = f"unreachable: {exc}"
+    if backend == "braintrust":
+        # The bookmark must name the sink that actually received the spans.
+        logger = _braintrust_logger()
+        project = getattr(logger, "project", None) if logger is not None else None
+        payload["braintrust"] = {
+            "configured": braintrust_configured(),
+            "project": getattr(project, "name", None),
+            "project_id": os.environ.get("BRAINTRUST_PROJECT_ID"),
+            "app_url": os.environ.get("BRAINTRUST_APP_URL") or "https://www.braintrust.dev",
+            "note": (
+                "Braintrust is the opt-in hosted sink for sandbox evals. It is NOT "
+                "The-Mailroom's sink — The-Mailroom reads Langfuse "
+                "(MAILROOM_TRACE_ENVIRONMENTS)."
+            ),
+        }
     out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return out

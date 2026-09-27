@@ -1,0 +1,56 @@
+# api-evals: correspondence_specialist on 20 CORRESPONDENCE docs via OpenRouter API.
+# COMPARABLE to the sandbox Modal run-20-correspondence runs: the SAME draw
+# (split=all, bucket correspondence count 20, seed 42, pinned revision), the SAME
+# prompt stem (correspondence_specialist_simplified), only the engine differs:
+# profile=openrouter, model qwen/qwen3.7-flash (the OpenRouter champion that
+# maps to the Modal Qwen/Qwen3-8B row). Real API costs are captured per item
+# (tokens x OpenRouter list price; cross-checked vs response usage.cost).
+schema: sandbox.run/v1
+run_id: api-correspondence-20
+task: correspondence_specialist
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    correspondence_specialist:
+      source: local
+      file: correspondence_specialist_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      - doc_class: correspondence
+        count: 20
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  vllm:
+    max_model_len: 16384
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 256
+    quantization: ""
+    revision: ""
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 5
+  cost_cap_usd: null
+  max_wall_seconds: 3600
+
+trace:
+  sink: none
+  otlp: false
+  environment: api-evals
+  tags: [sandbox, job, api-evals, specialist, correspondence, openrouter, qwen3.7-flash]

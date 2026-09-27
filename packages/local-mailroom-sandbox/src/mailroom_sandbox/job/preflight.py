@@ -9,6 +9,7 @@ so the default is network-free and CI-safe.
 from __future__ import annotations
 
 import os
+import time
 from typing import Any
 
 import llm_dojo_scoring
@@ -66,7 +67,10 @@ def _engine_summary(spec: RunSpec) -> str:
     modal = spec.engine.modal
     parts = [
         f"kind={spec.engine.kind} model={spec.engine.model}",
-        f"max_model_len={v.max_model_len} gpu_util={v.gpu_memory_utilization} max_num_seqs={v.max_num_seqs}",
+        f"max_model_len={v.max_model_len} gpu_util={v.gpu_memory_utilization} "
+        f"max_num_seqs={v.max_num_seqs} "
+        f"prefix_caching={'on' if v.enable_prefix_caching else 'off'} "
+        f"enforce_eager={'on' if v.enforce_eager else 'off'}",
     ]
     if v.quantization:
         parts[1] += f" quantization={v.quantization}"
@@ -76,6 +80,23 @@ def _engine_summary(spec: RunSpec) -> str:
     return ", ".join(parts)
 
 
+def _probe_timeout_seconds(spec: RunSpec) -> float:
+    """Timeout for the live engine probe.
+
+    A scale-to-zero Modal app accepts the request and holds it open until the
+    container is up (minutes), so the old hard 10 s would misreport a *booting*
+    app as unreachable and fail the preflight (SAND-018). Modal probes get the
+    boot budget; every other profile keeps the short CI-safe default. Override
+    with ``SANDBOX_ENGINE_PROBE_TIMEOUT_SECONDS``.
+    """
+    env = os.environ.get("SANDBOX_ENGINE_PROBE_TIMEOUT_SECONDS", "").strip()
+    if env:
+        return float(env)
+    if spec.engine.kind == "modal-vllm":
+        return float(os.environ.get("MODAL_VLLM_STARTUP_TIMEOUT_SECONDS", "1200"))
+    return 10.0
+
+
 def _probe_engine(spec: RunSpec) -> dict[str, Any]:
     base = engine_base_url(spec)
     api_key = os.environ.get("VLLM_API_KEY", "").strip()
@@ -83,37 +104,79 @@ def _probe_engine(spec: RunSpec) -> dict[str, Any]:
     detail: dict[str, Any] = {"base_url": base}
     import httpx
 
-    try:
-        # URL-seam normalization: VLLM_BASE_URL / profile base_url carry the
-        # OpenAI-style "/v1" suffix (deploy README + .env.example contract) —
-        # appending "/v1/models" to an already-seamed base yields
-        # ".../v1/v1/models" and a 404 from vLLM. Only add the seam when the
-        # base does not already end with it.
-        base = base.rstrip("/")
-        models_path = (
-            f"{base}/models" if base.endswith("/v1") else f"{base}/v1/models"
-        )
-        resp = httpx.get(models_path, headers=headers, timeout=10.0)
-    except Exception as exc:  # noqa: BLE001
-        return {"ok": False, "reason": f"unreachable: {type(exc).__name__}: {exc}", **detail}
-    if resp.status_code == 401:
-        return {"ok": False, "reason": "401 — set VLLM_API_KEY to the deployed token", **detail}
-    if resp.status_code >= 400:
-        return {"ok": False, "reason": f"HTTP {resp.status_code} from /v1/models", **detail}
-    try:
-        ids = [str(m.get("id")) for m in (resp.json().get("data") or []) if isinstance(m, dict)]
-    except Exception as exc:
-        return {
-            "ok": False,
-            "reason": f"/v1/models returned unparseable JSON (not a models payload): "
-            f"{type(exc).__name__}: {str(resp.text)[:160]!r} — the endpoint may be "
-            f"answering the wrong API",
-            **detail,
-        }
-    detail["served_models"] = ids
-    if spec.engine.model not in ids:
-        return {"ok": False, "reason": f"served {sorted(ids)} lacks spec.model={spec.engine.model}", **detail}
-    return {"ok": True, **detail}
+    timeout = _probe_timeout_seconds(spec)
+    detail["probe_timeout_seconds"] = timeout
+    # URL-seam normalization: VLLM_BASE_URL / profile base_url carry the
+    # OpenAI-style "/v1" suffix (deploy README + .env.example contract) —
+    # appending "/v1/models" to an already-seamed base yields
+    # ".../v1/v1/models" and a 404 from vLLM. Only add the seam when the
+    # base does not already end with it.
+    base = base.rstrip("/")
+    models_path = f"{base}/models" if base.endswith("/v1") else f"{base}/v1/models"
+
+    started = time.perf_counter()
+    deadline = started + timeout
+    last_reason = "no response from /v1/models"
+    while True:
+        attempt_timeout = max(1.0, deadline - time.perf_counter())
+        try:
+            resp = httpx.get(models_path, headers=headers, timeout=attempt_timeout)
+        except httpx.ConnectError as exc:
+            # Connection refused = wrong / dead endpoint (e.g. the localhost
+            # fallback when VLLM_BASE_URL is unset) — fail fast, never retry.
+            return {
+                "ok": False,
+                "reason": f"unreachable: {type(exc).__name__}: {exc}",
+                "cold_boot_seconds": round(time.perf_counter() - started, 3),
+                **detail,
+            }
+        except Exception as exc:  # noqa: BLE001 — boot can drop the held request
+            last_reason = f"unreachable: {type(exc).__name__}: {exc}"
+        else:
+            if resp.status_code == 401:
+                return {
+                    "ok": False,
+                    "reason": "401 — set VLLM_API_KEY to the deployed token",
+                    "cold_boot_seconds": round(time.perf_counter() - started, 3),
+                    **detail,
+                }
+            if resp.status_code >= 400:
+                return {
+                    "ok": False,
+                    "reason": f"HTTP {resp.status_code} from /v1/models",
+                    "cold_boot_seconds": round(time.perf_counter() - started, 3),
+                    **detail,
+                }
+            try:
+                ids = [
+                    str(m.get("id"))
+                    for m in (resp.json().get("data") or [])
+                    if isinstance(m, dict)
+                ]
+            except Exception as exc:  # noqa: BLE001
+                # A booting Modal web_server can answer 2xx with an empty body
+                # before vLLM is ready — retry until the boot budget elapses
+                # (SAND-018: this is what misreported a boot as "wrong API").
+                last_reason = (
+                    f"/v1/models returned unparseable JSON (not a models payload): "
+                    f"{type(exc).__name__}: {str(resp.text)[:160]!r} — the endpoint may be "
+                    f"answering the wrong API"
+                )
+            else:
+                detail["served_models"] = ids
+                if spec.engine.model not in ids:
+                    return {
+                        "ok": False,
+                        "reason": f"served {sorted(ids)} lacks spec.model={spec.engine.model}",
+                        "cold_boot_seconds": round(time.perf_counter() - started, 3),
+                        **detail,
+                    }
+                detail["cold_boot_seconds"] = round(time.perf_counter() - started, 3)
+                return {"ok": True, **detail}
+        if time.perf_counter() >= deadline:
+            detail["cold_boot_seconds"] = round(time.perf_counter() - started, 3)
+            return {"ok": False, "reason": last_reason, **detail}
+        time.sleep(1.0)
 
 
 def probe_engine(spec: RunSpec) -> dict[str, Any]:
@@ -276,7 +339,7 @@ def preflight(
         return report
     report["checks"].append({"name": "engine_spec", "ok": True, "detail": _engine_summary(spec)})
 
-    # 4) optional live engine probe
+    # 4) optional live engine probe — also the cold-boot measurement (SAND-018)
     if live:
         probe = _probe_engine(spec)
         report["checks"].append(
@@ -290,6 +353,23 @@ def preflight(
             report["status"] = "failed"
             report["checks"][-1]["detail"] = probe.get("reason", "probe failed")
             return report
+        boot_seconds = probe.get("cold_boot_seconds")
+        if boot_seconds is not None:
+            measurement = {
+                "cold_boot_seconds": float(boot_seconds),
+                "base_url": probe.get("base_url"),
+                "served_models": probe.get("served_models"),
+                "probe_timeout_seconds": probe.get("probe_timeout_seconds"),
+                "measured_at": checkpoint.utc_now(),
+                "run_id": run_id,
+            }
+            store.write_cold_boot(measurement)
+            store.append_event("cold_boot", "info", **measurement)
+            report["cold_boot_seconds"] = float(boot_seconds)
+            report["cold_boot_path"] = str(store.cold_boot_path)
+            report["checks"][-1]["detail"] += (
+                f" | cold_boot={float(boot_seconds):.2f}s"
+            )
 
     # 5) trace sink
     try:

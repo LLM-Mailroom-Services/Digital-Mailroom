@@ -34,13 +34,13 @@ task: contracts_specialist
 profile: modal-vllm
 
 prompt:
-  # Pinned local production text (config/prompts/contracts_specialist_v33.txt) for reproducible
-  # Modal L4 Qwen runs — not Langfuse floating production. DMR-074/078.
+  # SAND-026 simplified pin (config/prompts/contracts_specialist_v33_simplified.txt).
+  # Not Langfuse floating production; vendor v33 remains as a syncable mirror. DMR-074/078.
   default: {source: code-default}
   agents:
     contracts_specialist:
       source: local
-      file: contracts_specialist_v33
+      file: contracts_specialist_v33_simplified
 
 dataset:
   provider: huggingface
@@ -72,7 +72,9 @@ engine:
   vllm:
     max_model_len: 16384      # boot-valid cap for L4-bf16 8B (v0.29.0 raises above)
     gpu_memory_utilization: 0.90
-    max_num_seqs: 256
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
     quantization: ""
     revision: ""
   modal:

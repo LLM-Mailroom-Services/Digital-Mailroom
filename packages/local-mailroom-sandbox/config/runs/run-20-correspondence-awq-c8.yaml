@@ -1,0 +1,78 @@
+# SAND-019 (AWQ, concurrency 8) — correspondence_specialist on the SAME 20
+# correspondence docs as run-20-correspondence-awq (split=all, seed 42), so the
+# dataset fingerprint matches and the ONLY variable is concurrency.
+#
+# Purpose: log a measured 8-wide batched run on one L4 for comparison against
+# the concurrency-5 run. Short AWQ prompts (~2k tokens) leave ample KV headroom
+# at the 32768 window, so 8 in flight should not thrash.
+#
+# Deploy (AWQ env — see `sandbox modal-matrix env Qwen/Qwen3-8B-AWQ`):
+#   modal profile activate hermes-agent-jjb
+#   export SANDBOX_PROFILE=modal-vllm MODAL_VLLM_MODEL=Qwen/Qwen3-8B-AWQ \
+#     MODAL_VLLM_QUANTIZATION=awq MODAL_VLLM_MAX_MODEL_LEN=32768 \
+#     MODAL_VLLM_GPU=L4 MODAL_VLLM_IMAGE_TAG=v0.29.0 \
+#     MODAL_VLLM_MAX_CONTAINERS=1 MODAL_VLLM_SCALEDOWN_SECONDS=120
+#   modal run deploy/modal_vllm.py::download_model
+#   modal deploy deploy/modal_vllm.py --strategy recreate
+#   sandbox run preflight --config config/runs/run-20-correspondence-awq-c8.yaml --live
+#   sandbox run start --config config/runs/run-20-correspondence-awq-c8.yaml --job-mode endpoint --watch
+#   ./deploy/teardown_vllm.sh
+schema: sandbox.run/v1
+run_id: run-20-correspondence-awq-c8
+task: correspondence_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    correspondence_specialist:
+      source: local
+      file: correspondence_specialist_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      - doc_class: correspondence
+        count: 20
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: awq
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 1
+    min_containers: 0
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 8              # SAND-019: 8 in flight (matches the c5 draw)
+  cost_cap_usd: 0.35
+  max_wall_seconds: 1800
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-20-correspondence-awq-c8
+  tags: [sandbox, job, specialist, correspondence, qwen3-8b-awq, l4, benchmark, sand-019, c8]

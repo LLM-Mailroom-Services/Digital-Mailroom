@@ -20,11 +20,17 @@ from llm_dojo_scoring import (
     score_extraction,
     score_serving_run,
     score_task,
-    split_local_api,
     suite_for_doc_type,
 )
 from llm_dojo_scoring.extraction_metrics import extraction_binary_metrics
 from llm_dojo_scoring.serving import CANONICAL_SERVING_KEYS, pair_comparable_runs
+
+from mailroom_sandbox.eval.extraction_scope import scope_extraction_pair
+from mailroom_sandbox.eval.schema_adherence import (
+    assess_extraction_payload,
+    merge_schema_adherence,
+)
+from mailroom_sandbox.eval.serving_parity import split_serving_records, to_dojo_serving_record
 
 from mailroom_sandbox.paths import reports_dir
 
@@ -112,6 +118,7 @@ def score_extraction_row(
         suite = None
     predicted = predicted or {}
     expected = expected or {}
+    predicted, expected = scope_extraction_pair(doc_type, predicted, expected)
     if suite is not None:
         try:
             result = suite.score(expected, predicted, doc_text=doc_text)
@@ -133,9 +140,20 @@ def score_extraction_row(
         )
     overall = getattr(result, "overall_score", None)
     if overall is None and isinstance(result, dict):
+        # SAND-019: the mailroom suites return a FLAT dict whose real aggregate is
+        # nested at ``result["extraction"].overall_score`` (an
+        # ExtractionScoreResult). Reading only top-level ``overall_score``/
+        # ``extraction_overall_score`` left every correspondence row null even
+        # with ground truth present — extraction_f1 was computed but the headline
+        # score was not.
         overall = result.get("overall_score")
         if overall is None:
             overall = result.get("extraction_overall_score")
+        if overall is None:
+            nested = result.get("extraction")
+            overall = getattr(nested, "overall_score", None)
+            if overall is None and isinstance(nested, dict):
+                overall = nested.get("overall_score")
     payload: dict[str, Any] = {
         "overall_extraction_score": overall,
         "doc_type": doc_type,
@@ -169,6 +187,7 @@ def score_extraction_row(
         for key in _EXTRACT_PRF_KEYS:
             if key in result:
                 payload[key] = result[key]
+    payload.update(assess_extraction_payload(predicted, doc_type))
     return payload
 
 
@@ -192,6 +211,11 @@ def score_stage(expected: list[str], predicted: list[str]) -> dict[str, Any]:
 
 def mean_or_zero(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
+
+
+def aggregate_schema_adherence(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Run-level parse/schema rates from per-row ``score_extraction_row`` dicts."""
+    return merge_schema_adherence(rows)
 
 
 def serving_headlines() -> list[str]:
@@ -278,11 +302,22 @@ def compare_local_vs_api(
 
 
 def compare_from_records(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """Partition an experiment log and compare local vs API-key runs."""
-    rows = list(records)
-    local, api, unknown = split_local_api(rows)
+    """Partition an experiment log and compare local (or Modal) vs API-key runs.
+
+    Dojo ``split_local_api`` folds ``modal-vllm`` into ``local``. The sandbox
+    splitter keeps a Modal bucket (DMR-049) and still scores Modal↔API through
+    ``get_suite("local_vs_api")`` after ``to_dojo_serving_record`` so Grant
+    cost-compare logs work without a live GPU.
+    """
+    rows = [to_dojo_serving_record(r) for r in records]
+    buckets = split_serving_records(rows)
+    local = buckets["local"]
+    modal = buckets["modal"]
+    api = buckets["api"]
+    unknown = buckets["unknown"]
     payload: dict[str, Any] = {
         "local_n": len(local),
+        "modal_n": len(modal),
         "api_n": len(api),
         "unknown_n": len(unknown),
         "pairs": [],
@@ -293,16 +328,28 @@ def compare_from_records(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]
         "cost": None,
         "markdown": None,
     }
-    if not local or not api:
+    left = local
+    left_label = "local"
+    if not left and modal and api:
+        left = modal
+        left_label = "modal"
         payload["note"] = (
-            "Need both local (Ollama/vLLM/llama.cpp/LM Studio) and API-key "
-            "(OpenRouter) records. Offline fixtures work without OPENROUTER_API_KEY."
+            "Compared Modal vs API via get_suite('local_vs_api'); dojo "
+            "identity.serving_kind remaps modal→local (sandbox keeps modal)."
+        )
+    if not left or not api:
+        payload["note"] = (
+            "Need API-key (OpenRouter) records plus local (Ollama/vLLM/"
+            "llama.cpp/LM Studio) or Modal (modal-vllm) records. Offline "
+            "fixtures work without OPENROUTER_API_KEY."
         )
         return payload
+    # pair_comparable_runs still uses dojo split (modal counts as local there).
     pairs = pair_comparable_runs(rows)
     suite = get_suite("local_vs_api")
-    payload["pairs"] = [suite.score(left, right) for left, right in pairs]
-    comparison = suite.score(local, api)
+    payload["pairs"] = [suite.score(a, b) for a, b in pairs]
+    comparison = suite.score(left, api)
+    payload["left_serving"] = left_label
     payload["comparison"] = comparison
     payload["table"] = comparison.get("table") or []
     payload["scorecard"] = comparison.get("scorecard")

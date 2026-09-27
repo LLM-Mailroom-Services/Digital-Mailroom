@@ -1,8 +1,8 @@
 """Two-operator (and full) specialist suite manifests (DMR-077).
 
 Suite YAMLs under ``config/runs/suites/`` list ordered run configs plus Modal
-profile env hints. Operators warm one ``sandbox-vllm`` app per track, chain
-their configs without teardown between runs, then tear down after the last.
+profile env hints. Full operator cards (deploy env, smoke, teardown) live in
+``config/runbooks/catalog.yaml`` — ``sandbox runbook show l4-qwen3-8b``.
 """
 
 from __future__ import annotations

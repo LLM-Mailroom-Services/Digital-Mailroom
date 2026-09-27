@@ -20,7 +20,7 @@ from mailroom_sandbox.paths import config_dir
 from mailroom_sandbox.overlay import load_yaml
 from mailroom_sandbox.job.spec import KNOWN_GPUS
 
-# Default specialist / cost-eval posture (docs/benchmark-l4.md).
+# Default specialist / cost-eval posture (sandbox runbook show l4-qwen3-8b).
 DEFAULT_MODAL_MODEL = "Qwen/Qwen3-8B"
 DEFAULT_MODAL_GPU = "L4"
 
@@ -151,6 +151,6 @@ def cutover_hints(resolved: dict[str, Any]) -> list[str]:
         hints.append(
             f"ALTERNATE posture: {resolved['model']} on {resolved['gpu']} — "
             "not the default 30-doc specialist cost-eval path "
-            "(docs/benchmark-l4.md)."
+            "(sandbox runbook show l4-qwen3-8b)."
         )
     return hints

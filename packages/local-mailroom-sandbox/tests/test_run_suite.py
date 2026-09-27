@@ -91,7 +91,7 @@ def test_run_30_merger_task_is_dedicated_specialist():
     agents = spec.prompt.get("agents") or {}
     pin = agents.get("merger_agreement_specialist") or {}
     assert pin.get("source") == "local"
-    assert pin.get("file") == "merger_agreement_specialist_production"
+    assert pin.get("file") == "merger_agreement_specialist_simplified"
     assert "contracts_specialist" not in agents
 
 

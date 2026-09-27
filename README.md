@@ -1,8 +1,8 @@
 <div align="center">
 
-# 📬 LLM-Mailroom Constellation
+# 📬 Digital Mailroom
 
-**A monorepo housing the full LLM-Mailroom ecosystem: one checkout, ten packages, and zero cross-repo import friction.**
+**LLM-Mailroom constellation monorepo — one checkout, ten packages, zero cross-repo import friction.**
 
 Multi-agent legal-document pipeline · Prompt-experiment loop · Deterministic scoring · Pixel-art visualizer · Walking-office-floor mailroom · Corpus EDA
 

@@ -1,4 +1,4 @@
-# Applies agent-built feeder resync bundle onto main (workflow_dispatch).
+# Fast-forwards main to feeder sync commit dc5eeb1d via git bundle.
 name: Apply feeder resync bundle
 
 on:
@@ -6,10 +6,14 @@ on:
   push:
     branches: [main]
     paths:
-      - "tools/feeder-resync/bundle.b64.*"
+      - ".github/workflows/apply-feeder-resync-bundle.yml"
+      - "tools/feeder-resync/BUNDLE_SOURCE"
 
 permissions:
   contents: write
+
+env:
+  BUNDLE_BASE: https://raw.githubusercontent.com/Exios66/llm-dojo-scoring/cursor/feeder-bundle-host-d595/tools/digital-mailroom-feeder-resync
 
 jobs:
   apply:
@@ -19,9 +23,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Decode bundle
+      - name: Fetch and decode bundle
         run: |
-          cat tools/feeder-resync/bundle.b64.* > /tmp/feeder-resync.bundle.b64
+          set -euo pipefail
+          for part in aa ab ac ad ae af ag ah ai; do
+            curl -fsSL "${BUNDLE_BASE}/bundle.b64.${part}" >> /tmp/feeder-resync.bundle.b64
+          done
           base64 -d /tmp/feeder-resync.bundle.b64 > /tmp/feeder-resync.bundle
           git bundle verify /tmp/feeder-resync.bundle
 

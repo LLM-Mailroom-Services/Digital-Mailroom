@@ -1,0 +1,3 @@
+Bundle chunks: Exios66/llm-dojo-scoring @ cursor/feeder-bundle-host-d595
+tools/digital-mailroom-feeder-resync/bundle.b64.*
+Target commit on main after apply: dc5eeb1d

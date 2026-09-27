@@ -1,1 +1,1 @@
-PLACEHOLDER_WILL_USE_QUEUE
+file:/tmp/extract_mb_02_f0.txt

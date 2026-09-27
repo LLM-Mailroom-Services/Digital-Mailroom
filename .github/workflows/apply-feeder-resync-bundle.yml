@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 env:
-  BUNDLE_BASE: https://raw.githubusercontent.com/Exios66/llm-dojo-scoring/cursor/feeder-bundle-host-d595/tools/digital-mailroom-feeder-resync
+  BUNDLE_BASE: https://raw.githubusercontent.com/Exios66/llm-dojo-scoring/585721f/tools/digital-mailroom-feeder-resync
   TARGET_SHA: 00f263e3b413c7a9daed33424c4ac4a2ee6f02f2
 
 jobs:

@@ -4,7 +4,8 @@
 Default corpus is ``Lucius-Morningstar/mailroom-dataset`` schema **v9** (the
 targeted full 3,302-doc surface; v9 = §84 hardened ground_truth on top of
 the frozen v8 base — HUB-028 insurance LOB expansion + full GT conformance,
-hardened at `eafe1ab4`, successor published 2026-09-12 at `46a4d3c240a36671cde0182fff4960f6b8b73aca`).
+hardened at `eafe1ab4`, v9 GT-closure at `46a4d3c2`, live pin v9.1 quality
+revision `ed7576b676343e0b402ec5412cded301e629bdee`).
 Class × subtype
 examples come from
 ``docclass-pilot``. Any other pipeline-ready Lucius-Morningstar dataset

@@ -104,7 +104,7 @@ SANDBOX_FIXTURE = "packages/local-mailroom-sandbox/data/fixtures/hf/docclass_min
 #
 # Canonical Hub expected_subclass vocabulary per live class, re-pinned from
 # the CURRENT dataset: mailroom-dataset v9 (Lucius-Morningstar/mailroom-dataset,
-# pinned tip 46a4d3c2, 3,302 rows, GT-closure revision 2026-09-13) — the
+# pinned tip ed7576b6 (v9.1 quality revision), 3,302 rows) — the
 # canonical successor of the frozen mailroom-corpus v8 baseline (eafe1ab4,
 # 2,000 rows; DMR-071 adjudication 2026-09-16: the dataset pin is the source
 # of truth). Contract GT carries 26 folder-style subclass spellings

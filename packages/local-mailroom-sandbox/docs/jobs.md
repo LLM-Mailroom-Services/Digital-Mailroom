@@ -46,7 +46,7 @@ dataset:                    # full mailroom-dataset OR a subset
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth      # labels + doc_text joined on filename
   split: all                # train+test (3,302 rows). `test` cannot back 40/100-per-class.
-  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca     # pinned (no floating)
+  revision: ed7576b676343e0b402ec5412cded301e629bdee     # pinned (no floating)
   strata:
     buckets:
       - {doc_class: contract, count: 40}          # or 20 / 100; merger max 152

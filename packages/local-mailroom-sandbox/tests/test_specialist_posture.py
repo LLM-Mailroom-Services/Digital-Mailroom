@@ -57,7 +57,7 @@ def test_run_20_yaml_full_corpus_logged_sample():
     assert spec.dataset.limit == 20
     assert spec.dataset.sample_seed == 42
     assert spec.dataset.strata["buckets"] == [{"doc_class": "contract", "count": 20}]
-    assert spec.effective_revision() == "46a4d3c240a36671cde0182fff4960f6b8b73aca"
+    assert spec.effective_revision() == "ed7576b676343e0b402ec5412cded301e629bdee"
     assert spec.job.cost_cap_usd == 0.55
     assert spec.job.max_wall_seconds == 3200
     agents = spec.prompt.get("agents") or {}

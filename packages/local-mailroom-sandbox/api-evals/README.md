@@ -43,7 +43,7 @@ Every run spec (`api-evals/config/runs/*.yaml`) is **byte-comparable** to the
 sandbox Modal specialist YAMLs:
 
 - the dataset block is the same draw method — `split: all`, class bucket
-  `count: N`, `sample_seed: 42`, pinned revision `46a4d3c2…` (the
+  `count: N`, `sample_seed: 42`, pinned revision `ed7576b6…` (the
   `run-20-contracts*` / `run-20-correspondence*` draw);
 - the prompt pin is the same local stem (SAND-026 simplified);
 - the only difference is the engine: `profile: openrouter`, `model:

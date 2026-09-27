@@ -21,7 +21,7 @@ description: Hugging Face Hub usage for local-mailroom-sandbox — fixture schem
 sandbox datasets prepare                                    # offline cleaners
 sandbox datasets pull                                       # FULL ground_truth train+test (3302 rows)
 sandbox datasets sample --per-class 40                      # 20/40/100… from the local cache
-#   pinned revision 46a4d3c2… (FAMILY_HF_REVISION, v9 mailroom-dataset tip),
+#   pinned revision ed7576b6… (FAMILY_HF_REVISION, v9.1 mailroom-dataset tip),
 #   ground_truth + default
 #   merged on filename, content_sha256 verified, exit 1 on any failure (DMR-056)
 ```

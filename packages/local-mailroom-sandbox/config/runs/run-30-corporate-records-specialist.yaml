@@ -36,7 +36,7 @@ dataset:
   config: ground_truth
   # split: test — 47 corporate_record rows; N=30 fits (no train needed)
   split: test
-  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (FAMILY_HF_REVISION)
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_REVISION)
   strata:
     buckets:
       # corporate_record (47 test rows): proportional quotas → 30

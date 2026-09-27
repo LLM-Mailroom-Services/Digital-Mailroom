@@ -142,14 +142,14 @@ projection is robust; the Modal projection is the fragile one (it moves with lat
 
 ## 7 · Verifying N (open)
 
-To confirm the contract-split size against the pinned corpus (`46a4d3c2…`), count
+To confirm the contract-split size against the pinned corpus (`ed7576b6…`), count
 `expected_doc_class == "contract"` after the `ground_truth ⇆ default` join, or pull the class
 column once:
 
 ```python
 from huggingface_hub import HfApi, hf_hub_download
 import pyarrow.parquet as pq
-rev = "46a4d3c240a36671cde0182fff4960f6b8b73aca"
+rev = "ed7576b676343e0b402ec5412cded301e629bdee"
 files = HfApi().list_repo_files("Lucius-Morningstar/mailroom-dataset", repo_type="dataset", revision=rev)
 p = hf_hub_download("Lucius-Morningstar/mailroom-dataset",
                     sorted(f for f in files if f.startswith("parquet/default/") and f.endswith(".parquet"))[0],

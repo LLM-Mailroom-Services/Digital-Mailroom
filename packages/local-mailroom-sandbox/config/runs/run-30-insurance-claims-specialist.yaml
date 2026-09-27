@@ -37,7 +37,7 @@ dataset:
   config: ground_truth
   # split: test — 114 insurance_claim rows; N=30 fits
   split: test
-  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (FAMILY_HF_REVISION)
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_REVISION)
   strata:
     buckets:
       # insurance_claim (114 test rows): all 6 subclasses → 30

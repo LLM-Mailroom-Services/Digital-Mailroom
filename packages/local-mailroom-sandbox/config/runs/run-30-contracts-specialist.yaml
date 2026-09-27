@@ -46,9 +46,9 @@ dataset:
   provider: huggingface
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
-  # split: test — 60 contract rows (pinned 46a4d3c2); N=30 fits without train
+  # split: test — 60 contract rows (pinned ed7576b6); N=30 fits without train
   split: test
-  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (FAMILY_HF_REVISION)
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_REVISION)
   strata:
     buckets:
       # contract (60 test rows): 9 largest of 19 subclasses → 30 rows

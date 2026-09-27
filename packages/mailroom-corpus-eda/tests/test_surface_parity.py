@@ -5,7 +5,7 @@ the build vocab (``mailroom_eda.v9_build.EXPECTED_SUBCLASS_BY_CLASS``) drifts
 from the data, so surface drift fails CI instead of the reviewer.
 
 Data surface = the canonical source of truth (mailroom-dataset v9, tip
-46a4d3c2 — the snapshot under ``data/parquet`` is fetched at that pin by
+ed7576b6 — the snapshot under ``data/parquet`` is fetched at that pin by
 ``run_all.py`` P0 / ``download.download_corpus``). The scoring and build
 catalogs below MUST agree with it.
 

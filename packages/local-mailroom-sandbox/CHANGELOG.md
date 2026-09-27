@@ -240,7 +240,7 @@
   **v0.7.1** (`2a212e76`, `vendor/llm-mailroom/VENDOR.md`), llm-dojo-scoring
   **v0.15.0** (`9db1417b`, vendor snapshot refreshed with the emitter
   counters in the same commit so the hub#62 drift guard stays byte-identical);
-  the corpus pin is **v9 `46a4d3c2`** (`FAMILY_HF_REVISION`).
+  the corpus pin is **v9.1 `ed7576b6`** (`FAMILY_HF_REVISION`).
 - **Tracing loudness:** `eval/tracing.py` now warns on every silent-degrade
   path (dojo constants fallback, mailroom-setup/SDK unavailability,
   `propagate_attributes` failure) and COUNTS lost score emissions + failed

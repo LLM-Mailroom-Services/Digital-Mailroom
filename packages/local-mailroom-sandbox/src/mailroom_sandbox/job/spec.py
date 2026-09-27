@@ -18,7 +18,7 @@ from mailroom_sandbox.paths import data_dir
 
 _log = logging.getLogger("mailroom_sandbox.job.spec")
 
-FAMILY_HF_REVISION = "46a4d3c240a36671cde0182fff4960f6b8b73aca"  # v9 mailroom-dataset tip (GT-closure revision, epic #27)
+FAMILY_HF_REVISION = "ed7576b676343e0b402ec5412cded301e629bdee"  # v9.1 mailroom-dataset tip (quality revision; #110 / mailroom-issues#196)
 HF_DEFAULT_REPO = "Lucius-Morningstar/mailroom-dataset"
 # Full corpus row count at FAMILY_HF_REVISION (train+test; mailroom-ml pin).
 FAMILY_CORPUS_SIZE = 3302

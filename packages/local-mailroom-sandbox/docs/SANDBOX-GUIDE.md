@@ -363,7 +363,7 @@ dataset:
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
   split: test
-  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (v9 mailroom-dataset GT-closure tip)
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (v9.1 mailroom-dataset quality tip; FAMILY_HF_REVISION)
   strata: {expected: [insurance_claim, contract]}
   limit: 50
   sample_seed: 42

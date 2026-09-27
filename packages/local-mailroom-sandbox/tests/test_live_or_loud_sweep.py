@@ -265,6 +265,9 @@ def test_probe_engine_unparseable_json_reports_diagnosis(monkeypatch):
     import httpx
 
     monkeypatch.setattr(httpx, "get", lambda *a, **k: _Resp())
+    # probe now retries an unparseable 2xx within the boot budget; zero it so
+    # the diagnosis is returned on the first attempt (SAND-018).
+    monkeypatch.setenv("SANDBOX_ENGINE_PROBE_TIMEOUT_SECONDS", "0")
     spec = RunSpec(task="sorter", profile="vllm-local")
     result = _probe_engine(spec)
     assert result["ok"] is False

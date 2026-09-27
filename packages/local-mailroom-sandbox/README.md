@@ -105,12 +105,15 @@ GPU recommended for Qwen 8B.
 | [Tracing](docs/tracing.md) | Langfuse v4 data model, tags, The-Mailroom |
 | [Docker offline](docs/docker-offline.md) | Dockerfile, Compose `jupyter` profile, prep notebooks |
 | [Sister repos](docs/sister-repos.md) | Family map |
+| [Layout contract](docs/LAYOUT.md) | **Which folder owns what** — the two config trees, frozen surfaces, junk policy |
 | [Agent skills](.cursor/skills/README.md) | Langfuse, Phoenix, Braintrust, Ollama, Modal, Hugging Face |
 
 ## Layout
 
 ```
 config/profiles/     provider profiles (local-first defaults)
+config/runs/         run specs for `sandbox run` (vllm-local / vllm-remote / modal-vllm)
+config/prompts/      frozen prompt stems (referenced by name from run specs)
 config/taxonomy.overlay.yaml
 config/models.yaml   OpenRouter champion → local tag map
 deploy/              Dockerfile + compose + Modal vLLM (modal_vllm.py) + Modal job worker (modal_job.py) + htcondor/ + conda/
@@ -119,7 +122,14 @@ data/fixtures/       offline samples (see ATTRIBUTION.md)
 src/mailroom_sandbox/
 vendor/              tracked family snapshots (llm-mailroom v0.7.1 + llm-dojo-scoring v0.15.0; see VENDOR.md)
 reports/             sandbox experiment log (not a sister-repo mirror)
+governance/          SAND-* board (README / PREFIX / TASKS / archive)
+api-evals/           OpenRouter API cost harness — its own config/runs/ + reports/ and its own CLI
+                     (`python api-evals/run_api_evals.py`), not packaged, not in the Docker image.
+                     Run specs here are the real-spend `api-*` tasks; see docs/LAYOUT.md.
 ```
+
+Full rules — including why the two `config/runs/` trees stay separate and which
+paths are frozen by a test — are in [`docs/LAYOUT.md`](docs/LAYOUT.md).
 
 ## Offline Docker + Notebooks
 

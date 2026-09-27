@@ -184,6 +184,59 @@ def test_run_job_concurrent_fail_fast_stops_scheduling(tmp_path, monkeypatch):
     assert len(items) <= 2
 
 
+def test_build_record_bills_wall_not_latency_sum_under_concurrency(tmp_path, monkeypatch):
+    """Issue #37: gpu_seconds must track wall+cold boot, not sum(latency)/conc."""
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    monkeypatch.delenv("MODAL_BILLED_GPU_SECONDS", raising=False)
+    store = RunStore(tmp_path / "run-bill")
+    store.write_lock(
+        {
+            "run_id": store.run_id,
+            "task": "sorter",
+            "profile": "modal-vllm",
+            "spec_hash": "abc",
+            "engine": {"model": "Qwen/Qwen3-8B", "modal": {"gpu": "L4"}},
+            "job": {"mock": False, "concurrency": 8},
+        }
+    )
+    for i in range(4):
+        store.append_item(
+            {
+                "item_id": f"d{i}",
+                "index": i,
+                "ok": True,
+                "latency_ms": 10_000.0,
+                "prompt_tokens": 1,
+                "completion_tokens": 1,
+            }
+        )
+    store.write_cold_boot({"cold_boot_seconds": 5.0})
+    rec = runner._build_record(store, "sorter", None, {}, mock=False, wall_seconds=12.0)
+    assert rec["gpu_seconds"] == pytest.approx(17.0)
+    assert rec["gpu_seconds"] != pytest.approx(40.0 + 5.0)
+
+
+def test_build_record_modalt_billed_env_override(tmp_path, monkeypatch):
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    monkeypatch.setenv("MODAL_BILLED_GPU_SECONDS", "99")
+    store = RunStore(tmp_path / "run-env")
+    store.write_lock(
+        {
+            "run_id": store.run_id,
+            "task": "sorter",
+            "profile": "modal-vllm",
+            "spec_hash": "abc",
+            "engine": {"model": "Qwen/Qwen3-8B", "modal": {"gpu": "L4"}},
+            "job": {"mock": False},
+        }
+    )
+    store.append_item({"item_id": "d0", "index": 0, "ok": True, "latency_ms": 1000.0})
+    rec = runner._build_record(store, "sorter", None, {}, mock=False, wall_seconds=1.0)
+    assert rec["gpu_seconds"] == pytest.approx(99.0)
+
+
 def test_run_record_lands_in_experiment_log(tmp_path):
     store = _prepped_store(tmp_path, rows=2)
     runner.run_job(store, mock=None)
@@ -209,6 +262,22 @@ def test_lock_prompt_source_reads_lock_default(tmp_path):
     store2.write_lock({"prompt": {"default": {"source": "code-default"}}})
     assert runner._lock_prompt_source(store2) == "code-default"
     assert runner._lock_prompt_variant(store2) is None
+    store3 = RunStore(tmp_path / "run-src3")
+    store3.write_lock(
+        {
+            "task": "correspondence_specialist",
+            "prompt": {
+                "default": {"source": "code-default"},
+                "agents": {
+                    "correspondence_specialist": {
+                        "source": "local",
+                        "file": "correspondence_specialist_simplified",
+                    }
+                },
+            },
+        }
+    )
+    assert runner._lock_prompt_variant(store3) == "correspondence_specialist_simplified"
 
 
 def test_whole_run_delegation_links_record_to_lock(tmp_path, monkeypatch):
@@ -315,6 +384,75 @@ def test_whole_run_agent_task_delegates(tmp_path):
     assert "scores" in summary
     cp = store.read_checkpoint() or {}
     assert cp["state"] == "done"
+
+
+def test_whole_run_agent_task_carries_cold_boot(tmp_path):
+    """SAND-018: the measured engine cold boot (preflight --live) lands in the
+    whole-run experiment-log record, not just the per-item path."""
+    store = _whole_run_store(tmp_path, task="judge")
+    store.write_cold_boot({"cold_boot_seconds": 178.25, "run_id": store.run_id})
+    summary = runner.run_job(store, mock=None)
+    assert summary["state"] == "done"
+    assert summary["result"]["record"]["cold_boot_seconds"] == 178.25
+
+
+def test_whole_run_record_bills_cold_boot(tmp_path):
+    """SAND-018 cost accuracy: the pipeline record's GPU-seconds span the warm
+    interval (cold boot + busy), so the reported cost matches the Modal charge."""
+    store = _whole_run_store(tmp_path, task="pipeline")
+    store.write_cold_boot({"cold_boot_seconds": 178.0, "run_id": store.run_id})
+    store.items_path.write_text(
+        json.dumps({"id": "d0", "ok": True, "latency_ms": 2400.0}) + "\n",
+        encoding="utf-8",
+    )
+    rec = runner._build_record(store, "pipeline", None, {"n": 1}, mock=True)
+    assert rec["cold_boot_seconds"] == 178.0
+    assert rec["gpu_seconds"] >= 178.0
+    assert "estimated_gpu_cost_usd" in rec
+
+
+def test_whole_run_emits_progress_events(monkeypatch, tmp_path):
+    """SAND-018: a delegated whole-run must forward per-item progress so
+    `sandbox run status` / --watch track a live run instead of showing nothing."""
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    def _fake_isolated(task, **kwargs):
+        cb = kwargs.get("progress_cb")
+        if cb is not None:
+            cb(1, 3, 1, 0)
+            cb(2, 3, 2, 0)
+            cb(3, 3, 3, 0)
+        return {"n": 3, "scores": {"exact_match": 1.0}, "record": {"ok": True}, "rows": []}
+
+    monkeypatch.setattr(eval_runners, "run_isolated_eval", _fake_isolated)
+    store = _whole_run_store(tmp_path, task="judge")
+    events: list[dict] = []
+    summary = runner.run_job(store, mock=True, on_event=events.append)
+    assert summary["state"] == "done"
+    assert [e["cursor"] for e in events] == [1, 2, 3]
+    assert all(e["state"] == "running" for e in events)
+
+
+def test_whole_run_agent_task_passes_concurrency_and_caps(monkeypatch, tmp_path):
+    """SAND-018: job.concurrency / cost_cap / max_wall reach the isolated
+    runner — the isolated path used to be serial and unguarded."""
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    captured: dict = {}
+
+    def _fake_isolated(task, **kwargs):
+        captured.update(kwargs)
+        captured["_task"] = task
+        return {"n": 1, "scores": {"exact_match": 1.0}, "record": {"ok": True}, "rows": []}
+
+    monkeypatch.setattr(eval_runners, "run_isolated_eval", _fake_isolated)
+    store = _whole_run_store(tmp_path, task="judge")
+    runner.run_job(store, mock=True)
+    assert captured["_task"] == "judge"
+    assert captured["concurrency"] >= 1
+    assert "max_wall_seconds" in captured
+    assert "cost_cap_usd" in captured
+    assert "gpu" in captured
 
 
 def test_whole_run_pipeline_receives_locked_rows(tmp_path, monkeypatch):

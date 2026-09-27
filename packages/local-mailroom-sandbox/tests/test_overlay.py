@@ -171,7 +171,24 @@ def test_modal_profile_merge_sorter_vllm_and_timeout_600():
     assert t["agents"]["sorter"]["provider"] == "vllm"
     assert t["agents"]["sorter"]["model"] == "Qwen/Qwen3-8B"
     assert t["run_limits"]["llm_call_timeout_seconds"] == 600
-    # DMR-078: specialist budgets fit Qwen L4 16k
+    # DMR-078 / SAND-018: specialist budgets fit Qwen L4 16k; contracts keeps a
+    # 4096 decode and a real-chars/token input cap so it cannot 400 the window.
     assert t["agents"]["contracts_specialist"]["max_tokens"] == 4096
+    assert t["agents"]["contracts_specialist"]["max_input_chars"] == 18000
     assert t["agents"]["merger_agreement_specialist"]["max_tokens"] == 4096
     assert t["agents"]["correspondence_specialist"]["max_tokens"] == 2048
+
+
+def test_run_scoped_agent_knobs_override_global_overlay():
+    """SAND-019: a run-scoped knob (AWQ 32768 contracts needs 8192 decode) wins
+    over the global overlay while the default stays bf16-16k-safe at 4096."""
+    from mailroom_sandbox.overlay import build_merged_taxonomy, load_profile
+
+    knobs = {"contracts_specialist": {"max_tokens": 8192, "max_input_chars": 24000}}
+    t = build_merged_taxonomy(load_profile("modal-vllm"), agent_knobs=knobs)
+    assert t["agents"]["contracts_specialist"]["max_tokens"] == 8192
+    assert t["agents"]["contracts_specialist"]["max_input_chars"] == 24000
+    # Default (no knobs) is untouched.
+    d = build_merged_taxonomy(load_profile("modal-vllm"))
+    assert d["agents"]["contracts_specialist"]["max_tokens"] == 4096
+    assert d["agents"]["contracts_specialist"]["max_input_chars"] == 18000

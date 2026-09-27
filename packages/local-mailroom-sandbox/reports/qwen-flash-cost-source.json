@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "description": "Tracked cost ledger for the three early qwen/qwen3.7-flash OpenRouter runs (SAND-027-9 / issue #40). Rebuilds the QWEN-flash cost report without reports/experiment_log.jsonl.",
+  "model": "qwen/qwen3.7-flash",
+  "price_pin": {
+    "source": "openrouter_models_api",
+    "verified_at": "2026-09-25",
+    "price_per_million_in_usd": 0.03,
+    "price_per_million_out_usd": 0.13,
+    "registry_ref": "api_evals.registry.DEFAULT_LIST_PRICES",
+    "note": "Verified against live /models and usage.cost on a smoke call; offline report uses this pin unless --prices overrides."
+  },
+  "caveats": [
+    "All three runs logged prompt_version mailroom-default — pinned simplified prompt stems were not recorded; these are cost figures, not prompt-fixed quality claims.",
+    "contracts-20 rows reported overall_extraction_score 0.0 with zero errors — measurement status is UNPROVEN (see issue #41); do not treat 0.0 as a validated accuracy result.",
+    "estimated_gpu_cost_usd on each record is the sandbox L4 GPU-proxy (wall/busy GPU-seconds × $/hr), NOT an OpenRouter API charge. Real API $ is recomputed from prompt/completion tokens × the price pin (or live /models when online)."
+  ],
+  "records": [
+    {
+      "run_id": "api-smoke-1",
+      "task": "api_smoke",
+      "experiment_name": "api-smoke-1",
+      "timestamp": "2026-09-25T21:50:00Z",
+      "profile": "openrouter",
+      "provider": "openrouter",
+      "backend": "none",
+      "model": "qwen/qwen3.7-flash",
+      "prompt_version": "mailroom-default",
+      "n": 1,
+      "prompt_tokens": 12158,
+      "completion_tokens": 997,
+      "estimated_gpu_cost_usd": 0.001854,
+      "dataset_fingerprint": null,
+      "scores": {}
+    },
+    {
+      "run_id": "api-contracts-20",
+      "task": "contracts_specialist",
+      "experiment_name": "sandbox_contracts_specialist_api-contracts-20",
+      "timestamp": "2026-09-25T22:04:00Z",
+      "profile": "openrouter",
+      "provider": "openrouter",
+      "backend": "none",
+      "model": "qwen/qwen3.7-flash",
+      "prompt_version": "mailroom-default",
+      "n": 20,
+      "prompt_tokens": 123829,
+      "completion_tokens": 16629,
+      "estimated_gpu_cost_usd": 0.008428,
+      "dataset_fingerprint": "9c87afb3c10c",
+      "scores": {"overall_extraction_score": 0.0}
+    },
+    {
+      "run_id": "api-contracts-20",
+      "task": "contracts_specialist",
+      "experiment_name": "sandbox_contracts_specialist_api-contracts-20",
+      "timestamp": "2026-09-25T22:08:00Z",
+      "profile": "openrouter",
+      "provider": "openrouter",
+      "backend": "none",
+      "model": "qwen/qwen3.7-flash",
+      "prompt_version": "mailroom-default",
+      "n": 20,
+      "prompt_tokens": 123829,
+      "completion_tokens": 15310,
+      "estimated_gpu_cost_usd": 0.008276,
+      "dataset_fingerprint": "9c87afb3c10c",
+      "scores": {"overall_extraction_score": 0.0}
+    }
+  ]
+}

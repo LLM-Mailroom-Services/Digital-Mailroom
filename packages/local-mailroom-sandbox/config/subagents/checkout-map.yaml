@@ -1,0 +1,18 @@
+# Physical checkout locations for family subagent propagation.
+# Used by: sandbox subagents propagate
+
+version: 1
+# Primary monorepo: LLM-Mailroom-Services/Digital-Mailroom (Exios66/mailroom-dev is legacy).
+monorepo_env_vars: [DIGITAL_MAILROOM_ROOT, MONOREPO_ROOT, MAILROOM_DEV_ROOT]
+default_monorepo_sibling: Digital-Mailroom
+
+checkouts:
+  digital-mailroom:
+    monorepo_relative: "."
+  llm-mailroom:
+    monorepo_relative: "packages/llm-mailroom"
+  llm-entity-extraction:
+    monorepo_relative: "packages/llm-entity-extraction"
+  local-mailroom-sandbox:
+    monorepo_relative: "packages/local-mailroom-sandbox"
+    standalone: true

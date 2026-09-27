@@ -1,5 +1,6 @@
 # OpenRouter champion ids → local serving tags.
 # Used by overlay rewrite and matrix cells so local vs API runs stay comparable.
+# Hosted-catalog sunset (2026-10-10) inventory: docs/openrouter-sunset-audit.md
 
 defaults:
   ollama: qwen3:8b
@@ -77,7 +78,7 @@ local_catalog:
 #   eval "$(sandbox modal-matrix env <HF-id> [--gpu GPU])"
 #   modal deploy deploy/modal_vllm.py --strategy recreate
 # Default specialist cost-eval posture: Qwen/Qwen3-8B @ L4 (do not change
-# run-30 YAMLs for one-off swaps — see docs/benchmark-l4.md).
+# run-30 YAMLs for one-off swaps — see sandbox runbook show l4-qwen3-8b).
 # Quantization must be left EMPTY for FP16 (bf16).
 modal_models:
   Qwen/Qwen3-8B:
@@ -113,6 +114,31 @@ modal_models:
     tp_size: 1
     notes: Pre-quantized 4-bit (~4.4GB); safest L4 choice with real KV
       headroom (~15GB pool). Open weights.
+  # ── IBM Granite 4.2 (SAND-027 apples-to-apples twin; SAND-028 ops) ─────────
+  # Twin check: the OpenRouter id is `ibm-granite/granite-4.2-8b` — the SAME
+  # string as the HF open-weights repo (Apache-2.0, ungated), so the two legs
+  # are first-party twins (not a champion-map pairing). The -fp8 checkpoint is a
+  # published compressed-tensors W8A8 copy of the same weights: native W8A8 on
+  # Ada (L4 SM 8.9), ~9.5GiB. No AWQ/GPTQ exists for granite-4.2 (AWQ slot is
+  # void); NVFP4/MXFP4 are Blackwell/Hopper-only — do NOT put those on L4.
+  ibm-granite/granite-4.2-8b-fp8:
+    gpu: L4
+    quantization: compressed-tensors   # auto-detected W8A8; set explicitly for clarity
+    max_model_len: 32768               # 1xL4 FP8 boot-validates at 32k (~6GB headroom); bf16 32k FAILS
+    tp_size: 1
+    notes: "L4 workhorse for the Granite program (SAND-027). First-party FP8
+      (compressed-tensors W8A8), auto-detected by vLLM. Pair with OpenRouter
+      `ibm-granite/granite-4.2-8b` ($0.06/$0.25 per 1M). Reasoning/tool parsers
+      must be added to the serve command (granite_thinking_parser / qwen3_coder)
+      and verified in the deploy smoke (SAND-027-6)."
+  ibm-granite/granite-4.2-8b:
+    gpu: L4
+    quantization: ""
+    max_model_len: 16384             # bf16 ~17.6GB: 16384 is the 1xL4 boot cap; 32768 FAILS
+    tp_size: 1
+    notes: "bf16 base reference row (matches the OpenRouter id string exactly).
+      NOT the matrix default — bf16 cannot reach 32768 on 1xL4. Use only for a
+      bf16-vs-FP8 ablation; the Granite matrix runs the -fp8 row."
   Qwen/Qwen3-14B:
     gpu: A100-40GB
     quantization: ""
@@ -135,6 +161,36 @@ modal_models:
     notes: "MoE. DMR-056: use the PUBLISHED Qwen/Qwen3-30B-A3B-FP8 checkpoint
       (block-wise FP8; auto-detected, no forced --quantization). A100 runs FP8
       weight-only (Marlin), slower than native W8A8 on Hopper. Open weights."
+  # ── Qwen3.5 (SAND-021) ─────────────────────────────────────────────────────
+  # No published FP8 Hub checkpoints — L4 uses online dynamic fp8
+  # (MODAL_VLLM_QUANTIZATION=fp8). Deploy image must ship causal_conv1d
+  # (Dao-AILab) + fla for Gated-DeltaNet kernels; without them vLLM silently
+  # falls back to slower PyTorch ops (no error). Text-only: pass
+  # --limit-mm-per-prompt '{"image":0,"video":0,"audio":0}' at serve time.
+  # Live /health + load-time VRAM peak verification is deferred (Modal spend
+  # hold); max_model_len below is provisional until measured (v0.29.0 raises at
+  # boot when KV cannot hold one request — DMR-056).
+  Qwen/Qwen3.5-9B:
+    gpu: L4
+    quantization: fp8
+    max_model_len: 16384
+    tp_size: 1
+    notes: "SAND-021. Online FP8 on Ada (~9.7GB weights → ~12GB KV pool vs
+      ~3.4GB for bf16 Qwen3-8B on L4). Hybrid 3:1 Gated-DeltaNet cuts KV vs
+      dense Qwen3; card native 262144 is unreachable on 1×L4 and advises ≥
+      128K for thinking quality — record tension until KV is measured. Kernel
+      deps: causal_conv1d + fla (see section header). DoD incomplete until
+      spend reopens (/health + VRAM peak)."
+  Qwen/Qwen3.5-35B-A3B:
+    gpu: L4:2
+    quantization: fp8
+    max_model_len: 16384
+    tp_size: 2
+    notes: "SAND-021. MoE (35B total / 3B active). TP=2 across two L4s over
+      PCIe — L4 has no NVLink; inter-GPU bandwidth is the bottleneck vs two
+      independent 1-GPU replicas (DMR-068 G1 compares that trade). Same online
+      FP8 + kernel-deps posture as the 9B row. DoD incomplete until spend
+      reopens."
   Qwen/Qwen3-32B:
     gpu: A100-80GB
     quantization: ""

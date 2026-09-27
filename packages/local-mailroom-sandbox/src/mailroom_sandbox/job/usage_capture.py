@@ -14,6 +14,25 @@ from typing import Any, Mapping
 _log = logging.getLogger("mailroom_sandbox.job.usage_capture")
 
 
+def reset_usage() -> None:
+    """Start a fresh per-item usage accumulator for the current thread.
+
+    ``pipeline.limits._run_usage`` is a ``ContextVar`` whose default is one
+    shared list; with a thread pool and no reset, every row's tokens accumulate
+    across the whole run (SAND-018: 20 docs reported 346k prompt tokens). Reset
+    before each row so ``usage_from_pipeline`` returns that row's real counts.
+    """
+    try:
+        from pipeline.limits import reset_run_usage
+    except Exception as exc:  # noqa: BLE001 — mock / no vendor
+        _log.debug("pipeline.limits unavailable for usage reset: %s", exc)
+        return
+    try:
+        reset_run_usage()
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("reset_run_usage() raised — per-item tokens may accumulate: %s", exc)
+
+
 def usage_from_pipeline() -> dict[str, int]:
     """Read the current thread's pipeline usage accumulator (post-invoke)."""
     try:

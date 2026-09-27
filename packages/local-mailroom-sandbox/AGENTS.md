@@ -18,8 +18,9 @@ needed to score or run evals. Prompt loops optionally in `llm-entity-extraction`
 Python 3.11+, no build step.
 
 **Monorepo-family flow:** this package syncs to
-`Exios66/local-mailroom-sandbox` via `scripts/sync_packages.py` (monorepo
-root — `status`/`push --all --patch` is the release-train sweep); the
+`Exios66/local-mailroom-sandbox` via `scripts/sync_packages.py` on the org monorepo
+[LLM-Mailroom-Services/Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
+(`status`/`push --all --patch` is the release-train sweep); the
 sandbox itself ships no releases, but sibling surfaces (llm-mailroom,
 llm-dojo-scoring) do — their version bumps flow through the same sync pass,
 the vendor refresh below, and the consuming pins. Full law: root
@@ -43,6 +44,19 @@ provider, tracing, dataset, or deploy task, then open exactly one specialty skil
 
 Do not use Phoenix or Braintrust as the The-Mailroom sink. Do not use OpenRouter
 unless explicitly opted in.
+
+## Coding subagents (Cursor + OpenCode)
+
+Family-wide roster under `config/subagents/family-roster.yaml` with canonical
+prompts in `.opencode/agents/`. Harness adapters sync OpenCode frontmatter and
+Cursor stubs (`sandbox subagents sync --harness all`). Materialize into sibling checkouts on **Digital-Mailroom** with
+`sandbox subagents propagate` or `materialize --package <id> --root <path>`
+([`docs/subagents-family-sync.md`](docs/subagents-family-sync.md)).
+Meta agents: **`harness-doctor`** and **`adversarial-reviewer`**. See
+[`config/subagents/README.md`](config/subagents/README.md). Harness health:
+`sandbox subagents doctor` (add `--also-root ~/path/to/eval-environment` for
+sibling checkouts). Durable eve doctor:
+`~/Downloads/agent-harness-doctor` (`npm exec -- eve dev`, Node >= 24).
 
 ## Commands
 
@@ -76,18 +90,26 @@ sandbox tunnel plan|up|status|down    # SSH forward for vllm-remote (HUB-026)
 modal run deploy/modal_vllm.py::download_model  # Modal: pre-warm HF cache ([deploy])
 modal deploy deploy/modal_job.py  # Modal job worker (remote runs)
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml [--job-mode endpoint|modal] [--watch]
+sandbox runbook list|show <id>|check|write   # operator runbooks (catalog → docs/runbooks/)
 sandbox prompts list|show <agent>     # all pipeline agent prompts (local + Langfuse)
+sandbox subagents list|show <id>      # coding subagent roster (GEPA, traces, meta)
+sandbox subagents sync --harness all  # OpenCode frontmatter + .cursor/agents/ stubs
+sandbox subagents propagate              # materialize + sync all mapped family checkouts
+sandbox subagents materialize --package digital-mailroom --root <path>  # monorepo hub export
 sandbox metrics compare --runs local,modal,api   # serving metrics comparison
 # SANDBOX_DEBUG=1 → set -x + results/run.log diagnostics (CHTC/Modal, DMR-053)
 ```
 
-- Config: `config/profiles/*.yaml` + `config/taxonomy.overlay.yaml` + `config/components.yaml` + `config/models.yaml`.
+- Config: `config/profiles/*.yaml` + `config/taxonomy.overlay.yaml` + `config/components.yaml` + `config/models.yaml` + `config/runbooks/catalog.yaml`.
 - Remote serving (Modal / SSH-tunneled vLLM / CHTC / conda): `docs/remote-serving.md` + `deploy/htcondor/` + `deploy/conda/`. Modal deploy workflow (SDK pinned `modal==1.5.5`; pre-warm → deploy → verify → teardown, cost guards, troubleshooting) lives in `deploy/README.md`. CLI rule: pass `--profile` AFTER the subcommand (or via `SANDBOX_PROFILE`) — a `--profile` before the subcommand is clobbered by the subparser default.
 - Runtime taxonomy is written to `data/runtime/taxonomy.yaml` (gitignored).
 - Prepared fixtures: `data/runtime/prepared/` via notebooks or `sandbox datasets prepare`.
 - Experiment log: `reports/experiment_log.jsonl` (sandbox-local, not a sister-repo mirror).
 - Tracing default: Langfuse 3 / SDK v4 (`OBSERVABILITY_PROVIDER=langfuse`). Phoenix is an optional sidecar. OpenRouter is opt-in.
 - Docker: `deploy/Dockerfile` + Compose profiles including `jupyter` — see `docs/docker-offline.md`.
+- Serving/run cost: [`docs/RUN-COST-DERIVATION.md`](docs/RUN-COST-DERIVATION.md) — per-doc cost
+  derivation (OpenRouter token-billing is exact; Modal is container-time), the wave/escalation cap
+  rules, and the repo layout index at `docs/LAYOUT.md`.
 - Agent skills: `.cursor/skills/` (router + Langfuse / Braintrust / Phoenix / Ollama / Modal / Hugging Face).
 
 ## Reduced agent profile (HUB-015)

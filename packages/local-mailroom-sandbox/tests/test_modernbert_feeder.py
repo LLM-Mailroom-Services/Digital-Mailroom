@@ -93,7 +93,7 @@ def test_benchmark_check_contracts_spec(monkeypatch):
     assert report["checks"]["spec"]["max_containers"] == 1
     assert report["checks"]["spec"]["limit"] == 30
     assert report["checks"]["spec"]["local_prompts"] == {
-        "contracts_specialist": "contracts_specialist_v33"
+        "contracts_specialist": "contracts_specialist_v33_simplified"
     }
     assert report["checks"]["expected"]["scaledown_seconds"] == 120
     assert report["checks"]["spend_posture"]["warm_app_once"] is True
@@ -118,7 +118,7 @@ def test_benchmark_check_merger_spec_uses_dedicated_specialist(monkeypatch):
     report = check_benchmark_posture(spec=spec, require_hermes=True)
     assert report["ok"] is True, report["errors"]
     assert report["checks"]["spec"]["local_prompts"] == {
-        "merger_agreement_specialist": "merger_agreement_specialist_production"
+        "merger_agreement_specialist": "merger_agreement_specialist_simplified"
     }
 
 

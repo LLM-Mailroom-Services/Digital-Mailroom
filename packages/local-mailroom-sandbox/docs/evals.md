@@ -24,6 +24,7 @@ sandbox eval local_vs_api --mock  # fixture timings; no OPENROUTER_API_KEY
 sandbox eval local_vs_api --from-log  # pair experiment_log local vs API-key rows
 sandbox eval sorter_vs_modernbert --mock  # LLM sorter vs ModernBERT accuracy+cost
 sandbox metrics compare --runs local,modal,api
+sandbox metrics compare --fixture   # Grant cost-compare parity (offline)
 sandbox metrics compare --sorter-vs-modernbert
 sandbox matrix --task judge --providers ollama --models qwen3:8b \
   --prompts mailroom-default --sample 2 --mock --dry-run
@@ -63,12 +64,21 @@ are listed in `config/components.yaml` and skipped.
 
 `reports/experiment_log.jsonl` is **sandbox-local**. It is not a mirror of
 llm-entity-extraction. Each record carries profile, provider, `serving_kind`
-(`local` | `api`), model, prompt version, dataset fingerprint, scores +
+(`local` | `modal` | `api`), model, prompt version, dataset fingerprint, scores +
 bootstrap CI when available, tracing backend, tags, session id, and a git
 snapshot. Mixed local + API-key matrix runs attach a `local_vs_api` block
 from the same importable suite (table, scorecard, cost, markdown).
 
 Markdown is regenerated next to the JSONL on every append.
+
+Specialist / extract / pipeline summaries also carry additive **schema
+adherence** fields (`parse_error_rate`, `schema_valid_rate`,
+`schema_adherence_rate`) that are distinct from `overall_extraction_score`
+and `extraction_f1`. Isolated eval copies `overall_extraction_score` into
+`scores.exact_match` when there is no classification `match` — those two
+keys matching is a runner alias, not proof that partial credit is off.
+Empty-field and partial-credit behavior is documented in
+[`docs/extraction-quality-diagnosis.md`](extraction-quality-diagnosis.md).
 
 ## Fixtures
 
@@ -77,6 +87,10 @@ Offline catalog: `data/fixtures/` (see `ATTRIBUTION.md`). Tiny HF slice:
 `data/fixtures/legalbench/contract_qa.jsonl`. Per-agent gold:
 `data/fixtures/agents/*.jsonl`. Tiny PDF/PNG: `data/fixtures/intake/`.
 Synthetic serving pair: `data/fixtures/serving/local_vs_api.json`.
+Grant-style local / Modal / API triple (ms fields + HF id):
+`data/fixtures/serving/cost_compare.json` — scored by
+`sandbox metrics compare --fixture` (sandbox three-way table + dojo
+`get_suite("local_vs_api")` pairwise; no GPU).
 
 `sandbox datasets pull` performs a LIVE, PINNED Hub pull of the **full**
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset/viewer/ground_truth)
@@ -145,12 +159,52 @@ The regression test `test_registering_new_agent_spec_is_the_extension_point`
 (`tests/test_job_runner.py`) pins this contract: register a dummy spec →
 validation + dispatch accept it, run it, done.
 
+## Extraction scoring vs empty / class-mismatched Hub GT
+
+Hub `mailroom-dataset` `ground_truth` / `gt_fields` is a **union** of
+specialist keys. Many rows are not insurance claims, so insurance-claim
+fields arrive empty or absent (`denial_reasons: []`, `claim_number: null`,
+…). Correspondence fixtures also reuse the insurance money key
+(`claimed_amount`) for a demanded dollar amount.
+
+**Rule (SAND-026):** empty GT for a schema that does not apply to that
+document type is **not** a miss. It must not pull down
+`overall_extraction_score` or extraction F1. The same holds in the other
+direction (empty correspondence keys on an insurance row, empty CUAD
+leftovers on a merger row, …).
+
+What the vendor already does vs where the sandbox seams:
+
+| Layer | Empty `None` / `""` | Empty `[]` | Foreign-class keys |
+| --- | --- | --- | --- |
+| `llm_dojo_scoring.field_scoring.score_extraction` | skipped | **scored as an event** (missing pred → 0.0) | scored if present on expected |
+| `llm_dojo_scoring.extraction_metrics.extraction_binary_metrics` | skipped | skipped | extra expected keys are FN |
+| sandbox `eval.extraction_scope` (before `suite.score`) | dropped | dropped | dropped (plus Hub alias `claimed_amount` → `demand_amount` on correspondence) |
+
+The sandbox does **not** patch `vendor/llm-dojo-scoring` (hub#62
+byte-identity). `score_extraction_row` calls `scope_extraction_pair` so
+the dojo suite only sees in-schema, non-empty events. Trace-only keys
+(`reasoning`, `confidence`) and Hub annotation metadata (`intent_source`,
+…) are never scoring events. Content extras (`content_topic`,
+`sentiment_label`, `maud_clause_labels`) stay on the pair so
+`peel_non_extraction_fields` still sees them.
+
+Numeric zero (`0`, `0.0`, `$0`) is a stated value and still scores.
+
+Offline lock: `tests/test_extraction_scope.py`.
+
 ## Prompt variants
 
 `config/prompts/*_local_v0.txt` are shorter, JSON-strict templates for 7B/8B
 local models. Pass `--prompt sorter_local_v0` (or `sorter_reviewer_local_v0`,
 `judge_local_v0`). Per-agent prompt stems also live under
-`config/components.yaml` `prompts:`.
+`config/components.yaml` `prompts:`. Specialist `*_simplified` stems are
+**class-specific** (live schema + class traps + class-local empty rules) and
+are the eval-environment frozen v1 catalog (`*_v1` keys, sha256-locked in
+[`config/prompts/eval_environment_lineage.json`](../config/prompts/eval_environment_lineage.json)).
+Isolated specialist evals and Modal + vLLM job runs inject that text —
+see [`config/prompts/README.md`](../config/prompts/README.md). Further catalog
+re-freezes land in eval-environment, not this repo.
 
 ## Component gates
 

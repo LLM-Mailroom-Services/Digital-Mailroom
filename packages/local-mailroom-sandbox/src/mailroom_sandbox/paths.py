@@ -34,6 +34,10 @@ def prompts_dir() -> Path:
     return config_dir() / "prompts"
 
 
+def runbooks_dir() -> Path:
+    return config_dir() / "runbooks"
+
+
 def deploy_dir() -> Path:
     return repo_root() / "deploy"
 

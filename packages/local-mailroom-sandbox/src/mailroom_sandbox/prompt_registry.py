@@ -7,9 +7,14 @@ agent surface as the union of the sandbox static roster and the vendored
 ``llm.prompts.prompt_templates()`` keys (DMR-057 — the snapshot is always
 importable).
 
-Family B (sorter, contracts_specialist) bypass ``get_managed_prompt``; their
-override point is the ``langchain_agents.prompts.PROMPT_VERSIONS`` dict.
-``apply_runtime_overrides`` writes both paths.
+``apply_runtime_overrides`` injects locked text the same way eval-environment
+``evals.prompts.registry.activate`` does: mutate
+``langchain_agents.prompts.PROMPT_VERSIONS`` (role key + ``{role}_v*`` aliases)
+AND replace ``llm.prompts.get_managed_prompt`` on every already-imported
+module that bound the original. Family A specialists
+(``from llm.prompts import get_managed_prompt``) are imported during
+preflight via ``prompt_templates()`` — patching only the module attribute
+would leave those bindings on vendor/Langfuse production text.
 """
 
 from __future__ import annotations
@@ -17,6 +22,8 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import sys
+from dataclasses import dataclass, field
 from typing import Any
 
 from mailroom_sandbox.job.spec import PromptRef
@@ -142,6 +149,9 @@ def resolve_prompt(agent: str, ref: PromptRef, *, offline: bool = False) -> dict
         if not ref.file:
             raise ValueError(f"local prompt for {agent} requires file=stem")
         text = load_variant_text(ref.file)
+        from mailroom_sandbox.eval_environment_lineage import assert_catalog_sha
+
+        assert_catalog_sha(agent, ref.file, text)
         return {
             "agent": agent,
             "source": "local",
@@ -221,58 +231,227 @@ def prompt_lock_block(prompt_map: dict[str, Any], *, offline: bool = False) -> d
     return {"default": default_resolved, "agents": agents, "known_agents": sorted(known)}
 
 
+@dataclass
+class _OverrideState:
+    """What apply_runtime_overrides changed, so tests can restore it."""
+
+    original_get_managed_prompt: Any = None
+    original_get_prompt: Any = None
+    original_prompt_versions: dict[str, str] | None = None
+    rebound_managed: list[Any] = field(default_factory=list)
+    rebound_get_prompt: list[Any] = field(default_factory=list)
+    table: dict[str, str] = field(default_factory=dict)
+    active: bool = False
+
+
+_OVERRIDE_STATE = _OverrideState()
+
+
+def _langchain_keys_for(agent: str, versions: dict[str, Any]) -> list[str]:
+    """PROMPT_VERSIONS keys belonging to a role (role + ``{role}_v*`` + aliases)."""
+    found: list[str] = []
+    if agent in versions:
+        found.append(agent)
+    prefix = f"{agent}_v"
+    found.extend(key for key in versions if key.startswith(prefix) and key not in found)
+    pinned = FAMILY_B_KEYS.get(agent)
+    if pinned and pinned not in found:
+        found.append(pinned)
+    for alias in FAMILY_B_ALIASES.get(agent, ()):
+        if alias not in found:
+            found.append(alias)
+    return found
+
+
+def _rebind_attr(attr: str, originals: tuple[Any, ...], injected: Any) -> list[Any]:
+    """Point every loaded module's ``attr`` at ``injected`` when it still holds an original."""
+    rebound: list[Any] = []
+    targets = {obj for obj in originals if obj is not None}
+    if not targets:
+        return rebound
+    for mod in list(sys.modules.values()):
+        if mod is None:
+            continue
+        try:
+            current = getattr(mod, attr, None)
+        except Exception:
+            continue
+        if current not in targets:
+            continue
+        try:
+            setattr(mod, attr, injected)
+        except Exception:
+            continue
+        rebound.append(mod)
+    return rebound
+
+
 def apply_runtime_overrides(resolved_texts: dict[str, str]) -> list[str]:
     """Patch the importable pipeline so resolved prompts actually take effect.
 
-    Family B (sorter / contracts_specialist): inject into
-    ``langchain_agents.prompts.PROMPT_VERSIONS``. Family A: monkeypatch
-    ``llm.prompts.get_managed_prompt`` to return the text for the fetch name.
+    Mirrors eval-environment ``evals.prompts.registry.activate`` so Modal +
+    vLLM specialist evals run the frozen v1 catalog text, not vendor
+    code-defaults:
+
+    1. Mutate ``langchain_agents.prompts.PROMPT_VERSIONS`` for the role key,
+       Family B pins, and every ``{role}_v*`` alias (LangChain specialists
+       call ``get_prompt``).
+    2. Replace ``llm.prompts.get_managed_prompt`` *and* rebind that name on
+       every already-imported module (Family A ``from llm.prompts import
+       get_managed_prompt`` happens during preflight).
+
     Returns patched agent names. Best-effort: agents for non-importable
-    modules are skipped.
+    modules are skipped (loud warning, hub#40).
     """
-    patched: list[str] = []
-    remainder: dict[str, str] = dict(resolved_texts)
+    if not resolved_texts:
+        return []
+
+    _OVERRIDE_STATE.table.update(resolved_texts)
+    langchain_ok = False
+    managed_ok = False
 
     try:
         import langchain_agents.prompts as lc_prompts  # type: ignore
 
-        for agent, text in remainder.items():
-            key = FAMILY_B_KEYS.get(agent)
-            if key and hasattr(lc_prompts, "PROMPT_VERSIONS"):
-                lc_prompts.PROMPT_VERSIONS[key] = text
-                for alias in FAMILY_B_ALIASES.get(agent, ()):
-                    lc_prompts.PROMPT_VERSIONS[alias] = text
-                patched.append(agent)
-        for agent in patched:
-            remainder.pop(agent, None)
+        if not hasattr(lc_prompts, "PROMPT_VERSIONS"):
+            raise RuntimeError("langchain_agents.prompts.PROMPT_VERSIONS missing")
+        if _OVERRIDE_STATE.original_get_prompt is None:
+            _OVERRIDE_STATE.original_get_prompt = getattr(lc_prompts, "get_prompt", None)
+        if _OVERRIDE_STATE.original_prompt_versions is None:
+            _OVERRIDE_STATE.original_prompt_versions = dict(lc_prompts.PROMPT_VERSIONS)
+        versions = lc_prompts.PROMPT_VERSIONS
+        for agent, text in resolved_texts.items():
+            for key in _langchain_keys_for(agent, versions):
+                versions[key] = text
+            versions[agent] = text
+
+        def _injected_get_prompt(version: str) -> str:
+            table = lc_prompts.PROMPT_VERSIONS
+            if version in table:
+                return table[version]
+            raise KeyError(
+                f"Prompt version {version!r} not found. "
+                f"Available versions: {list(table)}"
+            )
+
+        originals = (_OVERRIDE_STATE.original_get_prompt,)
+        lc_prompts.get_prompt = _injected_get_prompt  # type: ignore[assignment]
+        previous = list(_OVERRIDE_STATE.rebound_get_prompt)
+        _OVERRIDE_STATE.rebound_get_prompt = _rebind_attr(
+            "get_prompt", originals, _injected_get_prompt
+        )
+        for mod in previous:
+            try:
+                setattr(mod, "get_prompt", _injected_get_prompt)
+            except Exception:
+                continue
+            if mod not in _OVERRIDE_STATE.rebound_get_prompt:
+                _OVERRIDE_STATE.rebound_get_prompt.append(mod)
+        langchain_ok = True
     except Exception as exc:  # noqa: BLE001 — live-or-loud (hub#40)
         logger.warning(
-            "prompt overrides not applied for %s (family B import failed): %s",
-            sorted(remainder), exc,
+            "prompt overrides not applied for %s (langchain import failed): %s",
+            sorted(resolved_texts), exc,
         )
 
-    if remainder:
-        try:
-            import llm.prompts as prompts  # type: ignore
+    try:
+        import llm.prompts as prompts  # type: ignore
 
-            original = prompts.get_managed_prompt
-            table = dict(remainder)
+        if _OVERRIDE_STATE.original_get_managed_prompt is None:
+            _OVERRIDE_STATE.original_get_managed_prompt = prompts.get_managed_prompt
+        table = _OVERRIDE_STATE.table
+        original = _OVERRIDE_STATE.original_get_managed_prompt
 
-            def _lookup(agent_name: str, *args, **kwargs):
-                for candidate in (agent_name, agent_name.replace("-", "_")):
-                    if candidate in table:
-                        return table[candidate], None
-                # judge family: a 'judge' override covers all three fetch names.
-                for key, text in table.items():
-                    if key == "judge" and agent_name.startswith("judge"):
-                        return text, None
-                return original(agent_name, *args, **kwargs)
+        def _lookup(agent_name: str, *args: Any, **kwargs: Any):
+            for candidate in (agent_name, agent_name.replace("-", "_")):
+                if candidate in table:
+                    return table[candidate], None
+            for key, text in table.items():
+                if key == "judge" and str(agent_name).startswith("judge"):
+                    return text, None
+            if original is None:
+                raise RuntimeError("get_managed_prompt original missing")
+            return original(agent_name, *args, **kwargs)
 
-            prompts.get_managed_prompt = _lookup  # type: ignore[assignment]
-            patched.extend(sorted(remainder))
-        except Exception as exc:  # noqa: BLE001 — live-or-loud (hub#40)
+        originals = (_OVERRIDE_STATE.original_get_managed_prompt,)
+        prompts.get_managed_prompt = _lookup  # type: ignore[assignment]
+        previous = list(_OVERRIDE_STATE.rebound_managed)
+        _OVERRIDE_STATE.rebound_managed = _rebind_attr(
+            "get_managed_prompt", originals, _lookup
+        )
+        for mod in previous:
+            try:
+                setattr(mod, "get_managed_prompt", _lookup)
+            except Exception:
+                continue
+            if mod not in _OVERRIDE_STATE.rebound_managed:
+                _OVERRIDE_STATE.rebound_managed.append(mod)
+        managed_ok = True
+    except Exception as exc:  # noqa: BLE001 — live-or-loud (hub#40)
+        still = [
+            agent for agent in resolved_texts
+            if agent not in FAMILY_B_KEYS
+        ]
+        if still:
             logger.warning(
                 "prompt overrides not applied for %s (family A import failed): %s",
-                sorted(remainder), exc,
+                sorted(still), exc,
             )
+
+    _OVERRIDE_STATE.active = bool(
+        _OVERRIDE_STATE.original_get_managed_prompt is not None
+        or _OVERRIDE_STATE.original_get_prompt is not None
+        or _OVERRIDE_STATE.original_prompt_versions is not None
+    )
+    patched: list[str] = []
+    for agent in resolved_texts:
+        if agent in FAMILY_B_KEYS:
+            if langchain_ok:
+                patched.append(agent)
+        elif managed_ok:
+            patched.append(agent)
     return patched
+
+
+def deactivate_runtime_overrides() -> None:
+    """Restore the pipeline's original prompt surfaces (tests)."""
+    state = _OVERRIDE_STATE
+    if not state.active:
+        state.table.clear()
+        return
+    try:
+        import llm.prompts as prompts  # type: ignore
+
+        if state.original_get_managed_prompt is not None:
+            prompts.get_managed_prompt = state.original_get_managed_prompt
+    except Exception:
+        pass
+    try:
+        import langchain_agents.prompts as lc_prompts  # type: ignore
+
+        if state.original_get_prompt is not None:
+            lc_prompts.get_prompt = state.original_get_prompt
+        if state.original_prompt_versions is not None:
+            lc_prompts.PROMPT_VERSIONS.clear()
+            lc_prompts.PROMPT_VERSIONS.update(state.original_prompt_versions)
+    except Exception:
+        pass
+    for mod in state.rebound_managed:
+        try:
+            if state.original_get_managed_prompt is not None:
+                setattr(mod, "get_managed_prompt", state.original_get_managed_prompt)
+        except Exception:
+            pass
+    for mod in state.rebound_get_prompt:
+        try:
+            if state.original_get_prompt is not None:
+                setattr(mod, "get_prompt", state.original_get_prompt)
+        except Exception:
+            pass
+    state.rebound_managed = []
+    state.rebound_get_prompt = []
+    state.original_get_managed_prompt = None
+    state.original_get_prompt = None
+    state.original_prompt_versions = None
+    state.table.clear()
+    state.active = False

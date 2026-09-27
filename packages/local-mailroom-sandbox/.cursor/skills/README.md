@@ -12,4 +12,9 @@ Committed Cursor skills for **local-mailroom-sandbox**. Agents should discover t
 | [braintrust](braintrust/SKILL.md) | Opt-in hosted Braintrust |
 | [huggingface](huggingface/SKILL.md) | Hub pulls / weights (offline-first) |
 
+Coding **subagents** (GEPA prompt engineer, trace analyst, harness doctor,
+adversarial reviewer): roster in [`config/subagents/`](../../config/subagents/),
+prompts in [`.opencode/agents/`](../../.opencode/agents/) — sync Cursor stubs
+with `sandbox subagents sync --harness cursor`.
+
 Also see root [`AGENTS.md`](../../AGENTS.md) and [`docs/docker-offline.md`](../../docs/docker-offline.md).

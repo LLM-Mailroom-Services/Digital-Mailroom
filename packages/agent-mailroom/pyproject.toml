@@ -19,7 +19,7 @@ dependencies = [
     "httpx>=0.27",
     "python-multipart>=0.0.9",
     # Same pin as llm-mailroom v0.7.1 (KANBAN-061 shim over shared engine).
-    "llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.15.0",
+    "llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.16.0",
 ]
 
 [project.optional-dependencies]
@@ -29,7 +29,6 @@ observability = ["langfuse>=3.0"]
 phoenix = ["arize-phoenix>=4.0"]
 tui = ["rich>=13.0"]
 auth = ["pyjwt>=2.8", "bcrypt>=4.0"]
-# Optional embedding cosine rescue + Hungarian matcher used by dojo scoring.
 embeddings = [
     "scipy>=1.10",
     "sentence-transformers>=3.0",
@@ -55,7 +54,5 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src"]
 
-# Monorepo dev: resolve the shared scoring engine from the workspace instead
-# of the release git pin above. Plain `pip install .` keeps using the pin.
 [tool.uv.sources]
 llm-dojo-scoring = { workspace = true }

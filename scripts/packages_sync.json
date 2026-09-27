@@ -1,5 +1,5 @@
 {
-  "note": "Per-package sync cursor against the standalone Exios66/* repositories. Baseline per issue #2: monorepo aligned with the standalone repos as of 2026-08-31T00:06:57Z (2026-08-30 19:06 CST). Cursor writes are content-verified (HUB-021) \u2014 upstream tip must be contained in the package tree unless snapshot --force is passed.",
+  "note": "Per-package sync cursor against the standalone Exios66/* repositories. Baseline per issue #2: monorepo aligned with the standalone repos as of 2026-08-31T00:06:57Z (2026-08-30 19:06 CST). Cursor writes are content-verified (HUB-021) — upstream tip must be contained in the package tree unless snapshot --force is passed.",
   "packages": {
     "Enron-Evaluation-Environment": {
       "branch": "main",
@@ -27,8 +27,8 @@
     },
     "llm-dojo-scoring": {
       "branch": "main",
-      "synced_at": "2026-09-16T22:07:43Z",
-      "synced_sha": "90cc129a61a5081b27841d8e22cd215513e83785",
+      "synced_at": "2026-09-27T01:50:00Z",
+      "synced_sha": "3650978dfd7709f508f7ccad08d7d4f500c00ac0",
       "url": "https://github.com/Exios66/llm-dojo-scoring.git"
     },
     "llm-entity-extraction": {
@@ -39,7 +39,7 @@
     },
     "llm-mailroom": {
       "branch": "main",
-      "synced_at": "2026-09-24T20:10:46Z",
+      "synced_at": "2026-09-27T01:50:00Z",
       "synced_sha": "28cb4be816fbb60e56cd3bb2ab72f8d9be1ab636",
       "url": "https://github.com/Exios66/llm-mailroom.git"
     },
@@ -51,14 +51,14 @@
     },
     "local-mailroom-sandbox": {
       "branch": "main",
-      "synced_at": "2026-09-16T22:08:10Z",
-      "synced_sha": "f51f8f44b2306f19ac8e544f950f0b1acf6348d8",
+      "synced_at": "2026-09-27T01:50:00Z",
+      "synced_sha": "116d219e325c9d3c6230e86967240ee5187f282d",
       "url": "https://github.com/Exios66/local-mailroom-sandbox.git"
     },
     "mailroom-corpus-eda": {
       "branch": "main",
-      "synced_at": "2026-09-16T22:08:16Z",
-      "synced_sha": "9b2b9409ca2b376629c255813dcd64b394e74485",
+      "synced_at": "2026-09-27T01:50:00Z",
+      "synced_sha": "f705040d5e3717e04ebe5ea55dc6c79473d8fe94",
       "url": "https://github.com/Exios66/Mailroom-Corpus-EDA.git"
     }
   },

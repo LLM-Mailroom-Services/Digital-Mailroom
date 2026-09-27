@@ -107,7 +107,6 @@ def _embed_watcher_running() -> bool:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _embedded_watcher
-    assert_bind_allowed(listen_host())
     _ensure_dirs()
     watcher = None
     from pipeline.watcher import Watcher, WatcherLockHeld, embed_watcher_enabled
@@ -481,10 +480,7 @@ async def lookup_document_endpoint(
                     logger.warning("manifest_unreadable", path=str(path))
                     continue
                 if data.get("original_filename") == filename:
-                    manifest_doc_id = data.get("doc_id")
-                    if not manifest_doc_id:
-                        continue
-                    manifest = load_manifest(manifest_doc_id)
+                    manifest = load_manifest(data["doc_id"])
                     if manifest:
                         return {"document": _document_payload_from_manifest(manifest)}
     raise HTTPException(404, "Document not found")
@@ -1136,7 +1132,7 @@ async def ops_status():
         "ingestion_paused": is_ingestion_paused(),
         "pause_info": get_pause_info(),
         "observability": flush_health(),
-        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "timestamp": __import__("datetime").datetime.now().isoformat(),
     }
 
 
@@ -1153,9 +1149,8 @@ async def ops_sweep():
         from pipeline.ops_monitor import OpsMonitor
 
         monitor = OpsMonitor()
-        result = await monitor.sweep_once()
-        metrics = result["metrics"]
-        findings = result["findings"]
+        metrics = await monitor._gather_metrics()
+        findings = await monitor._analyze_metrics(metrics)
     except Exception as exc:
         logger.exception("ops_sweep_failed")
         raise HTTPException(500, f"Ops sweep failed: {exc}")
@@ -1180,7 +1175,7 @@ async def ops_sweep():
         "recommended_action": findings.get("recommended_action"),
         "paused_ingestion": monitor.is_paused,
         "pause_info": monitor.pause_info,
-        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "timestamp": __import__("datetime").datetime.now().isoformat(),
     }
 
 
@@ -1230,7 +1225,6 @@ def _mount_v1_aliases() -> None:
         "/matters/{matter_id}",
         "/audit",
         "/audit/{doc_id}",
-        "/api/relations/mode",
         "/ops/status",
         "/ops/sweep",
         "/ops/resume",

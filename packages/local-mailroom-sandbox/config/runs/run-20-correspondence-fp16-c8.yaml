@@ -1,0 +1,89 @@
+# issue #21 — FP16 isolation twin of `run-20-correspondence-awq-c8`.
+#
+# PREPARED ONLY. Do **not** deploy Modal, do **not** `sandbox run start`,
+# do **not** spend GPU money on this config until spend/auth are explicitly
+# approved. The live AWQ-vs-FP16 quality delta is deferred.
+#
+# Same draw as the AWQ c8 run so the dataset fingerprint must match
+# `285f423d3708` (seed 42, 20 correspondence docs, split=all, revision pin
+# below, `correspondence_specialist_production` prompt). The only intended
+# variable is the checkpoint: `Qwen/Qwen3-8B` (bf16) vs `Qwen/Qwen3-8B-AWQ`.
+#
+# Engine-arg differences that ARE required for L4-bf16 (not quality knobs):
+#   * `max_model_len=16384` — v0.29.0 raises at boot if L4-bf16 tries 32768
+#     (AWQ c8 used 32768 because AWQ KV headroom allows it).
+#   * `quantization: ""` — non-AWQ.
+#   * `cost_cap_usd=0.50` / `max_wall_seconds=2400` — fp16 decode is slower
+#     than AWQ; the cap is a guard, not a budget to spend.
+#
+# When spend/auth go (operator runbook — still not this PR):
+#   modal profile activate <operator-profile>
+#   export SANDBOX_PROFILE=modal-vllm MODAL_VLLM_MODEL=Qwen/Qwen3-8B \
+#     MODAL_VLLM_QUANTIZATION= MODAL_VLLM_MAX_MODEL_LEN=16384 \
+#     MODAL_VLLM_GPU=L4 MODAL_VLLM_IMAGE_TAG=v0.29.0 \
+#     MODAL_VLLM_MAX_CONTAINERS=1 MODAL_VLLM_SCALEDOWN_SECONDS=120
+#   modal run deploy/modal_vllm.py::download_model
+#   modal deploy deploy/modal_vllm.py --strategy recreate
+#   sandbox run preflight --config config/runs/run-20-correspondence-fp16-c8.yaml --live
+#   sandbox run start --config config/runs/run-20-correspondence-fp16-c8.yaml --job-mode endpoint --watch
+#   ./deploy/teardown_vllm.sh
+# Confirm fingerprint `285f423d3708` on the lock before scoring.
+schema: sandbox.run/v1
+run_id: run-20-correspondence-fp16-c8
+task: correspondence_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    correspondence_specialist:
+      source: local
+      file: correspondence_specialist_production
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      - doc_class: correspondence
+        count: 20
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B
+  vllm:
+    max_model_len: 16384      # L4-bf16 boot cap (not the AWQ 32768 window)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: ""
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 1
+    min_containers: 0
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 8              # match AWQ c8; isolation variable is the checkpoint
+  cost_cap_usd: 0.50
+  max_wall_seconds: 2400
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-20-correspondence-fp16-c8
+  tags: [sandbox, job, specialist, correspondence, qwen3-8b, l4, benchmark, issue-21, fp16, c8, not-run]

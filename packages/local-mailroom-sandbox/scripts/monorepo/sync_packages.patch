@@ -1,0 +1,35 @@
+--- a/scripts/sync_packages.py
++++ b/scripts/sync_packages.py
+@@ -134,6 +134,17 @@ def require_subtree() -> None:
+         sys.exit("git subtree is unavailable; install git with the subtree contrib command.")
+ 
+ 
++def run_subagents_post_sync() -> None:
++    """Refresh family coding subagents after sandbox package sync (SAND-017)."""
++    hook = REPO_ROOT / "packages/local-mailroom-sandbox/scripts/monorepo/after_packages_sync.py"
++    if not hook.is_file():
++        return
++    run(
++        [sys.executable, str(hook), "--monorepo-root", str(REPO_ROOT)],
++        capture=False,
++    )
++
++
+ def selected_packages(args: argparse.Namespace) -> list[str]:
+@@ -318,6 +329,8 @@ def cmd_pull(args: argparse.Namespace) -> int:
+             "synced_at": utc_now(),
+         }
+     save_manifest(manifest)
++    if not failed:
++        run_subagents_post_sync()
+     return 1 if failed else 0
+ 
+ 
+@@ -433,6 +446,8 @@ def cmd_push(args: argparse.Namespace) -> int:
+             "synced_at": utc_now(),
+         }
+     save_manifest(manifest)
++    if not failed and not args.dry_run:
++        run_subagents_post_sync()
+     return 1 if failed else 0
+ 

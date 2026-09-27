@@ -1,7 +1,5 @@
-import asyncio
 import os
 import re
-import time
 import uuid
 import datetime
 import structlog
@@ -109,7 +107,6 @@ def _embed_watcher_running() -> bool:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _embedded_watcher
-    assert_bind_allowed(listen_host())
     _ensure_dirs()
     watcher = None
     from pipeline.watcher import Watcher, WatcherLockHeld, embed_watcher_enabled
@@ -143,31 +140,6 @@ app = FastAPI(
 )
 
 
-_LLM_HEALTH_CACHE: dict | None = None
-_LLM_HEALTH_CACHE_AT: float = 0.0
-_LLM_HEALTH_CACHE_TTL = float(os.environ.get("MAILROOM_LLM_HEALTH_CACHE_SECONDS", "30"))
-
-
-def _sync_ping_llm_models(provider, model: str) -> tuple[str, str]:
-    """Blocking OpenAI SDK models.list ping (run in a worker thread)."""
-    status = "ok"
-    detail = f"{provider.name}:{model}"
-    try:
-        from openai import OpenAI
-
-        kwargs = {"base_url": provider.base_url, "api_key": "not-needed", "timeout": 5.0}
-        if provider.api_key_env:
-            key = os.environ.get(provider.api_key_env)
-            if key:
-                kwargs["api_key"] = key
-        client = OpenAI(**kwargs)
-        client.models.list()
-    except Exception as exc:
-        status = "degraded"
-        detail = f"{provider.name}:{model} — models endpoint unreachable: {type(exc).__name__}"
-    return status, detail
-
-
 async def _check_llm_provider() -> dict:
     """Best-effort LLM provider connectivity check.
 
@@ -175,27 +147,35 @@ async def _check_llm_provider() -> dict:
     missing or is the mock placeholder) and pings the models endpoint with a
     short timeout. Never spends completion tokens.
     """
-    global _LLM_HEALTH_CACHE, _LLM_HEALTH_CACHE_AT
-    now = time.monotonic()
-    if _LLM_HEALTH_CACHE is not None and (now - _LLM_HEALTH_CACHE_AT) < _LLM_HEALTH_CACHE_TTL:
-        return _LLM_HEALTH_CACHE
+    import os
     try:
         from llm.providers import resolve_provider
         from pipeline.config import get_agent_config
 
         agent_cfg = get_agent_config("sorter")
         provider, model = resolve_provider(agent_cfg)
-        status, detail = await asyncio.to_thread(_sync_ping_llm_models, provider, model)
-        result = {"status": status, "detail": detail, "provider": provider.name}
+        status = "ok"
+        detail = f"{provider.name}:{model}"
+        try:
+            from openai import OpenAI
+
+            kwargs = {"base_url": provider.base_url, "api_key": "not-needed", "timeout": 5.0}
+            if provider.api_key_env:
+                key = os.environ.get(provider.api_key_env)
+                if key:
+                    kwargs["api_key"] = key
+            client = OpenAI(**kwargs)
+            client.models.list()
+        except Exception as exc:
+            status = "degraded"
+            detail = f"{provider.name}:{model} — models endpoint unreachable: {type(exc).__name__}"
+        return {"status": status, "detail": detail, "provider": provider.name}
     except Exception as exc:
-        result = {
+        return {
             "status": "degraded",
             "detail": f"provider resolution failed: {type(exc).__name__}: {exc}",
             "provider": None,
         }
-    _LLM_HEALTH_CACHE = result
-    _LLM_HEALTH_CACHE_AT = now
-    return result
 
 
 async def _check_database() -> dict:
@@ -500,10 +480,7 @@ async def lookup_document_endpoint(
                     logger.warning("manifest_unreadable", path=str(path))
                     continue
                 if data.get("original_filename") == filename:
-                    manifest_doc_id = data.get("doc_id")
-                    if not manifest_doc_id:
-                        continue
-                    manifest = load_manifest(manifest_doc_id)
+                    manifest = load_manifest(data["doc_id"])
                     if manifest:
                         return {"document": _document_payload_from_manifest(manifest)}
     raise HTTPException(404, "Document not found")
@@ -673,11 +650,12 @@ async def resolve_review(doc_id: str, request: Request):
     except ValueError as exc:
         raise HTTPException(400, str(exc))
 
+    if class_override and disposition in {"record", "requeue", "resume", "complete"}:
+        manifest.touch()
+        save_manifest(manifest)
+
     # --- record: paper trail only (any stage) ---------------------------------
     if disposition == "record":
-        if class_override:
-            manifest.touch()
-            save_manifest(manifest)
         event = "review_recorded"
         detail = {
             "decision": decision,
@@ -753,10 +731,6 @@ async def resolve_review(doc_id: str, request: Request):
             f"Document is not in review (current stage: {manifest.stage}); "
             "use disposition=record or disposition=requeue",
         )
-
-    if class_override:
-        manifest.touch()
-        save_manifest(manifest)
 
     # --- complete: human-supplied extraction, archive without LLM ------------
     if disposition == "complete":
@@ -1158,7 +1132,7 @@ async def ops_status():
         "ingestion_paused": is_ingestion_paused(),
         "pause_info": get_pause_info(),
         "observability": flush_health(),
-        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "timestamp": __import__("datetime").datetime.now().isoformat(),
     }
 
 
@@ -1175,9 +1149,8 @@ async def ops_sweep():
         from pipeline.ops_monitor import OpsMonitor
 
         monitor = OpsMonitor()
-        result = await monitor.sweep_once()
-        metrics = result["metrics"]
-        findings = result["findings"]
+        metrics = await monitor._gather_metrics()
+        findings = await monitor._analyze_metrics(metrics)
     except Exception as exc:
         logger.exception("ops_sweep_failed")
         raise HTTPException(500, f"Ops sweep failed: {exc}")
@@ -1202,7 +1175,7 @@ async def ops_sweep():
         "recommended_action": findings.get("recommended_action"),
         "paused_ingestion": monitor.is_paused,
         "pause_info": monitor.pause_info,
-        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "timestamp": __import__("datetime").datetime.now().isoformat(),
     }
 
 
@@ -1252,7 +1225,6 @@ def _mount_v1_aliases() -> None:
         "/matters/{matter_id}",
         "/audit",
         "/audit/{doc_id}",
-        "/api/relations/mode",
         "/ops/status",
         "/ops/sweep",
         "/ops/resume",

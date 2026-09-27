@@ -106,6 +106,7 @@ class RunStore:
         self.items_path = self.dir / "items.jsonl"
         self.checkpoint_path = self.dir / "checkpoint.json"
         self.events_path = self.dir / "events.jsonl"
+        self.cold_boot_path = self.dir / "cold_boot.json"
         self.flock_path = self.dir / "run.lock"
         self.run_id = self.dir.name
 
@@ -171,6 +172,23 @@ class RunStore:
 
     def read_prompt_lock(self) -> dict[str, Any] | None:
         return _read_json(self.prompt_lock_path, strict=True)
+
+    # ── cold boot (engine probe measurement, SAND-018) ──────────────────────
+    def write_cold_boot(self, payload: dict[str, Any]) -> Path:
+        """Persist the live engine-probe cold-boot measurement.
+
+        Written by ``preflight --live`` (the step immediately after a deploy),
+        read back into the run's experiment-log record so a cold-boot number
+        travels with the run instead of being an assumed 120 s constant.
+        """
+        _atomic_write(
+            self.cold_boot_path,
+            json.dumps(payload, indent=2, sort_keys=True, default=str),
+        )
+        return self.cold_boot_path
+
+    def read_cold_boot(self) -> dict[str, Any] | None:
+        return _read_json(self.cold_boot_path)
 
     def summary(self) -> dict[str, Any]:
         cp = self.read_checkpoint() or {}

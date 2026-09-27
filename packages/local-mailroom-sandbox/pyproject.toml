@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mailroom-sandbox"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local-first experiment sandbox for the LLM-Mailroom pipeline (Ollama, vLLM, llama.cpp)."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -24,6 +24,12 @@ dependencies = [
     "pandas>=2.0",
     "matplotlib>=3.8",
     "openpyxl>=3.1",
+    # SAND-019: the vendored dojo scorer soft-imports scipy's
+    # ``linear_sum_assignment`` for OPTIMAL entity-list matching and silently
+    # degrades to a greedy fallback when it is absent (``bipartite_matching_
+    # failed``). Like numpy above it is a scoring-runtime dep, not an extra, so
+    # a clean install scores entity lists optimally instead of greedily.
+    "scipy>=1.11",
 ]
 
 [project.optional-dependencies]
@@ -67,6 +73,10 @@ notebooks = [
 ]
 observability = [
     "langfuse>=4.0,<5",
+    # Braintrust = opt-in hosted sink for eval spans. Verified against 0.42.0:
+    # no start_root_span / Logger.score / Span.score in that line — see
+    # src/mailroom_sandbox/eval/tracing.py for the adapter.
+    "braintrust>=0.42,<0.43",
     "opentelemetry-sdk>=1.25",
     "opentelemetry-exporter-otlp-proto-http>=1.25",
 ]

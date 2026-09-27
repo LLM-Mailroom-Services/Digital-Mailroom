@@ -234,11 +234,18 @@ class VLLMSpec(BaseModel):
     L4-bf16 8B-class rows: v0.29.0 RAISES at boot when the KV pool cannot
     hold one request at max_model_len (it does not shrink-and-warn). AWQ /
     FP8 rows may set 32768 explicitly.
+
+    L4 long-prompt defaults (specialist / ~9.7k-token prompts):
+    ``max_num_seqs=6``, ``enable_prefix_caching=True``, ``enforce_eager=True``.
+    Short-doc scale-matrix cells override ``max_num_seqs`` to 256 and should
+    export matching ``MODAL_VLLM_MAX_NUM_SEQS`` at deploy time.
     """
 
     max_model_len: int = 16384
     gpu_memory_utilization: float = 0.90
-    max_num_seqs: int = 256
+    max_num_seqs: int = 6
+    enable_prefix_caching: bool = True
+    enforce_eager: bool = True
     quantization: str = ""
     revision: str = ""
 
@@ -275,6 +282,13 @@ class VLLMSpec(BaseModel):
 
 
 class ModalSpec(BaseModel):
+    """Modal fleet knobs.
+
+    Scale a second L4 with ``max_containers=2`` (data-parallel replicas, one
+    GPU each). Modal's web endpoint load-balances across replicas. Do not use
+    ``gpu=L4:2`` + tensor parallel for 8B-class models that fit on one L4.
+    """
+
     app: str = "sandbox-vllm"
     gpu: str = "L4"
     image_tag: str = "v0.29.0"
@@ -317,7 +331,7 @@ class ModalSpec(BaseModel):
 
 
 class EngineSpec(BaseModel):
-    kind: Literal["vllm-local", "vllm-remote", "modal-vllm"] = "modal-vllm"
+    kind: Literal["vllm-local", "vllm-remote", "modal-vllm", "openrouter"] = "modal-vllm"
     model: str = "Qwen/Qwen3-8B"
     vllm: VLLMSpec = Field(default_factory=VLLMSpec)
     modal: ModalSpec | None = Field(default_factory=ModalSpec)

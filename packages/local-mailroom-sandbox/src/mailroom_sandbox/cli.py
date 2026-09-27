@@ -94,6 +94,116 @@ def build_parser() -> argparse.ArgumentParser:
     ash.set_defaults(handler=_cmd_agents_show)
     agents_p.set_defaults(handler=_cmd_agents_list)
 
+    subagents_p = sub.add_parser(
+        "subagents",
+        help="Central coding subagent roster (Cursor + OpenCode adapters)",
+        parents=[shared],
+    )
+    subagents_sub = subagents_p.add_subparsers(dest="subagents_cmd")
+    sa_list = subagents_sub.add_parser("list", parents=[shared])
+    sa_list.add_argument("--json", action="store_true")
+    sa_list.add_argument(
+        "--package",
+        default=None,
+        help="Family package filter (default: local-mailroom-sandbox or SUBAGENT_PACKAGE)",
+    )
+    sa_list.set_defaults(handler=_cmd_subagents_list)
+    sa_pkgs = subagents_sub.add_parser("packages", parents=[shared])
+    sa_pkgs.add_argument("--json", action="store_true")
+    sa_pkgs.set_defaults(handler=_cmd_subagents_packages)
+    sa_show = subagents_sub.add_parser("show", parents=[shared])
+    sa_show.add_argument("id")
+    sa_show.add_argument("--json", action="store_true")
+    sa_show.add_argument("--package", default=None)
+    sa_show.set_defaults(handler=_cmd_subagents_show)
+    sa_sync = subagents_sub.add_parser("sync", parents=[shared])
+    sa_sync.add_argument(
+        "--harness",
+        default="all",
+        choices=("cursor", "opencode", "opencode-global", "all"),
+        help="Harness adapter(s); default syncs OpenCode + Cursor + ~/.config/opencode/agents",
+    )
+    sa_sync.add_argument(
+        "--package",
+        default=None,
+        help="Family package filter for roster entries",
+    )
+    sa_sync.add_argument(
+        "--root",
+        default=None,
+        help="Checkout root to write into (default: this repo)",
+    )
+    sa_sync.add_argument("--dry-run", action="store_true")
+    sa_sync.set_defaults(handler=_cmd_subagents_sync)
+    sa_doc = subagents_sub.add_parser(
+        "doctor",
+        help="Audit harness health (OpenCode global, roster sync, framework v2)",
+        parents=[shared],
+    )
+    sa_doc.add_argument(
+        "--root",
+        default=None,
+        help="Family checkout root (default: this repo)",
+    )
+    sa_doc.add_argument("--json", action="store_true")
+    sa_doc.add_argument(
+        "--no-global",
+        action="store_true",
+        help="Skip ~/.config/opencode checks",
+    )
+    sa_doc.add_argument("--package", default=None, help="Filter roster entries by package id")
+    sa_doc.add_argument(
+        "--also-root",
+        action="append",
+        default=None,
+        metavar="PATH",
+        help="Additional checkout to audit (repeatable)",
+    )
+    sa_doc.add_argument(
+        "--apply-framework",
+        action="store_true",
+        help="Append Agent framework (v2) to roster + global profile agents missing it",
+    )
+    sa_doc.add_argument("--dry-run", action="store_true")
+    sa_doc.set_defaults(handler=_cmd_subagents_doctor)
+    sa_mat = subagents_sub.add_parser(
+        "materialize",
+        help="Copy family-roster.yaml + missing prompts into another package checkout",
+        parents=[shared],
+    )
+    sa_mat.add_argument(
+        "--package",
+        required=True,
+        help="Target package id (llm-mailroom, digital-mailroom, …)",
+    )
+    sa_mat.add_argument(
+        "--root",
+        required=True,
+        help="Destination checkout root (e.g. monorepo packages/llm-mailroom)",
+    )
+    sa_mat.add_argument(
+        "--source-root",
+        default=None,
+        help="Prompt source checkout (default: this sandbox repo)",
+    )
+    sa_mat.add_argument("--dry-run", action="store_true")
+    sa_mat.set_defaults(handler=_cmd_subagents_materialize)
+    sa_prop = subagents_sub.add_parser(
+        "propagate",
+        help="Materialize + sync all mapped family checkouts",
+        parents=[shared],
+    )
+    sa_prop.add_argument(
+        "--monorepo-root",
+        default=None,
+        help="Digital-Mailroom root (DIGITAL_MAILROOM_ROOT / MONOREPO_ROOT)",
+    )
+    sa_prop.add_argument("--package", action="append", dest="packages", default=None)
+    sa_prop.add_argument("--dry-run", action="store_true")
+    sa_prop.add_argument("--json", action="store_true")
+    sa_prop.set_defaults(handler=_cmd_subagents_propagate)
+    subagents_p.set_defaults(handler=_cmd_subagents_list)
+
     pipe = sub.add_parser("pipeline", help="Run mailroom watcher or API", parents=[shared])
     pipe_sub = pipe.add_subparsers(dest="pipeline_cmd")
     w = pipe_sub.add_parser("watcher", parents=[shared])
@@ -254,6 +364,36 @@ def build_parser() -> argparse.ArgumentParser:
 
     _run_parser(sub, shared)
 
+    rb = sub.add_parser(
+        "runbook",
+        help="Operator runbooks (catalog → show / check / write)",
+        parents=[shared],
+    )
+    rb_sub = rb.add_subparsers(dest="runbook_cmd")
+    rb_list = rb_sub.add_parser("list", parents=[shared], help="list catalog ids")
+    rb_list.add_argument("--family", choices=["baseline", "improved"], default=None)
+    rb_list.add_argument("--json", action="store_true")
+    rb_list.set_defaults(handler=_cmd_runbook_list)
+    rb_show = rb_sub.add_parser("show", parents=[shared], help="print one operator card")
+    rb_show.add_argument("name", help="runbook id or alias (l4-qwen3-8b, awq-c8, granite…)")
+    rb_show.add_argument("--shell", action="store_true", help="print the bash script only")
+    rb_show.add_argument("--json", action="store_true")
+    rb_show.set_defaults(handler=_cmd_runbook_show)
+    rb_check = rb_sub.add_parser(
+        "check",
+        parents=[shared],
+        help="catalog vs live pins + generated docs freshness",
+    )
+    rb_check.add_argument("--json", action="store_true")
+    rb_check.set_defaults(handler=_cmd_runbook_check)
+    rb_write = rb_sub.add_parser(
+        "write",
+        parents=[shared],
+        help="regenerate docs/runbooks/ from the catalog",
+    )
+    rb_write.set_defaults(handler=_cmd_runbook_write)
+    rb.set_defaults(handler=_cmd_runbook_help)
+
     prom = sub.add_parser("prompts", help="Pipeline-agent prompt surface (local + Langfuse)", parents=[shared])
     prom_sub = prom.add_subparsers(dest="prompts_cmd")
     plug_list = prom_sub.add_parser("list", parents=[shared])
@@ -270,6 +410,11 @@ def build_parser() -> argparse.ArgumentParser:
     mcomp = metrics_sub.add_parser("compare", parents=[shared])
     mcomp.add_argument("--runs", default="", help="comma-separated run-ids")
     mcomp.add_argument("--log", action="store_true", help="read experiments from the log instead")
+    mcomp.add_argument(
+        "--fixture",
+        action="store_true",
+        help="offline Grant-style local/Modal/API cost-compare fixture (no GPU)",
+    )
     mcomp.add_argument(
         "--sorter-vs-modernbert",
         action="store_true",
@@ -296,6 +441,25 @@ def build_parser() -> argparse.ArgumentParser:
     mext.add_argument("--concurrency", type=int, default=4)
     mext.add_argument("--json", action="store_true")
     mext.set_defaults(handler=_cmd_metrics_extrapolate)
+    mserv = metrics_sub.add_parser(
+        "serving-record",
+        parents=[shared],
+        help="write reports/serving/<run_id>.serving.json from a stored run",
+    )
+    mserv.add_argument("--run", dest="run_id", required=True, help="run-id with lock + items")
+    mserv.add_argument(
+        "--wall-seconds",
+        type=float,
+        default=None,
+        help="override wall clock when item timestamps are absent",
+    )
+    mserv.add_argument(
+        "--out",
+        default="",
+        help="output path (default: reports/serving/<run_id>.serving.json)",
+    )
+    mserv.add_argument("--json", action="store_true", help="print the record to stdout")
+    mserv.set_defaults(handler=_cmd_metrics_serving_record)
     mest = metrics_sub.add_parser(
         "estimate-suite",
         parents=[shared],
@@ -849,6 +1013,224 @@ def _cmd_agents_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_subagents_packages(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.subagents import list_packages
+    from mailroom_sandbox.subagents.family import load_family_document
+
+    doc = load_family_document()
+    payload = {"packages": doc.get("packages") or {}}
+    if getattr(args, "json", False):
+        _print(payload)
+    else:
+        for name in list_packages():
+            role = (payload["packages"].get(name) or {}).get("role") or ""
+            print(f"{name:28} {role}")
+    return 0
+
+
+def _cmd_subagents_list(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.subagents import load_roster
+
+    package = getattr(args, "package", None)
+    rows = []
+    for entry in load_roster(package=package):
+        rows.append(
+            {
+                "id": entry.id,
+                "title": entry.title,
+                "tags": list(entry.tags),
+                "harnesses": list(entry.harnesses),
+                "home_package": entry.home_package,
+                "family_source": entry.family_source,
+                "opencode": str(entry.opencode_path()),
+                "cursor": str(entry.cursor_path()),
+            }
+        )
+    if getattr(args, "json", False):
+        _print({"subagents": rows})
+    else:
+        for row in rows:
+            tags = ",".join(row["tags"]) or "-"
+            print(f"{row['id']:24} {row['title']:32} [{tags}]")
+    return 0
+
+
+def _cmd_subagents_show(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.subagents.parse_opencode import parse_opencode_markdown
+    from mailroom_sandbox.subagents.roster import get_subagent
+
+    entry = get_subagent(args.id, package=getattr(args, "package", None))
+    if entry is None:
+        print(f"unknown subagent: {args.id}", file=sys.stderr)
+        return 1
+    doc = parse_opencode_markdown(entry.opencode_path().read_text(encoding="utf-8"))
+    payload = {
+        "id": entry.id,
+        "title": entry.title,
+        "tags": list(entry.tags),
+        "harnesses": list(entry.harnesses),
+        "home_package": entry.home_package,
+        "family_source": entry.family_source,
+        "cursor_invoke_hint": entry.cursor_invoke_hint,
+        "opencode_frontmatter": doc.frontmatter,
+        "opencode_path": str(entry.opencode_path()),
+        "cursor_path": str(entry.cursor_path()),
+    }
+    if getattr(args, "json", False):
+        _print(payload)
+    else:
+        _print(payload)
+        print("\n--- prompt preview (first 40 lines) ---")
+        lines = doc.body.splitlines()
+        for line in lines[:40]:
+            print(line)
+        if len(lines) > 40:
+            print(f"... ({len(lines) - 40} more lines)")
+    return 0
+
+
+def _cmd_subagents_doctor(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.subagents.doctor import (
+        apply_framework_to_agents,
+        apply_framework_to_global_profiles,
+        findings_to_dict,
+        run_doctor,
+    )
+
+    root = Path(args.root).expanduser().resolve() if args.root else None
+    if args.apply_framework:
+        roster_written = apply_framework_to_agents(
+            root=root,
+            package=getattr(args, "package", None),
+            dry_run=bool(args.dry_run),
+        )
+        global_written = apply_framework_to_global_profiles(dry_run=bool(args.dry_run))
+        payload = {
+            "apply_framework": True,
+            "dry_run": bool(args.dry_run),
+            "roster_paths": [str(p) for p in roster_written],
+            "global_profile_paths": [str(p) for p in global_written],
+        }
+        if args.json:
+            _print(payload)
+        else:
+            for p in roster_written + global_written:
+                print(p)
+        return 0
+
+    extra = tuple(
+        Path(p).expanduser().resolve() for p in (args.also_root or []) if p
+    )
+    report = run_doctor(
+        root=root,
+        package=getattr(args, "package", None),
+        include_global=not args.no_global,
+        extra_roots=extra,
+    )
+    payload = findings_to_dict(report)
+    if args.json:
+        _print(payload)
+    else:
+        for f in report.findings:
+            loc = f" ({f.path})" if f.path else ""
+            hint = f" — {f.hint}" if f.hint else ""
+            print(f"[{f.severity}] {f.code}: {f.message}{loc}{hint}")
+        s = payload["summary"]
+        print(f"\nSummary: {s['fail']} fail, {s['warn']} warn")
+    return 1 if payload["summary"]["fail"] else 0
+
+
+def _cmd_subagents_sync(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.subagents import sync_harness
+
+    root = Path(args.root).expanduser().resolve() if args.root else None
+    result = sync_harness(
+        args.harness,
+        root=root,
+        package=getattr(args, "package", None),
+        dry_run=bool(args.dry_run),
+    )
+    if isinstance(result, list):
+        _print(
+            {
+                "harness": args.harness,
+                "dry_run": bool(args.dry_run),
+                "results": [
+                    {
+                        "harness": r.harness,
+                        "written": [str(p) for p in r.written],
+                        "skipped": r.skipped,
+                    }
+                    for r in result
+                ],
+            }
+        )
+    else:
+        _print(
+            {
+                "harness": result.harness,
+                "dry_run": bool(args.dry_run),
+                "written": [str(p) for p in result.written],
+                "skipped": result.skipped,
+            }
+        )
+    return 0
+
+
+def _cmd_subagents_materialize(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.subagents import materialize_package
+
+    dest = Path(args.root).expanduser().resolve()
+    source = Path(args.source_root).expanduser().resolve() if args.source_root else None
+    result = materialize_package(
+        args.package,
+        dest_root=dest,
+        source_root=source,
+        dry_run=bool(args.dry_run),
+    )
+    _print(
+        {
+            "package": result.package,
+            "dry_run": bool(args.dry_run),
+            "family_roster": str(result.family_roster_written) if result.family_roster_written else None,
+            "prompts_copied": [str(p) for p in result.prompts_copied],
+        }
+    )
+    return 0
+
+
+def _cmd_subagents_propagate(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.subagents import propagate_family_checkouts
+
+    mono = Path(args.monorepo_root).expanduser().resolve() if args.monorepo_root else None
+    result = propagate_family_checkouts(
+        monorepo_root=mono,
+        packages=getattr(args, "packages", None),
+        dry_run=bool(args.dry_run),
+    )
+    payload = {
+        "source_root": str(result.source_root),
+        "monorepo_root": str(result.monorepo_root) if result.monorepo_root else None,
+        "dry_run": bool(args.dry_run),
+        "packages": [
+            {
+                "package": row.package,
+                "dest_root": str(row.dest_root),
+                "materialized": row.materialized,
+                "sync_written": row.sync_written,
+                "skipped": row.skipped,
+                "error": row.error,
+            }
+            for row in result.packages
+        ],
+    }
+    if getattr(args, "json", False):
+        _print(payload)
+    else:
+        _print(payload)
+    return 1 if any(row.error for row in result.packages) else 0
+
+
 def _cmd_agents_show(args: argparse.Namespace) -> int:
     from mailroom_sandbox.eval.agents import SPECS
     from mailroom_sandbox.overlay import agent_roster, load_yaml
@@ -1251,7 +1633,7 @@ def _cmd_run_suite(args) -> int:
                 print(f"  {sid}")
             print(
                 "Aliases: track-a|a, track-b|b, full|all "
-                "(see docs/benchmark-l4.md)"
+                "(operator cards: sandbox runbook show l4-qwen3-8b)"
             )
         return 0
 
@@ -1404,7 +1786,7 @@ def _cmd_modal_matrix_list(args) -> int:
             f"{str(row.get('max_model_len') or '-'):6} "
             f"{str(row.get('tp_size') or 1):3} {row['model']}"
         )
-    print("\n* = default specialist cost-eval posture (docs/benchmark-l4.md)")
+    print("\n* = default specialist cost-eval posture (sandbox runbook show l4-qwen3-8b)")
     return 0
 
 
@@ -1542,6 +1924,17 @@ def _cmd_run_start(args) -> int:
 def _run_endpoint(store, args) -> dict:
     from mailroom_sandbox.job import runner
 
+    watch = bool(getattr(args, "watch", False))
+
+    def _on_event(ev: dict) -> None:
+        if watch:
+            print(
+                f"[run] {ev.get('cursor')}/{ev.get('total')} "
+                f"ok={ev.get('ok')} errors={ev.get('errors')} {ev.get('state', '')}",
+                file=sys.stderr,
+                flush=True,
+            )
+
     with store.acquire():
         return runner.run_job(
             store,
@@ -1549,6 +1942,7 @@ def _run_endpoint(store, args) -> dict:
             dry_run=False,
             max_items=getattr(args, "max_items", None),
             tracer=None,
+            on_event=_on_event,
         )
 
 
@@ -1720,6 +2114,102 @@ def _cmd_run_list(args) -> int:
     return 0
 
 
+def _cmd_runbook_help(args) -> int:
+    print(
+        "Use: sandbox runbook list | show <id> [--shell] | check | write\n"
+        "Singular L4:  sandbox runbook show l4-qwen3-8b\n"
+        "Improved:     sandbox runbook show improved-awq-c8\n"
+        "Edit:         config/runbooks/catalog.yaml  then  sandbox runbook write"
+    )
+    return 0
+
+
+def _cmd_runbook_list(args) -> int:
+    from mailroom_sandbox.job.runbooks import get_runbook, list_runbook_ids
+
+    ids = list_runbook_ids(family=getattr(args, "family", None))
+    rows = []
+    for rid in ids:
+        row = get_runbook(rid)
+        rows.append(
+            {
+                "id": rid,
+                "family": row.get("family"),
+                "title": row.get("title"),
+                "serving": row.get("serving") or "baseline",
+                "blocked": bool(row.get("blocked")),
+            }
+        )
+    if getattr(args, "json", False):
+        _print({"runbooks": rows})
+        return 0
+    print("Runbooks (config/runbooks/catalog.yaml):")
+    for row in rows:
+        flag = " BLOCKED" if row["blocked"] else ""
+        print(f"  {row['id']:36}  [{row['family']}]{flag}  {row['title']}")
+    print("Show: sandbox runbook show l4-qwen3-8b")
+    return 0
+
+
+def _cmd_runbook_show(args) -> int:
+    from mailroom_sandbox.job.runbooks import (
+        env_exports,
+        get_runbook,
+        render_markdown,
+        render_shell,
+        resolve_runbook_id,
+    )
+
+    try:
+        rid = resolve_runbook_id(args.name)
+    except (KeyError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if getattr(args, "json", False):
+        row = get_runbook(rid)
+        _print(
+            {
+                "id": rid,
+                "runbook": row,
+                "env": env_exports(row),
+                "shell": render_shell(rid),
+            }
+        )
+        return 0
+    if getattr(args, "shell", False):
+        print(render_shell(rid), end="")
+        return 0
+    print(render_markdown(rid), end="")
+    return 0
+
+
+def _cmd_runbook_check(args) -> int:
+    from mailroom_sandbox.job.runbooks import docs_are_current, verify_live_pins
+
+    errors = verify_live_pins() + docs_are_current()
+    if getattr(args, "json", False):
+        _print({"ok": not errors, "errors": errors})
+        return 0 if not errors else 1
+    if errors:
+        print("Runbook catalog check FAILED:")
+        for err in errors:
+            print(f"  ERROR: {err}", file=sys.stderr)
+        return 1
+    print("Runbook catalog check OK (pins + generated docs).")
+    return 0
+
+
+def _cmd_runbook_write(args) -> int:
+    from mailroom_sandbox.job.runbooks import generated_dir, write_docs
+
+    written = write_docs()
+    dest = generated_dir()
+    print(f"Wrote {len(written)} runbook files under {dest}")
+    for path in written:
+        print(f"  {path.name}")
+    return 0
+
+
 def _cmd_prompts_help(args):
     print("Use: sandbox prompts list | sandbox prompts show <agent> [--variant X]")
     return 0
@@ -1761,10 +2251,11 @@ def _cmd_prompts_show(args) -> int:
 
 def _cmd_metrics_help(args):
     print(
-        "Use: sandbox metrics compare --runs a,b[,c] | --log | "
+        "Use: sandbox metrics compare --runs a,b[,c] | --log | --fixture | "
         "--sorter-vs-modernbert [--runs sorter,modernbert]\n"
         "     sandbox metrics extrapolate --run <id> [--corpus-size N] "
         "[--docs-per-day D]\n"
+        "     sandbox metrics serving-record --run <id> [--wall-seconds S]\n"
         "     sandbox metrics estimate-suite [--suite track-a|track-b|full] "
         "[--configs run-30-….yaml,…] [--corpus-size N]"
     )
@@ -1847,6 +2338,42 @@ def _cmd_metrics_estimate_suite(args) -> int:
     return 0
 
 
+def _cmd_metrics_serving_record(args) -> int:
+    from pathlib import Path
+
+    from mailroom_sandbox.job import metrics
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+
+    run_id = str(args.run_id).strip()
+    store = RunStore(run_dir(run_id))
+    if not store.lock_path.is_file():
+        print(
+            f"error: run {run_id!r} has no lock at {store.lock_path}",
+            file=sys.stderr,
+        )
+        return 1
+    if not store.load_items():
+        print(
+            f"error: run {run_id!r} has no items.jsonl — nothing to export",
+            file=sys.stderr,
+        )
+        return 1
+    out_path = Path(args.out) if getattr(args, "out", "") else None
+    try:
+        wall = getattr(args, "wall_seconds", None)
+        record = metrics.serving_record_from_store(store, wall_seconds=wall)
+        written = metrics.write_serving_json(store, out_path, wall_seconds=wall)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if getattr(args, "json", False):
+        _print({"path": str(written), "record": record})
+    else:
+        print(f"wrote {written}")
+    return 0
+
+
 def _cmd_metrics_extrapolate(args) -> int:
     from mailroom_sandbox.job import metrics
     from mailroom_sandbox.job.checkpoint import RunStore
@@ -1917,6 +2444,21 @@ def _cmd_metrics_compare(args) -> int:
 
     if getattr(args, "sorter_vs_modernbert", False):
         return _cmd_metrics_sorter_vs_modernbert(args)
+
+    if getattr(args, "fixture", False):
+        from mailroom_sandbox.datasets import load_cost_compare_fixtures
+        from mailroom_sandbox.eval.serving_parity import score_cost_compare
+
+        fixtures = load_cost_compare_fixtures()
+        if not any(fixtures.get(k) for k in ("local", "modal", "api")):
+            print("error: cost-compare fixture missing or empty", file=sys.stderr)
+            return 1
+        result = score_cost_compare(fixtures)
+        if getattr(args, "json", False):
+            _print(result)
+        else:
+            print(result.get("markdown", ""))
+        return 0 if result.get("parity_ok") else 2
 
     records = []
     if getattr(args, "log", False):

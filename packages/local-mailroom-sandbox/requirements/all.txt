@@ -10,6 +10,7 @@ huggingface_hub>=0.24
 pyarrow>=15.0
 modal==1.5.5
 langfuse>=4.0,<5
+braintrust>=0.42,<0.43
 opentelemetry-sdk>=1.25
 opentelemetry-exporter-otlp-proto-http>=1.25
 jupyterlab>=4.2

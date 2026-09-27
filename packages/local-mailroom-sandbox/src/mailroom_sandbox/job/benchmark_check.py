@@ -56,6 +56,7 @@ BENCHMARK_EXPECTED = {
 from mailroom_sandbox.job.specialist_posture import (
     SPECIALIST_POSTURE,
     expected_concurrency,
+    expected_limit,
     posture_for_run,
 )
 
@@ -394,14 +395,16 @@ def _check_spec_pins(spec: RunSpec) -> dict[str, list[str]]:
     if spec.dataset.sample_seed is None:
         warnings.append("dataset.sample_seed unset — strata draws may be non-reproducible")
 
-    # Specialist 5×30 suite pins (limit + local prompts).
+    # Specialist suite pins (limit + local prompts). Keyed on the posture
+    # prompt map (covers run-20-* too, SAND-018) — not just the run-30-* prefix.
     if spec.run_id in SPECIALIST_LOCAL_PROMPTS or (
         isinstance(spec.run_id, str) and spec.run_id.startswith("run-30-") and "specialist" in spec.run_id
     ):
-        if spec.dataset.limit != exp["limit"]:
+        want_limit = expected_limit(spec.run_id, exp["limit"])
+        if spec.dataset.limit != want_limit:
             errors.append(
-                f"dataset.limit={spec.dataset.limit} expected {exp['limit']} "
-                "(specialist 5×30 strata)"
+                f"dataset.limit={spec.dataset.limit} expected {want_limit} "
+                "(specialist suite strata)"
             )
         expected_prompts = SPECIALIST_LOCAL_PROMPTS.get(spec.run_id)
         if expected_prompts:

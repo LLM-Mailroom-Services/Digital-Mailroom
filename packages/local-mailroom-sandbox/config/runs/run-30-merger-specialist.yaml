@@ -22,14 +22,14 @@ task: merger_agreement_specialist
 profile: modal-vllm
 
 prompt:
-  # Pinned local production text (config/prompts/merger_agreement_specialist_production.txt)
+  # SAND-026 simplified pin (config/prompts/merger_agreement_specialist_simplified.txt)
   # for reproducible Modal L4 Qwen runs — not Langfuse floating production.
-  # Synced from vendored llm-mailroom code-default (merger_agreement_specialist). DMR-074/078.
+  # Vendor merger_agreement_specialist_production remains a syncable mirror. DMR-074/078.
   default: {source: code-default}
   agents:
     merger_agreement_specialist:
       source: local
-      file: merger_agreement_specialist_production
+      file: merger_agreement_specialist_simplified
 
 dataset:
   provider: huggingface
@@ -59,7 +59,9 @@ engine:
   vllm:
     max_model_len: 16384      # boot-valid cap for L4-bf16 8B (v0.29.0 raises above)
     gpu_memory_utilization: 0.90
-    max_num_seqs: 256
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
     quantization: ""
     revision: ""
   modal:

@@ -1,0 +1,200 @@
+# Family-wide coding subagent roster (canonical manifest).
+# Materialize per package: sandbox subagents materialize --package <id> --root <path>
+# Sync harness outputs: sandbox subagents sync --harness all [--package ...]
+
+version: 1
+
+packages:
+  digital-mailroom:
+    role: org monorepo hub (LLM-Mailroom-Services/Digital-Mailroom)
+    repo: https://github.com/LLM-Mailroom-Services/Digital-Mailroom
+    family_roster_dest: governance/subagents/family-roster.yaml
+  llm-mailroom:
+    role: pipeline package
+    family_roster_dest: config/subagents/family-roster.yaml
+  llm-entity-extraction:
+    role: prompt experiment loop
+    family_roster_dest: config/subagents/family-roster.yaml
+  local-mailroom-sandbox:
+    role: experiment harness
+    family_roster_dest: config/subagents/family-roster.yaml
+  eval-environment:
+    role: mailroom eval runner (run_evals.py, corpus, calibration)
+    family_roster_dest: config/subagents/family-roster.yaml
+
+harnesses:
+  cursor:
+    agents_dir: .cursor/agents
+    required_frontmatter: [name, description]
+  opencode:
+    agents_dir: .opencode/agents
+    optional_frontmatter: [mode, title, tags, home_package, roster_id]
+  opencode-global:
+    agents_dir: ~/.config/opencode/agents
+    optional_frontmatter: [mode, title, tags, home_package, roster_id]
+
+subagents:
+  - id: prompt-engineer
+    title: Prompt Engineer (GEPA)
+    home_package: llm-entity-extraction
+    packages: [llm-entity-extraction, local-mailroom-sandbox, digital-mailroom, eval-environment]
+    family_source: llm-entity-extraction @ 42c54929
+    tags: [prompts, evals, gepa]
+    harnesses: [cursor, opencode, opencode-global]
+    opencode:
+      mode: all
+    cursor:
+      invoke_hint: >-
+        Delegate when a prompt version needs diagnosis, GEPA-style iteration,
+        or evidence-backed A/B design from eval failures and traces.
+
+  - id: eval-judge
+    title: Eval Judge
+    home_package: llm-entity-extraction
+    packages: [llm-entity-extraction, local-mailroom-sandbox, digital-mailroom]
+    family_source: llm-entity-extraction @ 42c54929
+    tags: [evals, metrics, reporting]
+    harnesses: [cursor, opencode, opencode-global]
+    opencode:
+      mode: all
+    cursor:
+      invoke_hint: >-
+        Delegate to interpret eval runs, compare iterations, and recommend
+        promote/hold/rollback decisions from scored results.
+
+  - id: experiment-log-sync
+    title: Experiment Log Sync
+    home_package: llm-entity-extraction
+    packages: [llm-entity-extraction, local-mailroom-sandbox, digital-mailroom, eval-environment]
+    family_source: llm-entity-extraction @ 42c54929
+    tags: [observability, reporting]
+    harnesses: [cursor, opencode, opencode-global]
+    opencode:
+      mode: all
+    cursor:
+      invoke_hint: >-
+        Delegate when Braintrust/Langfuse runs must be mirrored into
+        reports/experiment_log.jsonl or the public experiment site.
+
+  - id: eval-runner
+    title: Eval Runner
+    home_package: eval-environment
+    packages: [eval-environment, digital-mailroom]
+    tags: [evals, runner, run_evals]
+    harnesses: [cursor, opencode]
+    opencode:
+      mode: subagent
+    cursor:
+      invoke_hint: >-
+        Delegate to execute run_evals.py tasks (mock first), monitor long runs,
+        and triage failures without patching eval code to greenwash errors.
+
+  - id: corpus-curator
+    title: Corpus Curator
+    home_package: eval-environment
+    packages: [eval-environment, digital-mailroom]
+    tags: [corpus, dataset, ground-truth]
+    harnesses: [cursor, opencode]
+    opencode:
+      mode: subagent
+    cursor:
+      invoke_hint: >-
+        Delegate for mailroom-dataset schema, subsets, GT columns, and corpus
+        load debugging before or after eval runs.
+
+  - id: trace-auditor
+    title: Trace Auditor
+    home_package: eval-environment
+    packages: [eval-environment, digital-mailroom]
+    tags: [langfuse, braintrust, tracing]
+    harnesses: [cursor, opencode]
+    opencode:
+      mode: subagent
+    cursor:
+      invoke_hint: >-
+        Delegate for eval-environment trace review across Langfuse/Braintrust
+        sinks, flush health, and run-level anomaly triage.
+
+  - id: calibration-analyst
+    title: Calibration Analyst
+    home_package: eval-environment
+    packages: [eval-environment, digital-mailroom]
+    tags: [calibration, metrics, judge]
+    harnesses: [cursor, opencode]
+    opencode:
+      mode: subagent
+    cursor:
+      invoke_hint: >-
+        Delegate for calibration sweeps, judge reliability, and metric
+        interpretation from eval-environment calibration tasks.
+
+  - id: trace-log-analyst
+    title: Trace Log Analyst
+    home_package: llm-mailroom
+    packages: [llm-mailroom, local-mailroom-sandbox, digital-mailroom]
+    family_source: llm-mailroom @ 28cb4be8
+    tags: [langfuse, tracing, observability]
+    harnesses: [cursor, opencode, opencode-global]
+    opencode:
+      mode: all
+    cursor:
+      invoke_hint: >-
+        Delegate for Langfuse trace review, anomaly triage, and archival
+        handoff summaries.
+
+  - id: mailroom-arch-optimizer
+    title: Mailroom Architecture Optimizer
+    home_package: llm-mailroom
+    packages: [llm-mailroom, local-mailroom-sandbox, digital-mailroom]
+    family_source: llm-mailroom @ 28cb4be8
+    tags: [architecture, pipeline]
+    harnesses: [cursor, opencode, opencode-global]
+    opencode:
+      mode: all
+    cursor:
+      invoke_hint: >-
+        Delegate for end-to-end mailroom pipeline architecture reviews targeting
+        accuracy, latency, and cost.
+
+  - id: legal-changelog-auditor
+    title: Legal Changelog Auditor
+    home_package: llm-mailroom
+    packages: [llm-mailroom, local-mailroom-sandbox, digital-mailroom]
+    family_source: llm-mailroom @ 28cb4be8
+    tags: [governance, documentation]
+    harnesses: [cursor, opencode, opencode-global]
+    opencode:
+      mode: all
+    cursor:
+      invoke_hint: >-
+        Delegate for changelog/documentation completeness audits after
+        significant repo or policy changes.
+
+  - id: harness-doctor
+    title: Harness Doctor
+    home_package: local-mailroom-sandbox
+    packages: [local-mailroom-sandbox, digital-mailroom, eval-environment]
+    tags: [meta, harness, sandbox]
+    harnesses: [cursor, opencode, opencode-global]
+    opencode:
+      mode: all
+    cursor:
+      invoke_hint: >-
+        Delegate when any harness may be wrong: sandbox CLI, roster/global
+        OpenCode drift, Cursor stubs, MCP auth, eval-environment wiring, or
+        tests that pass while behavior is silently wrong.
+
+  - id: adversarial-reviewer
+    title: Adversarial Reviewer
+    home_package: local-mailroom-sandbox
+    packages: [local-mailroom-sandbox, digital-mailroom, llm-mailroom, llm-entity-extraction, eval-environment]
+    tags: [meta, review, verification]
+    harnesses: [cursor, opencode, opencode-global]
+    opencode:
+      mode: all
+    cursor:
+      invoke_hint: >-
+        Delegate after another agent claims work is done — stress-test
+        authenticity (files/commits/tests exist), documentation honesty, and
+        verification depth; assume good-faith errors and hallucinated evidence
+        until disproven.

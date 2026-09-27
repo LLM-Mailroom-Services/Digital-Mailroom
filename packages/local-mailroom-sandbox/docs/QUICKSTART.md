@@ -173,6 +173,7 @@ sandbox run --profile modal-vllm start --config config/runs/x.yaml --job-mode mo
 
 ```bash
 sandbox metrics compare --runs local,modal,api    # table + scorecard from serving fixtures
+sandbox metrics compare --fixture                 # Grant cost-compare parity (no GPU)
 sandbox eval local_vs_api --mock                  # offline serving comparison (fixtures)
 sandbox eval local_vs_api --from-log              # …or from reports/experiment_log.jsonl
 sandbox traces export                             # dump recorded trace ids → data/traces/export.json

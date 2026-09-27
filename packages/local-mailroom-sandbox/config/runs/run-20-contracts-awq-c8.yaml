@@ -1,0 +1,87 @@
+# SAND-019 (AWQ, corrected, concurrency 8) — contracts_specialist on 20
+# CONTRACT docs, SAME seeded draw as run-20-contracts-awq (split=all, seed 42),
+# so the dataset fingerprint matches and the run is directly comparable.
+#
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║ WHAT IS CORRECTED (vs run-20-contracts-awq)                              ║
+# ║  1. Window 16384 -> 32768. The 400 was                      ║
+# ║     "maximum context length is 16384 ... 12289 input + 4096 output".      ║
+# ║     At 32768 that request (16385) fits comfortably.                       ║
+# ║  2. max_tokens 4096 -> 8192, applied RUN-SCOPED via SANDBOX_AGENT_KNOBS   ║
+# ║     (the global overlay stays 4096 so the bf16 16k default cannot 400).   ║
+# ║     The other error was LengthFinishReasonError at exactly 4096 output.   ║
+# ║  3. concurrency 4 -> 8 (the ask): log an EFFECTIVE 8-wide batched run.    ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+#
+# Deploy + run (AWQ env; SANDBOX_AGENT_KNOBS is the run-scoped budget override):
+#   modal profile activate hermes-agent-jjb
+#   export SANDBOX_PROFILE=modal-vllm MODAL_VLLM_MODEL=Qwen/Qwen3-8B-AWQ \
+#     MODAL_VLLM_QUANTIZATION=awq MODAL_VLLM_MAX_MODEL_LEN=32768 \
+#     MODAL_VLLM_GPU=L4 MODAL_VLLM_IMAGE_TAG=v0.29.0 \
+#     MODAL_VLLM_MAX_CONTAINERS=1 MODAL_VLLM_SCALEDOWN_SECONDS=120
+#   export SANDBOX_AGENT_KNOBS='{"contracts_specialist":{"max_tokens":8192,"max_input_chars":24000}}'
+#   modal run deploy/modal_vllm.py::download_model
+#   modal deploy deploy/modal_vllm.py --strategy recreate
+#   sandbox run benchmark-check --config config/runs/run-20-contracts-awq-c8.yaml
+#   sandbox run preflight --config config/runs/run-20-contracts-awq-c8.yaml --live
+#   sandbox run start --config config/runs/run-20-contracts-awq-c8.yaml --job-mode endpoint --watch --force
+#   ./deploy/teardown_vllm.sh
+schema: sandbox.run/v1
+run_id: run-20-contracts-awq-c8
+task: contracts_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    contracts_specialist:
+      source: local
+      file: contracts_specialist_v33_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      - doc_class: contract
+        count: 20
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768      # SAND-019: clears the 16k 400 error
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: awq
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 1         # cost guard — do not raise for specialist runs
+    min_containers: 0         # scale-to-zero after idle
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 8              # SAND-019: 8 in flight (the ask)
+  cost_cap_usd: 0.55
+  max_wall_seconds: 3200
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-20-contracts-awq-c8
+  tags: [sandbox, job, specialist, contracts, qwen3-8b-awq, l4, benchmark, sand-019, c8]

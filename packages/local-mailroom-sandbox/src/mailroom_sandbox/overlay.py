@@ -208,6 +208,7 @@ def build_merged_taxonomy(
     model_override: str | None = None,
     extra_overlay: dict | None = None,
     agent_models: dict[str, str] | None = None,
+    agent_knobs: dict | None = None,
 ) -> dict:
     from mailroom_sandbox.components import load_components, routing_overlay
 
@@ -220,6 +221,11 @@ def build_merged_taxonomy(
     merged = rewrite_agents(merged, profile, model_override=model_override)
     # Overlay agent knobs (temp / tokens / optional model) win after rewrite.
     merged = apply_agent_overrides(merged, overlay.get("agents") or {})
+    # SAND-019: run-scoped generation-budget knobs (e.g. a 32768-window AWQ run
+    # that needs more decode tokens than the bf16-safe 16384 overlay allows) win
+    # last, after the profile's global overlay. Keeps the default overlay
+    # context-fit for 16384 while letting one run widen its own budget.
+    merged = apply_agent_overrides(merged, agent_knobs)
     # CLI --agent-model is surgical and always wins last.
     merged = apply_agent_models(merged, agent_models)
     return merged

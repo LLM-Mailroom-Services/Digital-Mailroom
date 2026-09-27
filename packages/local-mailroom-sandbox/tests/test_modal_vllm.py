@@ -32,6 +32,8 @@ KNOB_ENV = (
     "MODAL_VLLM_MAX_MODEL_LEN",
     "MODAL_VLLM_GPU_MEMORY_UTILIZATION",
     "MODAL_VLLM_MAX_NUM_SEQS",
+    "MODAL_VLLM_ENABLE_PREFIX_CACHING",
+    "MODAL_VLLM_ENFORCE_EAGER",
     "MODAL_VLLM_TP_SIZE",
     "MODAL_VLLM_ATTENTION_BACKEND",
     "MODAL_VLLM_ASYNC_SCHEDULING",
@@ -191,7 +193,9 @@ class TestDeploySurface:
         assert mod.VLLM_IMAGE_TAG == "v0.29.0"  # never `latest`
         assert mod.MAX_MODEL_LEN == "16384"  # DMR-056: L4-bf16 boot-valid default
         assert mod.GPU_MEMORY_UTILIZATION == "0.90"  # below vLLM's 0.92 default
-        assert mod.MAX_NUM_SEQS == "256"  # vLLM's own L4/OpenAI-server default
+        assert mod.MAX_NUM_SEQS == "6"  # L4 long-prompt 4–6 (KV cliff at ~8 × ~8k)
+        assert mod.ENABLE_PREFIX_CACHING == "1"
+        assert mod.ENFORCE_EAGER == "1"
         assert mod.SCALEDOWN_SECONDS == 120  # DMR-076 attended default (restore 600 unattended)
         assert mod.MAX_CONTAINERS == 1  # a test sandbox must not fan out GPUs
         assert mod.MIN_CONTAINERS == 0  # scale-to-zero
@@ -259,7 +263,9 @@ class TestCommandBuilder:
         assert "--max-model-len" in cmd
         # Safe test-sandbox memory posture (v0.29.0 flags).
         assert cmd[cmd.index("--gpu-memory-utilization") + 1] == "0.90"
-        assert cmd[cmd.index("--max-num-seqs") + 1] == "256"
+        assert cmd[cmd.index("--max-num-seqs") + 1] == "6"
+        assert "--enable-prefix-caching" in cmd
+        assert "--enforce-eager" in cmd
         # fp16/bf16 default: no quantization or revision flag unless configured.
         assert "--quantization" not in cmd
         assert "--revision" not in cmd
@@ -268,6 +274,15 @@ class TestCommandBuilder:
         # would make the server reject its own argv.
         assert "--no-enable-log-requests" in cmd
         assert "--disable-log-requests" not in cmd
+
+    def test_prefix_caching_and_eager_env_toggles(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_ENABLE_PREFIX_CACHING", "0")
+        monkeypatch.setenv("MODAL_VLLM_ENFORCE_EAGER", "0")
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B")
+        assert "--no-enable-prefix-caching" in cmd
+        assert "--enable-prefix-caching" not in cmd
+        assert "--enforce-eager" not in cmd
 
     def test_memory_knobs_read_env_at_import(self, monkeypatch):
         monkeypatch.setenv("MODAL_VLLM_GPU_MEMORY_UTILIZATION", "0.85")
@@ -460,16 +475,22 @@ class TestSecretApi:
         monkeypatch.setenv("MODAL_VLLM_REVISION", "abc123")
         monkeypatch.setenv("MODAL_VLLM_GPU_MEMORY_UTILIZATION", "0.85")
         monkeypatch.setenv("MODAL_VLLM_MAX_NUM_SEQS", "64")
+        monkeypatch.setenv("MODAL_VLLM_ENABLE_PREFIX_CACHING", "0")
+        monkeypatch.setenv("MODAL_VLLM_ENFORCE_EAGER", "0")
         mod = _load_app_module()
         assert len(modal_stub.Secret.calls) == 2
         for call in modal_stub.Secret.calls:
             assert call["MODAL_VLLM_REVISION"] == "abc123"
             assert call["MODAL_VLLM_GPU_MEMORY_UTILIZATION"] == "0.85"
             assert call["MODAL_VLLM_MAX_NUM_SEQS"] == "64"
+            assert call["MODAL_VLLM_ENABLE_PREFIX_CACHING"] == "0"
+            assert call["MODAL_VLLM_ENFORCE_EAGER"] == "0"
         for name in (
             "MODAL_VLLM_REVISION",
             "MODAL_VLLM_GPU_MEMORY_UTILIZATION",
             "MODAL_VLLM_MAX_NUM_SEQS",
+            "MODAL_VLLM_ENABLE_PREFIX_CACHING",
+            "MODAL_VLLM_ENFORCE_EAGER",
         ):
             assert name in mod.CONFIG_ENV_KEYS
 
@@ -503,7 +524,9 @@ class TestComposeParity:
             cmd[cmd.index("--gpu-memory-utilization") + 1]
             == "${VLLM_GPU_MEMORY_UTILIZATION:-0.90}"
         )
-        assert cmd[cmd.index("--max-num-seqs") + 1] == "${VLLM_MAX_NUM_SEQS:-256}"
+        assert cmd[cmd.index("--max-num-seqs") + 1] == "${VLLM_MAX_NUM_SEQS:-6}"
+        assert "--enable-prefix-caching" in cmd
+        assert "--enforce-eager" in cmd
         assert cmd[-1] == "--no-enable-log-requests"
 
     def test_defaults_match_modal_constants(self):

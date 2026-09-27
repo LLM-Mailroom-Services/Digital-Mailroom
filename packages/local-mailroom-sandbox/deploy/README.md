@@ -95,17 +95,19 @@ For evals: `SANDBOX_PROFILE=modal-vllm` + `DEFAULT_PROVIDER=vllm` (see
 | `MODAL_VLLM_GPU` | `L4` | 24 GB VRAM |
 | `MODAL_VLLM_MAX_MODEL_LEN` | `16384` | context cap (KV-cache budget). DMR-056: v0.29.0 RAISES at boot when the pool can't hold one request — L4-bf16 8B rows cap at 16384; AWQ/FP8 rows set 32768 |
 | `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | fraction of GPU memory; vLLM's default is `0.92` |
-| `MODAL_VLLM_MAX_NUM_SEQS` | `256` | concurrency cap; vLLM's own L4/OpenAI-server default |
+| `MODAL_VLLM_MAX_NUM_SEQS` | `6` | L4 long-prompt admission cap (4–6). ~8 concurrent ~8k-prompt long-decode sequences exhaust KV (latency cliff). Short-doc scale-matrix cells override to `256` |
+| `MODAL_VLLM_ENABLE_PREFIX_CACHING` | `1` | APC — amortize shared ~9.7k-token prompt prefill (`--enable-prefix-caching`; set `0` for `--no-enable-prefix-caching`) |
+| `MODAL_VLLM_ENFORCE_EAGER` | `1` | skip CUDA-graph capture for faster cold boot (`--enforce-eager`; set `0` for graphs / higher steady-state tok/s) |
 | `MODAL_VLLM_ATTENTION_BACKEND` | empty | `flashinfer` for throughput runs (Modal vllm_throughput exemplar); empty = vLLM engine default (parity + reproducible posture) |
 | `MODAL_VLLM_ASYNC_SCHEDULING` | empty | `1`/`true` enables the async batch scheduler (exemplar throughput knob). Not every vLLM feature is supported under it — keep off when a run depends on structured outputs |
 | `MODAL_VLLM_QUANTIZATION` | empty | `awq` / `gptq` / … |
-| `MODAL_VLLM_TP_SIZE` | from GPU suffix | tensor-parallel size; default derived from `:N` in `MODAL_VLLM_GPU` (1 for single GPU). Set explicitly for 70B-class (`A100-80GB:2` → `2`). Travels via the deploy Secret. |
+| `MODAL_VLLM_TP_SIZE` | from GPU suffix | tensor-parallel size; default derived from `:N` in `MODAL_VLLM_GPU` (1 for single GPU). **Only** for models that won't fit one GPU (70B-class). For a second L4 on 8B, raise `MAX_CONTAINERS` instead |
 | `MODAL_VLLM_IMAGE_TAG` | `v0.29.0` | pin; tag or `@sha256:` digest |
 | `MODAL_VLLM_REVISION` | empty | HF revision (recommended for runs; travels via the deploy Secret) |
 | `MODAL_VLLM_API_TOKEN` | empty | maps to `VLLM_API_KEY` (bearer) |
 | `HF_TOKEN` | empty | gated/private weights |
 | `MODAL_VLLM_SCALEDOWN_SECONDS` | `120` | idle warm window (attended specialist default; set **600** for unattended/overnight) |
-| `MODAL_VLLM_MAX_CONTAINERS` | `1` | cost guard; raise deliberately |
+| `MODAL_VLLM_MAX_CONTAINERS` | `1` | cost guard; raise to `2` for a second independent L4 replica (data parallel / Modal round-robin) |
 | `MODAL_VLLM_MIN_CONTAINERS` | `0` | scale-to-zero |
 | `MODAL_VLLM_STARTUP_TIMEOUT_SECONDS` | `1200` | first-boot budget |
 
@@ -115,8 +117,9 @@ templates) — bumped together in DMR-062 after the **live parity pilot**
 endpoint, `json_object` structured outputs verified). The v0.29.0 flag set
 was docs-verified by vllm-specialist (2026-09-16): same boot-valid pylons as
 v0.28.0 (`--max-model-len 16384`, `--gpu-memory-utilization 0.90`,
-`--max-num-seqs 256`, `--no-enable-log-requests`); Model Runner V2 is the
-v0.29.0 default and keeps the KV admission check (16384 still fits
+`--no-enable-log-requests`); L4 long-prompt posture (SAND-030) pins
+`--max-num-seqs 6`, `--enable-prefix-caching`, `--enforce-eager`. Model Runner
+V2 is the v0.29.0 default and keeps the KV admission check (16384 still fits
 L4-bf16-8B; 32768 still RAISES at boot).
 
 ### Model matrix (DMR-045)
@@ -151,7 +154,7 @@ cap, and tensor-parallel size. Rules of thumb (verified against v0.29.0,
   `modal deploy deploy/modal_vllm.py --strategy recreate`. A rolling
   redeploy keeps the old model warm for the scaledown window.
   **Default specialist cost-eval path stays Qwen/Qwen3-8B @ L4**
-  (`docs/benchmark-l4.md`); do not edit `run-30-*-specialist.yaml` for
+  (`sandbox runbook show l4-qwen3-8b`); do not edit `run-30-*-specialist.yaml` for
   one-off swaps — copy the YAML if an alternate scorecard needs matching
   `engine.model` / `engine.modal.gpu`.
 
@@ -165,23 +168,34 @@ the same `vllm serve` argv:
 | `--host` / `--port` | `0.0.0.0` / `8000` | reachable from the compose network / Modal proxy |
 | `--max-model-len` | `16384` (knob) | DMR-056: boot-valid default for L4-bf16 8B rows — v0.29.0 RAISES (not warns) when the KV pool can't hold one request at the cap; AWQ rows use 32768 |
 | `--gpu-memory-utilization` | `0.90` (knob) | vLLM's default is `0.92`; 0.90 keeps headroom on a 24 GB L4 and on shared local GPUs |
-| `--max-num-seqs` | `256` (knob) | vLLM's own L4/OpenAI-server default, pinned so local and Modal schedule the same concurrency on any GPU |
+| `--max-num-seqs` | `6` (knob) | L4 long-prompt: 4–6 active sequences; 8×~8k long-decode hits the KV latency cliff. Scale-matrix short-doc cells override to `256` |
+| `--enable-prefix-caching` | on (knob) | APC amortizes shared ~9.7k-token prompt prefill; set `MODAL_VLLM_ENABLE_PREFIX_CACHING=0` to pass `--no-enable-prefix-caching` |
+| `--enforce-eager` | on (knob) | skip CUDA-graph capture → faster cold boot (Modal FAST_BOOT); set `MODAL_VLLM_ENFORCE_EAGER=0` to restore graphs |
 | `--no-enable-log-requests` | on | v0.28.0 made request logging opt-in (`--enable-log-requests`); the pre-0.28 `--disable-log-requests` flag no longer exists |
 | `--attention-backend` | off (knob) | `flashinfer` for throughput runs — the Modal vllm_throughput exemplar's attention backend; empty = engine default |
 | `--async-scheduling` | off (knob) | exemplar's async batch scheduler, opt-in — see the caveats above |
-| `--tensor-parallel-size` | `N` when `MODAL_VLLM_TP_SIZE` ≠ 1 | multi-GPU containers must pass this or vLLM uses only 1 GPU and OOMs (70B-class on `A100-80GB:2`) |
+| `--tensor-parallel-size` | `N` when `MODAL_VLLM_TP_SIZE` ≠ 1 | multi-GPU **containers** only (70B-class on `A100-80GB:2`). For a second L4 on 8B use `MAX_CONTAINERS=2` (data parallel), not TP |
 | `--revision` / `--quantization` | optional | weight pin / quantized checkpoints (Modal knobs; compose overrides via a command override) |
 
-Deliberately **not** set — the v0.29.0 defaults are already the safe test
-posture:
+### Singular L4 vs second L4 (data parallel)
+
+| | 1×L4 | 2×L4 |
+| --- | --- | --- |
+| Deploy | `MAX_CONTAINERS=1` (default) | `MAX_CONTAINERS=2` |
+| vLLM instances | 1 | 2 (one per GPU / container) |
+| `max_num_seqs` | 4–6 (default **6**) | 4–6 **per replica** (8–12 total) |
+| `gpu_memory_utilization` / APC / eager | `0.90` / on / on | same per replica |
+| Router | n/a | Modal `@web_server` even distribution (round-robin style) |
+| Do **not** | — | `MODAL_VLLM_GPU=L4:2` + TP for 8B (PCIe all-reduce, no latency win) |
+
+APC is per-replica: highly repetitive prefixes are cached twice. The
+concurrency gain outweighs the duplicate cache for specialist workloads.
+HF weights stay on the `sandbox-hf-cache` Volume (pre-warm once).
+
+Deliberately **not** set beyond the knobs above — the v0.29.0 defaults
+already cover:
 
 - **Chunked prefill** — on by default (`SchedulerConfig.enable_chunked_prefill=True`).
-- **Prefix caching** — on by default for decoder-only models
-  (`CacheConfig.enable_prefix_caching=True`); the sandbox evals reuse a
-  system prefix, so it pays off with no flag.
-- **CUDA graphs / `--enforce-eager`** — graphs stay on; the
-  `sandbox-vllm-cache` Volume mounts vLLM's default `VLLM_CACHE_ROOT`
-  (`~/.cache/vllm`), so JIT/compile artifacts survive cold boots.
 - **`--async-scheduling`** — OFF by default (opt-in via the knob above): the
   exemplar reports a small throughput win, but a test sandbox values
   reproducibility, and not every vLLM feature is supported under the async

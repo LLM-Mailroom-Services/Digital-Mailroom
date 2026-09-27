@@ -39,8 +39,8 @@
     },
     "llm-mailroom": {
       "branch": "main",
-      "synced_at": "2026-09-27T01:50:00Z",
-      "synced_sha": "28cb4be816fbb60e56cd3bb2ab72f8d9be1ab636",
+      "synced_at": "2026-09-27T06:44:30Z",
+      "synced_sha": "ddfe6badfa4c497255f6b6a20788dbb67e41fe2c",
       "url": "https://github.com/Exios66/llm-mailroom.git"
     },
     "llm-mailroom-graph": {
@@ -51,8 +51,8 @@
     },
     "local-mailroom-sandbox": {
       "branch": "main",
-      "synced_at": "2026-09-27T01:50:00Z",
-      "synced_sha": "116d219e325c9d3c6230e86967240ee5187f282d",
+      "synced_at": "2026-09-27T06:44:31Z",
+      "synced_sha": "500eeee3f3ef56f1eaffa08964040ff78f023c9b",
       "url": "https://github.com/Exios66/local-mailroom-sandbox.git"
     },
     "mailroom-corpus-eda": {

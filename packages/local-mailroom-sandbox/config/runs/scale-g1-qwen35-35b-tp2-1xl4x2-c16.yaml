@@ -1,0 +1,55 @@
+# DMR-068 / SAND-022 — scale matrix cell G1: 1×(L4:2) TP=2, concurrency 16, Qwen3.5-35B-A3B FP8.
+# Exercises MODAL_VLLM_TP_SIZE=2 over PCIe (no NVLink). Compare against two
+# independent 1×L4 replicas at the same total GPU spend (decision cell).
+# Deploy:
+#   eval "$(sandbox modal-matrix env Qwen/Qwen3.5-35B-A3B)"
+#   MODAL_VLLM_MAX_NUM_SEQS=256 \
+#   MODAL_VLLM_MIN_CONTAINERS=1 MODAL_VLLM_MAX_CONTAINERS=1 \
+#   MODAL_VLLM_SCALEDOWN_SECONDS=600 modal deploy deploy/modal_vllm.py
+# Execution pending Modal spend approval.
+schema: sandbox.run/v1
+run_id: scale-g1-qwen35-35b-tp2-1xl4x2-c16
+task: sorter
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file                 # fixture: data/fixtures/scale/g1.jsonl
+  local_path: file://data/fixtures/scale/g1.jsonl
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3.5-35B-A3B
+  vllm:
+    max_model_len: 16384
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 256            # short-doc cell; override deploy default (6)
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: fp8
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4:2
+    image_tag: v0.29.0
+    scaledown_seconds: 600
+    max_containers: 1
+    min_containers: 1
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 16
+  cost_cap_usd: 3.00
+  max_wall_seconds: 7200
+
+trace:
+  sink: none
+  otlp: false
+  environment: scale
+  tags: [sandbox, job, scale-matrix, sand-022]

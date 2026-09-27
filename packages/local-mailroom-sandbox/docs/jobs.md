@@ -46,7 +46,7 @@ dataset:                    # full mailroom-dataset OR a subset
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth      # labels + doc_text joined on filename
   split: all                # train+test (3,302 rows). `test` cannot back 40/100-per-class.
-  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca     # pinned (no floating)
+  revision: ed7576b676343e0b402ec5412cded301e629bdee     # pinned (no floating)
   strata:
     buckets:
       - {doc_class: contract, count: 40}          # or 20 / 100; merger max 152
@@ -61,7 +61,8 @@ engine:
   kind: modal-vllm            # modal-vllm | vllm-local | vllm-remote
   model: Qwen/Qwen3-8B
   vllm: {max_model_len: 16384, gpu_memory_utilization: 0.90,
-         max_num_seqs: 256, quantization: "", revision: ""}
+         max_num_seqs: 6, enable_prefix_caching: true, enforce_eager: true,
+         quantization: "", revision: ""}
   # DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.29.0
   # raises at boot when the KV pool can't fit one request); AWQ rows set 32768.
   modal: {app: sandbox-vllm, gpu: L4, image_tag: v0.29.0,
@@ -203,6 +204,24 @@ documented follow-up.
   aggregates each bucket, computes deltas vs API (latency, ttft, throughput,
   token $, GPU $), runs dojo `compare_serving` pairwise (local↔api,
   modal↔api, local↔modal), and prints a markdown table.
+- Regenerate a committed serving artifact from a live run store (no Modal spend
+  on regen — reads `data/runtime/runs/<run_id>/` only):
+
+  ```bash
+  sandbox metrics serving-record --run run-20-correspondence-awq-c8
+  # → reports/serving/run-20-correspondence-awq-c8.serving.json
+  ```
+
+  Wall clock comes from item `ts` spans when present; pass `--wall-seconds` when
+  the store lacks timestamps (historical runs). Measured run stores are not
+  committed — reproducing byte-identical committed JSON requires the original
+  `items.jsonl` + lock under `data/runtime/runs/`.
+- Offline Grant-style parity (no Modal secret):
+  `sandbox metrics compare --fixture`. Adapter
+  (`mailroom_sandbox.eval.serving_parity`) converts `latency_ms`/`ttft_ms`,
+  stamps champion token $ for `Qwen/Qwen3-8B`, and checks sandbox rows
+  against `get_suite("local_vs_api")`. Dojo still remaps identity
+  `serving_kind=modal` → `local` (two-bucket suite); GPU $ stays sandbox-only.
 
 ### Sorter vs ModernBERT
 
@@ -238,9 +257,24 @@ sandbox metrics extrapolate --run run-30-contracts-specialist \
   --corpus-size 3302 --docs-per-day 10000
 ```
 
-See [`docs/benchmark-l4.md`](benchmark-l4.md) for the Modal L4 Qwen specialist
-suite pins, Hermes profile, teardown sequence, and cost-saver path (AWQ gated
-by DMR-068).
+See [`docs/runbooks/README.md`](runbooks/README.md) for the Modal L4 Qwen specialist
+suite (singular 1×L4 / 1-container) and improved configs. Catalog:
+[`config/runbooks/catalog.yaml`](../config/runbooks/catalog.yaml). CLI:
+`sandbox runbook show l4-qwen3-8b`.
+
+### AWQ vs FP16 isolation (issue #21) — config only, do not run
+
+[`config/runs/run-20-correspondence-fp16-c8.yaml`](../config/runs/run-20-correspondence-fp16-c8.yaml)
+is the FP16 twin of `run-20-correspondence-awq-c8`: same seed-42 correspondence
+draw (fingerprint `285f423d3708`), same local prompt, concurrency 8, targeting
+`Qwen/Qwen3-8B` (non-AWQ). The live quality compare is **blocked until
+spend/auth go**. Do not `modal deploy` / `sandbox run start` this YAML from the
+diagnosis PR.
+
+When an operator is cleared to run it: `sandbox runbook show improved-correspondence-fp16-c8`.
+Confirm the lock fingerprint is `285f423d3708` before scoring. Diagnosis of the
+AWQ floor (no GPU):
+[`docs/extraction-quality-diagnosis.md`](extraction-quality-diagnosis.md).
 
 TTFT is only populated when a run records it (never inferred from e2e).
 Document-pipeline eval traces stay on the Langfuse SDK path (family

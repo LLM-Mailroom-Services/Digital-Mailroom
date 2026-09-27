@@ -23,7 +23,7 @@ dataset:
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
   split: test
-  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (FAMILY_HF_REVISION)
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_REVISION)
   strata:
     field: expected_subclass
     values: [service, supply, distributor, co_branding, ip, development,
@@ -37,7 +37,10 @@ engine:
   kind: modal-vllm
   model: Qwen/Qwen3-8B
   vllm: {max_model_len: 16384, gpu_memory_utilization: 0.90,
-         max_num_seqs: 256, quantization: "", revision: ""}
+         max_num_seqs: 6, enable_prefix_caching: true, enforce_eager: true,
+         quantization: "", revision: ""}
+  # 4×L4 = data-parallel replicas (one vLLM each); Modal load-balances.
+  # Do NOT use gpu: L4:4 + TP for 8B — TP is for models that won't fit 1×L4.
   modal: {app: sandbox-vllm, gpu: L4, image_tag: v0.29.0,
           scaledown_seconds: 600, max_containers: 4, prewarm: true}
 

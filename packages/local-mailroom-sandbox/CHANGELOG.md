@@ -2,6 +2,155 @@
 
 ## [Unreleased]
 
+### Added — SAND-031 centralized operator runbooks
+
+- **Single edit surface:** [`config/runbooks/catalog.yaml`](config/runbooks/catalog.yaml).
+  Change pins / steps there, then `sandbox runbook check` (catalog vs
+  `deploy/modal_vllm.py` + `config/models.yaml` + cited run YAMLs) and
+  `sandbox runbook write` (regenerates `docs/runbooks/`).
+- **Singular 1×L4 / 1-container Qwen3-8B:** `sandbox runbook show l4-qwen3-8b`
+  (plus Operator A/B tracks and the SAND-018 N=20 probe).
+- **Improved configs:** AWQ, AWQ-c8, correspondence AWQ/c8, FP16 isolation twin
+  (blocked), Granite 4.2-8B FP8 swap-in, second-L4 data parallel, scale-matrix
+  cells — `sandbox runbook list --family improved`.
+- CLI: `sandbox runbook list|show|check|write`. Tests:
+  `tests/test_runbooks.py`. `docs/benchmark-l4.md` is now the pointer;
+  operator scripts are generated.
+
+### Changed — monorepo target Digital-Mailroom (2026-09-24)
+
+- Subagent propagate/materialize docs and package ids use **`digital-mailroom`**
+  ([LLM-Mailroom-Services/Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom));
+  `mailroom-dev` remains a legacy CLI alias only.
+
+### Fixed — SAND-027-3 eval-environment prompt versions on Modal + vLLM specialist evals
+
+- Family A specialists (`correspondence`, `corporate_records`, `insurance_claims`,
+  `merger_agreement`) bind `get_managed_prompt` at import time. Preflight
+  imports those modules via `prompt_templates()`, so patching only
+  `llm.prompts.get_managed_prompt` left Modal runs on vendor/Langfuse
+  production text. `apply_runtime_overrides` now rebinds every loaded module
+  and writes LangChain `PROMPT_VERSIONS` role + `{role}_v*` keys (same
+  injection as eval-environment `evals.prompts.registry.activate`).
+- Isolated specialist evals default to the frozen v1 sandbox stems. Job locks
+  that pin `prompt.agents.<task>` now pass that stem into `activate`.
+- Experiment / serving records log `contracts_specialist_v1` (etc.) + sha256
+  when the pin is a catalog stem.
+- Hermetic lock: `config/prompts/eval_environment_lineage.json` (sha256 +
+  opening line). `tests/test_eval_environment_lineage.py` fails on drift;
+  sibling eval-environment checkout is compared when present.
+
+### Changed — SAND-030 Modal L4 long-prompt vLLM posture
+
+- Deploy defaults (`deploy/modal_vllm.py` + compose parity):
+  `max_num_seqs=6` (was 256), explicit `--enable-prefix-caching`,
+  `--enforce-eager` (faster cold boot). `gpu_memory_utilization=0.90` and
+  HF/vLLM Volumes unchanged.
+- Second L4 = **data parallel**: raise `MODAL_VLLM_MAX_CONTAINERS=2` (Modal
+  `@web_server` round-robins). Do not use `GPU=L4:2`+TP for 8B-class.
+- `VLLMSpec` gains `enable_prefix_caching` / `enforce_eager`; specialist and
+  cost-eval run YAMLs pin the new posture. Scale-matrix cells keep
+  `max_num_seqs: 256` and must export `MODAL_VLLM_MAX_NUM_SEQS=256` at deploy.
+- Docs: `deploy/README.md`, `docs/benchmark-l4.md`, `docs/scale-matrix.md`
+  (container topology), `docs/modal-serving-ops.md`, skill knobs.
+
+### Added — SAND-020 correspondence extraction-quality diagnosis (issue #21)
+
+- **`eval/schema_adherence.py`** — parse-failure / schema-adherence checks
+  (`parse_error`, `schema_valid`, `schema_adherence`) separate from
+  `overall_extraction_score` / `extraction_f1`. Wired into
+  `score_extraction_row`, isolated / extract / pipeline summaries, and
+  `sandbox metrics` quality extraction (additive keys only).
+- **Empty-field + partial-credit tests** pinning dojo behavior: empty
+  scalars are not events; empty-list inventions zero overall; F1 TP requires
+  typed score ≥ 1.0; isolated `exact_match` is a runner alias of overall.
+- **Offline diagnosis** of `run-20-correspondence-awq-c8` (fingerprint
+  `285f423d3708`): [`docs/extraction-quality-diagnosis.md`](docs/extraction-quality-diagnosis.md)
+  (best/worst docs, token evidence, owner-locked 0.25 / 0.50 gates).
+- **FP16 twin YAML** [`config/runs/run-20-correspondence-fp16-c8.yaml`](config/runs/run-20-correspondence-fp16-c8.yaml)
+  — same draw, `Qwen/Qwen3-8B`, **not run** (spend/auth blocked). Runbook:
+  [`docs/jobs.md`](docs/jobs.md) §AWQ vs FP16 isolation.
+
+### Changed — SAND-026 simplified specialist extraction prompts (issue #32) (2026-09-25)
+
+- Parallel `*_simplified` stems under `config/prompts/` for the five live
+  specialists. Each stem is **class-specific** (live schema, typical
+  document shape, class-local empty rules, class traps) — not a shared
+  generic extract template. Vendor mirrors (`contracts_specialist_v33`,
+  `*_production`) stay byte-identical for sync.
+- Correspondence no longer dual-lists retired `key_points` /
+  `referenced_communications` as registered fields; contracts no longer
+  trains `key_obligations` / `termination_clauses` then forbids them.
+- Run-20 / run-30 specialist YAMLs + `specialist_posture.prompt_file` pin
+  the simplified stems. `scripts/sync_specialist_prompts.py` default write
+  cannot clobber experiment pins (`--overwrite-experiment` is the opt-in).
+- **Empty / class-mismatched Hub GT is not a miss.**
+  `eval.extraction_scope` drops empty placeholders and other-class keys
+  (and aliases correspondence `claimed_amount` → `demand_amount`) before
+  `score_extraction_row` calls the dojo suite, so empty insurance-claim
+  fields on non-claim rows cannot pull down `overall_extraction_score` /
+  F1. Vendor `score_extraction` still treats `[]` as an event — we do not
+  edit `vendor/` (hub#62). Lock: `tests/test_extraction_scope.py`. Docs:
+  [`docs/evals.md`](docs/evals.md) §Extraction scoring.
+- Inventory + operator path: [`config/prompts/README.md`](config/prompts/README.md).
+  Catalog promotion remains in `LLM-Mailroom-Services/eval-environment`
+  issues 4–8 — not this package.
+
+### Added — SAND-018 single-class 20-contract Modal run + full-corpus logged sample (2026-09-25)
+
+- **`config/runs/run-20-contracts-specialist.yaml`** — the runbook's
+  [`docs/benchmark-l4.md`](docs/benchmark-l4.md) L4 Qwen pins (`Qwen/Qwen3-8B`,
+  L4, `v0.29.0`, `max_model_len=16384`, scaledown 120, `contracts_specialist_v33`
+  local prompt) applied to a **20-contract** single-class run drawn as a seeded
+  random sample (`sample_seed=42`) from the **full** corpus (`split: all`, 3,302
+  rows). Preflight records the draw (seed, rows, sha256) in `spec.lock.json`
+  and writes it to `dataset.jsonl` — the logged random sample.
+- **`job/specialist_posture.py`** — `run-20-contracts-specialist` posture row
+  (concurrency 4, `cost_cap_usd` 0.55, `max_wall_seconds` 3200) plus
+  `SPECIALIST_LIMIT_BY_RUN` / `expected_limit()`, so the per-doc-type pins cover
+  the 20-doc variant.
+- **`job/benchmark_check.py`** — the specialist `limit` + local-prompt-pin
+  enforcement now keys on the posture map (covers `run-20-*`), not only the
+  `run-30-*` prefix; a 20-doc YAML that forgot `limit: 20` fails the loud gate
+  instead of passing it silently.
+- Tests: `tests/test_specialist_posture.py` (posture coverage + gate rejects a
+  wrong limit).
+
+### Added — SAND-017 central subagent roster (2026-09-24)
+
+- **`config/subagents/family-roster.yaml`** — family-wide manifest (home package,
+  package membership, harness metadata) shared across Digital-Mailroom /
+  llm-mailroom / llm-entity-extraction / local-mailroom-sandbox.
+- **`.opencode/agents/`** — family prompt-engineer / eval-judge /
+  experiment-log-sync / trace-log-analyst / mailroom-arch-optimizer /
+  legal-changelog-auditor prompts plus sandbox-native **`harness-doctor`** and
+  **`adversarial-reviewer`**.
+- **Harness adapters:** `sandbox subagents sync --harness opencode|cursor|all`
+  (OpenCode frontmatter merge + Cursor stub generation);
+  **`sandbox subagents materialize --package … --root …`** copies the manifest and
+  missing prompts into sibling checkouts (`governance/subagents/` on digital-mailroom).
+- **`sandbox subagents propagate`** + [`config/subagents/checkout-map.yaml`](config/subagents/checkout-map.yaml)
+  — materialize + sync all mapped checkouts; monorepo hook
+  [`scripts/monorepo/after_packages_sync.py`](scripts/monorepo/after_packages_sync.py)
+  (wire via [`scripts/monorepo/INTEGRATION.md`](scripts/monorepo/INTEGRATION.md)).
+- Docs: [`docs/subagents-family-sync.md`](docs/subagents-family-sync.md).
+- Tests: `tests/test_subagents.py`.
+
+## [0.2.0] - 2026-09-24
+
+### Added — Modal/vLLM ↔ dojo cost-compare metrics parity (SAND-016)
+
+- **`sandbox metrics compare --fixture`** scores the Grant-style local /
+  Modal / API triple (`data/fixtures/serving/cost_compare.json`) through
+  both sandbox `job.metrics.compare` and vendored
+  `get_suite("local_vs_api")` / `compare_serving` (no GPU).
+- Adapter `mailroom_sandbox.eval.serving_parity` converts `latency_ms` /
+  `ttft_ms`, stamps champion token $ for `Qwen/Qwen3-8B`, and keeps
+  `serving_kind=modal` out of the local bucket (`eval local_vs_api --from-log`
+  now compares Modal↔API).
+- Three-way `$/doc` aggregation uses 8 decimal places (4 dp previously
+  rounded Grant token-proxy rates to 0).
+
 ### Added — full Hub corpus cache + per-class Modal samples (2026-09-24)
 
 - **`sandbox datasets pull`** defaults to the full
@@ -91,7 +240,7 @@
   **v0.7.1** (`2a212e76`, `vendor/llm-mailroom/VENDOR.md`), llm-dojo-scoring
   **v0.15.0** (`9db1417b`, vendor snapshot refreshed with the emitter
   counters in the same commit so the hub#62 drift guard stays byte-identical);
-  the corpus pin is **v9 `46a4d3c2`** (`FAMILY_HF_REVISION`).
+  the corpus pin is **v9.1 `ed7576b6`** (`FAMILY_HF_REVISION`).
 - **Tracing loudness:** `eval/tracing.py` now warns on every silent-degrade
   path (dojo constants fallback, mailroom-setup/SDK unavailability,
   `propagate_attributes` failure) and COUNTS lost score emissions + failed
@@ -139,8 +288,8 @@
   `Function.from_name(...).spawn(...)` consumption. Three phases (mock
   smoke → live vLLM → CLI). **Not yet shipped** — the card is still
   `in_progress` on the board and neither `docs/modal-doc-jobs.md` nor
-  `.opencode/agents/` exist in the tree yet; this entry documents the plan
-  only.
+  `.opencode/agents/` now ships the coding subagent roster (SAND-017); Modal
+  doc-jobs code remains unshipped — this entry documents the queue plan only.
 
 ### Added
 
@@ -298,6 +447,8 @@
   `opentelemetry-sdk`/`opentelemetry-exporter-otlp-proto-http`; new `hf`
   extra (`huggingface_hub`, `pyarrow`). Docs: `docs/jobs.md`. ~52 new
   network-free tests.
+
+## [0.1.0] - 2026-09-10
 
 ### Changed
 

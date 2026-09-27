@@ -78,6 +78,80 @@ def test_engine_probe_url_seam_normalizes_v1_suffix(monkeypatch, tmp_path):
     assert result["ok"] is False and "VLLM_API_KEY" in result["reason"]
 
 
+def test_probe_engine_records_cold_boot_seconds(monkeypatch, tmp_path):
+    """SAND-018: the live engine probe times the first successful response so a
+    cold app's boot is measured, not assumed."""
+    monkeypatch.setattr("httpx.get", lambda *a, **k: _FakeResp(200))
+    monkeypatch.setenv("VLLM_API_KEY", "tok")
+    spec = _run_spec(tmp_path)
+    result = preflight.probe_engine(spec)
+    assert result["ok"] is True
+    assert isinstance(result["cold_boot_seconds"], float)
+    assert result["cold_boot_seconds"] >= 0.0
+    # non-modal profiles keep the short CI-safe probe budget
+    assert result["probe_timeout_seconds"] == 10.0
+
+
+def test_probe_engine_retries_empty_2xx_until_ready(monkeypatch, tmp_path):
+    """SAND-018: a booting web_server can answer 2xx with an empty body before
+    vLLM is ready — the probe must retry, not misreport it as the wrong API."""
+    calls = {"n": 0}
+
+    class _Empty:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            raise ValueError("empty")
+
+    def fake_get(url, headers=None, timeout=None):
+        calls["n"] += 1
+        return _Empty() if calls["n"] == 1 else _FakeResp(200)
+
+    monkeypatch.setattr("httpx.get", fake_get)
+    monkeypatch.setenv("VLLM_API_KEY", "tok")
+    monkeypatch.setenv("SANDBOX_ENGINE_PROBE_TIMEOUT_SECONDS", "5")
+    spec = _run_spec(tmp_path)
+    result = preflight.probe_engine(spec)
+    assert result["ok"] is True
+    assert calls["n"] == 2
+    assert result["cold_boot_seconds"] >= 0.0
+
+
+def test_probe_timeout_modal_uses_boot_budget(monkeypatch, tmp_path):
+    """A scale-to-zero Modal app holds the probe open while it boots, so the
+    hard 10 s timeout would misreport a booting app as unreachable."""
+    monkeypatch.delenv("SANDBOX_ENGINE_PROBE_TIMEOUT_SECONDS", raising=False)
+    spec = _run_spec(tmp_path)
+    spec.engine.kind = "modal-vllm"
+    assert preflight._probe_timeout_seconds(spec) == 1200.0
+    monkeypatch.setenv("SANDBOX_ENGINE_PROBE_TIMEOUT_SECONDS", "42")
+    assert preflight._probe_timeout_seconds(spec) == 42.0
+
+
+def test_preflight_live_persists_cold_boot_and_record_carries_it(
+    monkeypatch, tmp_path, job_data_dir
+):
+    """SAND-018: `preflight --live` writes cold_boot.json and the run's
+    experiment-log record carries the measured boot."""
+    from mailroom_sandbox.job import runner
+
+    monkeypatch.setattr("httpx.get", lambda *a, **k: _FakeResp(200))
+    monkeypatch.setenv("VLLM_API_KEY", "tok")
+    spec = _run_spec(tmp_path, run_id="pf-coldboot")
+    report = preflight.preflight(spec, offline=True, live=True)
+    assert report["status"] == "prepared"
+    assert report["cold_boot_seconds"] >= 0.0
+    store = _store(report)
+    boot = store.read_cold_boot()
+    assert boot and boot["run_id"] == "pf-coldboot"
+    assert isinstance(boot["cold_boot_seconds"], float)
+
+    summary = runner.run_job(store, mock=True)
+    assert summary["state"] == "done"
+    assert summary["record"]["cold_boot_seconds"] == boot["cold_boot_seconds"]
+
+
 def _store(report):
     from mailroom_sandbox.job.checkpoint import RunStore
 

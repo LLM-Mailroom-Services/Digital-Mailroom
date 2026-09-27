@@ -1,0 +1,54 @@
+# DMR-068 / SAND-022 — scale matrix cell E1: 4xL4, concurrency 16, published FP8 on L4.
+# A/B delta vs D1 AWQ: same fleet + fixture; tests native Ada FP8 ($0.80/hr) vs AWQ.
+# Fixed-doc-size fixture — see docs/scale-matrix.md.
+# Deploy the fleet PINNED for measurement:
+#   MODAL_VLLM_MAX_NUM_SEQS=256 \
+#   MODAL_VLLM_MIN_CONTAINERS=4 MODAL_VLLM_MAX_CONTAINERS=4 \
+#   MODAL_VLLM_SCALEDOWN_SECONDS=600 modal deploy deploy/modal_vllm.py
+# Execution pending Modal spend approval (zero-spend PR).
+schema: sandbox.run/v1
+run_id: scale-e1-fp8-l4-4xl4-c16
+task: sorter
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file                 # fixture: data/fixtures/scale/e1.jsonl
+  local_path: file://data/fixtures/scale/e1.jsonl
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-FP8
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 256            # short-doc cell; override deploy default (6)
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: ""
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 600
+    max_containers: 4
+    min_containers: 4
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 16
+  cost_cap_usd: 3.00
+  max_wall_seconds: 7200
+
+trace:
+  sink: none
+  otlp: false
+  environment: scale
+  tags: [sandbox, job, scale-matrix, sand-022]

@@ -363,7 +363,7 @@ dataset:
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
   split: test
-  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (v9 mailroom-dataset GT-closure tip)
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (v9.1 mailroom-dataset quality tip; FAMILY_HF_REVISION)
   strata: {expected: [insurance_claim, contract]}
   limit: 50
   sample_seed: 42
@@ -445,7 +445,9 @@ sandbox health --profile modal-vllm
 | `MODAL_VLLM_GPU` | `L4` | GPU type |
 | `MODAL_VLLM_MAX_MODEL_LEN` | `16384` | Context cap — DMR-056: boot-valid default (v0.29.0 raises when the KV pool can't hold one request); AWQ/FP8 rows use 32768 |
 | `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | GPU memory fraction |
-| `MODAL_VLLM_MAX_NUM_SEQS` | `256` | Concurrency cap |
+| `MODAL_VLLM_MAX_NUM_SEQS` | `6` | L4 long-prompt admission (4–6) |
+| `MODAL_VLLM_ENABLE_PREFIX_CACHING` | `1` | APC |
+| `MODAL_VLLM_ENFORCE_EAGER` | `1` | Faster cold boot |
 | `MODAL_VLLM_TP_SIZE` | GPU `:N` suffix (1 single-GPU) | Tensor-parallel size — must match `MODAL_VLLM_GPU="A100-80GB:2"` for 70B-class |
 | `MODAL_VLLM_IMAGE_TAG` | `v0.29.0` | vLLM version pin |
 | `MODAL_VLLM_REVISION` | empty | HF revision pin |

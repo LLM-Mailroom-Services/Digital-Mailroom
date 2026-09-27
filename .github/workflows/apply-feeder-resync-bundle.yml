@@ -1,0 +1,51 @@
+# Applies merged feeder sync via PR branch (main is protected).
+name: Apply feeder resync bundle
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/apply-feeder-resync-bundle.yml"
+
+permissions:
+  contents: write
+
+env:
+  BUNDLE_BASE: https://raw.githubusercontent.com/Exios66/llm-dojo-scoring/b155825/tools/digital-mailroom-feeder-resync
+  TARGET_SHA: 357ac5bef3a6a92cbba49ad2633c3252fa192514
+  PR_BRANCH: cursor/feeder-sync-d595
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Skip if already on main
+        id: skip
+        run: |
+          if git merge-base --is-ancestor "$TARGET_SHA" HEAD; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch and decode bundle
+        if: steps.skip.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          for part in aa ab ac ad ae af ag ah ai; do
+            curl -fsSL "${BUNDLE_BASE}/bundle.b64.${part}" >> /tmp/feeder-resync.bundle.b64
+          done
+          base64 -d /tmp/feeder-resync.bundle.b64 > /tmp/feeder-resync.bundle
+          git bundle verify /tmp/feeder-resync.bundle
+
+      - name: Publish merged sync to PR branch
+        if: steps.skip.outputs.skip != 'true'
+        run: |
+          git fetch /tmp/feeder-resync.bundle HEAD:refs/heads/feeder-resync
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git merge --no-edit feeder-resync
+          git push --force origin HEAD:"$PR_BRANCH"

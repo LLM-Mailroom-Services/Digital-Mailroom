@@ -24,7 +24,7 @@ dataset:
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
   split: all
-  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
   sample_seed: 42
   strata:
     buckets:
@@ -38,7 +38,7 @@ dataset:
 # Offline after `sandbox datasets sample --per-class 40`:
 # dataset:
 #   provider: file
-#   local_path: data/cache/Lucius-Morningstar__mailroom-dataset__46a4d3c240a3/ground_truth_all_perclass40.jsonl
+#   local_path: data/cache/Lucius-Morningstar__mailroom-dataset__ed7576b67634/ground_truth_all_perclass40.jsonl
 
 engine:
   kind: modal-vllm
@@ -46,7 +46,9 @@ engine:
   vllm:
     max_model_len: 16384
     gpu_memory_utilization: 0.90
-    max_num_seqs: 256
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
     quantization: ""
     revision: ""
   modal:

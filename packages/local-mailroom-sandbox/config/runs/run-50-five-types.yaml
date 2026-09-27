@@ -10,7 +10,7 @@
 #
 # This spec uses nested doc_class buckets (sub_buckets): per-class subclass
 # quota draws, each quota <= observed availability in the pinned test split
-# (46a4d3c240a36671cde0182fff4960f6b8b73aca, ground_truth/test, n=300).
+# (ed7576b676343e0b402ec5412cded301e629bdee, ground_truth/test, n=300).
 # Quota sums = 50; strata guards HARD-FAIL on absence, constant-field, or
 # draw/limit drops; over-quota sub_buckets now fail loudly too (DMR-072).
 #
@@ -31,7 +31,7 @@ dataset:
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
   split: test
-  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (FAMILY_HF_REVISION)
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_REVISION)
   strata:
     buckets:
       # insurance_claim (114 rows): all 6 subclasses, 10 rows
@@ -93,7 +93,9 @@ engine:
   vllm:
     max_model_len: 16384      # boot-valid cap for L4-bf16 8B (v0.29.0 raises above)
     gpu_memory_utilization: 0.90
-    max_num_seqs: 256
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
     quantization: ""
     revision: ""
   modal:

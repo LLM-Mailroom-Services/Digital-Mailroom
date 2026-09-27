@@ -1,24 +1,31 @@
-# HF corpus — mailroom-dataset (v9)
+# HF corpus — mailroom-dataset (v9 / v9.1)
 
 The corpus family is published on the
 [Lucius-Morningstar HF org](https://huggingface.co/Lucius-Morningstar) via
 the **centralized** helpers in
 `packages/mailroom-corpus-eda/src/mailroom_eda/` — never ad-hoc upload code.
 
+## mailroom-dataset (v9.1 — quality revision, 2026-09-26)
+
+The **current** corpus pin is
+[`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
+@ **`ed7576b676343e0b402ec5412cded301e629bdee`** (v9.1 quality revision —
+mailroom-issues#196 Phase B; zero row/identity/content drift from the v9
+GT-closure tip below). Same **3,302 rows** and configs (`default` /
+`ground_truth` / `bundles` / `streams` / `fixtures`); adds B1/B2/B4 schema
+hygiene (`gt_presence`, context-window bands, weak-indirect signal removal).
+Pin the full SHA until Hub tag `v9.1` ships.
+
 ## mailroom-dataset (v9 — published 2026-09-12, GT-closure revision 2026-09-13)
 
-The **current** corpus is
-[`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
-— **3,302 rows**, pinned revision
-`46a4d3c240a36671cde0182fff4960f6b8b73aca` (GT-closure revision closing the
-v9 audit-sweep gaps: `supporting_documents` on the INSURBIAS auto rows,
-EX-10 `cuad_clause_labels` dated exception — epic #27). v9 is the successor
-of the frozen v8 baseline `mailroom-corpus` (2,000 rows, `eafe1ab4`): it
-carries the §84 hardened evaluation-contract columns (identity, provenance,
-matter)
-on the `ground_truth` config; configs `default` / `ground_truth` / `bundles`
-/ `streams` / `fixtures` keep the v8 shape. The v8 facts below remain the
-frozen baseline/lineage documentation.
+The v9 GT-closure tip is revision
+`46a4d3c240a36671cde0182fff4960f6b8b73aca` (audit-sweep gaps closed:
+`supporting_documents` on the INSURBIAS auto rows, EX-10 `cuad_clause_labels`
+dated exception — epic #27). v9 is the successor of the frozen v8 baseline
+`mailroom-corpus` (2,000 rows, `eafe1ab4`): it carries the §84 hardened
+evaluation-contract columns (identity, provenance, matter) on the
+`ground_truth` config. The v8 facts below remain the frozen baseline/lineage
+documentation.
 
 ## mailroom-corpus (v8 — FROZEN baseline; verified 2026-09-02, HUB-028; renamed from `docclass-merged` 2026-09-02)
 
@@ -89,7 +96,7 @@ supporting_documents, cuad_clause_labels, maud_clause_labels, intent,
 subject_matter, keywords, intent_source, intent_confidence, intent_status`
 
 Corpus strata vocabulary (per doc type, used by eval targets) — re-pinned to
-the current dataset GT (mailroom-dataset v9, tip `46a4d3c2`, 3,302 rows;
+the current dataset GT (mailroom-dataset v9.1, tip `ed7576b6`, 3,302 rows;
 DMR-071 2026-09-16: the dataset pin is the source of truth; the v8-era
 `voicemail` correspondence key is not in the v9 GT vocabulary and left every
 catalog surface):

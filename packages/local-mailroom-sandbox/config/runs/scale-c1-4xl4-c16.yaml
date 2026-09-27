@@ -1,6 +1,7 @@
 # DMR-068 — scale matrix cell C1: 4xL4, concurrency 16, bf16 baseline.
 # Fixed-doc-size fixture (2k/6k/12k char buckets) — see docs/scale-matrix.md.
 # Deploy the fleet PINNED for measurement:
+#   MODAL_VLLM_MAX_NUM_SEQS=256 \
 #   MODAL_VLLM_MIN_CONTAINERS=4 MODAL_VLLM_MAX_CONTAINERS=4 \
 #   MODAL_VLLM_SCALEDOWN_SECONDS=600 modal deploy deploy/modal_vllm.py
 schema: sandbox.run/v1
@@ -21,7 +22,9 @@ engine:
   vllm:
     max_model_len: 16384
     gpu_memory_utilization: 0.90
-    max_num_seqs: 256
+    max_num_seqs: 256            # short-doc cell; override deploy default (6)
+    enable_prefix_caching: true
+    enforce_eager: true
     quantization: ""
     revision: ""
   modal:

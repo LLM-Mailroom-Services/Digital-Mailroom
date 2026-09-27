@@ -115,7 +115,7 @@ sandbox prompts show sorter --variant sorter_local_v0   # local variant stem
 ```bash
 sandbox datasets prepare                # offline: load/clean fixtures → data/runtime/prepared/ (no network)
 sandbox datasets pull                   # LIVE pinned FULL Hub pull (NETWORK):
-#   Lucius-Morningstar/mailroom-dataset@46a4d3c2 ground_truth train+test
+#   Lucius-Morningstar/mailroom-dataset@ed7576b6 ground_truth train+test
 #   (3,302 rows) → data/cache/…, sha256-verified. Required for 20/40/100-per-class.
 sandbox datasets sample --per-class 40  # offline draw from that cache (merger cap 152)
 sandbox datasets pull --max-rows 50 --config ground_truth --split test --revision <sha-or-tag>
@@ -173,6 +173,7 @@ sandbox run --profile modal-vllm start --config config/runs/x.yaml --job-mode mo
 
 ```bash
 sandbox metrics compare --runs local,modal,api    # table + scorecard from serving fixtures
+sandbox metrics compare --fixture                 # Grant cost-compare parity (no GPU)
 sandbox eval local_vs_api --mock                  # offline serving comparison (fixtures)
 sandbox eval local_vs_api --from-log              # …or from reports/experiment_log.jsonl
 sandbox traces export                             # dump recorded trace ids → data/traces/export.json

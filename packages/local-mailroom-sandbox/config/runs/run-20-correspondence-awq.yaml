@@ -1,0 +1,87 @@
+# SAND-019 (AWQ) — Specialist extract: correspondence_specialist on 20
+# CORRESPONDENCE docs drawn as a seeded random sample from the FULL
+# mailroom-dataset (split=all, 3,302 rows). Mirror of run-20-contracts-awq:
+# same engine (Qwen/Qwen3-8B-AWQ) and cost posture, different class.
+#
+# Unblocked by the SAND-019 corpus fix: the pinned HF ``ground_truth`` config
+# stores field labels in ``gt_fields`` (JSON string). The loader read only
+# ``expected_fields`` and produced {} for all 3,302 rows, so every specialist
+# extraction scored null. The alias mapping now populates expected_fields, so
+# this run produces a real, scorable overall_extraction_score.
+#
+# Deploy (AWQ env — see `sandbox modal-matrix env Qwen/Qwen3-8B-AWQ`):
+#   modal profile activate hermes-agent-jjb
+#   export SANDBOX_PROFILE=modal-vllm MODAL_VLLM_MODEL=Qwen/Qwen3-8B-AWQ \
+#     MODAL_VLLM_QUANTIZATION=awq MODAL_VLLM_MAX_MODEL_LEN=32768 \
+#     MODAL_VLLM_GPU=L4 MODAL_VLLM_IMAGE_TAG=v0.29.0 \
+#     MODAL_VLLM_MAX_CONTAINERS=1 MODAL_VLLM_SCALEDOWN_SECONDS=120
+#   modal run deploy/modal_vllm.py::download_model
+#   modal deploy deploy/modal_vllm.py --strategy recreate
+#   sandbox run preflight --config config/runs/run-20-correspondence-awq.yaml --live
+#   sandbox run start --config config/runs/run-20-correspondence-awq.yaml --job-mode endpoint --watch
+#   ./deploy/teardown_vllm.sh
+schema: sandbox.run/v1
+run_id: run-20-correspondence-awq
+task: correspondence_specialist
+profile: modal-vllm
+
+prompt:
+  # SAND-026 simplified pin (config/prompts/correspondence_specialist_simplified.txt)
+  # for reproducible Modal L4 Qwen runs — not Langfuse floating production. DMR-074/078.
+  default: {source: code-default}
+  agents:
+    correspondence_specialist:
+      source: local
+      file: correspondence_specialist_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  # split: all — the FULL corpus (train+test, 3,302 rows). The 20-doc draw is a
+  # seeded random sample from the correspondence class (1,000 available at the pin).
+  split: all
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      - doc_class: correspondence
+        count: 20
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768      # AWQ KV headroom; correspondence docs are short
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: awq
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    # Attended cost-saver (DMR-076). Unattended/overnight: restore 600 here
+    # and export MODAL_VLLM_SCALEDOWN_SECONDS=600 before redeploy.
+    scaledown_seconds: 120
+    max_containers: 1         # cost guard — do not raise for specialist runs
+    min_containers: 0         # scale-to-zero after idle
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 5              # short narrative docs fill L4 continuous batching
+  cost_cap_usd: 0.35        # abort if wall×L4 $/hr exceeds (20-doc correspondence posture)
+  max_wall_seconds: 1800    # hard wall abort
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-20-correspondence-awq
+  tags: [sandbox, job, specialist, correspondence, qwen3-8b-awq, l4, benchmark, sand-019]

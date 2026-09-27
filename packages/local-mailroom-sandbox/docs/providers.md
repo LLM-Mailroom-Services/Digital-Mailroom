@@ -19,6 +19,8 @@ CHTC/HTCondor job paths, and the portable conda env — is documented in
 [`remote-serving.md`](remote-serving.md).
 
 OpenRouter is **opt-in**. The default `.env` does not set `OPENROUTER_API_KEY`.
+For the 2026-10-10 hosted **Qwen3-8B** catalog sunset vs local weights, see
+[`openrouter-sunset-audit.md`](openrouter-sunset-audit.md) (SAND-024 / issue #30).
 Comparable serving metrics (TTFT, throughput, GPU on local only) are scored
 with `sandbox eval local_vs_api --mock` via dojo `get_suite("local_vs_api")` —
 no API key is required for the fixture path.

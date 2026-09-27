@@ -114,7 +114,7 @@ def test_datasets_pull_success_prints_rows_and_exit0(monkeypatch, capsys):
         return {
             "rows": 7,
             "sha256": "a" * 64,
-            "revision_resolved": "46a4d3c2",
+            "revision_resolved": "ed7576b6",
             "metadata": {"source": "huggingface"},
         }
 
@@ -145,7 +145,7 @@ def test_datasets_pull_zero_max_rows_is_full_corpus(monkeypatch, capsys):
         return {
             "rows": 3302,
             "sha256": "c" * 64,
-            "revision_resolved": "46a4d3c2",
+            "revision_resolved": "ed7576b6",
             "metadata": {"source": "huggingface"},
         }
 

@@ -20,6 +20,10 @@ from mailroom_sandbox.datasets import (
     parse_expected_fields,
 )
 from mailroom_sandbox.eval import experiment_log, scoring, tracing
+from mailroom_sandbox.eval.prompt_provenance import (
+    resolve_logged_prompt_version,
+    stamp_prompt_provenance,
+)
 from mailroom_sandbox.eval.scoring import emit
 from mailroom_sandbox.mock_llm import fake_client, fake_structured_payload
 from mailroom_sandbox.runtime import activate, resolve_mailroom_src
@@ -55,6 +59,51 @@ def _classify_mock(row: dict[str, Any]) -> str:
     return str(row.get("expected_doc_class") or row.get("doc_type") or "unknown")
 
 
+def _run_rows_bounded(
+    rows: list[Any],
+    *,
+    workers: int,
+    run_one,
+    on_result,
+    guard,
+) -> None:
+    """Execute ``run_one(i, row)`` with at most ``workers`` in flight.
+
+    Guards *before every new submission*: a tripped wall/cost cap must stop
+    starting work immediately. An eager submit-all pool would keep burning GPU
+    on already-queued rows after the cap fired, so a concurrent run could
+    silently overshoot its budget (SAND-018 cost-guard accuracy).
+    """
+    from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+
+    n = len(rows)
+    if workers <= 1:
+        for index in range(n):
+            guard()
+            on_result(index, run_one(index, rows[index]))
+        return
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures: dict[Any, int] = {}
+        nxt = 0
+        try:
+            while nxt < n or futures:
+                guard()
+                while nxt < n and len(futures) < workers:
+                    futures[pool.submit(run_one, nxt, rows[nxt])] = nxt
+                    nxt += 1
+                if not futures:
+                    break
+                done, _ = wait(list(futures), return_when=FIRST_COMPLETED)
+                for fut in done:
+                    index = futures.pop(fut)
+                    on_result(index, fut.result())
+        except Exception:
+            for fut in futures:
+                fut.cancel()
+            raise
+
+
 def _predict_spec(spec, row: dict[str, Any], *, mock: bool) -> tuple[dict[str, Any], bool]:
     """Predict one row; ``fell_back`` is True only when NO live fn exists.
 
@@ -67,6 +116,10 @@ def _predict_spec(spec, row: dict[str, Any], *, mock: bool) -> tuple[dict[str, A
     if spec.live_predict is None:
         return spec.mock_predict(row), True
     return spec.live_predict(row), False
+
+
+def _logged_prompt(prompt_version: str | None, *, task: str) -> tuple[str, str | None]:
+    return resolve_logged_prompt_version(prompt_version, task=task)
 
 
 def run_isolated_eval(
@@ -82,6 +135,12 @@ def run_isolated_eval(
     agent_models: dict[str, str] | None = None,
     connected: bool = False,
     rows: list[dict[str, Any]] | None = None,
+    cold_boot_seconds: float | None = None,
+    concurrency: int = 1,
+    max_wall_seconds: float | None = None,
+    cost_cap_usd: float | None = None,
+    gpu: str | None = None,
+    progress_cb: Any = None,
 ) -> dict[str, Any]:
     """Run one live agent / node against fixtures, nested under document-pipeline.
 
@@ -91,7 +150,20 @@ def run_isolated_eval(
     """
     from mailroom_sandbox.eval.agents import spec_for
 
+    import statistics
+    import time
+
+    from mailroom_sandbox.job.usage_capture import (
+        merge_item_metrics,
+        reset_usage,
+        usage_from_pipeline,
+    )
+
     spec = spec_for(task)
+    if prompt_version is None:
+        from mailroom_sandbox.eval_environment_lineage import default_prompt_variant
+
+        prompt_version = default_prompt_variant(task)
     rows = spec.load_rows() if rows is None else rows
     if sample:
         rows = rows[: sample]
@@ -116,16 +188,22 @@ def run_isolated_eval(
     )
     session = tracing.session_id_for(task)
     matches: list[float] = []
-    per_row: list[dict[str, Any]] = []
+    per_row: list[dict[str, Any] | None] = [None] * len(rows)
     offline = 0
     errors = 0
-    for row in rows:
+
+    def _run_one(index: int, row: dict[str, Any]) -> dict[str, Any]:
         seed = str(row.get("id") or row.get("filename") or task)
+        started = time.perf_counter()
         error: str | None = None
         pred: dict[str, Any] = {}
         scored: dict[str, Any] = {}
         fell_back = False
+        usage: dict[str, Any] = {}
         try:
+            # SAND-018: reset the thread's usage accumulator so this row's tokens
+            # are its own — without it, pooled rows sum into one inflated total.
+            reset_usage()
             with tracing.document_pipeline_trace(
                 seed=seed,
                 session_id=session,
@@ -140,23 +218,84 @@ def run_isolated_eval(
                 ):
                     pred, fell_back = _predict_spec(spec, row, mock=mock)
                 scored = spec.score_one(row, pred)
+            # SAND-018: per-item token capture — the isolated path used to drop
+            # usage entirely, so a specialist run had no tokens/latency to report.
+            usage = usage_from_pipeline()
         except Exception as exc:  # noqa: BLE001 — recorded as an item error, never a silent mock
             error = f"{type(exc).__name__}: {str(exc)[:300]}"
-            errors += 1
-        if fell_back:
+        entry: dict[str, Any] = {
+            "id": row.get("id"),
+            "pred": pred,
+            "score": scored,
+            "offline_fallback": fell_back,
+            "error": error,
+        }
+        entry.update(
+            merge_item_metrics(
+                latency_ms=round((time.perf_counter() - started) * 1000.0, 3),
+                usage=usage,
+            )
+        )
+        return entry
+
+    def _absorb(entry: dict[str, Any]) -> None:
+        nonlocal offline, errors
+        if entry.get("offline_fallback"):
             offline += 1
+        if entry.get("error"):
+            errors += 1
+        scored = entry.get("score") or {}
         match = scored.get("match")
         if match is None and "overall_extraction_score" in scored:
             match = scored.get("overall_extraction_score") or 0.0
         if isinstance(match, (int, float)):
             matches.append(float(match))
-        per_row.append(
-            {"id": row.get("id"), "pred": pred, "score": scored, "offline_fallback": fell_back, "error": error}
-        )
+
+    budget_started = time.perf_counter()
+
+    def _guard() -> None:
+        """Wall/cost abort so a whole-run task cannot silently overrun its caps.
+
+        The per-item loop already enforces these; isolated agent tasks had no
+        guard at all (SAND-018: a 20-doc run overspent its $0.55 cap).
+        """
+        wall = time.perf_counter() - budget_started
+        if max_wall_seconds is not None and wall >= float(max_wall_seconds):
+            raise RuntimeError(
+                f"isolated eval aborted: max_wall_seconds={max_wall_seconds} "
+                f"exceeded (wall={wall:.1f}s) — protecting spend"
+            )
+        if cost_cap_usd is not None:
+            from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
+
+            est = float(estimate_gpu_cost_usd(wall, gpu=gpu or "L4") or 0.0)
+            if est >= float(cost_cap_usd):
+                raise RuntimeError(
+                    f"isolated eval aborted: cost_cap_usd={cost_cap_usd} exceeded "
+                    f"(est_gpu_usd={est:.4f} at wall={wall:.1f}s) — protecting spend"
+                )
+
+    workers = max(1, min(int(concurrency), len(rows) or 1))
+
+    def _record(index: int, entry: dict[str, Any]) -> None:
+        per_row[index] = entry
+        _absorb(entry)
+        # SAND-018: the isolated path used to be silent until the end — no
+        # running checkpoint, no events — so a live run looked stalled.
+        if progress_cb is not None:
+            done = sum(1 for e in per_row if e is not None)
+            try:
+                progress_cb(done, len(rows), done - errors, errors)
+            except Exception as exc:  # noqa: BLE001 — progress must never break a run
+                _log.warning("progress_cb raised — live progress may stall: %s", exc)
+
+    _run_rows_bounded(rows, workers=workers, run_one=_run_one, on_result=_record, guard=_guard)
+
     if rows and errors == len(rows):
+        last_error = next((e for e in reversed(per_row) if e and e.get("error")), None)
         raise RuntimeError(
             f"live eval {task!r}: all {len(rows)} row(s) failed — the live path was not "
-            f"exercised (last error: {per_row[-1].get('error')})"
+            f"exercised (last error: {(last_error or {}).get('error')})"
         )
     mean = scoring.mean_or_zero(matches)
     scores = {"exact_match": mean, "n": len(rows), "offline_fallback": offline, "error_count": errors}
@@ -165,6 +304,13 @@ def run_isolated_eval(
     # row lacked the key but later rows carried it.
     if any("overall_extraction_score" in (r.get("score") or {}) for r in per_row):
         scores["overall_extraction_score"] = mean
+    schema_rows = [
+        r.get("score") or {}
+        for r in per_row
+        if r and "parse_error" in (r.get("score") or {})
+    ]
+    if schema_rows:
+        scores.update(scoring.aggregate_schema_adherence(schema_rows))
     tracing.emit_langfuse_score("class_correct" if spec.observation == "classify-document" else "stage_completed", mean)
     tracing.flush_traces()
     if ScoreRecord is not None:
@@ -176,13 +322,19 @@ def run_isolated_eval(
                 run_id=experiment_name,
             )
         )
+    completed = [e for e in per_row if e is not None]
+    latencies = [float(e["latency_ms"]) for e in completed if e.get("latency_ms") is not None]
+    prompt_tokens = sum(int(e.get("prompt_tokens") or 0) for e in completed)
+    completion_tokens = sum(int(e.get("completion_tokens") or 0) for e in completed)
+    wall_seconds = round(time.perf_counter() - budget_started, 3)
+    logged_prompt, prompt_sha = _logged_prompt(prompt_version, task=task)
     record = experiment_log.new_record(
         experiment_name=experiment_name or f"sandbox_{task}",
         task=task,
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
         model=model or (activation.assignments[0][2] if activation.assignments else None),
-        prompt_version=prompt_version or "mailroom-default",
+        prompt_version=logged_prompt,
         mock=mock,
         dataset_fingerprint=plan["fingerprint"],
         n=len(rows),
@@ -192,8 +344,50 @@ def run_isolated_eval(
         session_id=session,
         trace_ids=tracing.last_trace_ids(),
     )
+    if prompt_sha:
+        record["prompt_sha256"] = prompt_sha
+    stamp_prompt_provenance(record, logged_prompt, prompt_sha)
+    # SAND-018: per-item serving metrics used to be absent on the isolated path.
+    if latencies:
+        record["e2e_latency_seconds"] = round(statistics.mean(latencies) / 1000.0, 6)
+        record["latency_p50_seconds"] = round(statistics.median(latencies) / 1000.0, 6)
+        record["latency_max_seconds"] = round(max(latencies) / 1000.0, 6)
+    if prompt_tokens:
+        record["prompt_tokens"] = prompt_tokens
+    if completion_tokens:
+        record["completion_tokens"] = completion_tokens
+    if prompt_tokens or completion_tokens:
+        record["total_tokens"] = prompt_tokens + completion_tokens
+    record["wall_seconds"] = wall_seconds
+    if int(concurrency) > 1:
+        record["concurrency"] = int(concurrency)
+    # SAND-018: carry the measured engine cold boot into the record so it lands
+    # in reports/experiment_log.jsonl (the whole-run path appends its own copy).
+    if cold_boot_seconds is not None:
+        record["cold_boot_seconds"] = float(cold_boot_seconds)
+    # SAND-018 cost accuracy: bill GPU-seconds over the whole warm interval
+    # (cold boot + run wall), not just the per-call busy time — the reported
+    # cost must match what Modal charges. Skipped for mock (no GPU spend).
+    if not mock:
+        from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
+
+        billed_seconds = wall_seconds + (
+            float(cold_boot_seconds) if cold_boot_seconds is not None else 0.0
+        )
+        gpu_cost = estimate_gpu_cost_usd(billed_seconds, gpu=gpu or "L4")
+        if gpu_cost is not None:
+            record["gpu_seconds"] = round(billed_seconds, 3)
+            record["estimated_gpu_cost_usd"] = gpu_cost
+            if len(completed) > 0:
+                record["gpu_cost_per_document"] = round(gpu_cost / len(completed), 8)
     experiment_log.append(record)
-    return {**plan, "scores": scores, "record": record, "rows": per_row}
+    return {
+        **plan,
+        "scores": scores,
+        "record": record,
+        "rows": completed,
+        "wall_seconds": wall_seconds,
+    }
 
 
 def run_sorter_eval(
@@ -261,13 +455,14 @@ def run_sorter_eval(
                     run_id=experiment_name,
                 )
             )
+    logged_prompt, prompt_sha = _logged_prompt(prompt_version, task="sorter")
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_sorter",
         task="sorter",
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
         model=model or (activation.assignments[0][2] if activation.assignments else None),
-        prompt_version=prompt_version or "mailroom-default",
+        prompt_version=logged_prompt,
         mock=mock,
         dataset_fingerprint=plan["fingerprint"],
         n=len(rows),
@@ -299,6 +494,7 @@ def run_extract_eval(
         return plan
     activation = activate(profile, model=model, prompt_variant=prompt_version, agent_models=agent_models)
     overall: list[float] = []
+    schema_rows: list[dict[str, Any]] = []
     for row in rows:
         expected_fields = parse_expected_fields(row) or {}
         if mock:
@@ -313,18 +509,22 @@ def run_extract_eval(
             doc_text=row.get("doc_text")
             or (fixture_file(row).read_text(encoding="utf-8") if fixture_file(row).is_file() else None),
         )
+        schema_rows.append(scored)
         value = scored.get("overall_extraction_score")
         if isinstance(value, (int, float)):
             overall.append(float(value))
     mean = sum(overall) / len(overall) if overall else 0.0
     scores = {"overall_extraction_score": mean, "n": len(rows)}
+    if schema_rows:
+        scores.update(scoring.aggregate_schema_adherence(schema_rows))
+    logged_prompt, prompt_sha = _logged_prompt(prompt_version, task="extract")
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_extract",
         task="extract",
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
         model=model,
-        prompt_version=prompt_version or "mailroom-default",
+        prompt_version=logged_prompt,
         mock=mock,
         dataset_fingerprint=plan["fingerprint"],
         scores=scores,
@@ -580,7 +780,7 @@ def run_local_vs_api_eval(
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
         model=model,
-        prompt_version=prompt_version or "mailroom-default",
+        prompt_version=_logged_prompt(prompt_version, task="local_vs_api")[0],
         mock=mock,
         dataset_fingerprint=plan["fingerprint"],
         n=scores["n"],
@@ -708,13 +908,14 @@ def run_sorter_vs_modernbert_eval(
         "honest_gaps": compared.get("honest_gaps") or [],
         "n": int(left.get("n") or 0) + int(right.get("n") or 0),
     }
+    logged_prompt, prompt_sha = _logged_prompt(prompt_version, task="sorter_vs_modernbert")
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_sorter_vs_modernbert",
         task="sorter_vs_modernbert",
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
         model=model,
-        prompt_version=prompt_version or "mailroom-default",
+        prompt_version=logged_prompt,
         mock=mock,
         dataset_fingerprint=plan["fingerprint"],
         n=scores["n"],
@@ -798,6 +999,7 @@ def run_pipeline_eval(
     stage_predicted = [str(r.get("stage") or "unknown") for r in results]
     stage_scores = scoring.score_stage(stage_expected, stage_predicted)
     extract_vals: list[float] = []
+    schema_rows: list[dict[str, Any]] = []
     if connected:
         for row, result in zip(rows, results):
             expected_fields = parse_expected_fields(row) or {}
@@ -816,6 +1018,7 @@ def run_pipeline_eval(
                     else None
                 ),
             )
+            schema_rows.append(scored)
             value = scored.get("overall_extraction_score")
             if isinstance(value, (int, float)):
                 extract_vals.append(float(value))
@@ -830,18 +1033,21 @@ def run_pipeline_eval(
         "routing_accuracy": routing.get("exact_match"),
         "connected": connected,
     }
+    if schema_rows:
+        scores.update(scoring.aggregate_schema_adherence(schema_rows))
     tracing.emit_langfuse_score("class_correct", float(scores["class_correct"] or 0))
     tracing.emit_langfuse_score("stage_correct", float(scores["stage_correct"] or 0))
     if scores["extraction_overall"] is not None:
         tracing.emit_langfuse_score("extraction_overall_score", float(scores["extraction_overall"]))
     tracing.flush_traces()
+    logged_prompt, prompt_sha = _logged_prompt(prompt_version, task="pipeline")
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_pipeline",
         task="pipeline",
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
         model=model,
-        prompt_version=prompt_version or "mailroom-default",
+        prompt_version=logged_prompt,
         mock=mock,
         dataset_fingerprint=plan["fingerprint"],
         n=len(rows),

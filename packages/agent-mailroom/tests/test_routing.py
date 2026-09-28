@@ -95,3 +95,22 @@ def test_mock_classify_rules_are_well_formed():
     assert mock.classify(filing)["doc_type"] == "unknown"
     for text in (msa, "agreement and plan of merger; surviving corporation"):
         assert mock.classify(text)["doc_type"] in extractable_types()
+
+
+def test_sorter_exception_stays_visible_in_escalation_reason(monkeypatch):
+    """A crashing sorter must not masquerade as a genuine unknown document."""
+    from pathlib import Path
+
+    from agent_mailroom.pipeline import nodes
+    from agent_mailroom.pipeline.state import RunState
+
+    def boom(agent, text):
+        raise RuntimeError("provider exploded")
+
+    monkeypatch.setattr(nodes, "run_agent", boom)
+    state = RunState(doc_id="x", matter_id="M", original_filename="a.txt", file_path=Path("a.txt"))
+    state.doc_text = "anything"
+    out = nodes.node_classify(state)
+    assert out.doc_type == "unknown"
+    assert "unknown_or_invalid_type" in out.escalation_reason
+    assert "sorter failed: provider exploded" in out.escalation_reason

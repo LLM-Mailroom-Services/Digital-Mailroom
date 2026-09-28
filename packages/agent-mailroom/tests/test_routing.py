@@ -80,3 +80,37 @@ def test_arbiter_retry_bound_is_two():
     assert second == "retry_extract"
     spent = after_arbiter(_state(arbiter_decision="retry_extraction", arbiter_retry_count=3))
     assert spent == "human_review"
+
+
+def test_mock_classify_rules_are_well_formed():
+    """Every mock rule is (doc_type, conf, needles); a bare (conf, needles)
+    tuple left behind by a taxonomy removal made every contract/merger
+    document fall through to `unknown` and park in review."""
+    from agent_mailroom.config.loader import extractable_types
+    from agent_mailroom.llm import mock
+
+    msa = "MASTER SERVICES AGREEMENT\nNOW, THEREFORE ...\nGoverning Law.\nIN WITNESS WHEREOF"
+    assert mock.classify(msa)["doc_type"] == "contract"
+    filing = "FORM 10-K\nSecurities and Exchange Commission\nItem 1A. Risk Factors"
+    assert mock.classify(filing)["doc_type"] == "unknown"
+    for text in (msa, "agreement and plan of merger; surviving corporation"):
+        assert mock.classify(text)["doc_type"] in extractable_types()
+
+
+def test_sorter_exception_stays_visible_in_escalation_reason(monkeypatch):
+    """A crashing sorter must not masquerade as a genuine unknown document."""
+    from pathlib import Path
+
+    from agent_mailroom.pipeline import nodes
+    from agent_mailroom.pipeline.state import RunState
+
+    def boom(agent, text):
+        raise RuntimeError("provider exploded")
+
+    monkeypatch.setattr(nodes, "run_agent", boom)
+    state = RunState(doc_id="x", matter_id="M", original_filename="a.txt", file_path=Path("a.txt"))
+    state.doc_text = "anything"
+    out = nodes.node_classify(state)
+    assert out.doc_type == "unknown"
+    assert "unknown_or_invalid_type" in out.escalation_reason
+    assert "sorter failed: provider exploded" in out.escalation_reason

@@ -1,0 +1,61 @@
+{
+  "note": "Grant-style Qwen3 cost-compare fixture. Millisecond job fields + HF Modal id + OpenRouter champion. Not live GPU. Token $ uses the sandbox champion table (0.03/0.13 per 1M) matching qwen/qwen3.7-flash.",
+  "local": {
+    "serving_kind": "local",
+    "provider": "ollama",
+    "profile": "ollama",
+    "model": "qwen3:8b",
+    "task": "sorter",
+    "prompt_version": "mailroom-default",
+    "dataset_fingerprint": "fixture-cost-compare-v0",
+    "n": 2,
+    "latency_ms": 2400,
+    "ttft_ms": 400,
+    "prompt_tokens": 1000,
+    "completion_tokens": 500,
+    "scores": {
+      "accuracy": 0.98,
+      "f1_macro": 0.97,
+      "exact_match": 0.98
+    }
+  },
+  "modal": {
+    "profile": "modal-vllm",
+    "provider": "vllm",
+    "model": "Qwen/Qwen3-8B",
+    "gpu": "L4",
+    "task": "sorter",
+    "prompt_version": "mailroom-default",
+    "dataset_fingerprint": "fixture-cost-compare-v0",
+    "n": 2,
+    "latency_ms": 1800,
+    "ttft_ms": 250,
+    "prompt_tokens": 1000,
+    "completion_tokens": 500,
+    "billed_window_seconds": 3.0,
+    "scores": {
+      "accuracy": 0.98,
+      "f1_macro": 0.97,
+      "exact_match": 0.98
+    }
+  },
+  "api": {
+    "serving_kind": "api",
+    "provider": "openrouter",
+    "profile": "openrouter",
+    "model": "qwen/qwen3.7-flash",
+    "task": "sorter",
+    "prompt_version": "mailroom-default",
+    "dataset_fingerprint": "fixture-cost-compare-v0",
+    "n": 2,
+    "latency_ms": 900,
+    "ttft_ms": 150,
+    "prompt_tokens": 1000,
+    "completion_tokens": 500,
+    "scores": {
+      "accuracy": 0.99,
+      "f1_macro": 0.98,
+      "exact_match": 0.99
+    }
+  }
+}

@@ -40,7 +40,8 @@ from the repo root limited to `board-site/`):
 ```
 board-site/
 ├── index.html          static single-page dispatch board (fetches /api/board)
-├── vercel.json         clean URLs + api maxDuration
+├── vercel.json         clean URLs + api maxDuration + ignoreCommand (skip deploy when board-site/ unchanged)
+├── scripts/ignore-build.sh  monorepo Ignored Build Step (doc-only PRs do not burn Vercel quota)
 ├── api/
 │   ├── board.js        GET  live cards (labels=kanban) · POST new card
 │   └── board/[id].js   PATCH write-back for one card
@@ -161,6 +162,12 @@ section's content) and recovers bodies previously corrupted by an old bug.
 | `MAILROOM_GITHUB_REPO` | Optional override of the repo the board reads/writes (default `LLM-Mailroom-Services/Digital-Mailroom`). |
 
 ## Deploy / redeploy
+
+**Preview / PR deploys:** `board-site/vercel.json` sets `git.deploymentEnabled`
+to `main` only and `ignoreCommand` → `scripts/ignore-build.sh` (skip when
+`board-site/` is unchanged). The Vercel project also disables preview
+deployments while the hobby-tier build quota is tight — production `main`
+deploys are unaffected.
 
 **Git integration (live since DMR-004, 2026-09-09):** a push to `main` builds
 `board-site/` automatically — the Vercel GitHub App is installed on the

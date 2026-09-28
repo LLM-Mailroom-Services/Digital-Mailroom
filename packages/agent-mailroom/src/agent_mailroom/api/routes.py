@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import glob
 import os
 import threading
 from pathlib import Path
@@ -99,7 +100,10 @@ def _auth_required() -> bool:
 
 def _accept_inbox(raw: bytes, filename: str, *, doc_id: str, matter_id: str, source: str) -> list[str]:
     """Write inbox + sidecar. Drain immediately under MAILROOM_SYNC; else the watcher claims it."""
-    enqueue_inbox(raw, filename, doc_id=doc_id, matter_id=matter_id, source=source)
+    try:
+        enqueue_inbox(raw, filename, doc_id=doc_id, matter_id=matter_id, source=source)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if os.environ.get("MAILROOM_SYNC") == "1":
         return scan_inbox()
     return []
@@ -194,7 +198,7 @@ def ops_status(authorization: str | None = Header(default=None)) -> dict[str, An
                 """
                 SELECT COUNT(*) AS n FROM documents
                 WHERE stage IN ('processing', 'classified', 'inbox')
-                  AND updated_at < datetime('now', '-15 minutes')
+                  AND datetime(updated_at) < datetime('now', '-15 minutes')
                 """
             ).fetchone()["n"]
     review = list_review_queue()
@@ -348,12 +352,26 @@ def resolve(
         )
         return {"status": "recorded", "doc_id": doc_id}
 
+    # Only `record` annotates a document in any stage; every other
+    # disposition acts on the parked review file.
+    if row.get("stage") != "review":
+        raise HTTPException(
+            status_code=409,
+            detail=f"document is in stage {row.get('stage')!r}, not review",
+        )
+
     if disposition == "requeue":
-        parked = next(review_dir().glob(f"{doc_id}--*"), None)
+        parked = next(review_dir().glob(f"{glob.escape(doc_id)}--*"), None)
         if parked is None:
             raise HTTPException(status_code=404, detail="no parked file")
         new_id = str(uuid4())
-        _accept_inbox(parked.read_bytes(), parked.name, doc_id=new_id, matter_id=row["matter_id"], source="requeue")
+        _accept_inbox(
+            parked.read_bytes(),
+            row.get("original_filename") or parked.name,
+            doc_id=new_id,
+            matter_id=row["matter_id"],
+            source="requeue",
+        )
         from agent_mailroom.storage.audit import write_audit
 
         write_audit(
@@ -369,7 +387,7 @@ def resolve(
         raise HTTPException(status_code=400, detail="disposition=complete requires decision=approved")
 
     if decision == "rejected":
-        parked = next(review_dir().glob(f"{doc_id}--*"), None)
+        parked = next(review_dir().glob(f"{glob.escape(doc_id)}--*"), None)
         if parked is None:
             raise HTTPException(status_code=404, detail="no parked file")
         state = RunState(
@@ -389,7 +407,7 @@ def resolve(
     if disposition == "complete" and decision == "approved":
         from agent_mailroom.pipeline.runner import archive_document
 
-        parked = next(review_dir().glob(f"{doc_id}--*"), None)
+        parked = next(review_dir().glob(f"{glob.escape(doc_id)}--*"), None)
         if parked is None:
             raise HTTPException(status_code=404, detail="no parked file")
         doc_type = override or row.get("doc_type")

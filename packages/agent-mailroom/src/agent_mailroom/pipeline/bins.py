@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import glob
 import hashlib
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -29,7 +31,27 @@ def failed_dir() -> Path:
     return _ensure(_path("failed"))
 
 
+_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+def validate_path_segment(value: str, field: str = "matter_id") -> str:
+    """Reject values that would escape a bin when used as a directory name.
+
+    matter_id and doc_type become archive sub-directories, so ``../x`` or an
+    absolute path would write outside MAILROOM_BASE_DIR.
+    """
+    text = str(value or "")
+    if not _SEGMENT_RE.match(text):
+        raise ValueError(
+            f"invalid {field} {text!r}: use 1-128 letters, digits, '.', '_' or '-', "
+            "starting with a letter or digit"
+        )
+    return text
+
+
 def archive_dir(matter_id: str, doc_type: str) -> Path:
+    validate_path_segment(matter_id, "matter_id")
+    validate_path_segment(doc_type, "doc_type")
     return _ensure(_path("archive") / matter_id / doc_type)
 
 
@@ -92,6 +114,7 @@ def enqueue_inbox(
     source: str = "upload",
 ) -> Path:
     """Park a file in the inbox with a sidecar. The watcher (or scan_inbox) claims it."""
+    validate_path_segment(matter_id, "matter_id")
     name = safe_filename(filename)
     dest = inbox_dir() / f"{doc_id}--{name}"
     dest.write_bytes(raw)
@@ -158,7 +181,14 @@ def list_classified_snapshots(limit: int = 80) -> list[dict]:
     ensure_bins()
     root = classified_dir()
     rows: list[dict] = []
-    for path in sorted(root.rglob("*"), key=lambda p: p.stat().st_mtime, reverse=True):
+    stamped: list[tuple[float, Path]] = []
+    for path in root.rglob("*"):
+        try:
+            # A file can move out mid-scan (the runner reclaims it).
+            stamped.append((path.stat().st_mtime, path))
+        except FileNotFoundError:
+            continue
+    for _, path in sorted(stamped, key=lambda item: item[0], reverse=True):
         if not path.is_file() or "--" not in path.name:
             continue
         doc_id, name = path.name.split("--", 1)
@@ -195,21 +225,21 @@ def locate_document(doc_id: str) -> dict:
         files = [p for p in proc.iterdir() if p.is_file()]
         if files:
             return {"bin": "processing", "path": files[0]}
-    parked = next(review_dir().glob(f"{doc_id}--*"), None)
+    parked = next(review_dir().glob(f"{glob.escape(doc_id)}--*"), None)
     if parked:
         return {"bin": "review", "path": parked}
-    failed = next(failed_dir().glob(f"{doc_id}--*"), None)
+    failed = next(failed_dir().glob(f"{glob.escape(doc_id)}--*"), None)
     if failed:
         return {"bin": "failed", "path": failed}
     archive_root = _path("archive")
     if archive_root.exists():
-        hits = sorted(archive_root.rglob(f"{doc_id}--*"))
+        hits = sorted(archive_root.rglob(f"{glob.escape(doc_id)}--*"))
         files = [p for p in hits if p.is_file()]
         if files:
             return {"bin": "archive", "path": files[0]}
     classified_root = _path("classified")
     if classified_root.exists():
-        hits = sorted(classified_root.rglob(f"{doc_id}--*"))
+        hits = sorted(classified_root.rglob(f"{glob.escape(doc_id)}--*"))
         files = [p for p in hits if p.is_file()]
         if files:
             return {"bin": "classified", "path": files[0]}

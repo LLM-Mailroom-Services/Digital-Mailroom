@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import glob
 import json
 import logging
 from pathlib import Path
@@ -465,12 +466,12 @@ def resume_from_review(doc_id: str, *, doc_type: str | None = None) -> RunState:
     row = get_document(doc_id) or load_manifest(doc_id)
     if not row:
         raise KeyError(doc_id)
-    parked = next(review_dir().glob(f"{doc_id}--*"), None)
+    parked = next(review_dir().glob(f"{glob.escape(doc_id)}--*"), None)
     if parked is None:
         raise FileNotFoundError(f"no parked review file for {doc_id}")
-    work = processing_dir(doc_id) / row["original_filename"]
-    work.parent.mkdir(parents=True, exist_ok=True)
-    work.write_bytes(parked.read_bytes())
+    # Move, not copy: a stale parked copy made locate_document keep reporting
+    # the review bin, and a later reject would flip the archived doc to failed.
+    work = move_file(parked, processing_dir(doc_id), row["original_filename"])
     state = RunState(
         doc_id=doc_id,
         matter_id=row["matter_id"],

@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from agent_mailroom.api.routes import router
+from agent_mailroom.api.routes import active_api_tokens, router
 from agent_mailroom.api.security import SecurityHeadersMiddleware, cors_origins
 from agent_mailroom.api.ws import bind_loop, hub
 from agent_mailroom.config.loader import base_dir
@@ -50,6 +50,11 @@ def create_app() -> FastAPI:
 
     @app.websocket("/ws")
     async def websocket_floor(ws: WebSocket) -> None:
+        # Same bearer gate as the REST routes; the office UI passes ?token=.
+        tokens = active_api_tokens()
+        if tokens and ws.query_params.get("token", "") not in tokens:
+            await ws.close(code=1008)
+            return
         await hub.connect(ws)
         try:
             while True:

@@ -80,3 +80,18 @@ def test_arbiter_retry_bound_is_two():
     assert second == "retry_extract"
     spent = after_arbiter(_state(arbiter_decision="retry_extraction", arbiter_retry_count=3))
     assert spent == "human_review"
+
+
+def test_mock_classify_rules_are_well_formed():
+    """Every mock rule is (doc_type, conf, needles); a bare (conf, needles)
+    tuple left behind by a taxonomy removal made every contract/merger
+    document fall through to `unknown` and park in review."""
+    from agent_mailroom.config.loader import extractable_types
+    from agent_mailroom.llm import mock
+
+    msa = "MASTER SERVICES AGREEMENT\nNOW, THEREFORE ...\nGoverning Law.\nIN WITNESS WHEREOF"
+    assert mock.classify(msa)["doc_type"] == "contract"
+    filing = "FORM 10-K\nSecurities and Exchange Commission\nItem 1A. Risk Factors"
+    assert mock.classify(filing)["doc_type"] == "unknown"
+    for text in (msa, "agreement and plan of merger; surviving corporation"):
+        assert mock.classify(text)["doc_type"] in extractable_types()

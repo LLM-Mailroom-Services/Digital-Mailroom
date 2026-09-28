@@ -46,7 +46,9 @@ packages/llm-mailroom/data/
 packages/The-Mailroom/data/
 
 packages/The-Mailroom/site/
-packages/local-mailroom-sandbox/data/
+packages/local-mailroom-sandbox/data/*
+# Sandbox fixtures are tracked (the package .gitignore ignores runtime data).
+!packages/local-mailroom-sandbox/data/fixtures/
 packages/agent-mailroom/data/
 packages/Enron-Evaluation-Environment/data/
 packages/claims-data-eda/data/

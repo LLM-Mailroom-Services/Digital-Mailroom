@@ -10,6 +10,18 @@ from agent_mailroom.pipeline.report import compile_matter_record
 from agent_mailroom.pipeline.state import RunState
 
 
+def _escalation(flags: list[str], agent: str, error: object) -> str | None:
+    """Guard flags plus the agent error, so a crashed agent stays visible.
+
+    Before, the guard flags overwrote the error: a sorter exception surfaced
+    only as ``unknown_or_invalid_type`` and read like a genuine unknown doc.
+    """
+    parts = list(flags)
+    if error:
+        parts.append(f"{agent} failed: {error}")
+    return ",".join(parts) or None
+
+
 def node_intake(state: RunState) -> RunState:
     state.stage = "processing"
     if not state.doc_text:
@@ -25,8 +37,6 @@ def node_classify(state: RunState, *, reviewer: bool = False) -> RunState:
         result = run_agent(agent, state.doc_text[:12000])
     except Exception as exc:
         result = {"doc_type": "unknown", "confidence": 0.0, "reasoning": str(exc), "error": str(exc)}
-    if result.get("error"):
-        state.escalation_reason = str(result["error"])
     state.doc_type = result.get("doc_type") or state.doc_type
     state.contract_subtype = result.get("contract_subtype") or state.contract_subtype
     state.doc_subclass = result.get("doc_subclass") or state.doc_subclass
@@ -34,8 +44,9 @@ def node_classify(state: RunState, *, reviewer: bool = False) -> RunState:
     state.classification_confidence = conf
     if not reviewer:
         state.classification_attempts += 1
-    if flags:
-        state.escalation_reason = ",".join(flags)
+    reason = _escalation(flags, agent, result.get("error"))
+    if reason:
+        state.escalation_reason = reason
     state.stage = "classified" if state.doc_type and state.doc_type != "unknown" else "processing"
     return state
 
@@ -47,14 +58,13 @@ def node_extract(state: RunState) -> RunState:
         result = run_agent(specialist, user)
     except Exception as exc:
         result = {"confidence": 0.0, "error": str(exc)}
-    if result.get("error"):
-        state.escalation_reason = str(result["error"])
     conf, flags = guard_extraction(state.doc_type, result, result.get("confidence"))
     state.extracted_data = result
     state.extraction_confidence = conf
     state.extraction_attempts += 1
-    if flags:
-        state.escalation_reason = ",".join(flags)
+    reason = _escalation(flags, specialist, result.get("error"))
+    if reason:
+        state.escalation_reason = reason
     conflict, reason = detect_conflict(state)
     state.conflict_detected = conflict
     if conflict:

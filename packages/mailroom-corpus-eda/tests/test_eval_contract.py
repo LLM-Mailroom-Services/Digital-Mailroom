@@ -60,9 +60,8 @@ INSURANCE = {
 
 def test_expected_specialist_registry_mapping():
     assert ec.expected_specialist(CANONICAL_ROW) == "contracts_specialist"
-    # §6: merger_agreement is a distinct class that routes to the contracts
-    # specialist — the mapping must keep both facts visible.
-    assert ec.expected_specialist({"expected": "merger_agreement"}) == "contracts_specialist"
+    # DMR-078: merger_agreement is a distinct class with its own specialist.
+    assert ec.expected_specialist({"expected": "merger_agreement"}) == "merger_agreement_specialist"
     assert ec.expected_specialist({"expected": "corporate_record"}) == "corporate_records_specialist"
     assert ec.expected_specialist({"expected": "correspondence"}) == "correspondence_specialist"
     assert ec.expected_specialist({"expected": "insurance_claim"}) == "insurance_claims_specialist"

@@ -27,10 +27,6 @@ def classify(text: str) -> dict[str, Any]:
             ("board of directors", "resolved,", "written consent", "bylaws"),
         ),
         (
-            0.98,
-            ("form 10-k", "form 10-q", "securities and exchange", "item 1a"),
-        ),
-        (
             "merger_agreement",
             0.99,
             ("agreement and plan of merger", "surviving corporation", "merger consideration"),

@@ -745,7 +745,7 @@ wheels = [
 
 [[package]]
 name = "braintrust"
-version = "0.35.0"
+version = "0.42.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "chevron" },
@@ -759,9 +759,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "wrapt" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b3/d1/1a7b83a583b30bfb7beef835a202618031aae45482f5277cc43b27694c58/braintrust-0.35.0.tar.gz", hash = "sha256:c14ff048f3ca6757de61547e3310851b317ff801c985cf1e9147f1433440135e", size = 828756, upload-time = "2026-08-27T15:43:53.108Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e8/1e/302a6c5a833279caf4ccd072c6181d6ee81ce67721a23e59262837e89822/braintrust-0.42.0.tar.gz", hash = "sha256:bd91b8149c65c3aa1f250930c5a671fb7d9111c4b27a9530bfec6279827bc8e6", size = 963161, upload-time = "2026-09-22T19:52:32.567Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8d/1d/35081dfd2f6dd7d6a9389deef13007e99391d7e2ead5fe14a4847dc78532/braintrust-0.35.0-py3-none-any.whl", hash = "sha256:b9a007230b77a1a55d7edc97f74bac9d6de19c1b9f9ce78d030d7a8e1d00b9de", size = 973749, upload-time = "2026-08-27T15:43:51.349Z" },
+    { url = "https://files.pythonhosted.org/packages/7d/2e/27abeceda990a309b8600729369f271a48de102d76292c2c2dca449a4d43/braintrust-0.42.0-py3-none-any.whl", hash = "sha256:42c664d80cb6f62c347804b92f351a73aff239f8a4313e6006d0ff9e7f32bc9f", size = 1157277, upload-time = "2026-09-22T19:52:30.581Z" },
 ]
 
 [[package]]
@@ -3069,7 +3069,7 @@ wheels = [
 
 [[package]]
 name = "llm-dojo-scoring"
-version = "0.15.0"
+version = "0.16.0"
 source = { editable = "packages/llm-dojo-scoring" }
 dependencies = [
     { name = "jellyfish" },
@@ -3582,7 +3582,7 @@ dev = [
 
 [[package]]
 name = "mailroom-sandbox"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "packages/local-mailroom-sandbox" }
 dependencies = [
     { name = "httpx" },
@@ -3594,11 +3594,15 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
+    { name = "scipy" },
     { name = "structlog" },
 ]
 
 [package.optional-dependencies]
 all = [
+    { name = "aiosqlite" },
+    { name = "braintrust" },
+    { name = "greenlet" },
     { name = "huggingface-hub" },
     { name = "ipykernel" },
     { name = "jupyterlab" },
@@ -3611,7 +3615,10 @@ all = [
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
     { name = "pandas" },
+    { name = "pdfplumber" },
+    { name = "pillow" },
     { name = "pyarrow" },
+    { name = "pypdf" },
     { name = "pytest" },
     { name = "pytest-mock" },
     { name = "requests" },
@@ -3638,14 +3645,20 @@ notebooks = [
     { name = "pandas" },
 ]
 observability = [
+    { name = "braintrust" },
     { name = "langfuse" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
 ]
 pipeline = [
+    { name = "aiosqlite" },
+    { name = "greenlet" },
     { name = "langchain-core" },
     { name = "langchain-openai" },
     { name = "langgraph" },
+    { name = "pdfplumber" },
+    { name = "pillow" },
+    { name = "pypdf" },
     { name = "requests" },
     { name = "sqlalchemy" },
     { name = "watchdog" },
@@ -3653,6 +3666,9 @@ pipeline = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiosqlite", marker = "extra == 'pipeline'", specifier = ">=0.20" },
+    { name = "braintrust", marker = "extra == 'observability'", specifier = ">=0.42,<0.43" },
+    { name = "greenlet", marker = "extra == 'pipeline'", specifier = ">=3.0" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=0.24" },
     { name = "huggingface-hub", marker = "extra == 'hf'", specifier = ">=0.24" },
@@ -3673,14 +3689,18 @@ requires-dist = [
     { name = "opentelemetry-sdk", marker = "extra == 'observability'", specifier = ">=1.25" },
     { name = "pandas", specifier = ">=2.0" },
     { name = "pandas", marker = "extra == 'notebooks'", specifier = ">=2.2" },
+    { name = "pdfplumber", marker = "extra == 'pipeline'", specifier = ">=0.11" },
+    { name = "pillow", marker = "extra == 'pipeline'", specifier = ">=10.0" },
     { name = "pyarrow", marker = "extra == 'dev'", specifier = ">=15.0" },
     { name = "pyarrow", marker = "extra == 'hf'", specifier = ">=15.0" },
     { name = "pydantic", specifier = ">=2.0" },
+    { name = "pypdf", marker = "extra == 'pipeline'", specifier = ">=4.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.12" },
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "requests", marker = "extra == 'pipeline'", specifier = ">=2.31" },
+    { name = "scipy", specifier = ">=1.11" },
     { name = "sqlalchemy", marker = "extra == 'pipeline'", specifier = ">=2.0" },
     { name = "structlog", specifier = ">=24.0" },
     { name = "watchdog", marker = "extra == 'pipeline'", specifier = ">=4.0" },

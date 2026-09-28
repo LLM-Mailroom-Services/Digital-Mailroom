@@ -40,7 +40,8 @@ from the repo root limited to `board-site/`):
 ```
 board-site/
 ├── index.html          static single-page dispatch board (fetches /api/board)
-├── vercel.json         clean URLs + api maxDuration
+├── vercel.json         clean URLs + api maxDuration + ignoreCommand (skip deploy when board-site/ unchanged)
+├── scripts/ignore-build.sh  monorepo Ignored Build Step (doc-only PRs do not burn Vercel quota)
 ├── api/
 │   ├── board.js        GET  live cards (labels=kanban) · POST new card
 │   └── board/[id].js   PATCH write-back for one card
@@ -83,15 +84,14 @@ The UI PATCHes on every move/save. Only the changed keys need to be sent:
   assignees (agent names aren't repo users and GitHub rejects them with
   422).
 - **Owner dropdown (edit modal):** the Owner field is a `<select>` with
-  `<optgroup>`s — **Agent roles** (hardcoded 11-entry list in
-  `board-site/index.html` — `athena-database-agent`, `lucius`, `atom`,
-  `prompt-engineer`, `hazel-ui-software-master`,
-  `jarvis-systems-maximizer`, `vllm-specialist`, `modal-specialist`,
-  `board-evidence-auditor`, `explore`, `general`; AGENTS.md's roster has
-  since grown to 15 entries with DMR-062 — the 4 additions
-  (`archivist-file-organizer`, `code-analyst`, `test-suite-auditor`,
-  `orchestrator-governor`) are not yet in the dropdown; refresh tracked on
-  DMR-075), **Models** (GLM-5.3-Flash, GLM-4.7-Flash,
+  `<optgroup>`s — **Agent roles** (hardcoded 15-entry list in
+  `board-site/index.html` matching the AGENTS.md roster —
+  `athena-database-agent`, `lucius`, `atom`, `prompt-engineer`,
+  `hazel-ui-software-master`, `jarvis-systems-maximizer`,
+  `vllm-specialist`, `modal-specialist`, `board-evidence-auditor`,
+  `explore`, `general`, plus the DMR-062 additions
+  `archivist-file-organizer`, `code-analyst`, `test-suite-auditor`,
+  `orchestrator-governor` (DMR-075)), **Models** (GLM-5.3-Flash, GLM-4.7-Flash,
   Claude Opus/Sonnet 4.5, GPT-5, Gemini 2.5 Pro, Llama 4 Maverick,
   DeepSeek V3.2, Kimi K2, Qwen 3 Max), **Users** (`lucius (Jack J
   Burleson)`, `human`), **Harness composites** (`opencode (GLM-5.3-Flash)`),
@@ -162,6 +162,12 @@ section's content) and recovers bodies previously corrupted by an old bug.
 | `MAILROOM_GITHUB_REPO` | Optional override of the repo the board reads/writes (default `LLM-Mailroom-Services/Digital-Mailroom`). |
 
 ## Deploy / redeploy
+
+**Preview / PR deploys:** `board-site/vercel.json` sets `git.deploymentEnabled`
+to `main` only and `ignoreCommand` → `scripts/ignore-build.sh` (skip when
+`board-site/` is unchanged). The Vercel project also disables preview
+deployments while the hobby-tier build quota is tight — production `main`
+deploys are unaffected.
 
 **Git integration (live since DMR-004, 2026-09-09):** a push to `main` builds
 `board-site/` automatically — the Vercel GitHub App is installed on the

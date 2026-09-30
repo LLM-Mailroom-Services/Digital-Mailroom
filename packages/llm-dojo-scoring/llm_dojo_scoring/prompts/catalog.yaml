@@ -15,16 +15,26 @@ prompts:
   priming: []
 - agent: contracts_specialist
   family: production
-  version: contracts_specialist_v32
+  version: contracts_specialist_v33
   kind: llm
   metrics_bundle: extraction
   doc_bundle: contract
   source_repo: llm-mailroom
-  source_key: contracts_specialist_v32
+  source_key: contracts_specialist_v33
   template: contracts_specialist.production.md
   priming:
   - colloquial_precision
   - colloquial_completeness
+- agent: merger_agreement_specialist
+  family: production
+  version: SYSTEM_PROMPT
+  kind: llm
+  metrics_bundle: extraction
+  doc_bundle: merger_agreement
+  source_repo: llm-mailroom
+  source_key: SYSTEM_PROMPT
+  template: merger_agreement_specialist.production.md
+  priming: []
 - agent: corporate_records_specialist
   family: production
   version: SYSTEM_PROMPT

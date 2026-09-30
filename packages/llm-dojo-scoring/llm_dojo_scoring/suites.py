@@ -55,6 +55,7 @@ __all__ = [
 #: Specialist profile name → native mailroom document class.
 SPECIALIST_DOC_TYPES: dict[str, str] = {
     "contracts_specialist": "contract",
+    "merger_agreement_specialist": "merger_agreement",
     "corporate_records_specialist": "corporate_record",
     "due_diligence_specialist": "due_diligence",
     "correspondence_specialist": "correspondence",
@@ -64,15 +65,14 @@ SPECIALIST_DOC_TYPES: dict[str, str] = {
 }
 
 #: Doc-type lookup aliases (mailroom ``doc_type`` → specialist suite).
-#: ``merger_agreement`` is a MAUD-grounded contract subtype scored by the
-#: contracts specialist with the MAUD consideration catalog rebound.
+#: ``merger_agreement`` routes to its own ``merger_agreement_specialist``
+#: suite (MergerAgreementExtraction) since llm-mailroom 0.7.1.
 DOC_TYPE_ALIASES: dict[str, str] = {
     **{doc_type: agent for agent, doc_type in SPECIALIST_DOC_TYPES.items()},
-    "merger_agreement": "contracts_specialist",
 }
 
 #: Default field→scoring-type maps, mirrored from llm-mailroom
-#: ``config/taxonomy.yaml`` / ``EXTRACTION_SCHEMAS`` (v0.6.0 pared product).
+#: ``config/taxonomy.yaml`` / ``EXTRACTION_SCHEMAS`` (llm-mailroom 0.7.1 @959bb0b).
 #: Open-ended ``key_obligations`` / ``termination_clauses`` / ``key_provisions``
 #: / long ``key_points`` are retired from the live board — score CUAD/MAUD/
 #: insurance checklists + the semantic trio instead. Override with
@@ -171,14 +171,13 @@ DEFAULT_FIELD_TYPES: dict[str, dict[str, str]] = {
         "document_name": "name",
         "parties": "entity_list:name",
         "effective_date": "date",
-        "term_length": "free_text",
+        "effective_time": "free_text",
         "governing_law": "name",
-        "contract_value": "money",
-        "renewal_terms": "free_text",
-        "cuad_family": "name",
         "merger_consideration": "name",
-        "cuad_clauses": "entity_list:free_text",
         "maud_clauses": "entity_list:free_text",
+        "intent": "name",
+        "subject_matter": "free_text",
+        "keywords": "entity_list:name",
     },
 }
 
@@ -265,6 +264,17 @@ _AGENT_EXTRAS: dict[str, tuple[str, ...]] = {
         "maud_question_macro_accuracy",
         "maud_clause_presence",
         "maud_valid_class_rate",
+    ),
+    "merger_agreement_specialist": (
+        "jaccard_similarity",
+        "laziness_rate",
+        "hallucination_rate",
+        "date_mae_days",
+        "maud_question_accuracy",
+        "maud_question_macro_accuracy",
+        "maud_clause_presence",
+        "maud_valid_class_rate",
+        "maud_category_accuracy",
     ),
     "corporate_records_specialist": (
         "date_mae_days",
@@ -772,6 +782,12 @@ class ScoringSuite:
                 sent_e, sent_p = payload["sentiment_label"]
             if "maud" in payload and maud_e is None:
                 maud_e, maud_p = payload["maud"]
+        elif isinstance(expected, list) != isinstance(predicted, list):
+            raise TypeError(
+                "score(): expected and predicted must both be dicts (one "
+                "document) or both be lists (a batch); got "
+                f"{type(expected).__name__} vs {type(predicted).__name__}"
+            )
         else:
             extraction = _run(expected, predicted, doc_text)
 

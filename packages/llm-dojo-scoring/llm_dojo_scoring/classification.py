@@ -68,8 +68,19 @@ def failure(output, expected) -> float:
 
 
 def accuracy(expected: list, predicted: list) -> float:
-    """Overall exact-match accuracy over paired predictions."""
-    if not expected:
+    """Overall exact-match accuracy over paired predictions.
+
+    Failed rows (``ERROR_PREFIX`` predictions) are skipped, like every sibling
+    metric here — report them through :func:`failure`. Mismatched lengths
+    raise instead of silently truncating to the shorter list.
+    """
+    expected, predicted = list(expected), list(predicted)
+    if len(expected) != len(predicted):
+        raise ValueError(
+            f"accuracy(): {len(expected)} expected vs {len(predicted)} predicted labels"
+        )
+    pairs = [(e, p) for e, p in zip(expected, predicted) if not str(p).startswith(ERROR_PREFIX)]
+    if not pairs:
         return 0.0
     pairs: list[tuple] = []
     for e, p in zip(expected, predicted):

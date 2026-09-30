@@ -33,6 +33,9 @@ from .equivalences import (
 
 __all__ = [
     "CORPUS_ID",
+    "CORPUS_REVISION",
+    "CORPUS_REVISION_SHA",
+    "CONTEXT_WINDOW_BANDS",
     "CORPUS_DOC_TYPES",
     "CORPUS_ABSENT_DOC_TYPES",
     "NATIVE_DOC_TYPES",
@@ -253,7 +256,7 @@ CORPUS_DIFFERENTIATORS: dict[str, tuple[str, ...]] = {
 }
 
 #: Extraction-schema fields each specialist suite must score, aligned to
-#: mailroom v0.6.0 ``EXTRACTION_SCHEMAS`` + taxonomy ``field_types`` (pared
+#: llm-mailroom 0.7.1 ``EXTRACTION_SCHEMAS`` + taxonomy ``field_types`` (pared
 #: checklists + semantic trio; no open-ended key_obligations dumps).
 #: ``document_name`` is on the contracts / merger schema (CUAD Document Name).
 CORPUS_EXTRACTION_FIELDS: dict[str, tuple[str, ...]] = {
@@ -274,14 +277,13 @@ CORPUS_EXTRACTION_FIELDS: dict[str, tuple[str, ...]] = {
         "document_name",
         "parties",
         "effective_date",
-        "term_length",
+        "effective_time",
         "governing_law",
-        "contract_value",
-        "renewal_terms",
-        "cuad_family",
         "merger_consideration",
-        "cuad_clauses",
         "maud_clauses",
+        "intent",
+        "subject_matter",
+        "keywords",
     ),
     "corporate_record": (
         "entity_name",
@@ -465,8 +467,8 @@ CORRESPONDENCE_SENTIMENT_LABELS: tuple[str, ...] = (
 
 #: Specialist ``claim_type`` extraction enum — Hub CMS tokens first, then
 #: legacy FNOL product lines. Orthogonal to the subclass dimension only in
-#: the published merge (all 400 rows use CMS tables as ``expected_subclass``
-#: and ``claim_type=health``); mailroom now accepts CMS tokens on
+#: the published merge (CMS source tables plus the property / auto lines as
+#: ``expected_subclass``); mailroom now accepts CMS tokens on
 #: ``claim_type`` as well (``doc_inventories.INSURANCE_CLAIM_TYPES``).
 INSURANCE_CLAIM_TYPES: tuple[str, ...] = (
     "pde",

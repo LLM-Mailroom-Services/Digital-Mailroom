@@ -1,0 +1,65 @@
+# One-shot: archive DMR-077 on cursor/archive-dmr-077-4adf after PR #124 merge.
+# Not for main. Deletes itself after applying the board edit.
+name: Archive DMR-077 (one-shot)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [cursor/archive-dmr-077-4adf]
+    paths:
+      - ".github/workflows/archive-dmr-077-4adf.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/cursor/archive-dmr-077-4adf'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: cursor/archive-dmr-077-4adf
+          fetch-depth: 1
+
+      - name: Move DMR-077 Open -> Archive
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path("governance/TASKS.md")
+          text = p.read_text()
+          open_row = "| DMR-077 | `in_progress` | **Pull-only feeder import:** overlay current Exios66 tips into `packages/*` without subtree-push (feeder wins on overlap; hub-only files kept). Critical: `llm-dojo-scoring` v0.19.1 (`f6ae6ece`) and `local-mailroom-sandbox` `@62a71e99`, plus mailroom/entity/agent/The-Mailroom/corpus-eda tips. Then bump consumer pins to `@v0.19.1` and `sync_vendor.py` so sandbox vendor matches the workspace. | cursor-agent 2026-10-05 | \u2014 | board-only hub sync (no push to Exios66). Branch `cursor/feeder-pull-dojo-sandbox-4adf`. Restores hub `CHANGELOG.md` after the dojo squash leaked the package changelog onto the hub root. Pins + vendor refresh in the same PR. Hub #233 closed (dojo v0.19.1). Residual: #235 schema-copy report, #236\u2013#241 archive-row consumer wiring, dojo #29/#30 prompt mirrors, dojo #31 `get_prompt(..., family=\"production_prompts\")` call-site conversion. |"
+          arch_row = "- **DMR-077** (done 2026-10-05) \u2014 **Pull-only feeder import (dojo v0.19.1 + sandbox @62a71e9 + remaining Exios66 tips); consumer pins @v0.19.1; sandbox vendor workspace refresh** \u2014 Owner `cursor-agent` \u2014 DELIVERED + MERGED: overlay import with feeder-wins on overlap, hub-only files kept, **no subtree-push**. Merge [`0ccbcb09`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/commit/0ccbcb095a4cee71c6a1ce98ba1169388201d68e) / PR [#124](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/pull/124). Cursors: dojo `f6ae6ece` v0.19.1, sandbox `62a71e99`, mailroom `ceec589a`, entity `775b0ed6`, agent-mailroom `e511c773`, The-Mailroom `d7b388ef`, corpus-eda `2a620023`. `sync_vendor.py --check` 0 drift. Residuals stay on mailroom-issues [#235](https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/235) (schema-copy report), [#236](https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/236)\u2013[#241](https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/241) (archive-row consumer wiring), dojo [#29](https://github.com/Exios66/llm-dojo-scoring/issues/29)/[#30](https://github.com/Exios66/llm-dojo-scoring/issues/30)/[#31](https://github.com/Exios66/llm-dojo-scoring/issues/31) (`get_prompt` call sites). Board-only \u2014 no synced issue."
+          if "| DMR-077 |" not in text:
+              if arch_row in text:
+                  print("already archived")
+              else:
+                  raise SystemExit("DMR-077 row not found")
+          else:
+              needle = open_row + "\n"
+              if needle not in text:
+                  raise SystemExit("open row mismatch")
+              text = text.replace(needle, "", 1)
+              marker = "## Archive\n\n"
+              if marker not in text:
+                  raise SystemExit("Archive heading missing")
+              if arch_row not in text:
+                  text = text.replace(marker, marker + arch_row + "\n", 1)
+              p.write_text(text)
+              print("archived DMR-077")
+          PY
+
+      - name: Commit board archive and remove one-shot workflow
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/archive-dmr-077-4adf.yml
+          git add governance/TASKS.md
+          git add -A .github/workflows/archive-dmr-077-4adf.yml
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+            exit 0
+          fi
+          git commit -m "Archive DMR-077 after feeder-import merge 0ccbcb09 (#124)" -m "governance/TASKS.md: move DMR-077 from the Open table to Archive. The pull-only feeder import (dojo v0.19.1 + sandbox @62a71e99 + remaining Exios66 tips, consumer pins @v0.19.1, sandbox vendor workspace refresh) landed on main as merge 0ccbcb09 / PR #124 on 2026-10-05. Board-only card (no synced GitHub issue). Residuals stay on mailroom-issues #235-#241 and dojo #29/#30/#31. Do not subtree-push pin/vendor edits to Exios66 feeders. Also remove this one-shot workflow so it does not remain on the branch."
+          git push origin HEAD:cursor/archive-dmr-077-4adf

@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 720 202" width="720" height="202" role="img" aria-label="Production prompt → eval-environment v2 prompt">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --good:#0ca30c; --critical:#d03b3b; }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+<rect class="bg" width="720" height="202" rx="8"/>
+<text class="title" x="16" y="24">Production prompt → eval-environment v2 prompt</text>
+<text class="sub" x="16" y="42">Same docs · overall extraction score (0–1, higher is better)</text>
+<circle class="s1" cx="22" cy="58" r="5"/><text class="lbl" x="32" y="62">production</text>
+<circle class="s2" cx="122" cy="58" r="5"/><text class="lbl" x="132" y="62">v2</text>
+<line class="grid" x1="220.0" y1="74" x2="220.0" y2="168"/>
+<text class="tick" x="220.0" y="184" text-anchor="middle">0</text>
+<line class="grid" x1="325.0" y1="74" x2="325.0" y2="168"/>
+<text class="tick" x="325.0" y="184" text-anchor="middle">0.2</text>
+<line class="grid" x1="430.0" y1="74" x2="430.0" y2="168"/>
+<text class="tick" x="430.0" y="184" text-anchor="middle">0.4</text>
+<line class="grid" x1="535.0" y1="74" x2="535.0" y2="168"/>
+<text class="tick" x="535.0" y="184" text-anchor="middle">0.6</text>
+<line class="grid" x1="640.0" y1="74" x2="640.0" y2="168"/>
+<text class="tick" x="640.0" y="184" text-anchor="middle">0.8</text>
+<text class="lbl" x="212" y="97.0" text-anchor="end">correspondence (paired n=50)</text>
+<line class="conn" x1="377.5" y1="93.0" x2="399.5" y2="93.0"/>
+<circle class="s1 ring" cx="377.5" cy="93.0" r="5"><title>correspondence (paired n=50) · production: 0.300</title></circle>
+<circle class="s2 ring" cx="399.5" cy="93.0" r="5"><title>correspondence (paired n=50) · v2: 0.342</title></circle>
+<text class="val" x="409.5" y="97.0">0.342</text>
+<text class="lbl" x="212" y="127.0" text-anchor="end">insurance_claim (paired n=50)</text>
+<line class="conn" x1="581.2" y1="123.0" x2="578.6" y2="123.0"/>
+<circle class="s1 ring" cx="581.2" cy="123.0" r="5"><title>insurance_claim (paired n=50) · production: 0.688</title></circle>
+<circle class="s2 ring" cx="578.6" cy="123.0" r="5"><title>insurance_claim (paired n=50) · v2: 0.683</title></circle>
+<text class="val" x="591.2" y="127.0">0.683</text>
+<text class="lbl" x="212" y="157.0" text-anchor="end">corporate_record (paired n=50)</text>
+<line class="conn" x1="460.5" y1="153.0" x2="455.2" y2="153.0"/>
+<circle class="s1 ring" cx="460.5" cy="153.0" r="5"><title>corporate_record (paired n=50) · production: 0.458</title></circle>
+<circle class="s2 ring" cx="455.2" cy="153.0" r="5"><title>corporate_record (paired n=50) · v2: 0.448</title></circle>
+<text class="val" x="470.5" y="157.0">0.448</text>
+</svg>

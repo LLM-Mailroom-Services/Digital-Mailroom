@@ -650,3 +650,23 @@ main { min-height: 520px; }
 ::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-track { background: var(--panel); }
 ::-webkit-scrollbar-thumb { background: #3a3a3e; border: 2px solid var(--panel); }
+
+/* Operator login (public hosts: producer writes need a reviewer JWT) */
+dialog.operator-login {
+  background: var(--panel);
+  color: var(--paper);
+  border: 2px solid var(--amber);
+  padding: 16px;
+  max-width: min(360px, calc(100vw - 32px));
+}
+dialog.operator-login::backdrop { background: rgb(0 0 0 / 0.6); }
+dialog.operator-login label { display: block; margin: 8px 0; }
+dialog.operator-login input {
+  width: 100%;
+  background: var(--panel-2);
+  color: var(--paper);
+  border: 1px solid var(--paper-faint);
+  padding: 4px 6px;
+  font: inherit;
+}
+dialog.operator-login menu { display: flex; gap: 8px; justify-content: flex-end; padding: 0; margin: 12px 0 0; }

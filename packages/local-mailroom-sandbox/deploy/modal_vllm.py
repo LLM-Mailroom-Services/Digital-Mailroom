@@ -78,6 +78,7 @@ Workflow::
 from __future__ import annotations
 
 import atexit
+import json
 import os
 import socket
 import subprocess
@@ -87,7 +88,14 @@ from pathlib import Path
 
 import modal
 
-APP_NAME = "sandbox-vllm"
+# SAND-032: a dedicated app per experiment program keeps its containers,
+# logs and billing separate from the shared sandbox-vllm app.
+APP_NAME = os.environ.get("MODAL_VLLM_APP_NAME", "") or "sandbox-vllm"
+if not APP_NAME.startswith("sandbox-vllm"):
+    raise ValueError(
+        f"MODAL_VLLM_APP_NAME={APP_NAME!r} must stay sandbox-vllm-scoped "
+        "(e.g. sandbox-vllm-sand032) so it never collides with other apps"
+    )
 SERVER_PORT = 8000                  # Modal web_server port (vLLM subprocess)
 HF_CACHE_VOLUME_NAME = "sandbox-hf-cache"
 VLLM_CACHE_VOLUME_NAME = "sandbox-vllm-cache"
@@ -111,16 +119,27 @@ ENABLE_PREFIX_CACHING = os.environ.get("MODAL_VLLM_ENABLE_PREFIX_CACHING", "1")
 ENFORCE_EAGER = os.environ.get("MODAL_VLLM_ENFORCE_EAGER", "1")
 ATTENTION_BACKEND = os.environ.get("MODAL_VLLM_ATTENTION_BACKEND", "")
 ASYNC_SCHEDULING = os.environ.get("MODAL_VLLM_ASYNC_SCHEDULING", "")
-# SAND-027: reasoning / tool-call parsers. Empty = vLLM default (Qwen path is
-# unchanged). Granite-4.2 needs `--reasoning-parser granite_thinking_parser`
-# (native on vLLM >= 0.30; on the pinned v0.29.0-era image fall back to IBM's
-# plugin via MODAL_VLLM_REASONING_PARSER_PLUGIN) and tool calling via the
-# qwen3_coder parser. The deploy smoke (SAND-027-6) verifies these on the
-# actually-pinned image tag before the Granite matrix runs.
+# SAND-027: reasoning parser. Empty = vLLM default (Qwen path is
+# unchanged). Granite-4.2 serves with the NATIVE `--reasoning-parser granite`
+# on the pinned v0.29.0 image (`granite_thinking_parser` needs vLLM >= 0.30
+# and crash-loops 0.29.0 at engine init — KeyError). No tool parser: the
+# specialist extract path uses no tool calls.
 REASONING_PARSER = os.environ.get("MODAL_VLLM_REASONING_PARSER", "")
 REASONING_PARSER_PLUGIN = os.environ.get("MODAL_VLLM_REASONING_PARSER_PLUGIN", "")
 TOOL_CALL_PARSER = os.environ.get("MODAL_VLLM_TOOL_CALL_PARSER", "")
 ENABLE_AUTO_TOOL_CHOICE = os.environ.get("MODAL_VLLM_ENABLE_AUTO_TOOL_CHOICE", "")
+# SAND-032: KV-cache dtype (fp8 doubles the L4 KV pool; pinned for 2×L4 runs),
+# Qwen3 thinking control (JSON chat-template kwargs), CUDA-graph capture sizes
+# (requires enforce_eager off), prefill chunk budget, and an explicit
+# per-container input concurrency for the web_server (0 = Modal default).
+KV_CACHE_DTYPE = os.environ.get("MODAL_VLLM_KV_CACHE_DTYPE", "")
+DEFAULT_CHAT_TEMPLATE_KWARGS = os.environ.get("MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS", "")
+CUDAGRAPH_CAPTURE_SIZES = os.environ.get("MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES", "")
+MAX_NUM_BATCHED_TOKENS = os.environ.get("MODAL_VLLM_MAX_NUM_BATCHED_TOKENS", "")
+CHAT_TEMPLATE = os.environ.get("MODAL_VLLM_CHAT_TEMPLATE", "")
+MAX_INPUTS = int(os.environ.get("MODAL_VLLM_MAX_INPUTS", "0") or 0)
+# SAND-040: JSON for `vllm serve --hf-overrides` (e.g. YaRN rope_parameters for a 64K window).
+HF_OVERRIDES = os.environ.get("MODAL_VLLM_HF_OVERRIDES", "")
 TP_SIZE = os.environ.get("MODAL_VLLM_TP_SIZE", "") or str(
     int(os.environ.get("MODAL_VLLM_GPU", "L4").split(":")[1])
     if ":" in os.environ.get("MODAL_VLLM_GPU", "L4")
@@ -152,6 +171,13 @@ CONFIG_ENV_KEYS = (
     "MODAL_VLLM_REASONING_PARSER_PLUGIN",
     "MODAL_VLLM_TOOL_CALL_PARSER",
     "MODAL_VLLM_ENABLE_AUTO_TOOL_CHOICE",
+    "MODAL_VLLM_KV_CACHE_DTYPE",
+    "MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS",
+    "MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES",
+    "MODAL_VLLM_MAX_NUM_BATCHED_TOKENS",
+    "MODAL_VLLM_CHAT_TEMPLATE",
+    "MODAL_VLLM_MAX_INPUTS",
+    "MODAL_VLLM_HF_OVERRIDES",
     "MODAL_VLLM_REVISION",
     "MODAL_VLLM_API_TOKEN",
     # HF_TOKEN deliberately absent: it lives in the named Modal secret
@@ -220,6 +246,26 @@ def _truthy(value: str) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
+# SAND-032: fail at import (deploy time), not at vLLM boot on a billed GPU.
+if DEFAULT_CHAT_TEMPLATE_KWARGS:
+    try:
+        json.loads(DEFAULT_CHAT_TEMPLATE_KWARGS)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS is not valid JSON: {exc}"
+        ) from exc
+if CUDAGRAPH_CAPTURE_SIZES and _truthy(ENFORCE_EAGER):
+    raise ValueError(
+        "MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES requires enforce_eager off "
+        "(MODAL_VLLM_ENFORCE_EAGER=0) — eager mode never captures graphs"
+    )
+
+
+def _maybe_concurrent(fn):
+    """Wrap serve() in @modal.concurrent only when MODAL_VLLM_MAX_INPUTS > 0."""
+    return modal.concurrent(max_inputs=MAX_INPUTS)(fn) if MAX_INPUTS > 0 else fn
+
+
 def _server_env() -> dict[str, str]:
     """Environment for the vLLM subprocess."""
     env: dict[str, str] = {}
@@ -266,6 +312,19 @@ def build_vllm_command(model: str) -> list[str]:
         cmd += ["--tool-call-parser", TOOL_CALL_PARSER]
     if _truthy(ENABLE_AUTO_TOOL_CHOICE):
         cmd += ["--enable-auto-tool-choice"]
+    if KV_CACHE_DTYPE:
+        cmd += ["--kv-cache-dtype", KV_CACHE_DTYPE]
+    if DEFAULT_CHAT_TEMPLATE_KWARGS:
+        cmd += ["--default-chat-template-kwargs", DEFAULT_CHAT_TEMPLATE_KWARGS]
+    if CHAT_TEMPLATE:
+        cmd += ["--chat-template", CHAT_TEMPLATE]
+    if CUDAGRAPH_CAPTURE_SIZES:
+        sizes = [int(x) for x in CUDAGRAPH_CAPTURE_SIZES.split(",") if x.strip()]
+        cmd += ["--compilation-config", json.dumps({"cudagraph_capture_sizes": sizes})]
+    if MAX_NUM_BATCHED_TOKENS:
+        cmd += ["--max-num-batched-tokens", MAX_NUM_BATCHED_TOKENS]
+    if HF_OVERRIDES:
+        cmd += ["--hf-overrides", HF_OVERRIDES]
     cmd += ["--no-enable-log-requests"]
     return cmd
 
@@ -328,6 +387,7 @@ def _wait_for_port(port: int, timeout: int = 600) -> bool:
     min_containers=MIN_CONTAINERS,
     max_containers=MAX_CONTAINERS,
 )
+@_maybe_concurrent
 @modal.web_server(port=SERVER_PORT, startup_timeout=STARTUP_TIMEOUT_SECONDS)
 def serve() -> None:
     """Launch vLLM subprocess on port 8000 in the image's native Python.
@@ -388,6 +448,40 @@ def serve() -> None:
 # pre-warm
 # ---------------------------------------------------------------------------
 
+@app.function(timeout=300)
+def vllm_help() -> None:
+    """CPU-only flag probe on the pinned vLLM image (SAND-032 Task 10).
+
+    ``modal run deploy/modal_vllm.py::vllm_help`` prints ``vllm serve --help=all``
+    so new flags are confirmed on v0.29.0 BEFORE any GPU boot is billed.
+    """
+    out = subprocess.run(
+        ["vllm", "serve", "--help=all"], capture_output=True, text=True, check=False
+    )
+    print(f"vllm serve --help=all rc={out.returncode}")
+    print(out.stdout)
+    print("--- stderr tail ---")
+    print("\n".join((out.stderr or "").splitlines()[-25:]))
+    # The CLI parser needs a GPU to infer the device; grep the installed
+    # source for each SAND-032 field instead (device-free, same answer).
+    root = "/usr/local/lib/python3.12/dist-packages/vllm"
+    for field in (
+        "default_chat_template_kwargs",
+        "kv_cache_dtype",
+        "cudagraph_capture_sizes",
+        "max_num_batched_tokens",
+        "chat_template",
+        "awq_marlin",
+        "enforce_eager",
+    ):
+        hit = subprocess.run(
+            ["grep", "-rl", "--include=*.py", field, root],
+            capture_output=True, text=True, check=False,
+        )
+        files = [f.replace(root + "/", "") for f in hit.stdout.split()][:3]
+        print(f"FIELD {field}: {'FOUND' if files else 'MISSING'} {files}")
+
+
 @app.function(
     image=download_image,
     volumes={HF_CACHE_MOUNT: hf_cache},
@@ -447,21 +541,32 @@ def _smoke_check(base: str) -> None:
     print(f"ok: {base}/models -> {ids}")
 
 
+def _deploy_operator_line(phase: str, message: str) -> None:
+    try:
+        from mailroom_sandbox.tui.session import operator_emit
+
+        operator_emit(message, phase=phase)
+    except Exception:
+        print(message)
+
+
 @app.local_entrypoint()
 def main(check: bool = False, debug: bool = False) -> None:
     name = Path(__file__).name
     base = os.environ.get("VLLM_BASE_URL", "").rstrip("/")
-    print(f"Deploy:   modal deploy {name}")
-    print(f"Pre-warm: modal run {name}::download_model")
-    print(f"Model:    {MODEL} on {GPU} (vllm/vllm-openai:{VLLM_IMAGE_TAG})")
-    print(
-        f"Knobs:    max_model_len={MAX_MODEL_LEN} quant={QUANTIZATION or '(none)'} "
-        f"tp={TP_SIZE} max_containers={MAX_CONTAINERS} scaledown={SCALEDOWN_SECONDS}s"
+    _deploy_operator_line("DEPLOY", f"modal deploy {name}")
+    _deploy_operator_line("PREWARM", f"modal run {name}::download_model")
+    _deploy_operator_line("MODEL", f"{MODEL} on {GPU} (vllm/vllm-openai:{VLLM_IMAGE_TAG})")
+    _deploy_operator_line(
+        "KNOBS",
+        f"max_model_len={MAX_MODEL_LEN} quant={QUANTIZATION or '(none)'} "
+        f"tp={TP_SIZE} max_containers={MAX_CONTAINERS} scaledown={SCALEDOWN_SECONDS}s",
     )
-    print(f"Endpoint: {base or 'set VLLM_BASE_URL after deploy'}")
-    print(
-        "Swap:     eval \"$(sandbox modal-matrix env <HF-id> [--gpu GPU])\" "
-        "then redeploy --strategy recreate (default catalog row: Qwen/Qwen3-8B @ L4)"
+    _deploy_operator_line("ENDPOINT", base or "set VLLM_BASE_URL after deploy")
+    _deploy_operator_line(
+        "SWAP",
+        'eval "$(sandbox modal-matrix env <HF-id> [--gpu GPU])" '
+        "then redeploy --strategy recreate (default catalog row: Qwen/Qwen3-8B @ L4)",
     )
     if debug:
         for key, value in _masked_config().items():

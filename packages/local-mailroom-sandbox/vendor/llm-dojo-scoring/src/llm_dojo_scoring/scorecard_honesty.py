@@ -12,6 +12,7 @@ from statistics import fmean
 from typing import Any, Mapping, Sequence
 
 from . import __version__
+from .gt_metadata import is_empty_value
 
 __all__ = [
     "SCORER_VERSION",
@@ -21,6 +22,7 @@ __all__ = [
     "ProvenanceExportError",
     "metric_id_for",
     "metric_ids_for_class",
+    "metric_id_allowed",
     "assert_comparable_metric_ids",
     "assess_extraction_gt",
     "unscorable_extraction_result",
@@ -31,6 +33,8 @@ __all__ = [
     "DEFAULT_INSURANCE_SCHEMA_GATE",
     "classify_extraction_failure",
     "detect_maud_gt_ambiguity",
+    "score_empty_field_contract",
+    "canonical_error_class",
     "summarize_run_completion",
     "aggregate_quality_itt",
     "stamp_provenance",
@@ -55,6 +59,14 @@ PROVENANCE_KEYS: frozenset[str] = frozenset(
 
 COST_BASIS_VALUES: frozenset[str] = frozenset({"busy_window", "billed_incl_cold"})
 
+#: Canonical completion-error histogram keys (#21).
+ERROR_CLASS_LENGTH_FINISH = "LengthFinish"
+ERROR_CLASS_CONTEXT_OVERFLOW = "context_overflow"
+
+_COLLAPSED_ANSWER_SPLIT = re.compile(r"\s+[\/|;]\s+")
+_CAMEL_BOUNDARY = re.compile(r"([a-z])([A-Z])")
+_ACRONYM_BOUNDARY = re.compile(r"([A-Z]+)([A-Z][a-z])")
+
 # Registry metric name → canonical metric_id (issue #17).
 _METRIC_ID_BY_NAME: dict[str, str] = {
     "extraction_overall_score": "pipeline.extraction.overall",
@@ -68,28 +80,48 @@ _METRIC_ID_BY_NAME: dict[str, str] = {
     "maud_clause_presence": "maud.clause_presence.rate",
     "f1_macro": "pipeline.classification.f1_macro",
     "accuracy": "pipeline.classification.accuracy",
+    "content_topic_accuracy": "pipeline.enron.topic_accuracy",
+    "content_topic_f1_macro": "pipeline.enron.topic_f1_macro",
+    "sentiment_accuracy": "pipeline.enron.sentiment_accuracy",
+    "sentiment_f1_macro": "pipeline.enron.sentiment_f1_macro",
 }
 
 # Doc class / suite → allowed metric_ids for comparisons (documented in docs/METRIC_IDS.md).
+# Covers all five live extract classes (#17): contract, merger_agreement,
+# corporate_record, correspondence, insurance_claim.
 _CLASS_METRIC_IDS: dict[str, tuple[str, ...]] = {
     "contract": (
         "pipeline.extraction.overall",
         "cuad.clause_presence.micro_f1",
         "pipeline.extraction.field_micro_f1",
+        "pipeline.extraction.field_micro_f2",
         "maud.question.micro_accuracy",
     ),
     "merger_agreement": (
         "pipeline.extraction.overall",
         "maud.question.micro_accuracy",
         "maud.clause_presence.rate",
+        "pipeline.extraction.field_micro_f1",
+        "pipeline.extraction.field_micro_f2",
+    ),
+    "corporate_record": (
+        "pipeline.extraction.overall",
+        "pipeline.extraction.field_micro_f1",
+        "pipeline.extraction.field_micro_f2",
     ),
     "insurance_claim": (
         "pipeline.extraction.overall",
         "pipeline.extraction.field_micro_f1",
+        "pipeline.extraction.field_micro_f2",
     ),
     "correspondence": (
         "pipeline.extraction.overall",
+        "pipeline.extraction.field_micro_f1",
+        "pipeline.extraction.field_micro_f2",
         "pipeline.enron.topic_accuracy",
+        "pipeline.enron.topic_f1_macro",
+        "pipeline.enron.sentiment_accuracy",
+        "pipeline.enron.sentiment_f1_macro",
     ),
 }
 
@@ -151,6 +183,14 @@ def metric_ids_for_class(doc_class: str) -> tuple[str, ...]:
     return _CLASS_METRIC_IDS.get(doc_class, ("pipeline.extraction.overall",))
 
 
+def metric_id_allowed(metric_id: str, doc_class: str) -> bool:
+    """True when ``metric_id`` is on the class's allowed comparison list (#17).
+
+    Unknown classes allow only ``pipeline.extraction.overall``.
+    """
+    return metric_id in metric_ids_for_class(doc_class)
+
+
 def assert_comparable_metric_ids(
     left: str | None,
     right: str | None,
@@ -177,20 +217,29 @@ def assert_comparable_metric_ids(
 
 
 def _is_empty_value(value: Any) -> bool:
-    if value in (None, "", [], {}):
-        return True
-    if isinstance(value, str) and not value.strip():
-        return True
-    return False
+    """Empty / null / stringified-empty (``"[]"``, ``"{}"``) Hub GT value."""
+    return is_empty_value(value)
 
 
 def _has_extractable_gt(
     expected: Mapping[str, Any],
     field_types: Mapping[str, str],
+    scorable_gt_keys: Sequence[str] = (),
 ) -> bool:
+    """Return whether GT has a nonempty extraction or suite-declared content value.
+
+    Triage keys are ignored in ``field_types`` but may qualify when explicitly
+    included in ``scorable_gt_keys``.
+    """
     for key in field_types:
         if key in _TRIAGE_GT_KEYS:
             continue
+        if not _is_empty_value(expected.get(key)):
+            return True
+    # Content/MAUD differentiators are scorable when the calling suite carries
+    # the matching scorer (correspondence topic/sentiment, MAUD question
+    # accuracy). They stay triage-only for suites without those scorers.
+    for key in scorable_gt_keys:
         if not _is_empty_value(expected.get(key)):
             return True
     return False
@@ -202,8 +251,22 @@ def assess_extraction_gt(
     *,
     doc_class: str = "extraction",
     presence_expectations: Any = None,
+    scorable_gt_keys: Sequence[str] | None = None,
 ) -> GtAssessment:
-    """Fail-closed GT check (#16). Triage-only contracts GT is unscorable."""
+    """Fail-closed GT check (#16). Triage-only contracts GT is unscorable.
+
+    ``scorable_gt_keys`` lets a suite declare content-only differentiators it
+    can genuinely score (e.g. ``content_topic`` for correspondence,
+    ``maud_clause_labels`` for the merger specialist). A GT row holding only
+    those keys is scored on the content metric instead of being suppressed
+    as ``gt_no_extractable_fields``. Contracts triage-only rows (subtype /
+    doc_type labels with no scorer) remain unscorable.
+
+    Return a ``GtAssessment`` with status and reason: missing or non-dict
+    input is unscorable; an empty dict is scored with reason ``gt_empty``.
+    For a nonempty dict, truthy ``presence_expectations`` permits scoring
+    without extractable fields. This check does not compute any scores.
+    """
     if expected is None:
         return GtAssessment("unscorable", "gt_missing")
     if not isinstance(expected, dict):
@@ -213,7 +276,7 @@ def assess_extraction_gt(
     ftypes = dict(field_types or {})
     if presence_expectations:
         return GtAssessment("scored", None)
-    if _has_extractable_gt(expected, ftypes):
+    if _has_extractable_gt(expected, ftypes, tuple(scorable_gt_keys or ())):
         return GtAssessment("scored", None)
     # Triage-only contract rows (subtype labels without schema fields).
     if doc_class in {"contract", "merger_agreement"} or any(
@@ -353,24 +416,91 @@ def classify_extraction_failure(
     return "ok"
 
 
+def score_empty_field_contract(
+    expected: Mapping[str, Any] | None,
+    predicted: Mapping[str, Any] | None,
+    *,
+    field_types: Mapping[str, str] | None = None,
+    penalize_spurious_empty: bool = True,
+) -> dict[str, Any]:
+    """Correctly-empty → credit 1.0; spurious fill on empty GT → penalty (#20).
+
+    Empty expected fields never enter :func:`score_extraction` ``overall_score``
+    (archive mean of nonempty expected fields). This helper scores them
+    separately so incorrectly-empty vs spurious-fill is explicit.
+    """
+    from .field_scoring import NEVER_SCORED_FIELDS, RETIRED_PROMPT_KEYS
+
+    expected = dict(expected or {})
+    predicted = dict(predicted or {})
+    types = dict(field_types or {})
+    field_scores: dict[str, float] = {}
+    n_correctly_empty = 0
+    n_spurious_fill = 0
+    for name, exp_val in expected.items():
+        if name in NEVER_SCORED_FIELDS or (
+            name in RETIRED_PROMPT_KEYS and name not in types
+        ):
+            continue
+        if types and name not in types:
+            continue
+        if not _is_empty_value(exp_val):
+            continue
+        if _is_empty_value(predicted.get(name)):
+            field_scores[name] = 1.0
+            n_correctly_empty += 1
+            continue
+        score = 0.0 if penalize_spurious_empty else 1.0
+        field_scores[name] = score
+        if penalize_spurious_empty:
+            n_spurious_fill += 1
+    n_empty = len(field_scores)
+    credit = round(fmean(field_scores.values()), 4) if field_scores else None
+    return {
+        "field_scores": field_scores,
+        "n_empty_expected": n_empty,
+        "n_correctly_empty": n_correctly_empty,
+        "n_spurious_fill": n_spurious_fill,
+        "empty_field_credit": credit,
+        "penalize_spurious_empty": penalize_spurious_empty,
+    }
+
+
+def _split_collapsed_answers(value: Any) -> list[str]:
+    """Expand list answers and ``Yes / Strict liability`` collapsed strings (#19)."""
+    if value is None or value == "":
+        return []
+    if isinstance(value, (list, tuple, set)):
+        out: list[str] = []
+        for item in value:
+            out.extend(_split_collapsed_answers(item))
+        return out
+    text = str(value).strip()
+    if not text:
+        return []
+    parts = [p.strip() for p in _COLLAPSED_ANSWER_SPLIT.split(text) if p.strip()]
+    if len(parts) >= 2:
+        return parts
+    return [text]
+
+
 def detect_maud_gt_ambiguity(exp_labels: Mapping[str, Any]) -> set[str]:
-    """Collapsed / multi-answer MAUD GT → ambiguous keys (#19)."""
+    """Collapsed / multi-answer MAUD GT → ambiguous keys (#19).
+
+    Distinct sub-question keys are left alone. A Hub key that holds several
+    answers (list, slash-collapsed string, or an explicit ``gt_ambiguous``
+    flag) is marked unscorable instead of matching one arbitrary value.
+    """
     ambiguous: set[str] = set()
     for question, raw in exp_labels.items():
         answers: list[str] = []
         if isinstance(raw, dict):
-            ans = raw.get("answer")
-            if isinstance(ans, (list, tuple)):
-                answers = [str(a) for a in ans if str(a).strip()]
-            elif ans is not None:
-                answers = [str(ans)]
             if raw.get("ambiguous") or raw.get("gt_ambiguous"):
                 ambiguous.add(question)
                 continue
-        elif isinstance(raw, (list, tuple)):
-            answers = [str(a) for a in raw if str(a).strip()]
+            answers = _split_collapsed_answers(raw.get("answer"))
         elif raw is not None:
-            answers = [str(raw)]
+            answers = _split_collapsed_answers(raw)
         normalized = {_fold(a) for a in answers if _fold(a)}
         if len(normalized) > 1:
             ambiguous.add(question)
@@ -379,6 +509,29 @@ def detect_maud_gt_ambiguity(exp_labels: Mapping[str, Any]) -> set[str]:
 
 def _fold(value: Any) -> str:
     return re.sub(r"[^a-z0-9]+", " ", str(value or "").strip().lower()).strip()
+
+
+def canonical_error_class(token: str | None) -> str:
+    """Histogram bucket for completion errors (#21)."""
+    if token is None or str(token).strip() == "":
+        return "unknown_error"
+    raw = str(token).strip()
+    spaced = _CAMEL_BOUNDARY.sub(r"\1 \2", raw)
+    spaced = _ACRONYM_BOUNDARY.sub(r"\1 \2", spaced)
+    folded = re.sub(r"[^a-z0-9]+", " ", spaced.lower()).strip()
+    compact = folded.replace(" ", "")
+    if (
+        folded in {"length", "max tokens"}
+        or "length finish" in folded
+        or "lengthfinish" in compact
+    ):
+        return ERROR_CLASS_LENGTH_FINISH
+    if any(
+        needle in folded
+        for needle in ("context overflow", "context window", "context length")
+    ) or "contextoverflow" in compact:
+        return ERROR_CLASS_CONTEXT_OVERFLOW
+    return raw
 
 
 def summarize_run_completion(
@@ -391,15 +544,18 @@ def summarize_run_completion(
     for rec in records:
         err = rec.get("error") or rec.get("error_class") or rec.get("finish_reason")
         status = str(rec.get("status") or "")
-        if rec.get("errored") or status.upper().startswith("ERROR"):
-            n_errored += 1
-            key = str(err or status or "unknown_error")
-            error_hist[key] = error_hist.get(key, 0) + 1
-        elif err:
+        is_error = bool(rec.get("errored") or status.upper().startswith("ERROR"))
+        if not is_error and err:
             token = str(err)
-            if token.lower() not in {"stop", "completed", "success", "none", ""}:
-                n_errored += 1
-                error_hist[token] = error_hist.get(token, 0) + 1
+            is_error = token.lower() not in {
+                "stop", "completed", "success", "none", "",
+                "end_turn", "eos", "stop_sequence", "tool_calls",
+            }
+        if not is_error:
+            continue
+        n_errored += 1
+        key = canonical_error_class(err or status or "unknown_error")
+        error_hist[key] = error_hist.get(key, 0) + 1
     n_completed = max(n_attempted - n_errored, 0)
     rate = round(n_completed / n_attempted, 4) if n_attempted else None
     return {

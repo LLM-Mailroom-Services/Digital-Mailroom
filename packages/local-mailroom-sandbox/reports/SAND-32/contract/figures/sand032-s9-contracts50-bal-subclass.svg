@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 723 572" width="723" height="572" role="img" aria-label="Mean overall extraction score by subclass · sand032-s9-contracts50-bal">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --good:#0ca30c; --critical:#d03b3b; }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+<rect class="bg" width="723" height="572" rx="8"/>
+<text class="title" x="16" y="24">Mean overall extraction score by subclass · sand032-s9-contracts50-bal</text>
+<text class="sub" x="16" y="42">Overall mean 0.5907 across 44 docs (0–1, higher is better)</text>
+<line class="grid" x1="193.0" y1="54" x2="193.0" y2="538"/>
+<text class="tick" x="193.0" y="554" text-anchor="middle">0</text>
+<line class="grid" x1="308.0" y1="54" x2="308.0" y2="538"/>
+<text class="tick" x="308.0" y="554" text-anchor="middle">0.25</text>
+<line class="grid" x1="423.0" y1="54" x2="423.0" y2="538"/>
+<text class="tick" x="423.0" y="554" text-anchor="middle">0.5</text>
+<line class="grid" x1="538.0" y1="54" x2="538.0" y2="538"/>
+<text class="tick" x="538.0" y="554" text-anchor="middle">0.75</text>
+<line class="grid" x1="653.0" y1="54" x2="653.0" y2="538"/>
+<text class="tick" x="653.0" y="554" text-anchor="middle">1</text>
+<line class="axis" x1="193" y1="54" x2="193" y2="538"/>
+<text class="lbl" x="185" y="74.0" text-anchor="end">Joint Venture _ Filing (n=1)</text>
+<path class="s1" d="M193.0,63.0 H583.2 Q587.2,63.0 587.2,67.0 V73.0 Q587.2,77.0 583.2,77.0 H193.0 Z"><title>Joint Venture _ Filing (n=1): 0.857</title></path>
+<text class="val" x="593.2" y="74.0">0.857</text>
+<text class="lbl" x="185" y="98.0" text-anchor="end">Maintenance (n=3)</text>
+<path class="s1" d="M193.0,87.0 H528.9 Q532.9,87.0 532.9,91.0 V97.0 Q532.9,101.0 528.9,101.0 H193.0 Z"><title>Maintenance (n=3): 0.739</title></path>
+<text class="val" x="538.9" y="98.0">0.739</text>
+<text class="lbl" x="185" y="122.0" text-anchor="end">Service (n=1)</text>
+<path class="s1" d="M193.0,111.0 H517.4 Q521.4,111.0 521.4,115.0 V121.0 Q521.4,125.0 517.4,125.0 H193.0 Z"><title>Service (n=1): 0.714</title></path>
+<text class="val" x="527.4" y="122.0">0.714</text>
+<text class="lbl" x="185" y="146.0" text-anchor="end">Hosting (n=2)</text>
+<path class="s1" d="M193.0,135.0 H503.2 Q507.2,135.0 507.2,139.0 V145.0 Q507.2,149.0 503.2,149.0 H193.0 Z"><title>Hosting (n=2): 0.683</title></path>
+<text class="val" x="513.2" y="146.0">0.683</text>
+<text class="lbl" x="185" y="170.0" text-anchor="end">Reseller (n=1)</text>
+<path class="s1" d="M193.0,159.0 H495.8 Q499.8,159.0 499.8,163.0 V169.0 Q499.8,173.0 495.8,173.0 H193.0 Z"><title>Reseller (n=1): 0.667</title></path>
+<text class="val" x="505.8" y="170.0">0.667</text>
+<text class="lbl" x="185" y="194.0" text-anchor="end">License_Agreements (n=1)</text>
+<path class="s1" d="M193.0,183.0 H495.8 Q499.8,183.0 499.8,187.0 V193.0 Q499.8,197.0 495.8,197.0 H193.0 Z"><title>License_Agreements (n=1): 0.667</title></path>
+<text class="val" x="505.8" y="194.0">0.667</text>
+<text class="lbl" x="185" y="218.0" text-anchor="end">Distributor (n=1)</text>
+<path class="s1" d="M193.0,207.0 H484.8 Q488.8,207.0 488.8,211.0 V217.0 Q488.8,221.0 484.8,221.0 H193.0 Z"><title>Distributor (n=1): 0.643</title></path>
+<text class="val" x="494.8" y="218.0">0.643</text>
+<text class="lbl" x="185" y="242.0" text-anchor="end">Promotion (n=1)</text>
+<path class="s1" d="M193.0,231.0 H481.6 Q485.6,231.0 485.6,235.0 V241.0 Q485.6,245.0 481.6,245.0 H193.0 Z"><title>Promotion (n=1): 0.636</title></path>
+<text class="val" x="491.6" y="242.0">0.636</text>
+<text class="lbl" x="185" y="266.0" text-anchor="end">Supply (n=5)</text>
+<path class="s1" d="M193.0,255.0 H480.6 Q484.6,255.0 484.6,259.0 V265.0 Q484.6,269.0 480.6,269.0 H193.0 Z"><title>Supply (n=5): 0.634</title></path>
+<text class="val" x="490.6" y="266.0">0.634</text>
+<text class="lbl" x="185" y="290.0" text-anchor="end">Outsourcing (n=1)</text>
+<path class="s1" d="M193.0,279.0 H465.0 Q469.0,279.0 469.0,283.0 V289.0 Q469.0,293.0 465.0,293.0 H193.0 Z"><title>Outsourcing (n=1): 0.600</title></path>
+<text class="val" x="475.0" y="290.0">0.600</text>
+<text class="lbl" x="185" y="314.0" text-anchor="end">Agency Agreements (n=1)</text>
+<path class="s1" d="M193.0,303.0 H461.8 Q465.8,303.0 465.8,307.0 V313.0 Q465.8,317.0 461.8,317.0 H193.0 Z"><title>Agency Agreements (n=1): 0.593</title></path>
+<text class="val" x="471.8" y="314.0">0.593</text>
+<text class="lbl" x="185" y="338.0" text-anchor="end">Sponsorship (n=4)</text>
+<path class="s1" d="M193.0,327.0 H460.9 Q464.9,327.0 464.9,331.0 V337.0 Q464.9,341.0 460.9,341.0 H193.0 Z"><title>Sponsorship (n=4): 0.591</title></path>
+<text class="val" x="470.9" y="338.0">0.591</text>
+<text class="lbl" x="185" y="362.0" text-anchor="end">Strategic Alliance (n=2)</text>
+<path class="s1" d="M193.0,351.0 H460.4 Q464.4,351.0 464.4,355.0 V361.0 Q464.4,365.0 460.4,365.0 H193.0 Z"><title>Strategic Alliance (n=2): 0.590</title></path>
+<text class="val" x="470.4" y="362.0">0.590</text>
+<text class="lbl" x="185" y="386.0" text-anchor="end">Endorsement (n=3)</text>
+<path class="s1" d="M193.0,375.0 H451.2 Q455.2,375.0 455.2,379.0 V385.0 Q455.2,389.0 451.2,389.0 H193.0 Z"><title>Endorsement (n=3): 0.570</title></path>
+<text class="val" x="461.2" y="386.0">0.570</text>
+<text class="lbl" x="185" y="410.0" text-anchor="end">Joint Venture (n=1)</text>
+<path class="s1" d="M193.0,399.0 H419.0 Q423.0,399.0 423.0,403.0 V409.0 Q423.0,413.0 419.0,413.0 H193.0 Z"><title>Joint Venture (n=1): 0.500</title></path>
+<text class="val" x="429.0" y="410.0">0.500</text>
+<text class="lbl" x="185" y="434.0" text-anchor="end">IP (n=1)</text>
+<path class="s1" d="M193.0,423.0 H409.8 Q413.8,423.0 413.8,427.0 V433.0 Q413.8,437.0 409.8,437.0 H193.0 Z"><title>IP (n=1): 0.480</title></path>
+<text class="val" x="419.8" y="434.0">0.480</text>
+<text class="lbl" x="185" y="458.0" text-anchor="end">Development (n=3)</text>
+<path class="s1" d="M193.0,447.0 H409.8 Q413.8,447.0 413.8,451.0 V457.0 Q413.8,461.0 409.8,461.0 H193.0 Z"><title>Development (n=3): 0.480</title></path>
+<text class="val" x="419.8" y="458.0">0.480</text>
+<text class="lbl" x="185" y="482.0" text-anchor="end">Co_Branding (n=4)</text>
+<path class="s1" d="M193.0,471.0 H405.7 Q409.7,471.0 409.7,475.0 V481.0 Q409.7,485.0 405.7,485.0 H193.0 Z"><title>Co_Branding (n=4): 0.471</title></path>
+<text class="val" x="415.7" y="482.0">0.471</text>
+<text class="lbl" x="185" y="506.0" text-anchor="end">Marketing (n=1)</text>
+<path class="s1" d="M193.0,495.0 H379.4 Q383.4,495.0 383.4,499.0 V505.0 Q383.4,509.0 379.4,509.0 H193.0 Z"><title>Marketing (n=1): 0.414</title></path>
+<text class="val" x="389.4" y="506.0">0.414</text>
+<text class="lbl" x="185" y="530.0" text-anchor="end">Franchise (n=1)</text>
+<path class="s1" d="M193.0,519.0 H347.7 Q351.7,519.0 351.7,523.0 V529.0 Q351.7,533.0 347.7,533.0 H193.0 Z"><title>Franchise (n=1): 0.345</title></path>
+<text class="val" x="357.7" y="530.0">0.345</text>
+</svg>

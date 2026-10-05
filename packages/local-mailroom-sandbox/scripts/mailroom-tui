@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Mailroom TUI launcher.
+#   scripts/mailroom-tui                    # live: follows the current SAND-032 run
+#   scripts/mailroom-tui --config <yaml>    # live: one specific run
+#   scripts/mailroom-tui score <run-id>     # scorecard for a finished run
+#   scripts/mailroom-tui web                # live run in the browser (http://127.0.0.1:8765/)
+#   scripts/mailroom-tui dev                # dev server: themed browser UI on a synthetic run
+#   scripts/mailroom-tui board [--tui|--demo]  # persistent job board: every beacon job in the family
+#   scripts/mailroom-tui beacon update --job ID --package P --done N --total M  # publish from a shell job
+# Optional: alias mailroom-tui="$PWD/scripts/mailroom-tui"
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PY="${SANDBOX_PY:-}"
+if [ -z "$PY" ]; then
+  for c in "$ROOT/.venv/bin/python" "$ROOT/../local-mailroom-sandbox/.venv/bin/python" "$(command -v python3)"; do
+    [ -x "$c" ] && PY="$c" && break
+  done
+fi
+cd "$ROOT"
+run() { PYTHONPATH="$ROOT/src" "$PY" -c "import sys; from mailroom_sandbox.cli import main; sys.exit(main(sys.argv[1:]))" "$@"; }
+if [ "${1:-}" = "score" ]; then
+  shift
+  run scorecard --run "$1"
+elif [ "${1:-}" = "web" ]; then
+  shift
+  run watch --web "$@"
+elif [ "${1:-}" = "board" ] || [ "${1:-}" = "beacon" ]; then
+  run "$@"
+elif [ "${1:-}" = "dev" ]; then
+  shift
+  run dev "$@"
+else
+  run watch "$@"
+fi

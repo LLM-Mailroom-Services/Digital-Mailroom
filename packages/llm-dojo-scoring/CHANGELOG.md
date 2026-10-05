@@ -3,7 +3,207 @@
 All notable changes to `llm-dojo-scoring` are documented here.
 Format based on Keep a Changelog; versioning is SemVer.
 
-## [Unreleased]
+## [0.19.1] - 2026-10-05
+
+### Added
+
+- **Frozen `production_prompts` v1 lineage** — the five eval-environment
+  frozen specialist stems (`mailroom-dataset-v1`, frozen
+  2026-09-26T05:09:29+00:00) are now importable from the dojo prompt catalog
+  as `get_prompt(<agent>, family="production_prompts")`, sha256-pinned per
+  record (`PromptRecord.sha256`; three byte-identical to the sandbox
+  `config/prompts/<stem>.txt` freeze). Stored separately from the `docclass`
+  family. `tests/test_production_prompts.py` recomputes every digest from the
+  imported text.
+- **Dojo re-freeze of two `production_prompts` v1 records** — CodeRabbit
+  PR #27 follow-up, applied in-repo only (upstream mirrors untouched):
+  `correspondence_specialist` no longer emits the unregistered
+  `communication_type` token `other` (fallback is null per the registered
+  8-token vocabulary); `corporate_records_specialist` keeps `filing_number`
+  null for subsidiary schedules whose only number is a parent-agreement
+  exhibit ID. Provenance comments, catalog pins, docs, and tests updated to
+  the corrected bytes.
+
+### Notes
+
+- Connected-repo follow-ups for the frozen prompt mirrors (eval-environment
+  re-freeze scripts, sandbox lineage mirror, downstream imports) are tracked
+  in [`docs/TODOS.md`](docs/TODOS.md).
+
+## [0.19.0] - 2026-10-04
+
+Align scoring contracts with
+[mailroom-issues #236](https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/236),
+[#237](https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/237),
+and [#238](https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/238),
+and close remaining honesty gaps in
+[llm-dojo-scoring #19](https://github.com/Exios66/llm-dojo-scoring/issues/19),
+[#20](https://github.com/Exios66/llm-dojo-scoring/issues/20), and
+[#21](https://github.com/Exios66/llm-dojo-scoring/issues/21), with the
+v0.19.0 release-completion patch: hash-chain parity with llm-mailroom,
+per-document suite emission for all five live classes, metric identity
+completion, and specialist grid reports.
+
+### Fixed
+
+- **Hash-chain parity with llm-mailroom** — `archive.canonical_json` now
+  serializes byte-identically to llm-mailroom
+  `src/schemas/audit.py::compute_audit_hash`
+  (`json.dumps(sort_keys=True, default=str)`, `datetime` → `isoformat()`).
+  The previous compact-separator form produced a different `entry_hash`
+  for the same row, so a dojo-formatted `archived` row failed
+  `verify_chain` in llm-mailroom. `tests/test_archive_scoring.py` carries
+  the inline mailroom oracle plus a verification round-trip.
+- **Hash fixture** — `test_issue_236_example_payload_hash_is_stable` now
+  pins the llm-mailroom digest. The digest printed in mailroom-issues
+  #236 is not reproducible from the payload as shown (noted in
+  `docs/ARCHIVE_SCORING.md`).
+- **Plain extraction paths carry format scores** — batch `score([...])`
+  always emits `schema_valid` / `parse_ok` / `schema_adherence`;
+  `score_document()` returns the full per-document payload (flattened
+  `overall_score`, field-micro P/R/F1/F2, class extras, `metric_id`,
+  provenance). Single-doc `score(dict)` keeps the historical
+  `ExtractionScoreResult` unless `detailed=True` (#18 alignment).
+- **Insurance single-document extras** — `determination_consistency`,
+  `amount_exactness`, and `schema_promotion_gate` now run on
+  `score_document()` for one claim, not only in batch.
+- **Content-only GT no longer suppressed** — correspondence with only
+  `content_topic` / `sentiment_label` and merger with only
+  `maud_clause_labels` score their content metric; triage-only contract
+  rows stay `unscorable` (#16 unchanged), and a document with no nonempty
+  expected field keeps `overall_score = None`.
+- **Metric identity completed for all five live classes** —
+  `_CLASS_METRIC_IDS` covers contract, merger_agreement, corporate_record,
+  correspondence, and insurance_claim; F2 is allowed for each; Enron
+  topic/sentiment ids are mapped; `metric_id_allowed()` added (#17).
+- **`resolve_cost_basis`** — reject a table that mixes labeled and
+  unlabeled `cost_basis` / `usd_basis` rows. Wholly unlabeled inputs
+  still stamp the default (`busy_window`).
+- **Retired-class drift** — `config.RETIRED_DOC_CLASS_KEYS` now includes
+  `compliance_filing` (retired; llm-mailroom `taxonomy.yaml` has no such
+  class). The merger agreement specialist remains its own class/suite —
+  never an alias of contract — and the compliance specialist is never on
+  the live roster.
+- **Hub `gt_fields` metadata is parsed and scoped per document type** —
+  stringified `"[]"` / `"{}"` values are empty (no phantom FN), `gt_presence`
+  `not_applicable` / `schema_documented_absence` fields are never required
+  events, and annotation stats / other classes' fields never reach extraction
+  scoring. `N/A` date placeholders are empty, and CUAD label spans with no
+  alphanumeric content (`[*]`, `____`, `.`) are omitted from presence
+  expectations. `pending_annotation` (label backfill not yet run) is treated
+  as absent, so stale values on pending fields are never scored. A mis-passed
+  class-label string fails closed (`gt_wrong_schema`) instead of crashing.
+  Perfect-prediction replay over the
+  **full corpus** (both splits, 3,302 rows, 19,924 extraction events):
+  **0 FN / 0 FP / 0 spurious fills / 0 F1 or presence misses**; 91
+  triage-only contract rows stay `unscorable`.
+
+### Added
+
+- **`llm_dojo_scoring.gt_metadata`** + **`docs/GT_METADATA.md`** —
+  `parse_gt_fields`, `scoring_gt_fields`, `derive_presence_from_gt`,
+  `is_empty_value`, `parse_json_container`; CUAD label spans become presence
+  expectations (placeholder spans skipped); raw clause items are presence
+  candidates (multi-sentence quotes are not lost to disaggregation). Tests:
+  `tests/test_gt_metadata.py`.
+
+- **`llm_dojo_scoring.grid`** — L4-style specialist grid reports
+  (`build_grid_report`, `grid_scorecard`, `GridDocument`,
+  `GridExperiment`): quality / `ok / n` / p50 latency / `$` per ok
+  document, pooled serving efficiency (error rate, docs/min, tokens/s/GPU,
+  GPU `$`/doc), and busy-window vs metered session cost. Missing metered
+  input renders `n/a`; one row never mixes `metric_id`s.
+- **`format_audit_entry` / `prepare_archivist_handoff`** — calculate and
+  format the hash-chained `archived` audit row (hash version 2) that is
+  passed to the archivist. The templated row is always handed through;
+  `archivist_sign_off` files it as final only when the hash matches and
+  the pipeline steps for that document need no revision (report → judge
+  → archive; happy-path nodes on a successful job).
+- **`docs/GRID_REPORTS.md`** and **`docs/ISSUE_ALIGNMENT.md`**.
+- **Taxonomy authority fixture** — `tests/fixtures/taxonomy_field_types.json`
+  + `tests/test_live_roster_parity.py`: the five live field maps pinned to
+  llm-mailroom `taxonomy.yaml` blob
+  `ca297bd8e55e62b79ee452b02b65926b5032bdf1`, with roster / merger /
+  retirement guards and per-document payload tests.
+
+- **`llm_dojo_scoring.archive`** — `score_archive_block` returns the
+  archivist `detail.scoring` payload (method, field map SHA, overall
+  score, schema validity, per-field scores, and field-micro P/R/F1/F2
+  with TP/FP/FN). `upsert_archive_scoring` replaces the block for a
+  `doc_id` and never appends a second row. `archive_entry_hash` is hash
+  version 2 (SHA-256 of canonical JSON).
+- **`docs/ARCHIVE_SCORING.md`** — example archive row and scoring block;
+  sample numbers are not a measured run.
+- **`merger_agreement_specialist`** profile / suite bound to
+  `MergerAgreementExtraction`.
+- **`docs/SCORECARD_HONESTY.md`** — MAUD collapsed GT (#19), format vs
+  extraction and empty-field credit (#20), completion / ITT / `cost_basis`
+  / honest `serving_kind` (#21).
+- **`score_empty_field_contract`** — correctly-empty fields score 1.0
+  without entering archive `overall_score`; spurious fill is a penalty.
+- **`canonical_error_class` / `resolve_cost_basis`** — LengthFinish and
+  context-overflow histogram buckets; refuse mixed `cost_basis` in one
+  table.
+- **`llm_dojo_scoring.trace_knobs`** — capture `confidence` / `reasoning`
+  as experimental knobs (`TraceKnobSettings`: `confidence_min`,
+  `confidence_band`, `reasoning_routes_presence`,
+  `compute_calibration_error`). Filed on `ExtractionScoreResult.trace`
+  and archive `detail.scoring.trace`; never mixed into `overall_score`.
+- **MAUD answer-class catalogs — no guessing on merger-agreement labels**
+  (`llm_dojo_scoring/maud.py`, `docs/MAUD_LABELS.md`). The 152 published
+  merger rows (17 test + 135 train) each carry per-question
+  `valid_classes`; the scorer previously dropped them and treated any
+  non-empty answer as valid on 21 of 22 questions. Now:
+  - `parse_maud_labels` preserves each record's `valid_classes`; repeated
+    Hub keys union their class surfaces instead of last-wins;
+  - `is_valid_maud_answer` / `normalize_maud_answer` accept the record's
+    own classes first, fall back to the corpus union, and fail closed for
+    unknown questions;
+  - `maud_question_catalog(doc_type)` returns the fully populated
+    22-question catalog for `merger_agreement` and `contract` (specialist
+    aliases accepted; unknown doc types raise `KeyError`);
+  - `maud_valid_class_rate` is emitted by the contract / merger suites and
+    by `score_maud_extraction`.
+- `scripts/gen_maud_catalog.py` — deterministic catalog generator plus
+  `--check` verification against the pinned dataset revision.
+- `scripts/verify_gt_penalties.py` — portable perfect-prediction replay
+  over the real Hub GT (both splits) asserting zero FN/FP/spurious and
+  MAUD parity / class membership on all merger rows.
+- `tests/test_maud_catalog.py` — pins catalog completeness, per-doc-type
+  dicts, fixture consistency, canonicalization, component-wise validity,
+  and fail-closed behavior.
+- `catalog` optional extra (`pyarrow`, `huggingface_hub`) for the
+  reproducibility scripts.
+
+### Changed
+
+- **Live extract roster** — `contract`, `merger_agreement`,
+  `corporate_record`, `correspondence`, `insurance_claim`.
+  `EXTRACT_CLASS_ALIASES` is empty; merger is not scored as a contract.
+  `compliance_filing` is retired from the live extract roster (suites
+  remain for historical traces).
+- **`DEFAULT_FIELD_TYPES["merger_agreement"]`** — dedicated 10-field map
+  (`effective_time`, `intent`, `subject_matter`, `keywords`; no
+  `cuad_family` / `cuad_clauses`).
+- **`score_extraction`** — never scores `confidence` / `reasoning`;
+  skips empty lists and retired prompt-catalog keys that are not on the
+  live field map.
+- **Aligned classification** — `merger_agreement` ≠ `contract`.
+- **`score_maud_extraction`** — distinct sub-question keys score
+  normally; collapsed multi-answer GT (list, slash-string, or repeated
+  Hub spans) is `gt_ambiguous` / unscorable per item; micro-accuracy
+  over clean keys only; `n_ambiguous` always surfaced (#19).
+- **`score_format_layer` vs field-micro** — prose-wrapped JSON is
+  `parse_ok=0` and does not zero extraction on a structured payload
+  (#20).
+- **`summarize_run_completion`** — LengthFinish histogram; ITT quality
+  ≠ completed-only (#21). `classify_serving_kind` keeps Modal as
+  `modal` (not in `LOCAL_PROVIDERS`).
+- `tests/fixtures/maud_valid_classes.json` now records the pinned dataset
+  revision and per-question answered-row / distinct-set counts.
+- Package version **0.19.0**; tests: **645 passed, 5 skipped** (the release
+  commit ran 521; CodeRabbit regression tests and the MAUD catalogs were
+  added before the tag).
 
 ## [0.18.0] - 2026-09-29
 

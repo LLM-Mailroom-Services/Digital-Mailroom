@@ -1,0 +1,72 @@
+# Qwen3-8B-AWQ specialist grid cell (SAND-037 aligned grid) — correspondence · n=50 · 2×L4 · C32 (16 per replica).
+# Every grid cell shares this spec except n, fleet shape and concurrency:
+#   engine  = SAND-032 frozen L5 (awq_marlin, fp8 KV, CUDA graphs, max_num_seqs 16/replica,
+#             thinking off, max_inputs 32)
+#   data    = mailroom-dataset ground_truth @ ed7576b6, split=all, seed 42, one class bucket
+#             (nested 20 ⊂ 50)
+#   prompt  = eval-environment frozen v1 simplified stem
+#   decode  = max_tokens 8192 via start-time SANDBOX_AGENT_KNOBS; temperature stays 0.1
+#             (json_object class: never hit a cap; same sampling as every SAND-032 run)
+# Runbook: sandbox runbook show grid-2l4
+schema: sandbox.run/v1
+run_id: grid-50-correspondence-specialist-awq-2l4
+task: correspondence_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    correspondence_specialist:
+      source: local
+      file: correspondence_specialist_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
+  strata:
+    buckets:
+      - {doc_class: correspondence, count: 50}   # single class bucket → nested 20 ⊂ 50
+  limit: 50
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 16
+    enable_prefix_caching: true
+    enforce_eager: false
+    quantization: "awq_marlin"
+    revision: ""
+    kv_cache_dtype: "fp8"
+    enable_thinking: false
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16]
+    max_inputs: 32
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 2
+    min_containers: 2
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 32
+  cost_cap_usd: 0.6
+  max_wall_seconds: 2400
+
+trace:
+  sink: none
+  otlp: false
+  environment: qwen-grid
+  tags: [sandbox, job, specialist, qwen3-8b-awq, l4, grid]

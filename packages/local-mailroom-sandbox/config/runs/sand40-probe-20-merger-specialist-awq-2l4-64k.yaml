@@ -1,0 +1,72 @@
+# SAND-040 scale run · validation probe — merger_agreement_specialist · n=20 · 2×L4 · C32 (16 per replica) · phase: long (64K YaRN, optimized).
+# Same dataset/prompt blocks as grid-50-merger-specialist-awq-2l4 except n and the optimized long-document settings:
+#   engine  = 65536 window via YaRN ×2 (engine.vllm.hf_overrides → vllm serve --hf-overrides)
+#   input   = max_input_chars 128000; documents beyond one window use the pipeline's chunked
+#             extraction (120k-char windows, 8k overlap, deterministic merge)
+#   decode  = max_tokens 6144, temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.0,
+#             one re-sample on LengthFinishReasonError (start-time SANDBOX_AGENT_KNOBS)
+#   prompt  = merger_agreement_specialist_maud_v1 (MAUD answer catalog)
+# Runbook: sandbox runbook show sand40-probe
+schema: sandbox.run/v1
+run_id: sand40-probe-20-merger-specialist-awq-2l4-64k
+task: merger_agreement_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    merger_agreement_specialist:
+      source: local
+      file: merger_agreement_specialist_maud_v1
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
+  strata:
+    buckets:
+      - {doc_class: merger_agreement, count: 20}   # single class bucket → nested 20 ⊂ 50 ⊂ 100 (seed 42)
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 65536
+    hf_overrides: {"rope_parameters": {"rope_type": "yarn", "factor": 2.0, "original_max_position_embeddings": 32768, "rope_theta": 1000000}}
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 16
+    enable_prefix_caching: true
+    enforce_eager: false
+    quantization: "awq_marlin"
+    revision: ""
+    kv_cache_dtype: "fp8"
+    enable_thinking: false
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16]
+    max_inputs: 32
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 2
+    min_containers: 2
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 32
+  cost_cap_usd: 1.0
+  max_wall_seconds: 3600
+
+trace:
+  sink: none
+  otlp: false
+  environment: qwen-sand40
+  tags: [sandbox, job, specialist, qwen3-8b-awq, l4, grid, sand40]

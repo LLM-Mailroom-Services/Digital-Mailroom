@@ -159,7 +159,126 @@ def test_classification_scoring_smoke():
     assert scores["f1_macro"] == 1.0
 
 
+def test_score_manifest_groups_only_associated_sweeps(tmp_path, monkeypatch):
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    assert scoring.scores_path("sand032-s3-corr50") == (
+        tmp_path / "reports" / "scores" / "SAND-32" / "scores.jsonl"
+    )
+    assert scoring.scores_path("grid-50-contracts-specialist-awq-2l4") == (
+        tmp_path / "reports" / "scores" / "SAND-37" / "scores.jsonl"
+    )
+    assert scoring.scores_path("run-20-contracts-specialist") == (
+        tmp_path / "reports" / "scores" / "scores.jsonl"
+    )
+
+
+def test_score_emit_uses_sweep_manifest_path(tmp_path, monkeypatch):
+    """Score emit writes under the sweep directory named in run metadata."""
+    from types import SimpleNamespace
+
+    emitted = {}
+
+    class RecordingSink:
+        def __init__(self, path):
+            """Capture the sink path for assertions."""
+            emitted["path"] = Path(path)
+
+        def emit(self, record):
+            """Capture the emitted score record."""
+            emitted["record"] = record
+
+    record = SimpleNamespace(
+        run_id="sand40-100-contracts-specialist-awq-2l4",
+        metadata={"runbook": "sand40"},
+    )
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    monkeypatch.setattr(scoring, "LocalManifestSink", RecordingSink)
+
+    scoring.emit(record)
+
+    assert emitted["path"] == tmp_path / "reports" / "scores" / "SAND-40" / "scores.jsonl"
+    assert emitted["record"] is record
+
+
+def test_score_emit_resolves_runbook_group_without_group_token(tmp_path, monkeypatch):
+    """A runbook_id in metadata selects the catalog group without a SAND token."""
+    from types import SimpleNamespace
+
+    emitted = {}
+
+    class RecordingSink:
+        def __init__(self, path):
+            """Capture the sink path for assertions."""
+            emitted["path"] = Path(path)
+
+        def emit(self, record):
+            """Capture the emitted score record."""
+            emitted["record"] = record
+
+    record = SimpleNamespace(run_id="job-204", metadata={"runbook_id": "grid-1l4"})
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    monkeypatch.setattr(scoring, "LocalManifestSink", RecordingSink)
+
+    scoring.emit(record)
+
+    assert emitted["path"] == tmp_path / "reports" / "scores" / "SAND-37" / "scores.jsonl"
+    assert emitted["record"] is record
+
+
+def test_local_vs_api_scorecard_uses_run_group(tmp_path, monkeypatch):
+    """Local-vs-API scorecards follow the SAND token in the experiment name."""
+    captured = {}
+
+    class RecordingSink:
+        def __init__(self, path):
+            """Capture the scorecard sink path."""
+            captured["path"] = Path(path)
+
+    class RecordingEmitter:
+        def __init__(self, *, sinks):
+            """Capture the first emitter sink."""
+            captured["sink"] = sinks[0]
+
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    monkeypatch.setattr(scoring, "LocalManifestSink", RecordingSink)
+    monkeypatch.setattr(scoring, "Emitter", RecordingEmitter)
+    monkeypatch.setattr(scoring, "emit_serving_scorecard", lambda *args, **kwargs: {})
+
+    scoring.emit_local_vs_api_scorecard({}, run_id="sand32-s3-corr50")
+
+    assert captured["path"] == tmp_path / "reports" / "scores" / "SAND-32" / "scores.jsonl"
+
+
+def test_local_vs_api_scorecard_uses_locked_metadata_when_run_id_has_no_group(tmp_path, monkeypatch):
+    """Locked report_group metadata wins when the run id has no SAND token."""
+    captured = {}
+
+    class RecordingSink:
+        def __init__(self, path):
+            """Capture the scorecard sink path."""
+            captured["path"] = Path(path)
+
+    class RecordingEmitter:
+        def __init__(self, *, sinks):
+            """Capture the first emitter sink."""
+            captured["sink"] = sinks[0]
+
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    monkeypatch.setattr(scoring, "LocalManifestSink", RecordingSink)
+    monkeypatch.setattr(scoring, "Emitter", RecordingEmitter)
+    monkeypatch.setattr(scoring, "emit_serving_scorecard", lambda *args, **kwargs: {})
+
+    scoring.emit_local_vs_api_scorecard(
+        {},
+        run_id="sandbox_local_vs_api_job-204",
+        metadata={"report_group": "SAND-123"},
+    )
+
+    assert captured["path"] == tmp_path / "reports" / "scores" / "SAND-123" / "scores.jsonl"
+
+
 def test_dojo_pin_is_v0_15():
+    """The sandbox pins llm-dojo-scoring at the v0.15 line."""
     import re
 
     import llm_dojo_scoring as dojo

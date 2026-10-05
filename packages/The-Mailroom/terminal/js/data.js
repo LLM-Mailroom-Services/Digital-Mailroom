@@ -405,3 +405,6 @@ AVAILABLE THEMES
     cyan    - modern terminal cyan`,
   },
 };
+
+// Top-level `const` is not a window property; terminal.js reads it from window.
+if (typeof window !== 'undefined') window.MAILROOM_DATA = MAILROOM_DATA;

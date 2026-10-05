@@ -1,0 +1,92 @@
+# Qwen corporate leg — corporate_records_specialist on 20 CORPORATE_RECORD docs (AWQ, 1×L4).
+# Subclass quotas scaled ~2/3 from run-30-corporate-records-specialist
+# (6→4 / 4→3 / 3→2 / 2→1 / bylaws stays 1 at avail=1).
+# Engine/posture: Qwen/Qwen3-8B-AWQ, 32768 window, 1×L4 MIN=MAX=1 pinned,
+# concurrency 8 (mid-length corporate docs fill L4 batching like the
+# insurance/correspondence AWQ legs), DMR-074 simplified prompt pin,
+# scaledown 120. Single extract call per doc; 4096 Qwen decode (no thinking
+# inflation); HARD retry cap (max_retries 1) — fail fast, don't burn credits.
+#
+# QUEUED AFTER the Qwen merger run — do NOT deploy while another app is warm:
+#   modal profile activate hermes-agent-jjb
+#   eval "$(sandbox modal-matrix env Qwen/Qwen3-8B-AWQ)"
+#   # export MODAL_VLLM_MAX_CONTAINERS=1 MODAL_VLLM_MIN_CONTAINERS=1 \
+#   #   MODAL_VLLM_SCALEDOWN_SECONDS=120
+#   modal run deploy/modal_vllm.py::download_model
+#   modal deploy deploy/modal_vllm.py --strategy recreate
+#   sandbox run benchmark-check --config config/runs/run-20-corporate-records-specialist-awq.yaml
+#   sandbox run preflight --config config/runs/run-20-corporate-records-specialist-awq.yaml --live
+#   sandbox run start --config config/runs/run-20-corporate-records-specialist-awq.yaml --job-mode endpoint --watch
+#   ./deploy/teardown_vllm.sh   # ONLY after this run (+ container list + billing window)
+schema: sandbox.run/v1
+run_id: run-20-corporate-records-specialist-awq
+task: corporate_records_specialist
+profile: modal-vllm
+
+prompt:
+  # DMR-074 local pin (config/prompts/corporate_records_specialist_simplified.txt) —
+  # same file as run-30-corporate-records-specialist.
+  default: {source: code-default}
+  agents:
+    corporate_records_specialist:
+      source: local
+      file: corporate_records_specialist_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  # split: test — 47 corporate_record rows; N=20 fits (no train needed)
+  split: test
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      # corporate_record (47 test rows): proportional quotas → 20
+      - doc_class: corporate_record
+        sub_buckets:
+          - {subclass: subsidiary_list, count: 4}              # was 6 (avail 10)
+          - {subclass: charter_amendment, count: 4}            # was 6 (avail 9)
+          - {subclass: officer_certificate, count: 3}          # was 4 (avail 7)
+          - {subclass: board_resolution, count: 2}             # was 3 (avail 5)
+          - {subclass: articles_of_incorporation, count: 2}    # was 3 (avail 5)
+          - {subclass: indenture, count: 2}                    # was 3 (avail 4)
+          - {subclass: powers_of_attorney, count: 1}           # was 2 (avail 3)
+          - {subclass: rights_instrument, count: 1}            # was 2 (avail 3)
+          - {subclass: bylaws, count: 1}                       # was 1 (avail 1)
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768      # AWQ L4 window (bf16 stays 16384)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: awq
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120    # attended cost-saver (DMR-076)
+    max_containers: 1         # 1×L4 cost guard — do not raise
+    min_containers: 1         # pinned warm for this run (teardown after)
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1              # HARD retry cap — fail fast on repeated errors (was 2 legacy)
+  fail_fast: false
+  concurrency: 8              # mid-length docs fill batching (insurance/corr AWQ precedent)
+  cost_cap_usd: 0.40          # 20-doc sibling standard (1-replica billing)
+  max_wall_seconds: 2400      # 20-doc sibling standard
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-20-corporate-awq
+  tags: [sandbox, job, specialist, corporate, qwen3-8b-awq, l4, benchmark, c8]

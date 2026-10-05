@@ -53,8 +53,8 @@ Always `mailroom_sandbox.runtime.activate(profile)` before importing mailroom gr
 | Compose + Dockerfile | `deploy/docker-compose.yml`, `deploy/Dockerfile` |
 | Modal app | `deploy/modal_vllm.py` |
 | Tracing | `docs/tracing.md`, `src/mailroom_sandbox/eval/tracing.py` |
-| Providers | `docs/providers.md` |
-| Offline Docker + notebooks | `docs/docker-offline.md` |
+| Providers | `docs/setting-up/providers.md` |
+| Offline Docker + notebooks | `docs/setting-up/docker-offline.md` |
 | Project skills (this tree) | `.cursor/skills/*/SKILL.md` |
 
 ## Quick commands

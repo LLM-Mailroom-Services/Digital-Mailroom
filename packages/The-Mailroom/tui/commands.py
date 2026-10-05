@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import datetime
 import shlex
+import urllib.parse
 from collections import deque
 from typing import Any, Callable, Optional
 
@@ -358,13 +359,32 @@ def _flag(args: list[str], name: str, default: Optional[str] = None,
     """Extract ``--name value`` (or ``--name=value``) from an arg list."""
     for i, a in enumerate(args):
         if a == name or a.startswith(name + "="):
-            value = a.split("=", 1)[1] if "=" in a else (args[i + 1] if i + 1 < len(args) else None)
+            inline = "=" in a
+            value = a.split("=", 1)[1] if inline else (args[i + 1] if i + 1 < len(args) else None)
             if consumed is not None:
                 consumed.add(i)
-                if value is not None:
+                # `--name=value` is one token: don't swallow the next arg.
+                if value is not None and not inline:
                     consumed.add(i + 1)
             return value
     return default
+
+
+class UsageError(ValueError):
+    """Bad command arguments — reported in the scrollback, never raised
+    out of the REPL (an uncaught int() used to kill the TUI)."""
+
+
+def _int_flag(args: list[str], name: str, default: int, *, lo: int, hi: int,
+              consumed: Optional[set] = None) -> int:
+    raw = _flag(args, name, None, consumed=consumed)
+    if raw is None or raw == "":
+        return default
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise UsageError(f"{name} expects a number, got {raw!r}") from exc
+    return max(lo, min(hi, value))
 
 
 def _clean_args(args: list[str], consumed: set[str]) -> list[str]:
@@ -424,7 +444,7 @@ def cmd_metrics(ctx: CommandContext, args: list[str]) -> list[Any]:
 def cmd_inspect(ctx: CommandContext, args: list[str]) -> list[Any]:
     if not args:
         return [Text("usage: inspect <trace-id>", style="yellow")]
-    detail = ctx.fetch(f"/api/traces/{args[0]}")
+    detail = ctx.fetch(f"/api/traces/{urllib.parse.quote(args[0], safe='')}")
     if detail is None or detail.get("error"):
         return [views.empty_hint(f"trace {args[0]} unavailable")]
     return views.inspect_panels(detail)
@@ -466,8 +486,9 @@ def cmd_corpus(ctx: CommandContext, args: list[str]) -> list[Any]:
             consumed: set[str] = set()
             cls = _flag(rest, "--class", consumed=consumed)
             split = _flag(rest, "--split", consumed=consumed)
-            page = int(_flag(rest, "--page", "0", consumed=consumed) or "0")
-            limit = int(_flag(rest, "--limit", "25", consumed=consumed) or "25")
+            page = _int_flag(rest, "--page", 0, lo=0, hi=10_000, consumed=consumed)
+            # datasets-server /rows caps length at 100 (422 above that).
+            limit = _int_flag(rest, "--limit", 25, lo=1, hi=100, consumed=consumed)
             rest = _clean_args(rest, consumed)
             if rest:
                 return [Text(f"unexpected args: {' '.join(rest)}", style="yellow")]
@@ -508,7 +529,7 @@ def cmd_corpus(ctx: CommandContext, args: list[str]) -> list[Any]:
         if sub == "search":
             consumed = set()
             split = _flag(rest, "--split", consumed=consumed)
-            limit = int(_flag(rest, "--limit", "20", consumed=consumed) or "20")
+            limit = _int_flag(rest, "--limit", 20, lo=1, hi=500, consumed=consumed)
             rest = _clean_args(rest, consumed)
             if not rest:
                 return [Text("usage: corpus search <term> [--split X] [--limit N]",
@@ -523,6 +544,8 @@ def cmd_corpus(ctx: CommandContext, args: list[str]) -> list[Any]:
                                              ctx.corpus.class_counts())]
         return [Text(f"unknown corpus subcommand '{sub}' — ls|show|search|stats",
                      style="yellow")]
+    except UsageError as exc:
+        return [Text(str(exc), style="yellow")]
     except CorpusClosed as exc:
         views.LAST_ERRORS.append(f"corpus: {exc}")
         return [views.empty_hint("corpus closed — Hub datasets-server unreachable "
@@ -665,11 +688,10 @@ def completion_candidates(ctx: CommandContext, line: str) -> list[str]:
             return [f for f in flags if f.startswith(word)]
         if parts[1] == "show" or parts[1] == "search":
             try:
-                rows = ctx.corpus.window("train", 0, 50)
+                names = ctx.corpus.completion_names()
             except CorpusClosed:
                 return []
-            return [r.filename for r in rows
-                    if r.filename.startswith(word)]
+            return [n for n in names if n.startswith(word)]
         return []
     if name == "repos" or name == "open":
         return [r["name"] for r in all_repos()

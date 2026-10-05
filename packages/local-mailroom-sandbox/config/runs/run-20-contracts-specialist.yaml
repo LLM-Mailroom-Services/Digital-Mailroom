@@ -1,7 +1,7 @@
 # SAND-018 — Specialist extract: contracts_specialist on 20 CONTRACT docs drawn
 # as a seeded random sample from the FULL mailroom-dataset (split=all, 3,302
 # rows). Single-class variant of the runbook's 5×30 specialist suite
-# (docs/benchmark-l4.md), scaled to one class at N=20.
+# (docs/modal/benchmark-l4.md), scaled to one class at N=20.
 #
 # ╔══════════════════════════════════════════════════════════════════════════╗
 # ║ SPEND POSTURE (DMR-076/077/078 + SAND-018)                               ║
@@ -23,7 +23,7 @@
 # To run fully offline against that artifact instead, swap the dataset block
 # for: {provider: file, local_path: data/cache/.../ground_truth_all_perclass20.jsonl}
 #
-# Connect (once) then fire — see docs/benchmark-l4.md:
+# Connect (once) then fire — see docs/modal/benchmark-l4.md:
 #   modal profile activate hermes-agent-jjb
 #   export SANDBOX_PROFILE=modal-vllm MODAL_VLLM_MODEL=Qwen/Qwen3-8B \
 #     MODAL_VLLM_GPU=L4 MODAL_VLLM_IMAGE_TAG=v0.29.0 \

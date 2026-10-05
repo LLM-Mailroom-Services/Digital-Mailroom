@@ -32,8 +32,8 @@ open exactly one specialty skill. Companion to
 
 - **Expected location**: a sibling of this repo, i.e. `../llm-mailroom` from this checkout (e.g. `/Users/luciusjmorningstar/Downloads/llm-mailroom`). It is **not currently present on this machine** — clone it before relying on `MAILROOM_TAXONOMY`.
 - **Import pin**: optional extra `[pipeline]` installs dist `mailroom` from
-  `git+https://github.com/Exios66/llm-mailroom.git@2a212e76a62b` (package 0.7.1,
-  tag `v0.7.1`).
+  `git+https://github.com/Exios66/llm-mailroom.git@959bb0bce152` (package 0.7.1,
+  main after tag `v0.7.1`; llm-dojo-scoring v0.16.0, mailroom-dataset tag `v9.1`).
   `mailroom_ui/producer.py` is the only import adapter — `pipeline.review_resolve`
   - `schemas.manifest` for REVIEW dispositions / `serialize_document`. Default
   `pip install -e ".[dev]"` stays light; missing extra falls back to the same
@@ -41,7 +41,8 @@ open exactly one specialty skill. Companion to
   `llm_dojo_scoring`. Bump `MAILROOM_GIT_SHA` and the extra together.
 - It is the **upstream**: The-Mailroom reads *its* Langfuse project (US cloud, project `llm-mailroom`). Its `AGENTS.md` is authoritative for pipeline internals; consult it whenever the pipeline's tracing contract is in doubt.
 - **What we mirror from it, and must keep in sync (the #1 maintenance duty)** — when the pipeline changes, update all of these in one change:
-  - `mailroom_ui/pipeline_schema.py` — mirrors `src/graph/routing.py` + `src/config/taxonomy.yaml` + `src/observability/tracing.py` + `src/pipeline/failures.py`: node/span names (`SPAN_STAGE_MAP` incl. `normalize-intake`), **`NODE_OBSERVATION_TYPES`** (chain/agent/evaluator/retriever/generation/span), stage→phase map, node order, agent roster (incl. `intake`, `sorter_reviewer`, `arbiter`, `judge`, `compliance_specialist`, `insurance_claims_specialist`; reporter is procedural in v0.7.1), live `DOC_CLASSES` (6 extract classes incl. live `merger_agreement` MAUD + `unknown` routing token; retired `court_opinion` / `due_diligence` stay off the roster), Hub `DOC_SUBCLASS_BY_CLASS` + CUAD `CONTRACT_SUBTYPE_KEYS`, Langfuse score aliases (`extraction_verified_precision`), `SUITE_EXTRA_SCORES` (Enron/MAUD), `SPECIALIST_BY_DOC_CLASS`, confidence thresholds (+ `judge_band_high` 0.95, severity `by_class`), **`FAILURE_CLASSES`** + pared `EXTRACTION_FIELD_KEYS_BY_CLASS` / `validate_operator_extraction` (llm-mailroom v0.6.0).
+  - `mailroom_ui/pipeline_schema.py` — mirrors `src/graph/routing.py` + `src/config/taxonomy.yaml` + `src/observability/tracing.py` + `src/pipeline/failures.py`: node/span names (`SPAN_STAGE_MAP` incl. `normalize-intake` and the ModernBERT `intake-ml-triage` span), **`NODE_OBSERVATION_TYPES`** (chain/agent/evaluator/retriever/generation/span), stage→phase map, node order, agent roster (incl. `intake`, `sorter_reviewer`, `arbiter`, `judge`, `merger_agreement_specialist`, `insurance_claims_specialist`; reporter is procedural), live `DOC_CLASSES` (5 extract classes incl. live `merger_agreement` MAUD with its own specialist + `unknown` routing token; retired `court_opinion` / `due_diligence` / `compliance_filing` stay off the roster), Hub `DOC_SUBCLASS_BY_CLASS` + CUAD `CONTRACT_SUBTYPE_KEYS`, Langfuse score aliases (`extraction_verified_precision`), `SUITE_EXTRA_SCORES` (Enron/MAUD), `SPECIALIST_BY_DOC_CLASS`, confidence thresholds (+ `judge_band_high` 0.95, severity `by_class` bundled as `DEFAULT_BY_CLASS`), **`FAILURE_CLASSES`** + pared `EXTRACTION_FIELD_KEYS_BY_CLASS` (incl. MAUD `MergerAgreementExtraction`) / `validate_operator_extraction` (llm-mailroom @959bb0b).
+  - `mailroom_ui/prompt_registry.py` — verbatim `prompt_templates()` (all 18 agents; regenerate from an llm-mailroom checkout with llm-dojo-scoring importable).
   - `mailroom_ui/trace_interpreter.py` — maps its span names, Langfuse observation types (`type` / v4 `observationType`), trace metadata/input/output fields (`user_id`, `release`, `doc_subclass` / `contract_subtype`, `expected_hf_class` / `expected_subclass`, `normalize-intake` stats, `failure_class` / tagged `run aborted [<class>]:`), and score names (`JUDGE_VERDICT_SCORES` = `mailroom-pipeline-judge`, `JUDGE_QUALITY_SCORES` = `mailroom-pipeline-quality`, plus suite extras and the verified-precision alias).
   - Tests — `tests/fake_langfuse.py` fixtures mirror the trace contract (v2/v3 `type` and v4 `observationType`).
   - CHANGELOG entry for the sync (see Release process).
@@ -52,12 +53,12 @@ open exactly one specialty skill. Companion to
 
 ```bash
 pip install -e ".[dev]"        # install (deps NOT vendored; no venv in repo)
-pip install -e ".[pipeline]"   # pin llm-mailroom @ 2a212e76a62b (v0.7.1) (optional import)
+pip install -e ".[pipeline]"   # pin llm-mailroom @ 959bb0bce152 (0.7.1+, main after v0.7.1) (optional import)
 python -m pytest tests/ -q     # whole suite (never hits real Langfuse)
 python -m server.main          # FastAPI web server on :8001 (also: mailroom-web)
 mailroom-hosted                # Observatory on 0.0.0.0 (public /live UI)
 mailroom-tui                   # TUI console (planned, M4)
-mailroom-observer              # optional CLI bin watcher (not compose; or MAILROOM_OBSERVER=1)
+mailroom-observer              # optional operator bin watcher (or MAILROOM_OBSERVER=1)
 pip install -e ".[operator]"   # bcrypt / PyJWT / watchdog / PyMuPDF
 python -m operator_desk        # migrate operator SQLite
 scripts/setup_operator.sh      # bins + migrate (no npm)
@@ -90,7 +91,7 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
   - `langfuse_source.py` — Langfuse SDK adapter: `client.api.trace.list/get`, `client.api.observations.get_many`, `client.api.scores.get_many`, `client.api.sessions.list/get`; `TTLCache`; `LangfuseUnavailable`. `list_recent_runs()` uses trace-list responses only (cheap "light" runs for the floor); `get_run()` fetches observations+scores for drill-down.
   - `trace_interpreter.py` — `interpret_trace(trace, observations?, scores?)` → `PipelineRun`. Accepts **both v2/v3 snake_case and v4 camelCase** observation shapes (see SDK tolerance). Light runs (no observations arg) have empty span/generation detail. Re-run clustering: deterministic trace ids are reused by pilot/attempt re-runs, so a trace can carry several full runs — observations are clustered by time gaps (`RUN_GAP_S`) and only the latest cluster is kept.
   - `pipeline_schema.py` — topology mirror (see sister-repo section).
-  - `producer.py` — pinned llm-mailroom import adapter (`[pipeline]` extra @ `2a212e76a62b` / v0.7.1).
+  - `producer.py` — pinned llm-mailroom import adapter (`[pipeline]` extra @ `959bb0bce152` / 0.7.1+ (main after v0.7.1)).
   - `models.py` — pydantic: `PipelineRun` (`doc_id`, `review_causes`, `needs_reconsideration`, `needs_human` includes archived objective misses, `failure_class` / `run_aborted`), `NodeSpan`, `Generation`, `Score`, `SessionSummary`, `Metrics`, `Stage`, `Phase`.
   - `reconsideration.py` — objective review causes (GT miss, judge MISS/PARTIAL, extraction score floor, schema/guardrail/parse, incomplete reporting). Never uses self-reported confidence.
   - `pipeline_ops.py` — producer watcher/inbox liveness (`MAILROOM_PIPELINE_URL`).
@@ -105,9 +106,8 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
   - `js/floor.js` — canvas conveyor renderer (stations, rollers, envelope animation, review/failed sidings, RECONSIDER parked on REVIEW even when stage is archived, tombstones for clean archived/failed runs). `js/api.js` (fetch + WS with reconnect + global error banner), `js/inspector.js`, `js/sessions.js`, `js/history.js`, `js/metrics.js`, `js/review.js`, `js/console.js`, `js/main.js` (app shell).
 - `operator_desk/` — operator submodule (not a display source): JWT auth
   (`/v1/auth`), local archive index (`/v1/archive`), Langfuse-backed ops
-  (`/v1/ops`), `/ws/pipeline`, and the bin observer (in-process via
-  `MAILROOM_OBSERVER=1` — compose default; optional standalone CLI POST to
-  `/v1/ops/events`, never both on the same bins). Mounted
+  (`/v1/ops`), `/ws/pipeline`, and `mailroom-observer` (in-process via
+  `MAILROOM_OBSERVER=1`, or standalone POST to `/v1/ops/events`). Mounted
   from `server/main.py` via `mount_operator`. Never imports `api.main`.
   Extra `[operator]`; default `[dev]` uses stdlib password/JWT fallbacks.
   Optional React desk lives in `ui/` (extra `[ui]` is a marker; Node is
@@ -134,7 +134,7 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
   on-demand doc_text fetches) → `site/data/corpus.json`; run by
   `publish_pages.sh` alongside the snapshot export. Verified end-to-end
   against the live Hub: 3,302 rows (2,979 train / 323 test; mailroom-dataset
-  v9.1, pinned revision ed7576b6).
+  v9.1, pinned revision tag `v9.1` / ed7576b).
 - `scripts/seed_demo.py` — planned (M5): generates demo traces **into Langfuse** (env `demo`), never served directly.
 
 ## Langfuse is ALWAYS the source of visualization
@@ -158,6 +158,9 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
 - Scores: confidences (`classification_confidence`, `extraction_confidence`), run metrics (`estimated_cost_usd`, `total_tokens`, `stage_completed`, ...), judge verdict (`mailroom-pipeline-judge` = CORRECT/PARTIAL/MISS), quality (`mailroom-pipeline-quality` = 0–1). Grounded pilot runs also carry deterministic field scores (`extraction_field_score`, `extraction_overall_score`, `extraction_needs_judge_review`, `entity_list_precision/recall`).
 
 ## Config gotchas
+
+- **Public binds fail closed.** Hosted edition (`MAILROOM_EDITION=hosted`) or any non-loopback `MAILROOM_HOST` counts as public: operator login, `POST /api/review/resolve` and `/api/inbox/enqueue` need a reviewer JWT, and login is refused (503) while `MAILROOM_OPERATOR_JWT_SECRET` is unset/default or the admin still has the default password. Local loopback use is unchanged. Browser writes from another Origin are refused (403); wildcard CORS is read-only — list origins in `MAILROOM_CORS_ORIGINS` for cross-origin writes. The TUI sends `MAILROOM_OPERATOR_TOKEN` when set.
+- `MAILROOM_POLL_ENRICH_BUDGET` (default 10) caps the one-time full fetches the poller spends per cycle on parked/finished runs (`inflight` mode); the default trace cache dir is scoped per source project.
 
 - `.env` is loaded by `server/main.py:run()` via `load_dotenv()`; if you launch uvicorn directly (`uvicorn server.main:app`) you must export the vars yourself. `LangfuseSource` reads `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST` (default `https://us.cloud.langfuse.com`).
 - This repo uses **`LANGFUSE_HOST`** (SDK convention) while Langfuse docs/CLI use `LANGFUSE_BASE_URL`. `langfuse_host()` accepts `BASE_URL` as an alias when `HOST` is unset (Hugging Face Space secrets included).
@@ -267,3 +270,10 @@ development; the hub task board is `governance/TASKS.md`, cards `DMR-0NN`).
   `scripts/publish_pages.sh` → `gh-pages:/docs` (deploy-from-branch, NO
   Actions). Snapshot exporter, `?api=` live/snapshot dual mode, debug
   layer, and Phoenix (`MAILROOM_SOURCE=phoenix|both`) ship in this cut.
+- **v0.5.0 — upstream resync + full audit**: mirror synced to llm-mailroom
+  `959bb0bce152` (merger_agreement_specialist, `intake-ml-triage`, 18-agent
+  prompt mirror, taxonomy model registry, bundled `by_class`); ~60 loud and
+  quiet defects fixed across data core, server/poller, operator auth, pixel
+  console, Observatory, terminal site, Pages publisher, TUI, scripts and
+  operator containers (see CHANGELOG `[0.5.0]`). Public binds now fail
+  closed on default operator credentials.

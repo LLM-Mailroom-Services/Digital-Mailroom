@@ -1,0 +1,85 @@
+# Granite correspondence-50 — correspondence_specialist on 50 CORRESPONDENCE docs (FP8, 1×L4).
+# Quotas mirror run-50-correspondence-specialist-awq (fills the 62-row test
+# pool; demand/notice pools exhaust at 3) for a direct twin compare.
+# Engine/posture: ibm-granite/granite-4.2-8b-fp8, 32768 window (boot-held),
+# 1×L4 MIN=MAX=1 pinned, concurrency 8 (attempt-1 c=4 too slow; Qwen-twin topology),
+# DMR-074 production prompt pin, scaledown 120.
+# Decode 8192 via run-scoped SANDBOX_AGENT_KNOBS (probe-measured ~6x Qwen
+# thinking inflation): SANDBOX_AGENT_KNOBS='{"correspondence_specialist":
+# {"temperature":0.1,"max_tokens":8192,"max_input_chars":10500,"reasoning_effort":"none"}}'.
+#
+# Deploy + run (same R2 env as the sweep; teardown ONLY after this last run):
+#   sandbox run benchmark-check --config config/runs/run-50-correspondence-granite.yaml
+#   sandbox run preflight --config config/runs/run-50-correspondence-granite.yaml --live
+#   SANDBOX_AGENT_KNOBS='...' sandbox run start --config config/runs/run-50-correspondence-granite.yaml --job-mode endpoint --watch
+#   ./deploy/teardown_vllm.sh   # ONLY after this run (+ container list + billing window)
+schema: sandbox.run/v1
+run_id: run-50-correspondence-granite
+task: correspondence_specialist
+profile: modal-vllm
+
+prompt:
+  # DMR-074 local production pin (config/prompts/correspondence_specialist_production.txt) —
+  # same file as the Qwen AWQ comparators (run-20/run-50-correspondence-specialist-awq).
+  default: {source: code-default}
+  agents:
+    correspondence_specialist:
+      source: local
+      file: correspondence_specialist_production
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  # split: test — 62 correspondence rows; N=50 fills the pool (same as Qwen Run B)
+  split: test
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      # correspondence (62 test rows): all 7 test subclasses → 50
+      - doc_class: correspondence
+        sub_buckets:
+          - {subclass: email, count: 24}               # avail 30
+          - {subclass: letter, count: 7}               # avail 9
+          - {subclass: press_release, count: 6}        # avail 8
+          - {subclass: memo, count: 4}                 # avail 5
+          - {subclass: meeting_request, count: 3}      # avail 4
+          - {subclass: demand, count: 3}               # avail 3 (pool exhausted)
+          - {subclass: notice, count: 3}               # avail 3 (pool exhausted)
+  limit: 50
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: ibm-granite/granite-4.2-8b-fp8
+  vllm:
+    max_model_len: 32768      # FP8 L4 window (bf16 Granite 32k FAILS on 1×L4)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: compressed-tensors
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120    # attended cost-saver (DMR-076)
+    max_containers: 1         # 1×L4 cost guard — do not raise for Granite runs
+    min_containers: 1         # pinned warm for this run (teardown after)
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1              # HARD CAP per cost directive — fail fast, no credit burn
+  fail_fast: false
+  concurrency: 8              # HARD REQ c=8: attempt-1 at c=4 paced ~4min/doc (guard-abort certain); duplicate-dispatcher incident + short-doc regime; halt fast on 408s
+  cost_cap_usd: 0.80          # same as Qwen AWQ Run B (1-replica billing headroom)
+  max_wall_seconds: 3600      # same as Qwen AWQ Run B
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-50-correspondence-granite
+  tags: [sandbox, job, specialist, correspondence, granite-fp8, l4, benchmark, c8]

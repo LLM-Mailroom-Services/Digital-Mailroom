@@ -73,7 +73,9 @@ def probe_models(profile: dict, *, timeout: float = 3.0) -> ProbeResult:
 def probe_chat(profile: dict, *, timeout: float = 8.0, json_object: bool = True) -> ProbeResult:
     endpoints = endpoints_for(profile, base_url_override=_effective_base_url(profile))
     url = endpoints.chat_url
-    model = profile.get("default_model") or "local"
+    from mailroom_sandbox.overlay import resolve_served_vllm_model
+
+    model = resolve_served_vllm_model() or profile.get("default_model") or "local"
     body: dict = {
         "model": model,
         "messages": [

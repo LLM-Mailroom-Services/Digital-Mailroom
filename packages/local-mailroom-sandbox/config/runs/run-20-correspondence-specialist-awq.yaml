@@ -1,0 +1,94 @@
+# Run A — correspondence_specialist on 20 CORRESPONDENCE docs (AWQ, 2×L4).
+# Subclass quotas scaled 2/3 from run-30-correspondence-specialist (12→8 / 3→2).
+# Engine/posture: Qwen3-8B-AWQ, 32768 window, 2×L4 data-parallel (MIN=MAX=2
+# pinned during runs, one warm app for Run A + Run B), concurrency 8,
+# DMR-074 production prompt pin, scaledown 120.
+#
+# Deploy + run (AWQ 2×L4 env — see `sandbox modal-matrix env Qwen/Qwen3-8B-AWQ`):
+#   modal profile activate hermes-agent-jjb
+#   modal profile current   # must print hermes-agent-jjb (never print tokens)
+#   export SANDBOX_PROFILE=modal-vllm MODAL_VLLM_MODEL=Qwen/Qwen3-8B-AWQ \
+#     MODAL_VLLM_QUANTIZATION=awq MODAL_VLLM_MAX_MODEL_LEN=32768 \
+#     MODAL_VLLM_GPU=L4 MODAL_VLLM_IMAGE_TAG=v0.29.0 \
+#     MODAL_VLLM_MAX_CONTAINERS=2 MODAL_VLLM_MIN_CONTAINERS=2 \
+#     MODAL_VLLM_SCALEDOWN_SECONDS=120
+#   # (MODAL_VLLM_API_TOKEN + VLLM_API_KEY stay in local .env — never in git)
+#   modal run deploy/modal_vllm.py::download_model
+#   modal deploy deploy/modal_vllm.py --strategy recreate
+#   # set VLLM_BASE_URL from deploy output, VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+#   sandbox cutover --profile modal-vllm
+#   sandbox health --profile modal-vllm
+#   sandbox run benchmark-check --config config/runs/run-20-correspondence-specialist-awq.yaml
+#   sandbox run preflight --config config/runs/run-20-correspondence-specialist-awq.yaml --live
+#   sandbox run start --config config/runs/run-20-correspondence-specialist-awq.yaml --job-mode endpoint --watch
+#   # NO teardown here — Run B rides the same warm app; teardown after Run B:
+#   # ./deploy/teardown_vllm.sh
+schema: sandbox.run/v1
+run_id: run-20-correspondence-specialist-awq
+task: correspondence_specialist
+profile: modal-vllm
+
+prompt:
+  # DMR-074 local production pin (config/prompts/correspondence_specialist_production.txt).
+  default: {source: code-default}
+  agents:
+    correspondence_specialist:
+      source: local
+      file: correspondence_specialist_production
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  # split: test — 62 correspondence rows; N=20 fits (same pool as run-30)
+  split: test
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      # correspondence: all 7 test subclasses → 20 (2/3 of run-30 quotas)
+      - doc_class: correspondence
+        sub_buckets:
+          - {subclass: email, count: 8}                # was 12 (avail 30)
+          - {subclass: letter, count: 2}               # was 3 (avail 9)
+          - {subclass: press_release, count: 2}        # was 3 (avail 8)
+          - {subclass: memo, count: 2}                 # was 3 (avail 5)
+          - {subclass: meeting_request, count: 2}      # was 3 (avail 4)
+          - {subclass: demand, count: 2}               # was 3 (avail 3)
+          - {subclass: notice, count: 2}               # was 3 (avail 3)
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768      # AWQ L4 window (bf16 stays 16384)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: awq
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120    # attended cost-saver (DMR-076 / improved-awq-c8)
+    max_containers: 2         # 2×L4 data-parallel (one replica per L4)
+    min_containers: 2         # pinned warm during Runs A+B (no scale-to-zero)
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 8              # ~4 per replica across the 2×L4 pair
+  cost_cap_usd: 0.40          # 2-replica billing headroom (busy ×2 GPUs)
+  max_wall_seconds: 2400
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-20-correspondence-awq
+  tags: [sandbox, job, specialist, correspondence, qwen3-8b-awq, l4, benchmark, c8, x2]

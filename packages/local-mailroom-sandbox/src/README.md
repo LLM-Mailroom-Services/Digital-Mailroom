@@ -11,7 +11,7 @@
 ## Structure
 
 | Path | Contents |
-|:---|:---|
+| :--- | :--- |
 | [`mailroom_sandbox/`](mailroom_sandbox/) | Main package (CLI, runtime, providers, eval) |
 | `mailroom_sandbox/eval/` | Evaluation utilities (runners, scoring, matrix, tracing) |
 

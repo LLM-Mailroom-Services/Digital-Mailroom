@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 753 188" width="753" height="188" role="img" aria-label="Correspondence n=100 wall time by fleet">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --good:#0ca30c; --critical:#d03b3b; }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+<rect class="bg" width="753" height="188" rx="8"/>
+<text class="title" x="16" y="24">Correspondence n=100 wall time by fleet</text>
+<text class="sub" x="16" y="42">Same 100 docs · lower is better · s7 routed 97/100 requests to one replica</text>
+<line class="grid" x1="223.0" y1="54" x2="223.0" y2="154"/>
+<text class="tick" x="223.0" y="170" text-anchor="middle">0s</text>
+<line class="grid" x1="376.3" y1="54" x2="376.3" y2="154"/>
+<text class="tick" x="376.3" y="170" text-anchor="middle">50s</text>
+<line class="grid" x1="529.7" y1="54" x2="529.7" y2="154"/>
+<text class="tick" x="529.7" y="170" text-anchor="middle">100s</text>
+<line class="grid" x1="683.0" y1="54" x2="683.0" y2="154"/>
+<text class="tick" x="683.0" y="170" text-anchor="middle">150s</text>
+<line class="axis" x1="223" y1="54" x2="223" y2="154"/>
+<text class="lbl" x="215" y="74.0" text-anchor="end">1×L4 · c8 (s2a)</text>
+<path class="deemph" d="M223.0,63.0 H510.3 Q514.3,63.0 514.3,67.0 V73.0 Q514.3,77.0 510.3,77.0 H223.0 Z"><title>1×L4 · c8 (s2a): 95.0s — 2579 tok/s</title></path>
+<text class="val" x="520.3" y="74.0">95.0s</text>
+<text class="lbl" x="215" y="98.0" text-anchor="end">2×L4 · c16 · max_inputs 32 (s2b)</text>
+<path class="deemph" d="M223.0,87.0 H360.4 Q364.4,87.0 364.4,91.0 V97.0 Q364.4,101.0 360.4,101.0 H223.0 Z"><title>2×L4 · c16 · max_inputs 32 (s2b): 46.1s — 5308 tok/s</title></path>
+<text class="val" x="370.4" y="98.0">46.1s</text>
+<text class="lbl" x="215" y="122.0" text-anchor="end">2×L4 · c64 · max_inputs 64 (s7)</text>
+<path class="s1" d="M223.0,111.0 H677.2 Q681.2,111.0 681.2,115.0 V121.0 Q681.2,125.0 677.2,125.0 H223.0 Z"><title>2×L4 · c64 · max_inputs 64 (s7): 149.4s — 1641 tok/s</title></path>
+<text class="val" x="687.2" y="122.0">149.4s</text>
+<text class="lbl" x="215" y="146.0" text-anchor="end">2×L4 · c64 · max_inputs 32 (s9)</text>
+<path class="s1" d="M223.0,135.0 H338.6 Q342.6,135.0 342.6,139.0 V145.0 Q342.6,149.0 338.6,149.0 H223.0 Z"><title>2×L4 · c64 · max_inputs 32 (s9): 39.0s — 6282 tok/s</title></path>
+<text class="val" x="348.6" y="146.0">39.0s</text>
+</svg>

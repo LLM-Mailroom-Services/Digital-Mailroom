@@ -200,7 +200,9 @@ const MetricsView = (() => {
       const ts = r.updated_at || r.created_at;
       if (!ts) continue;
       const age = (now - new Date(ts).getTime()) / 3600000;
-      const bucket = Math.floor(5 - age);
+      // Bucket 5 is the current hour: age 0–1h → 5, 1–2h → 4, …
+      // (floor(5 - age) put the last hour one bar early and left "now" empty).
+      const bucket = 5 - Math.floor(Math.max(0, age));
       if (bucket >= 0 && bucket < 6) {
         buckets[bucket]++;
         costBuckets[bucket] += r.cost_usd || 0;

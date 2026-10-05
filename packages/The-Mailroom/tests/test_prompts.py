@@ -17,20 +17,25 @@ REMOVED = {"due_diligence_specialist", "compliance_specialist",
            "court_opinions_specialist"}
 
 
-def test_roster_matches_pilot_universe():
-    assert len(PROMPT_TEMPLATES) == 13
+def test_roster_matches_upstream_prompt_templates():
+    """Mirror of llm-mailroom prompt_templates() @959bb0b — all 18 agents."""
+    assert len(PROMPT_TEMPLATES) == 18
     assert not (set(PROMPT_TEMPLATES) & REMOVED)
     for expected in ("sorter", "sorter_reviewer", "contracts_specialist",
+                     "merger_agreement_specialist",
                      "corporate_records_specialist", "correspondence_specialist",
                      "insurance_claims_specialist", "arbiter", "boss",
                      "reporter", "judge", "judge-classification",
-                     "judge-correctness", "pdf_transcriber"):
+                     "judge-correctness", "pdf_transcriber", "image_extractor",
+                     "intake", "gmail_triage", "relations"):
         assert expected in PROMPT_TEMPLATES
 
 
 def test_templates_are_substantive_text():
     for agent, template in PROMPT_TEMPLATES.items():
-        assert isinstance(template, str) and len(template) > 200, agent
+        # reporter is procedural upstream (assembly only) — a short prompt.
+        floor = 100 if agent == "reporter" else 200
+        assert isinstance(template, str) and len(template) > floor, agent
 
 
 def test_prompt_name_contract():
@@ -54,18 +59,16 @@ def test_override_loader_rejects_bad_shape(tmp_path):
 
 def test_schema_roster_consistency():
     """The schema's specialist mapping must only reference agents on the
-    live roster. Extractors may have a vendored production prompt, a
-    docclass-arm prompt, or both (compliance_specialist is live again in
-    dojo 0.9.0 / mailroom #30; its production prompt_templates catch-up
-    is still on the pipeline)."""
+    live roster, and every specialist has a vendored production prompt
+    (compliance_specialist is removed upstream; the docclass arm was deleted
+    from llm-mailroom, its mirror is kept for llm-entity-extraction)."""
     from mailroom_ui.docclass_prompts import DOCLASS_PROMPT_VERSIONS
     from mailroom_ui.pipeline_schema import AGENTS, SPECIALIST_BY_DOC_CLASS
 
     for doc_class, specialist in SPECIALIST_BY_DOC_CLASS.items():
         assert specialist in AGENTS, f"{doc_class} -> {specialist} missing from AGENTS"
-        has_live = specialist in PROMPT_TEMPLATES
-        has_docclass = any(k.startswith(specialist) for k in DOCLASS_PROMPT_VERSIONS)
-        assert has_live or has_docclass, f"{doc_class} -> {specialist} has no prompt"
+        assert specialist in PROMPT_TEMPLATES, f"{doc_class} -> {specialist} has no prompt"
+    assert DOCLASS_PROMPT_VERSIONS  # entity-extraction mirror still vendored
 
 
 def test_docclass_registry_shape():

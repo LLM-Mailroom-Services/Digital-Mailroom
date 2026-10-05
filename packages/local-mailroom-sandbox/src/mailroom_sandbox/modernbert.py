@@ -85,7 +85,7 @@ def _bundle_ok(path: Path) -> bool:
 
 
 def resolve_modernbert_model_path() -> Path | None:
-    """Calibrated ModernBERT artifact dir (prefer run2-published)."""
+    """Calibrated ModernBERT artifact dir (prefer newest local train/export)."""
     for key in ("MODERNBERT_MODEL_PATH", "ML_MODEL_DIR"):
         raw = (os.environ.get(key) or "").strip()
         if raw:
@@ -98,9 +98,9 @@ def resolve_modernbert_model_path() -> Path | None:
     if ml is None:
         return None
     for rel in (
-        Path("artifacts") / "run2-published",
         Path("artifacts") / "pytorch" / "model",
         Path("artifacts") / "onnx" / "model",
+        Path("artifacts") / "run2-published",
     ):
         cand = ml / rel
         if _bundle_ok(cand):
@@ -157,8 +157,10 @@ def run_modernbert_eval(
     *,
     sample: int = 50,
     seed: int = 42,
+    subset: str = "test",
     checkpoint: Path | str | None = None,
-    timeout_s: int = 1800,
+    timeout_s: int = 7200,
+    selective_risk: bool = True,
 ) -> dict[str, Any]:
     """Run mailroom-ml's eval CLI; return the JSON report.
 
@@ -183,12 +185,16 @@ def run_modernbert_eval(
         str(script),
         "--checkpoint",
         str(ckpt),
+        "--subset",
+        str(subset),
         "--sample",
         str(int(sample)),
         "--seed",
         str(int(seed)),
         "--json",
     ]
+    if selective_risk:
+        cmd.append("--selective-risk")
     env = os.environ.copy()
     env.setdefault("ML_MODEL_DIR", str(ckpt))
     env.setdefault("MAILROOM_ML_SRC", str(ml))
@@ -240,28 +246,40 @@ def serving_record_from_eval(report: Mapping[str, Any]) -> dict[str, Any]:
     except ValueError:
         cpd = MODERNBERT_DEFAULT_COST_PER_DOC_USD
 
-    wall = report.get("_sandbox_wall_seconds")
-    e2e = None
-    if wall is not None and n > 0:
+    tel = report.get("run_telemetry") or {}
+    wall = tel.get("remote_wall_seconds") or report.get("_sandbox_wall_seconds")
+    e2e = tel.get("latency_seconds_per_document")
+    if e2e is None and wall is not None and n > 0:
         e2e = float(wall) / n
-    elif n > 0:
-        # Eval report has no per-doc latency; leave absent rather than invent.
-        e2e = None
+
+    gpu = tel.get("gpu")
+    provider = "modal-gpu" if tel else (
+        "onnx-cpu" if str(report.get("model_kind", "")).startswith("onnx") else "pytorch"
+    )
+    profile = tel.get("modal_profile") or "modernbert"
 
     rec: dict[str, Any] = {
         "serving_kind": "modernbert",
-        "provider": "onnx-cpu" if report.get("model_kind", "").startswith("onnx") else "pytorch",
-        "profile": "modernbert",
+        "provider": provider,
+        "profile": profile,
         "model": MODERNBERT_MODEL_ID,
         "task": "sorter",
         "classifier": "modernbert",
         "dataset_fingerprint": (
-            f"modernbert-eval-n{n}-seed{report.get('seed', 42)}-"
+            f"modernbert-{report.get('eval_subset') or 'test'}-n{n}-"
+            f"seed{report.get('seed', 42)}-"
             f"{report.get('artifact_sha') or 'sha-unknown'}"
         ),
+        "eval_subset": report.get("eval_subset"),
+        "sample_per_stratum": report.get("sample"),
+        "eval_split_counts": report.get("eval_split_counts"),
         "n": n,
-        "cost_per_document": cpd,
-        "estimated_cost_usd": round(cpd * n, 8) if n else None,
+        "cost_per_document": tel.get("gpu_cost_per_document") or cpd,
+        "estimated_cost_usd": tel.get("estimated_gpu_cost_usd")
+        or (round(cpd * n, 8) if n else None),
+        "estimated_gpu_cost_usd": tel.get("estimated_gpu_cost_usd"),
+        "gpu_cost_per_document": tel.get("gpu_cost_per_document"),
+        "wall_seconds": tel.get("remote_wall_seconds") or report.get("_sandbox_wall_seconds"),
         "scores": {
             "accuracy": report.get("doc_type_accuracy"),
             "exact_match": report.get("doc_type_accuracy"),
@@ -274,4 +292,47 @@ def serving_record_from_eval(report: Mapping[str, Any]) -> dict[str, Any]:
     }
     if e2e is not None:
         rec["e2e_latency_seconds"] = e2e
+    if gpu:
+        rec["gpu"] = gpu
+    if tel.get("modal_app"):
+        rec["modal_app"] = tel.get("modal_app")
     return {k: v for k, v in rec.items() if v is not None}
+
+
+def append_experiment_log_from_eval(
+    report: Mapping[str, Any],
+    *,
+    experiment_name: str | None = None,
+) -> Path:
+    """Append a dojo-shaped record to ``reports/experiment_log.jsonl``."""
+    from mailroom_sandbox.eval import experiment_log
+
+    name = experiment_name or (
+        f"modernbert_{report.get('eval_subset') or 'test'}_n{report.get('n_docs')}"
+    )
+    serving = serving_record_from_eval(report)
+    record = experiment_log.new_record(
+        experiment_name=name,
+        task="modernbert_eval",
+        suite="modernbert_eval",
+        profile=serving.get("profile"),
+        provider=serving.get("provider"),
+        model=serving.get("model"),
+        mock=False,
+        dataset_fingerprint=serving.get("dataset_fingerprint"),
+        n=serving.get("n"),
+        scores=serving.get("scores"),
+        serving_kind="modernbert",
+        wall_seconds=serving.get("wall_seconds"),
+        e2e_latency_seconds=serving.get("e2e_latency_seconds"),
+        estimated_gpu_cost_usd=serving.get("estimated_gpu_cost_usd"),
+        gpu_cost_per_document=serving.get("gpu_cost_per_document"),
+        cost_per_document=serving.get("cost_per_document"),
+        estimated_cost_usd=serving.get("estimated_cost_usd"),
+        checkpoint=serving.get("checkpoint"),
+        artifact_sha=serving.get("artifact_sha"),
+        eval_subset=report.get("eval_subset"),
+        eval_split_counts=report.get("eval_split_counts"),
+        run_telemetry=report.get("run_telemetry"),
+    )
+    return experiment_log.append(record)

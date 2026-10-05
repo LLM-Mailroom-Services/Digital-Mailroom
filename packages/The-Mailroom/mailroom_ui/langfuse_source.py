@@ -19,7 +19,7 @@ from typing import Any, Callable, Optional
 
 from .models import PipelineRun
 from .sources import TraceSourceUnavailable
-from .trace_interpreter import interpret_trace
+from .trace_interpreter import EPOCH, interpret_trace
 
 log = logging.getLogger("mailroom.langfuse_source")
 
@@ -46,9 +46,34 @@ class LangfuseUnavailable(TraceSourceUnavailable):
 
 
 class TTLCache:
-    def __init__(self) -> None:
+    """Thread-safe TTL cache with eviction.
+
+    Expired entries are swept on write and the store is capped: the traces
+    list key rotates every 30 s (time bucket) and per-trace keys accumulate,
+    so lazy eviction-on-read alone grew memory for the life of the process.
+    """
+
+    MAX_ENTRIES = 4096
+    SWEEP_EVERY = 256
+
+    def __init__(self, max_entries: int | None = None) -> None:
         self._data: dict[str, tuple[float, Any]] = {}
         self._lock = threading.Lock()
+        self.max_entries = max_entries or self.MAX_ENTRIES
+        self._writes = 0
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._data)
+
+    def _sweep_locked(self, now: float) -> None:
+        for key in [k for k, (exp, _v) in self._data.items() if exp < now]:
+            self._data.pop(key, None)
+        overflow = len(self._data) - self.max_entries
+        if overflow > 0:
+            # Drop the entries closest to expiry first.
+            for key, _ in sorted(self._data.items(), key=lambda kv: kv[1][0])[:overflow]:
+                self._data.pop(key, None)
 
     def get(self, key: str) -> Optional[Any]:
         with self._lock:
@@ -62,8 +87,12 @@ class TTLCache:
             return value
 
     def set(self, key: str, value: Any, ttl: float) -> None:
+        now = time.monotonic()
         with self._lock:
-            self._data[key] = (time.monotonic() + ttl, value)
+            self._data[key] = (now + ttl, value)
+            self._writes += 1
+            if self._writes % self.SWEEP_EVERY == 0 or len(self._data) > self.max_entries:
+                self._sweep_locked(now)
 
     def delete(self, key: str) -> None:
         with self._lock:
@@ -96,6 +125,20 @@ def _page_data(response: Any) -> list[Any]:
     return []
 
 
+def _status_of(exc: BaseException) -> Optional[int]:
+    status = getattr(exc, "status", None) or getattr(exc, "status_code", None)
+    try:
+        return int(status) if status is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _is_not_found(exc: BaseException) -> bool:
+    if _status_of(exc) == 404:
+        return True
+    return type(exc).__name__ == "NotFoundError" or "not found" in str(exc).lower()[:200]
+
+
 def _iso(dt: Optional[datetime]) -> Optional[str]:
     return dt.isoformat() if dt else None
 
@@ -122,6 +165,8 @@ class LangfuseSource:
         self.poll_cache_ttl = poll_cache_ttl
         self.run_cache_ttl = run_cache_ttl
         self._rate_hits = 0
+        self._backoff_until = 0.0
+        self._rate_lock = threading.Lock()
         # Health probe TTL: several concurrent polls (page + poller + extra
         # tabs) otherwise each run a full Langfuse read — one 15s timeout with
         # one retry became a 30s /api/health hang on a slow cloud. 5s of
@@ -185,20 +230,28 @@ class LangfuseSource:
         V-5: HTTP 429 (rate limit) gets exponential backoff so a burst of
         polls doesn't compound into a sustained 429 storm.
         """
+        # Cool-down instead of sleeping: the old in-thread sleep stalled the
+        # poll loop (sequential get_run calls) for minutes during a 429 storm
+        # and then raised anyway. Calls inside the window fail fast.
+        with self._rate_lock:
+            remaining = self._backoff_until - time.monotonic()
+        if remaining > 0:
+            raise LangfuseUnavailable(f"{label}: rate limited (cooling down {remaining:.1f}s)")
         try:
             out = fn()
-            self._rate_hits = 0
-            return out
         except LangfuseUnavailable:
             raise
         except Exception as exc:
-            status = getattr(exc, "status", None) or getattr(exc, "status_code", None)
-            if status == 429:
-                backoff = min(0.5 * (2 ** min(self._rate_hits, 6)), 10.0)
-                self._rate_hits += 1
-                time.sleep(backoff)
+            if _status_of(exc) == 429:
+                with self._rate_lock:
+                    backoff = min(0.5 * (2 ** min(self._rate_hits, 6)), 10.0)
+                    self._rate_hits += 1
+                    self._backoff_until = time.monotonic() + backoff
                 raise LangfuseUnavailable(f"{label}: rate limited (429, backoff {backoff:.1f}s)") from exc
             raise LangfuseUnavailable(f"{label}: {str(exc)[:200]}") from exc
+        with self._rate_lock:
+            self._rate_hits = 0
+        return out
 
     # ----------------------------------------------------------------- traces
 
@@ -252,6 +305,7 @@ class LangfuseSource:
             if len(batch) < page_limit:
                 break
             page += 1
+        out = out[:limit]
         self.cache.set(key, out, self.poll_cache_ttl)
         self._merge_list_harvest(out)
         return out
@@ -317,13 +371,23 @@ class LangfuseSource:
         trace_api = self._api("trace")
         if trace_api is None:
             raise LangfuseUnavailable("trace API unavailable")
+        def _fetch():
+            try:
+                # Fast-fail: retrying the detail endpoint just burns ~30s in
+                # backoff before returning the same rate-limit error.
+                return trace_api.get(trace_id, request_options={
+                    "timeout_in_seconds": 10, "max_retries": 0})
+            except TypeError:
+                return trace_api.get(trace_id)  # older SDKs: no request_options
+
         try:
-            # Fast-fail: retrying the detail endpoint just burns ~30s in
-            # backoff before returning the same rate-limit error.
-            resp = trace_api.get(trace_id, request_options={
-                "timeout_in_seconds": 10, "max_retries": 0})
-        except Exception:
-            return None
+            resp = self._guarded("trace.get", _fetch)
+        except LangfuseUnavailable as exc:
+            # Only a real 404 means "no such trace". A 429/timeout/5xx is an
+            # outage and must not surface as a misleading "trace not found".
+            if exc.__cause__ is not None and _is_not_found(exc.__cause__):
+                return None
+            raise
         if resp is None:
             return None
         out = _to_dict(resp)
@@ -340,22 +404,52 @@ class LangfuseSource:
         # the embedded set from trace.get is only a fallback.
         obs_api = self._api("observations")
         out: list[dict[str, Any]] = []
-        fetched = False
+        failure: Optional[LangfuseUnavailable] = None
         if obs_api is not None:
             try:
-                resp = self._guarded("observations.get_many",
-                                     lambda: obs_api.get_many(trace_id=trace_id, limit=100))
-                out = [_to_dict(o) for o in _page_data(resp)]
-                fetched = True
-            except LangfuseUnavailable:
-                out = []
-        if not fetched or not out:
-            # Fallback: the trace record embeds its own authoritative
-            # observation set (complete: usage, cost, model, io).
+                out = self._paged(
+                    "observations.get_many",
+                    lambda p: obs_api.get_many(trace_id=trace_id, limit=self.MAX_PAGE_LIMIT,
+                                               **({"page": p} if p else {})),
+                )
+            except LangfuseUnavailable as exc:
+                failure = exc
+        if not out:
+            # Fallback: a trace DETAIL record embeds full observation objects.
+            # The LIST payload (the usual harvest) embeds only id strings —
+            # those carry nothing and used to become fake "observation" spans.
             embedded = (self.get_trace(trace_id) or {}).get("observations")
-            if isinstance(embedded, list) and embedded:
-                out = [_to_dict(o) for o in embedded]
+            if isinstance(embedded, list):
+                full = [d for d in (_to_dict(o) for o in embedded) if isinstance(d, dict) and d]
+                if full:
+                    out, failure = full, None
+        if failure is not None:
+            # Never cache an outage as "this trace has no observations".
+            raise failure
         self.cache.set(key, out, self.cache_ttl)
+        return out
+
+    def _paged(
+        self, label: str, fetch: Callable[[Optional[int]], Any], max_pages: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Collect every page of a per-trace index (100-row cap per page).
+
+        ``fetch(page)`` is called with ``page=None`` once when the SDK method
+        rejects the ``page`` kwarg (older clients): single page only.
+        """
+        out: list[dict[str, Any]] = []
+        for page in range(1, max_pages + 1):
+            try:
+                resp = self._guarded(label, lambda p=page: fetch(p))
+            except LangfuseUnavailable as exc:
+                if page == 1 and isinstance(exc.__cause__, TypeError):
+                    resp = self._guarded(label, lambda: fetch(None))
+                    return [_to_dict(o) for o in _page_data(resp)]
+                raise
+            batch = [_to_dict(o) for o in _page_data(resp)]
+            out.extend(batch)
+            if len(batch) < self.MAX_PAGE_LIMIT:
+                break
         return out
 
     def get_scores(self, trace_id: str) -> list[dict[str, Any]]:
@@ -371,16 +465,15 @@ class LangfuseSource:
         v3 = getattr(self.client, "api", None) and getattr(self.client.api, "scores_v3", None)
         out: list[dict[str, Any]] = []
         if v3 is not None:
-            try:
-                resp = self._guarded("scores.get_many_v3",
-                                     lambda: v3.get_many_v3(trace_id=trace_id, limit=100))
-                out = [_to_dict(o) for o in _page_data(resp)]
-            except LangfuseUnavailable:
-                out = []
-        # V-2: empty-v3 is treated as empty — no v1 fallback. The v1 endpoint
-        # is only reachable when the v3 API is entirely absent (very old SDKs),
-        # and even then it is scoped with a trace filter; the result is marked
-        # degraded so callers can show it honestly instead of as ground truth.
+            # Raises LangfuseUnavailable on outage — an empty verdict cached
+            # for 60 s is indistinguishable from "not judged" on the floor.
+            out = self._paged(
+                "scores.get_many_v3",
+                lambda p: v3.get_many_v3(trace_id=trace_id, limit=self.MAX_PAGE_LIMIT,
+                                         **({"page": p} if p else {})),
+            )
+        # V-2: empty-v3 is treated as empty — no v1 fallback (the v1 endpoint
+        # ignores the trace filter on Langfuse v4 and returns global pages).
         self.cache.set(key, out, self.cache_ttl)
         return out
 
@@ -398,7 +491,13 @@ class LangfuseSource:
         try:
             cfg_api = self._api("score_configs")
             if cfg_api is not None:
-                resp = cfg_api.get()
+                def _cfg():
+                    try:
+                        return cfg_api.get(limit=self.MAX_PAGE_LIMIT)
+                    except TypeError:
+                        return cfg_api.get()
+
+                resp = self._guarded("score_configs.get", _cfg)
                 for cfg in _page_data(resp):
                     d = _to_dict(cfg)
                     name = d.get("name")
@@ -408,9 +507,15 @@ class LangfuseSource:
                     for cat in d.get("categories") or []:
                         if isinstance(cat, dict) and cat.get("label") is not None:
                             cats.append({"value": cat.get("value"), "label": cat.get("label")})
-                    out[name] = {"data_type": d.get("data_type"), "categories": cats}
-        except Exception:
-            out = {}
+                    out[name] = {
+                        "data_type": d.get("data_type") or d.get("dataType"),
+                        "categories": cats,
+                    }
+        except Exception as exc:
+            # Don't cache the failure: CATEGORICAL verdicts would stay numeric
+            # indices until the next TTL. Retry on the next run fetch.
+            log.warning("score configs unavailable: %s", exc)
+            return {}
         self.cache.set(key, out, self.cache_ttl)
         return out
 
@@ -570,7 +675,7 @@ def list_recent_runs(
         if not tid:
             continue
         runs.append(interpret_trace(t, score_configs=score_configs))
-    runs.sort(key=lambda r: r.updated_at or datetime.min, reverse=True)
+    runs.sort(key=lambda r: r.updated_at or EPOCH, reverse=True)
     return runs
 
 

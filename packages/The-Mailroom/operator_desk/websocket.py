@@ -25,10 +25,7 @@ class ConnectionManager:
         self.matter_subscriptions: dict[str, Set[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket) -> None:
-        from starlette.websockets import WebSocketState
-
-        if websocket.application_state == WebSocketState.CONNECTING:
-            await websocket.accept()
+        await websocket.accept()
         self.active_connections.add(websocket)
 
     def disconnect(self, websocket: WebSocket) -> None:
@@ -80,24 +77,12 @@ def _ws_user(websocket: WebSocket) -> Optional[UserProfile]:
         return None
 
 
-def _user_from_auth_message(msg: dict) -> Optional[UserProfile]:
-    if msg.get("action") != "auth" or not msg.get("token"):
-        return None
-    try:
-        return decode_token(str(msg["token"]))
-    except Exception:
-        return None
-
-
 @router.websocket("/ws/pipeline")
 async def pipeline_websocket(websocket: WebSocket):
     user = _ws_user(websocket)
-    pending_auth = user is None and auth_required()
-    if user is None and not pending_auth:
-        if auth_required():
-            await websocket.close(code=4401)
-            return
-        user = UserProfile(username="anonymous", role="viewer")
+    if user is None:
+        await websocket.close(code=4401)
+        return
     await manager.connect(websocket)
     try:
         while True:
@@ -105,13 +90,6 @@ async def pipeline_websocket(websocket: WebSocket):
             try:
                 msg = json.loads(data)
             except json.JSONDecodeError:
-                continue
-            if pending_auth:
-                user = _user_from_auth_message(msg)
-                if user is None:
-                    await websocket.close(code=4401)
-                    return
-                pending_auth = False
                 continue
             if msg.get("action") == "subscribe" and msg.get("matter_id"):
                 matter_id = str(msg["matter_id"])

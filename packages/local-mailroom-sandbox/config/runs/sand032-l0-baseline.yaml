@@ -1,0 +1,71 @@
+# SAND-032 Stage 1 L0 — current AWQ baseline on the SAND-032 slice (paired reference).
+# Spec: docs/superpowers/specs/2026-09-27-qwen3-l4-serving-ladder-design.md
+# Public HF mailroom-dataset only (no partner/proprietary data). Modal profile: exios66.
+#
+#   modal profile activate exios66
+#   set -a; eval "$(sandbox run deploy-env --config config/runs/sand032-l0-baseline.yaml)"; set +a
+#   sandbox run benchmark-check --config config/runs/sand032-l0-baseline.yaml --modal-profile exios66
+#   sandbox run preflight --config config/runs/sand032-l0-baseline.yaml --live
+#   sandbox run start --config config/runs/sand032-l0-baseline.yaml --job-mode endpoint --watch
+schema: sandbox.run/v1
+run_id: sand032-l0-baseline
+task: correspondence_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    correspondence_specialist:
+      source: local
+      file: correspondence_specialist_production
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all                  # test-only cannot back 100-row draws
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # FAMILY_HF_REVISION (v9.1)
+  strata:
+    buckets:
+      - {doc_class: correspondence, count: 20}   # single class bucket → nested 20 ⊂ 50 ⊂ 100
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: "awq"
+    revision: ""
+    kv_cache_dtype: ""
+    enable_thinking: null
+    cudagraph_capture_sizes: []
+    max_inputs: 32
+  modal:
+    app: sandbox-vllm-sand032
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 1
+    min_containers: 1
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 8
+  cost_cap_usd: 0.15
+  max_wall_seconds: 1800
+
+trace:
+  sink: none
+  otlp: false
+  environment: sand032
+  tags: [sandbox, sand032, qwen3-8b, l4, correspondence]

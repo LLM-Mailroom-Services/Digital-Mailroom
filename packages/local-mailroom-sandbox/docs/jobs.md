@@ -163,6 +163,11 @@ cd deploy && modal deploy modal_job.py
 sandbox run start --job-mode modal --config <run.yaml> --watch
 ```
 
+For long Modal **endpoint** evals against `sandbox-vllm`, use the full mailroom watch
+TUI (in-tray + postage + `modal app logs -f`) in a second pane or browser tab —
+see **[pretty-logging/mailroom-themed-logging.md](pretty-logging/mailroom-themed-logging.md)**. `sandbox run … --watch`
+only streams job progress lines, not vLLM dispatch logs.
+
 The worker runs the same checkout code on a CPU container against the
 Modal-hosted `sandbox-vllm` endpoint (the GPU is the serve app). It emits
 OTEL job/item spans to the locked sink. In-container vLLM (GPU job) is a
@@ -274,7 +279,7 @@ diagnosis PR.
 When an operator is cleared to run it: `sandbox runbook show improved-correspondence-fp16-c8`.
 Confirm the lock fingerprint is `285f423d3708` before scoring. Diagnosis of the
 AWQ floor (no GPU):
-[`docs/extraction-quality-diagnosis.md`](extraction-quality-diagnosis.md).
+[`docs/archive/extraction-quality-diagnosis.md`](archive/extraction-quality-diagnosis.md).
 
 TTFT is only populated when a run records it (never inferred from e2e).
 Document-pipeline eval traces stay on the Langfuse SDK path (family

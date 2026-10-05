@@ -32,9 +32,12 @@ HERMES_MODAL_PROFILE = "hermes-agent-jjb"
 
 # Default cost-eval suite (bf16). AWQ is accepted as an optional path when the
 # engine model is explicitly Qwen/Qwen3-8B-AWQ (DMR-068 gate still operator-owned).
+# Granite 4.2-8B FP8 is accepted as the SAND-027 apples-to-apples twin leg
+# (1×L4, compressed-tensors W8A8, 32768) — same gate posture as AWQ.
 BENCHMARK_MODEL_BF16 = "Qwen/Qwen3-8B"
 BENCHMARK_MODEL_AWQ = "Qwen/Qwen3-8B-AWQ"
-BENCHMARK_ALLOWED_MODELS = frozenset({BENCHMARK_MODEL_BF16, BENCHMARK_MODEL_AWQ})
+BENCHMARK_MODEL_GRANITE_FP8 = "ibm-granite/granite-4.2-8b-fp8"
+BENCHMARK_ALLOWED_MODELS = frozenset({BENCHMARK_MODEL_BF16, BENCHMARK_MODEL_AWQ, BENCHMARK_MODEL_GRANITE_FP8})
 
 BENCHMARK_EXPECTED = {
     "model": BENCHMARK_MODEL_BF16,
@@ -54,15 +57,60 @@ BENCHMARK_EXPECTED = {
 # DMR-074 / DMR-078: run-30 specialist YAMLs must pin local production prompt
 # stems AND match specialist_posture concurrency / cost caps.
 from mailroom_sandbox.job.specialist_posture import (
+    GRID_CELLS,
+    GRID_ONE_GPU_RUNS,
+    GRID_TWO_GPU_RUNS,
+    SAND032_RUNS,
+    SAND40_CELLS,
+    SAND40_CHECK_CELLS,
+    SAND40_PROBE_CELLS,
+    SAND032_SORTER_RUNS,
     SPECIALIST_POSTURE,
     expected_concurrency,
     expected_limit,
     posture_for_run,
 )
 
+# 2×L4 data-parallel follow-ups (Run A/B correspondence AWQ): MIN=MAX=2
+# pinned during runs on one warm app — not the scale-to-zero run-30 default.
+# benchmark-check allows max/min_containers=2 for exactly these run_ids.
+TWO_GPU_RUNS = frozenset({
+    "run-20-correspondence-specialist-awq",
+    "run-50-correspondence-specialist-awq",
+    # SAND-032 Stage 2b + Stage 3: 2 replicas × 1 L4 pinned warm.
+    *(r for r in SAND032_RUNS if r.startswith(("sand032-s3", "sand032-s5", "sand032-s7", "sand032-s8", "sand032-s9")) or r == "sand032-s2b-corr100-2rep"),
+    *SAND032_SORTER_RUNS,
+    *GRID_TWO_GPU_RUNS,
+    *SAND40_CELLS,
+    *SAND40_CHECK_CELLS,
+    *SAND40_PROBE_CELLS,
+})
+
+# Granite 4.2-8B FP8 sweep (1×L4): MIN=MAX=1 pinned warm across the five-run
+# chain (no scale-to-zero between classes; teardown after the fifth) — not
+# the scale-to-zero run-30 default. benchmark-check allows
+# min_containers=1 (with max_containers=1) for exactly these run_ids.
+# Probe instances (*-granite-probe) and the Qwen AWQ merger leg ride the same warm app and share the pin.
+PINNED_ONE_GPU_RUNS = frozenset({
+    "run-20-contracts-granite",
+    "run-20-merger-granite",
+    "run-20-corporate-records-granite",
+    "run-20-correspondence-granite",
+    "run-20-insurance-claims-granite",
+    "run-01-contracts-granite-probe",
+    "run-02-contracts-granite-probe2",
+    "run-50-correspondence-granite",
+    "run-20-merger-specialist-awq",
+    "run-20-corporate-records-specialist-awq",
+    # SAND-032 1×L4 rungs / scale-out baseline / bf16 arm: MIN=MAX=1 pinned.
+    *(r for r in SAND032_RUNS if r.startswith(("sand032-l", "sand032-s4", "sand032-s10")) or r == "sand032-s2a-corr100-1rep"),
+    *GRID_ONE_GPU_RUNS,
+})
+
 SPECIALIST_LOCAL_PROMPTS: dict[str, dict[str, str]] = {
     run_id: {row["agent"]: row["prompt_file"]}
     for run_id, row in SPECIALIST_POSTURE.items()
+    if "prompt_file" in row  # SAND-032 sorter row keeps the code-default sorter prompt
 }
 
 
@@ -121,6 +169,7 @@ def check_benchmark_posture(
     require_hermes: bool = True,
     require_modernbert: bool = False,
     expected_modal_profile: str | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Inventory Ready / Missing / Blocked for L4 Qwen specialist runs.
 
@@ -208,6 +257,11 @@ def check_benchmark_posture(
             "MODAL_VLLM_MODEL is AWQ — optional cost-saver path; "
             "DMR-068 accuracy gate (≥98%) is operator-owned before defaulting"
         )
+    elif env_model == BENCHMARK_MODEL_GRANITE_FP8:
+        warnings.append(
+            "MODAL_VLLM_MODEL is Granite FP8 — SAND-027 twin leg; "
+            "accuracy gate vs the Qwen AWQ 20-doc runs is operator-owned"
+        )
     sd_env = env_bits.get("MODAL_VLLM_SCALEDOWN_SECONDS")
     if sd_env:
         try:
@@ -225,10 +279,38 @@ def check_benchmark_posture(
                 )
     max_c = env_bits.get("MODAL_VLLM_MAX_CONTAINERS")
     if max_c and max_c != str(BENCHMARK_EXPECTED["max_containers"]):
-        warnings.append(
-            f"MODAL_VLLM_MAX_CONTAINERS={max_c!r} — specialist suite pins "
-            f"{BENCHMARK_EXPECTED['max_containers']}"
+        two_gpu_env_ok = (
+            spec is not None
+            and spec.run_id in TWO_GPU_RUNS
+            and max_c == "2"
         )
+        if not two_gpu_env_ok:
+            warnings.append(
+                f"MODAL_VLLM_MAX_CONTAINERS={max_c!r} — specialist suite pins "
+                f"{BENCHMARK_EXPECTED['max_containers']}"
+            )
+
+    if spec is not None and (
+        spec.run_id in SAND032_RUNS or spec.run_id in GRID_CELLS or spec.run_id in SAND40_CELLS
+        or spec.run_id in SAND40_PROBE_CELLS or spec.run_id in SAND40_CHECK_CELLS
+    ):
+        # SAND-032 / SAND-037 grid: the run YAML is the source of truth for
+        # deploy knobs — a stale MODAL_VLLM_* shell would silently serve
+        # different settings.
+        from mailroom_sandbox.job.deploy_env import env_drift
+
+        for msg in env_drift(spec, env if env is not None else os.environ):
+            errors.append(
+                f"deploy env drift — {msg} "
+                "(run: set -a; eval \"$(sandbox run deploy-env --config …)\"; set +a)"
+            )
+        if (
+            spec.run_id.startswith(("sand032-s2", "sand032-s3", "sand032-s5", "sand032-s6", "sand032-s7", "sand032-s8", "sand032-s9"))
+            and spec.engine.vllm.kv_cache_dtype != "fp8"
+        ):
+            errors.append(
+                f"{spec.run_id}: kv_cache_dtype must be fp8 for 2×L4 / scale-out runs"
+            )
 
     if spec is not None:
         spec_errs = _check_spec_pins(spec)
@@ -308,12 +390,17 @@ def _check_spec_pins(spec: RunSpec) -> dict[str, list[str]]:
     if model not in BENCHMARK_ALLOWED_MODELS:
         errors.append(
             f"spec.engine.model={model!r} expected {BENCHMARK_MODEL_BF16!r} "
-            f"(or optional {BENCHMARK_MODEL_AWQ!r})"
+            f"(or optional {BENCHMARK_MODEL_AWQ!r} / {BENCHMARK_MODEL_GRANITE_FP8!r})"
         )
     elif model == BENCHMARK_MODEL_AWQ:
         warnings.append(
             "engine.model is AWQ — optional cost-saver; default suite stays "
             f"{BENCHMARK_MODEL_BF16} until DMR-068 accuracy gate is green"
+        )
+    elif model == BENCHMARK_MODEL_GRANITE_FP8:
+        warnings.append(
+            "engine.model is Granite FP8 — SAND-027 twin leg; default suite stays "
+            f"{BENCHMARK_MODEL_BF16} until the Granite-vs-Qwen gate is green"
         )
 
     modal = spec.engine.modal
@@ -325,14 +412,32 @@ def _check_spec_pins(spec: RunSpec) -> dict[str, list[str]]:
         if modal.image_tag != exp["image_tag"]:
             errors.append(f"modal.image_tag={modal.image_tag!r} expected {exp['image_tag']!r}")
         if modal.max_containers != exp["max_containers"]:
-            errors.append(
-                f"modal.max_containers={modal.max_containers} expected {exp['max_containers']}"
-            )
+            if spec.run_id in TWO_GPU_RUNS and modal.max_containers == 2:
+                warnings.append(
+                    "modal.max_containers=2 — 2×L4 data-parallel pinned posture "
+                    f"for {spec.run_id} (bills 2 GPUs; run-30 default stays 1)"
+                )
+            else:
+                errors.append(
+                    f"modal.max_containers={modal.max_containers} expected {exp['max_containers']}"
+                )
         if modal.min_containers != exp["min_containers"]:
-            errors.append(
-                f"modal.min_containers={modal.min_containers} expected {exp['min_containers']} "
-                "(scale-to-zero cost guard)"
-            )
+            if spec.run_id in TWO_GPU_RUNS and modal.min_containers == 2:
+                warnings.append(
+                    "modal.min_containers=2 — replicas pinned warm during Runs A+B "
+                    f"for {spec.run_id} (no scale-to-zero; teardown after last run)"
+                )
+            elif spec.run_id in PINNED_ONE_GPU_RUNS and modal.min_containers == 1:
+                warnings.append(
+                    "modal.min_containers=1 — 1×L4 pinned warm across the "
+                    f"Granite five-run chain for {spec.run_id} (no scale-to-zero "
+                    "between classes; teardown after the fifth)"
+                )
+            else:
+                errors.append(
+                    f"modal.min_containers={modal.min_containers} expected {exp['min_containers']} "
+                    "(scale-to-zero cost guard)"
+                )
         if modal.scaledown_seconds != exp["scaledown_seconds"]:
             errors.append(
                 f"modal.scaledown_seconds={modal.scaledown_seconds} "
@@ -343,7 +448,10 @@ def _check_spec_pins(spec: RunSpec) -> dict[str, list[str]]:
             warnings.append(f"modal.app={modal.app!r} (default {exp['app']!r})")
 
     if spec.job.concurrency < 2:
-        errors.append("job.concurrency must be >= 2 for L4 throughput benchmarks")
+        # Single-doc probe instances (*-probe-*) are serial by design — the
+        # posture row still pins their concurrency / caps / walls.
+        if not (isinstance(spec.run_id, str) and "-probe" in spec.run_id):
+            errors.append("job.concurrency must be >= 2 for L4 throughput benchmarks")
 
     posture = posture_for_run(spec.run_id)
     if posture is not None:

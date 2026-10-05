@@ -78,7 +78,7 @@ and `extraction_f1`. Isolated eval copies `overall_extraction_score` into
 `scores.exact_match` when there is no classification `match` — those two
 keys matching is a runner alias, not proof that partial credit is off.
 Empty-field and partial-credit behavior is documented in
-[`docs/extraction-quality-diagnosis.md`](extraction-quality-diagnosis.md).
+[`docs/archive/extraction-quality-diagnosis.md`](archive/extraction-quality-diagnosis.md).
 
 ## Fixtures
 
@@ -112,7 +112,7 @@ sandbox datasets pull --revision <sha> --config default --split train
 
 `datasets prepare` (and notebooks `01`–`03`) clean the offline catalog into
 `data/runtime/prepared/` with no network — see
-[`docs/docker-offline.md`](docker-offline.md). Note: `prepare` output feeds
+[`docs/setting-up/docker-offline.md`](setting-up/docker-offline.md). Note: `prepare` output feeds
 the notebooks; JOB runs score the locked `dataset.jsonl` prepared by
 `run preflight` — for live data through the eval surface, use a run spec with
 a Hub `dataset:` block (below).

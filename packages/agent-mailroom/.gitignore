@@ -13,7 +13,6 @@ data/
 *.db
 .env
 .DS_Store
-Thumbs.db
 
 node_modules/
 dist/

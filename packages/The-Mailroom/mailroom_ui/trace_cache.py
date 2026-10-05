@@ -27,9 +27,29 @@ DEFAULT_CACHE_DIR = "/tmp/mailroom-trace-cache"
 CACHE_SOURCE = "langfuse-cache"
 
 
+def _project_key() -> str:
+    """Stable, non-secret tag for the configured source project.
+
+    The default cache dir is shared by every process on the box; without a
+    per-project subdirectory, switching Langfuse keys/hosts served the
+    previous project's runs from disk. Only a hash of the PUBLIC key + host
+    (never the secret) is used.
+    """
+    import hashlib
+
+    host = (os.environ.get("LANGFUSE_HOST") or os.environ.get("LANGFUSE_BASE_URL") or "").strip()
+    public = (os.environ.get("LANGFUSE_PUBLIC_KEY") or "").strip()
+    phoenix = "|".join((os.environ.get(k) or "").strip() for k in ("PHOENIX_ENDPOINT", "MAILROOM_PHOENIX_PROJECT"))
+    source = (os.environ.get("MAILROOM_SOURCE") or "langfuse").strip().lower()
+    digest = hashlib.sha256(f"{source}|{host}|{public}|{phoenix}".encode("utf-8")).hexdigest()
+    return digest[:12]
+
+
 def cache_dir() -> Path:
-    raw = (os.environ.get("MAILROOM_TRACE_CACHE_DIR") or DEFAULT_CACHE_DIR).strip()
-    return Path(raw or DEFAULT_CACHE_DIR)
+    raw = (os.environ.get("MAILROOM_TRACE_CACHE_DIR") or "").strip()
+    if raw:
+        return Path(raw)  # explicit dir: the operator owns its scoping
+    return Path(DEFAULT_CACHE_DIR) / _project_key()
 
 
 def safe_id(trace_id: str) -> str:

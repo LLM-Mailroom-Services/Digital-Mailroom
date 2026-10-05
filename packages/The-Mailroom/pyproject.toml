@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "the-mailroom"
-version = "0.4.0"
+version = "0.5.0"
 description = "Pixel-art visualization console for the llm-mailroom multi-agent pipeline — Langfuse is the sole source of truth."
 requires-python = ">=3.11"
 dependencies = [
@@ -19,14 +19,14 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "httpx>=0.27", "bcrypt", "PyJWT", "watchdog"]
-# Pinned llm-mailroom (PyPI / dist name: mailroom) @ v0.7.1 / 2a212e76
-# (package 0.7.1 — corpus re-pin to the GT-closure revision 46a4d3c2). Pulls langgraph,
-# Phoenix, and llm-dojo-scoring — the visualizer display path never imports
+# Pinned llm-mailroom (PyPI / dist name: mailroom) @ main 959bb0bce152
+# (package 0.7.1+; mailroom-dataset tag v9.1, llm-dojo-scoring v0.16.0). Pulls
+# langgraph, Phoenix, and llm-dojo-scoring — the visualizer display path never imports
 # those. Contract helpers live in mailroom_ui/producer.py
 # (pipeline.review_resolve, schemas.manifest). Install with:
 #   pip install -e ".[pipeline]"
 pipeline = [
-    "mailroom @ git+https://github.com/Exios66/llm-mailroom.git@2a212e76a62b",
+    "mailroom @ git+https://github.com/Exios66/llm-mailroom.git@959bb0bce152",
     "structlog>=24.0",
     "pyyaml>=6.0",
 ]

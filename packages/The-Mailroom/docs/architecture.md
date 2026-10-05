@@ -250,8 +250,7 @@ A dedicated submodule mounted on the visualizer — **not** a second display
 source. JWT auth (`/v1/auth`) gates archive file access (`/v1/archive`) and
 ops snapshots (`/v1/ops`). Ops numbers come from the same Langfuse
 `PipelineRun` window as METRICS. The bin observer (`MAILROOM_OBSERVER=1`
-in-process — the compose default; optional standalone `mailroom-observer`
-POSTing `/v1/ops/events`, never both on the same bins) publishes
+in-process, or `mailroom-observer` POSTing `/v1/ops/events`) publishes
 filesystem bin moves on `/ws/pipeline`. SQLite tables live in
 `MAILROOM_OPERATOR_DB`; the producer's `documents` table is never required.
 Display `/api/*` and floor `/ws` stay open.
@@ -261,8 +260,8 @@ built and served at `/desk` when `ui/dist` exists. Default `mailroom-web`
 does not need Node. Pixel console and Observatory stay vanilla.
 
 The producer **code** pin is optional extra `[pipeline]`
-(`mailroom @ git+https://github.com/Exios66/llm-mailroom.git@2a212e76a62b`,
-package 0.7.1 / tag `v0.7.1`).
+(`mailroom @ git+https://github.com/Exios66/llm-mailroom.git@959bb0bce152`,
+package 0.7.1 / main after tag `v0.7.1`).
 `mailroom_ui/producer.py` imports `pipeline.review_resolve` and
 `schemas.manifest` when that extra or a sibling checkout is present; the
 REVIEW proxy and `tests/fake_producer.py` use those contract helpers

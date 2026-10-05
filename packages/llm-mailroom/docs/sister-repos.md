@@ -49,7 +49,7 @@ HF datasets:    Lucius-Morningstar/* (published eval/corpus surfaces)
 |---|---|---|
 | [Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) | **Monorepo / hub** — every constellation repo as a git-subtree `packages/` member in ONE uv workspace; hub task board `governance/TASKS.md`; sub-package sync driver `scripts/sync_packages.py` | **Development source of truth for cross-repo work** — this repo is `packages/llm-mailroom` there; sync via subtree `pull`/`push` (issue #2, DMR-era cards) |
 | [llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction) | Prompt-experiment loop: prompt versions × models over CUAD/LegalBench/MAUD corpora | **Sister repo.** Source of the vendored LangChain sorter/contracts prompts; shares ONE kanban board with this repo |
-| [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Deterministic, field-type-aware scoring engine (metric registry, dedicated specialist suites, sorter subclass catalogs, computable intake clerk, prompt catalog, `local_vs_api` serving comparison) | **Upstream governed dependency**, pinned in `pyproject.toml` (`@v0.18.0` / [PR #11](https://github.com/Exios66/llm-dojo-scoring/pull/11)); auto-bump via `.github/workflows/bump-dojo-scoring.yml` |
+| [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Deterministic, field-type-aware scoring engine (metric registry, dedicated specialist suites, sorter subclass catalogs, computable intake clerk, prompt catalog, `local_vs_api` serving comparison) | **Upstream governed dependency**, pinned in `pyproject.toml` (`@v0.19.1` / [PR #11](https://github.com/Exios66/llm-dojo-scoring/pull/11)); auto-bump via `.github/workflows/bump-dojo-scoring.yml` |
 | [Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment) | EDA + pipeline-ready correspondence dataset from the CMU Enron corpus | **Corpus feed** for the `correspondence` doc class; publishes HF datasets consumed by eval loops. Virtual monorepo member (no build) |
 | [claims-data-eda](https://github.com/Exios66/claims-data-eda) | Insurance-claims candidate-corpus EDA (CMS DE-SynPUF direction) | **Corpus feed (candidate)** for the `insurance_claim` doc class — its honest-gap benchmark source. Virtual monorepo member (no build) |
 | [atticus-investigation](https://github.com/Exios66/atticus-investigation) | LegalBench classification prompt-engineering pipeline | **Eval sibling**: same prompt-version × model methodology, LegalBench focus |
@@ -125,7 +125,7 @@ The scoring layer both mailroom and entity-extraction consume:
   **agent profiles** covering every mailroom agent, and
   `DOC_TYPE_BUNDLES` keyed on the processed document classes with the
   explicit-fallback honesty resolver (`resolve_doc_bundle()`).
-- Pinned as a git dependency (`@v0.18.0` at time of writing); mailroom wires
+- Pinned as a git dependency (`@v0.19.1` at time of writing); mailroom wires
   its `taxonomy.yaml` scoring block onto package Settings via
   `observability/field_scoring.py` (a deprecation shim — imports should move
   to `llm_dojo_scoring.field_scoring`).
@@ -312,7 +312,7 @@ PYTHONPATH=src python src/scripts/bump_dojo_scoring.py --apply --tag v0.14.0
   — companion graphify map of the sister experiment loop's codebase.
 - **Hugging Face — [`Lucius-Morningstar`](https://huggingface.co/Lucius-Morningstar)** —
    the family's published dataset surface. **`mailroom-dataset` schema v9**
-  (3,302 docs, pinned `ed7576b6…`; the v9 successor of the frozen v8
+  (3,302 docs, pinned Hub tag `v9.1` / `ed7576b6…`; the v9 successor of the frozen v8
   baseline `mailroom-corpus` — v8 = HUB-028 insurance LOB expansion
   (GNOTHEIA property + BDR auto) with full GT conformance and HUB-032's §84
   hardened ground_truth columns: identity, evaluation contract, matter/group;
@@ -328,12 +328,7 @@ PYTHONPATH=src python src/scripts/bump_dojo_scoring.py --apply --tag v0.14.0
   for the whole family (`md5(filename) % 10 == 0 → test`), owned by
   entity-extraction's publisher scripts. Local committed PDFs under
   `docs/examples/samples/` remain PDF-ingest fixtures — they are not the
-  class catalog. **Offline parquet bins** for the loader
-  (`MAILROOM_HF_CACHE_DIR` → `pipeline.hf_corpus_loader`) live in
-  [`mailroom-issues`](https://github.com/LLM-Mailroom-Services/mailroom-issues)
-  `data/hf_cache/corpus` (sparse-checkout; v9.1 SHA
-  `ed7576b676343e0b402ec5412cded301e629bdee`) — hub wiki
-  `docs/wiki/HF-Corpus.md` § Offline hub cache; not vendored here.
+  class catalog.
 
 ## Governance notes
 

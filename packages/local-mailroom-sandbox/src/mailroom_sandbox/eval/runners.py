@@ -141,6 +141,9 @@ def run_isolated_eval(
     cost_cap_usd: float | None = None,
     gpu: str | None = None,
     progress_cb: Any = None,
+    replicas: int = 1,
+    row_cb: Any = None,
+    score_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run one live agent / node against fixtures, nested under document-pipeline.
 
@@ -268,7 +271,9 @@ def run_isolated_eval(
         if cost_cap_usd is not None:
             from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
 
-            est = float(estimate_gpu_cost_usd(wall, gpu=gpu or "L4") or 0.0)
+            est = float(
+                estimate_gpu_cost_usd(wall, gpu=gpu or "L4", replicas=replicas) or 0.0
+            )
             if est >= float(cost_cap_usd):
                 raise RuntimeError(
                     f"isolated eval aborted: cost_cap_usd={cost_cap_usd} exceeded "
@@ -280,6 +285,13 @@ def run_isolated_eval(
     def _record(index: int, entry: dict[str, Any]) -> None:
         per_row[index] = entry
         _absorb(entry)
+        # SAND-032: stream each finished row to the caller (main thread) so a
+        # later cap abort / raise cannot drop rows whose GPU time was paid.
+        if row_cb is not None:
+            try:
+                row_cb(entry)
+            except Exception as exc:  # noqa: BLE001 — persistence must never break a run
+                _log.warning("row_cb raised — per-doc evidence may be incomplete: %s", exc)
         # SAND-018: the isolated path used to be silent until the end — no
         # running checkpoint, no events — so a live run looked stalled.
         if progress_cb is not None:
@@ -320,6 +332,7 @@ def run_isolated_eval(
                 value=float(mean),
                 agent=task,
                 run_id=experiment_name,
+                metadata=dict(score_metadata or {}),
             )
         )
     completed = [e for e in per_row if e is not None]
@@ -352,6 +365,9 @@ def run_isolated_eval(
         record["e2e_latency_seconds"] = round(statistics.mean(latencies) / 1000.0, 6)
         record["latency_p50_seconds"] = round(statistics.median(latencies) / 1000.0, 6)
         record["latency_max_seconds"] = round(max(latencies) / 1000.0, 6)
+        from mailroom_sandbox.job.metrics import p95
+
+        record["latency_p95_seconds"] = round(p95(latencies) / 1000.0, 6)
     if prompt_tokens:
         record["prompt_tokens"] = prompt_tokens
     if completion_tokens:
@@ -374,7 +390,8 @@ def run_isolated_eval(
         billed_seconds = wall_seconds + (
             float(cold_boot_seconds) if cold_boot_seconds is not None else 0.0
         )
-        gpu_cost = estimate_gpu_cost_usd(billed_seconds, gpu=gpu or "L4")
+        gpu_cost = estimate_gpu_cost_usd(billed_seconds, gpu=gpu or "L4", replicas=replicas)
+        record["replicas"] = max(1, int(replicas))
         if gpu_cost is not None:
             record["gpu_seconds"] = round(billed_seconds, 3)
             record["estimated_gpu_cost_usd"] = gpu_cost
@@ -695,6 +712,7 @@ def run_local_vs_api_eval(
     agent_models: dict[str, str] | None = None,
     from_log: bool = False,
     connected: bool = False,
+    score_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Compare local (Ollama/vLLM/…) vs API-key (OpenRouter) serving metrics.
 
@@ -772,7 +790,9 @@ def run_local_vs_api_eval(
     }
     if comparison:
         scoring.emit_local_vs_api_scorecard(
-            comparison, run_id=experiment_name or "sandbox_local_vs_api"
+            comparison,
+            run_id=experiment_name or "sandbox_local_vs_api",
+            metadata=score_metadata,
         )
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_local_vs_api",
@@ -819,7 +839,8 @@ def run_sorter_vs_modernbert_eval(
     and pairs it with fixtures' sorter side unless ``sorter_record`` /
     ``from_log`` supplies a measured sorter record.
     """
-    del sample, connected, agent_models  # parity with other eval kwargs
+    del connected, agent_models  # parity with other eval kwargs
+    mb_sample = 50 if sample is None else int(sample)
     from mailroom_sandbox.datasets import load_sorter_vs_modernbert_fixtures
     from mailroom_sandbox.job.metrics import compare_sorter_vs_modernbert
 
@@ -873,7 +894,7 @@ def run_sorter_vs_modernbert_eval(
                 "ModernBERT feeder incomplete — "
                 f"{status.get('hint')} (status={status})"
             )
-        report = run_modernbert_eval(sample=50, seed=42)
+        report = run_modernbert_eval(sample=mb_sample, seed=42)
         right = serving_record_from_eval(report)
         left = sorter_record
         if left is None:
@@ -1225,14 +1246,16 @@ def _live_serve_target() -> tuple[str, str]:
     """(base_url, model) for a direct live call, following the active provider.
 
     ``DEFAULT_PROVIDER`` picks the family; the fallback model matches the
-    profile default (``Qwen/Qwen3-8B`` for vLLM, ``qwen3:8b`` for Ollama) so a
-    served vLLM never 404s on the Ollama tag.
+    served vLLM id (``Qwen/Qwen3-8B-AWQ``) so a live client never 404s on the
+    dense ``Qwen/Qwen3-8B`` name while the replica is AWQ-only.
     """
     provider = (os.environ.get("DEFAULT_PROVIDER") or "").strip().lower()
     if provider == "vllm":
+        from mailroom_sandbox.overlay import resolve_served_vllm_model
+
         return (
             os.environ.get("VLLM_BASE_URL") or "http://localhost:8000/v1",
-            os.environ.get("VLLM_MODEL") or "Qwen/Qwen3-8B",
+            resolve_served_vllm_model() or "Qwen/Qwen3-8B-AWQ",
         )
     if provider == "ollama":
         return (

@@ -56,6 +56,102 @@ def test_run_job_mock_completes(tmp_path):
     assert summary["scores"]["exact_match"] == 1.0
 
 
+def test_successful_run_fires_report_writers(tmp_path, monkeypatch):
+    """A completed job invokes the dated-report and grid-card writers once."""
+    store = _prepped_store(tmp_path, rows=1)
+    report_calls = []
+    card_calls = []
+
+    def record_report(target, **kwargs):
+        """Capture dated-report writer arguments."""
+        report_calls.append((target, kwargs))
+
+    def record_card(target, **kwargs):
+        """Capture grid-card writer arguments."""
+        card_calls.append((target, kwargs))
+
+    monkeypatch.setattr("mailroom_sandbox.job.dated_reports.maybe_write_run_reports", record_report)
+    monkeypatch.setattr("mailroom_sandbox.job.grid_cards.maybe_write_card", record_card)
+
+    summary = runner.run_job(store, mock=None)
+
+    assert summary["state"] == "done"
+    assert len(report_calls) == len(card_calls) == 1
+    for target, kwargs in (report_calls[0], card_calls[0]):
+        assert target is store
+        assert kwargs["scores"] == summary["scores"]
+        assert isinstance(kwargs["wall_seconds"], float)
+
+
+def test_whole_run_forwards_report_group_to_scoring_runner(tmp_path, monkeypatch):
+    """Isolated eval receives the lock's report_group as score_metadata."""
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "agent-run")
+    store.write_lock(
+        {
+            "run_id": store.run_id,
+            "task": "judge",
+            "profile": "ollama",
+            "engine": {"model": "test-model", "modal": None},
+            "job": {"mock": True, "concurrency": 1},
+            "dataset": {},
+            "report_group": "SAND-123",
+        }
+    )
+    captured = {}
+
+    def fake_isolated_eval(task, **kwargs):
+        """Record isolated-eval kwargs without running the suite."""
+        captured["task"] = task
+        captured["kwargs"] = kwargs
+        return {"n": 0, "scores": {"n": 0}}
+
+    monkeypatch.setattr(runner, "_agent_task_names", lambda: {"judge"})
+    monkeypatch.setattr(eval_runners, "run_isolated_eval", fake_isolated_eval)
+
+    summary = runner._run_whole_run(store, "judge", mock=True, model=None, profile="ollama")
+
+    assert summary["state"] == "done"
+    assert captured["task"] == "judge"
+    assert captured["kwargs"]["score_metadata"] == {"report_group": "SAND-123"}
+
+
+def test_whole_run_local_vs_api_forwards_score_metadata(tmp_path, monkeypatch):
+    """local_vs_api whole-run scoring receives the lock's report_group."""
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "lva-run")
+    store.write_lock(
+        {
+            "run_id": store.run_id,
+            "task": "local_vs_api",
+            "profile": "ollama",
+            "engine": {"model": "test-model", "modal": None},
+            "job": {"mock": True, "concurrency": 1},
+            "dataset": {},
+            "report_group": "SAND-123",
+        }
+    )
+    captured = {}
+
+    def fake_local_vs_api_eval(**kwargs):
+        """Record local-vs-API eval kwargs without running the suite."""
+        captured["kwargs"] = kwargs
+        return {"n": 0, "scores": {"n": 0}}
+
+    monkeypatch.setattr(eval_runners, "run_local_vs_api_eval", fake_local_vs_api_eval)
+
+    summary = runner._run_whole_run(
+        store, "local_vs_api", mock=True, model=None, profile="ollama"
+    )
+
+    assert summary["state"] == "done"
+    assert captured["kwargs"]["score_metadata"] == {"report_group": "SAND-123"}
+
+
 def test_run_job_all_items_failed_writes_failed_not_done(tmp_path, monkeypatch):
     """hub#39: a run where EVERY item errored must write state=failed with a
     last_error, exit 1 (CLI maps state != done), and never append a 'done'
@@ -545,3 +641,108 @@ def test_live_sorter_unknown_doc_type_raises(tmp_path, monkeypatch):
     )
     with pytest.raises(RuntimeError, match="no real doc_type"):
         runner._predict_row("sorter", row, mock=False, model=None, run_id="x")
+
+
+# ── SAND-032: replica-aware live caps ────────────────────────────────────────
+
+
+def test_lock_replicas_reads_max_containers(tmp_path):
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.runner import _lock_replicas
+
+    two = RunStore(tmp_path / "two")
+    two.write_lock({"engine": {"modal": {"gpu": "L4", "max_containers": 2}}})
+    assert _lock_replicas(two) == 2
+    one = RunStore(tmp_path / "one")  # locks are write-once — separate store
+    one.write_lock({"engine": {"modal": {"gpu": "L4"}}})
+    assert _lock_replicas(one) == 1
+
+
+def test_run_gpu_estimate_scales_by_lock_replicas(tmp_path, monkeypatch):
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.runner import _estimate_run_gpu_usd
+
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR", raising=False)
+    monkeypatch.delenv("MODAL_GPU_USD_PER_SEC", raising=False)
+    one = RunStore(tmp_path / "one")
+    one.write_lock({"engine": {"modal": {"gpu": "L4", "max_containers": 1}}})
+    two = RunStore(tmp_path / "two")
+    two.write_lock({"engine": {"modal": {"gpu": "L4", "max_containers": 2}}})
+    import pytest
+
+    assert _estimate_run_gpu_usd(two, 300) == pytest.approx(2 * _estimate_run_gpu_usd(one, 300), abs=2e-6)
+
+
+def test_isolated_guard_scales_by_replicas(monkeypatch):
+    """A $0.10 cap trips at 450 s on one L4 but 225 s on two ($0.80/hr)."""
+    from mailroom_sandbox.job import metrics
+
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR", raising=False)
+    monkeypatch.delenv("MODAL_GPU_USD_PER_SEC", raising=False)
+    assert metrics.estimate_gpu_cost_usd(300, gpu="L4") < 0.10
+    assert metrics.estimate_gpu_cost_usd(300, gpu="L4", replicas=2) >= 0.10
+
+
+# ── SAND-032: isolated runs persist per-doc items ────────────────────────────
+
+
+def test_persist_isolated_items_writes_items_jsonl(tmp_path):
+    import json
+
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.runner import _persist_isolated_items
+
+    store = RunStore(tmp_path / "r")
+    rows = [
+        {"id": "a", "pred": {"x": 1}, "score": {"overall_extraction_score": 0.5},
+         "error": None, "latency_ms": 1200.0, "prompt_tokens": 10, "completion_tokens": 5},
+        {"id": "b", "pred": None, "score": {}, "error": "OpenAIConnectionError: x",
+         "latency_ms": 900.0, "prompt_tokens": 0, "completion_tokens": 0},
+    ]
+    assert _persist_isolated_items(store, rows) == 2
+    lines = [json.loads(line) for line in store.items_path.read_text().splitlines()]
+    assert [line["item_id"] for line in lines] == ["a", "b"]
+    assert lines[0]["ok"] is True and lines[1]["ok"] is False
+    assert lines[1]["error"].startswith("OpenAIConnectionError")
+    assert lines[0]["prompt_tokens"] == 10
+
+
+def test_persist_isolated_items_is_idempotent(tmp_path):
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.runner import _persist_isolated_items
+
+    store = RunStore(tmp_path / "r")
+    rows = [{"id": "a", "score": {}, "error": None, "latency_ms": 1.0}]
+    _persist_isolated_items(store, rows)
+    assert _persist_isolated_items(store, rows) == 0
+    assert len(store.items_path.read_text().splitlines()) == 1
+
+
+def test_persist_isolated_items_none_is_noop(tmp_path):
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.runner import _persist_isolated_items
+
+    assert _persist_isolated_items(RunStore(tmp_path / "r"), None) == 0
+
+
+def test_aborted_isolated_run_keeps_completed_items(tmp_path, monkeypatch):
+    """SAND-032 review #3: a cost-cap abort mid-run must not drop the rows
+    already paid for (items.jsonl feeds reports + offline BT rows)."""
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job import runner
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "r")
+    store.write_lock({"task": "judge", "profile": "modal-vllm", "prompt": {},
+                      "engine": {"model": "m", "modal": {"gpu": "L4", "max_containers": 2}},
+                      "job": {"concurrency": 2}})
+
+    def fake_isolated(task, *, row_cb=None, **kwargs):
+        for i in range(2):
+            row_cb({"id": f"d{i}", "score": {}, "error": None, "latency_ms": 10.0})
+        raise RuntimeError("isolated eval aborted: cost_cap_usd=0.1 exceeded")
+
+    monkeypatch.setattr(eval_runners, "run_isolated_eval", fake_isolated)
+    out = runner._run_whole_run(store, "judge", mock=False, model=None, profile="modal-vllm")
+    assert out["state"] == "failed"
+    assert [i["item_id"] for i in store.load_items()] == ["d0", "d1"]

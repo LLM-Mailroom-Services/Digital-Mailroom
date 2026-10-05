@@ -1,0 +1,44 @@
+╔════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║            ___    ██████ ██  ██ ██████  ██  ██  ████  ██████ ██     █████  ██████ ██████ ██  ██            ║
+║           (o,o)   ██████▓██▓ ██▓████▓▓▓ ██████▓██▓▓██  ████▓▓██▓    ██▓▓██ ██▓▓██▓██▓▓██▓██████▓           ║
+║           (  V)    ████▓▓██████▓█████   ██████▓██████▓ ████▓ ██▓    █████▓▓██▓ ██▓██▓ ██▓██████▓           ║
+║           /)  )    ████▓ ██▓▓██▓████▓▓  ██▓▓██▓██▓▓██▓ ████▓ ██▓    ██▓██▓ ██▓ ██▓██▓ ██▓██▓▓██▓           ║
+║           ^^ ^^    ████▓ ██▓ ██▓██████  ██▓ ██▓██▓ ██▓██████ ██████ ██▓ ██ ██████▓██████▓██▓ ██▓           ║
+║                     ▓▓▓▓  ▓▓  ▓▓ ▓▓▓▓▓▓  ▓▓  ▓▓ ▓▓  ▓▓ ▓▓▓▓▓▓ ▓▓▓▓▓▓ ▓▓  ▓▓ ▓▓▓▓▓▓ ▓▓▓▓▓▓ ▓▓  ▓▓           ║
+║ DIGITAL MAILROOM  ·  Qwen3-8B-AWQ · vLLM L4 eval  ·  sand032-l1-nothink                                    ║
+║ INBOX → SPECIALIST → REPORT                                                                                ║
+╚════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+║ watch @ 23:39:35 · app sandbox-vllm-sand032                                         (o,o)  stage ▸SORTING◂ ║
+╭ LIFECYCLE ─────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ▸SORTING◂  specialist extraction in flight  ·  1m30s  ·  LADDER                                            │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭ PROGRAM ROUTE · 1×L4 ladder → 2×L4 scale-out + 5-specialist sweep ─────────────────────────────────────────╮
+│ ✓ l0-baseline ×1          ▶ l1-nothink ×1           · l2-marlin ×1                                         │
+│ · l5-graphs ×1            · s2a-corr100-1rep ×1    · s2b-corr100-2rep ×2                                   │
+│ · s3-corr50 ×2            · s3-insurance50 ×2      · s3-corporate50 ×2                                     │
+│ · s3-merger50 ×2          · s3-contracts50 ×2      · s3-corr50-repeat ×2                                   │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭ (o,o) IN-TRAY ─────────────────────────────────────╮  ╭ POSTAGE ($) ───────────────────────────────────────╮
+│ run                             sand032-l1-nothink │  │ ledger                                     $0.3000 │
+│ specialist               correspondence_specialist │  │ live run                                   $0.0200 │
+│ fleet                              ×1 L4 · running │  │ total                              $0.3200 / $5.00 │
+│ ███████████░░░░░░░░░░░░░░░░░░░░░░░░░  3/10         │  │ ██░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  6%           │
+│ sorted                    delivered 2 · returned 1 │  │ gate                    $4.50 projected-total stop │
+│ postmark                       p50 2.0s · p95 3.0s │  ╰────────────────────────────────────────────────────╯
+│ score                                          0.5 │  
+│ last return: OpenAIConnectionError: x              │  
+╰────────────────────────────────────────────────────╯  
+╭ DISPATCH LOG · modal app logs sandbox-vllm-sand032 ────────────────────────────────────────────────────────╮
+│ === sandbox-vllm serve config (masked) ===                                                                 │
+│ INFO Loading weights took 12.3 seconds                                                                     │
+│ INFO Available KV cache memory: 12.1 GiB                                                                   │
+│ GPU KV cache size: 181,344 tokens                                                                          │
+│ Capturing CUDA graphs (mixed prefill-decode)                                                               │
+│ Avg prompt throughput: 812.3 tokens/s, Avg generation throughput: 140.1                                    │
+│ WARNING preemptions=2 length_finishes=1 on replica a1b2c3                                                  │
+│ ERROR OpenAIConnectionError: engine died on DOC-0007                                                       │
+│ Traceback (most recent call last): File serve.py, line 9                                                   │
+│ vLLM ready on port 8000 (pid=12)                                                                           │
+│ INFO:     Application startup complete.                                                                    │
+│ some other line                                                                                            │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

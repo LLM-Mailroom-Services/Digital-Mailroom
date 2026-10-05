@@ -5,7 +5,9 @@
    for corpus rows. Never fabricates data. */
 'use strict';
 
-const D = (typeof window !== 'undefined' && window.MAILROOM_DATA) ? window.MAILROOM_DATA : null;
+const D = (typeof window !== 'undefined' && window.MAILROOM_DATA)
+  ? window.MAILROOM_DATA
+  : (typeof MAILROOM_DATA !== 'undefined' ? MAILROOM_DATA : null);
 
 const DATA_DIR = '../data/';
 const HF_ROWS = 'https://datasets-server.huggingface.co/rows';
@@ -146,7 +148,18 @@ function playBell() {
 }
 
 /* =================== UTIL =================== */
-function escapeHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+// Quotes too: escaped text is also interpolated into href/class attributes.
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+// Only web/mail/relative links become anchors — never javascript: & co.
+function safeHref(url) {
+  const u = String(url || '').trim();
+  return /^(https?:\/\/|mailto:|#|\.{0,2}\/)/i.test(u) ? u : '';
+}
+// Mirror of scripts/export_snapshot.py _safe_id (detail snapshot filenames).
+function safeId(id) { return String(id).replace(/[^A-Za-z0-9._-]/g, '_'); }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function reduced() { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
 function scrollBottom() { output.scrollTop = output.scrollHeight; }
@@ -188,6 +201,9 @@ function getJSON(url) {
     cache[url] = fetch(url).then(r => {
       if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + url);
       return r.json();
+    }).catch(err => {
+      delete cache[url];  // a transient 404/429 must not stick for the session
+      throw err;
     });
   }
   return cache[url];
@@ -238,7 +254,13 @@ function inlineMd(text) {
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
     .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label, href) => {
+      // `text` is already HTML-escaped (quotes included), so the href can't
+      // break out of the attribute; the scheme check stops javascript: links
+      // in Hub doc_text from becoming clickable.
+      const ok = safeHref(href.replace(/&amp;/g, '&'));
+      return ok ? '<a href="' + href + '" target="_blank" rel="noopener noreferrer">' + label + '</a>' : label;
+    });
 }
 function renderMarkdown(md) {
   const lines = escapeHtml(md).split('\n');
@@ -625,7 +647,7 @@ async function catRun(id) {
   const run = runs.find(r => (r.trace_id === id) || (r.filename === id));
   if (!run) { print('<span class="warn">run not found: ' + escapeHtml(id) + '</span>'); return; }
   print(await runStory(run));
-  const detailUrl = DATA_DIR + 'runs/' + encodeURIComponent(run.trace_id) + '.json';
+  const detailUrl = DATA_DIR + 'runs/' + safeId(run.trace_id) + '.json';
   try {
     const detail = await getJSON(detailUrl);
     const spans = detail.spans || [];
@@ -849,8 +871,8 @@ function reposListing(name) {
       + '<div class="kv">'
       + '<b>role</b><span>' + escapeHtml(repo.role) + '</span>'
       + '<b>dist</b><span>' + escapeHtml(repo.dist) + '</span>'
-      + '<b>url</b><span><a href="' + repo.url + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(repo.url) + '</a></span>'
-      + (repo.homepage ? '<b>site</b><span><a href="' + repo.homepage + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(repo.homepage) + '</a></span>' : '')
+      + '<b>url</b><span><a href="' + escapeHtml(safeHref(repo.url)) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(repo.url) + '</a></span>'
+      + (safeHref(repo.homepage) ? '<b>site</b><span><a href="' + escapeHtml(safeHref(repo.homepage)) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(repo.homepage) + '</a></span>' : '')
       + '</div><p>' + escapeHtml(repo.blurb) + '</p>'
       + '<p class="post-footer"><span class="amber">open ' + escapeHtml(repo.name) + '</span> jumps there in a new tab.</p></div>');
     return;
@@ -1033,7 +1055,9 @@ COMMANDS.skyline = (args) => {
   print('skyline: ' + (state.skyline ? '<span class="success">on</span>' : '<span class="dim">off</span>'));
 };
 COMMANDS.pixel = () => { window.open('../pixel/', '_blank', 'noopener'); print('opening the <span class="amber">pixel console</span>…'); };
-COMMANDS.observatory = () => { window.open('/', '_blank', 'noopener'); print('opening the <span class="cyan">observatory</span> (terminal root)…'); };
+// The Observatory is the hosted edition (HF Space), not a path on Pages.
+const OBSERVATORY_URL = 'https://lucius-morningstar-mailroom-observatory.hf.space/';
+COMMANDS.observatory = () => { window.open(OBSERVATORY_URL, '_blank', 'noopener'); print('opening the <span class="cyan">observatory</span> (hosted edition)…'); };
 COMMANDS.hub = () => { window.open('https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset', '_blank', 'noopener'); print('opening the <span class="phosphor">mailroom-dataset</span> corpus on the Hub…'); };
 COMMANDS.tui = () => {
   print('<div class="post"><h2>mailroom-tui — the same console in your own terminal</h2>'
@@ -1080,7 +1104,7 @@ function finishCompose() {
     + '?subject=' + encodeURIComponent(subject)
     + '&body=' + encodeURIComponent(body);
   print('<div class="mail-summary"><b>message ready</b> — '
-    + '<a href="' + mailto + '">open in your mail client</a><br>'
+    + '<a href="' + escapeHtml(mailto) + '">open in your mail client</a><br>'
     + '<span class="dim">to: ' + escapeHtml(to) + ' · subject: ' + escapeHtml(subject) + ' · '
     + body.split('\n').length + ' line(s)</span></div>');
   composeState = null;

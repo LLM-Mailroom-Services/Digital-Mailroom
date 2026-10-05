@@ -53,4 +53,4 @@ Pull prefers `docker exec sandbox-ollama ollama pull …`, else host `ollama`.
 ## Related
 
 - Router: [sandbox-tool-router](../sandbox-tool-router/SKILL.md)  
-- Providers doc: `docs/providers.md`
+- Providers doc: `docs/setting-up/providers.md`

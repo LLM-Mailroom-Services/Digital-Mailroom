@@ -12,6 +12,7 @@ in a small LRU.  The Hub being unreachable is an explicit closed state
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -74,6 +75,7 @@ class CorpusClient:
         self._row_lru: dict[str, dict[str, Any]] = {}
         self._gt_lru: dict[str, dict[str, Any]] = {}
         self._lru_cap = 200
+        self._completion_rows: Optional[list[str]] = None
 
     # -- windowed browsing (instant: 1 request per config per page) ----------
 
@@ -195,64 +197,62 @@ class CorpusClient:
             lru.pop(next(iter(lru)), None)
 
     def row(self, filename: str, split: Optional[str] = None) -> Optional[dict[str, Any]]:
-        """Full default-config row (incl. doc_text) for one filename.
-
-        The datasets-server rows API cannot filter server-side (the /filter
-        endpoint is broken upstream), so a miss walks the splits page by page
-        and exits at the match.
-        """
-        if split is None:
-            found = self.find(filename)
-            if found is None:
-                return None
-            split = found.split
-        cached = self._lru_get(self._row_lru, f"{split}:{filename}")
-        if cached is not None:
-            return cached
-        try:
-            for start in range(0, self.max_rows or 1 << 30, self.page_size):
-                page = hf_corpus.fetch_rows(
-                    config=hf_corpus.DEFAULT_CONFIG,
-                    split=split,
-                    page_size=self.page_size,
-                    max_rows=self.page_size,
-                    offset=start,
-                )
-                for i, r in enumerate(page):
-                    if r.get("filename") == filename:
-                        self._lru_put(self._row_lru, f"{split}:{filename}", r)
-                        return r
-                if len(page) < self.page_size:
-                    break
-        except Exception as exc:  # noqa: BLE001
-            raise CorpusClosed(str(exc)) from exc
-        return None
+        """Full default-config row (incl. doc_text) for one filename."""
+        return self._fetch_one(hf_corpus.DEFAULT_CONFIG, self._row_lru, filename, split)
 
     def gt_row(self, filename: str, split: Optional[str] = None) -> Optional[dict[str, Any]]:
         """Ground-truth config row for one filename (60-key GT columns)."""
-        if split is None:
-            found = self.find(filename)
-            if found is None:
-                return None
-            split = found.split
-        cached = self._lru_get(self._gt_lru, f"{split}:{filename}")
+        return self._fetch_one(hf_corpus.GT_CONFIG, self._gt_lru, filename, split)
+
+    def _fetch_one(self, config: str, lru: dict[str, dict[str, Any]], filename: str,
+                   split: Optional[str]) -> Optional[dict[str, Any]]:
+        """One row by filename.
+
+        The datasets-server rows API cannot filter server-side (the /filter
+        endpoint is broken upstream). The slim catalog already knows each
+        file's row index, so jump straight there (one request) and verify;
+        only fall back to a paced page walk if the index drifted (e.g. the
+        Hub branch moved under the catalog).
+        """
+        found = self.find(filename, split)
+        if found is None:
+            return None
+        split = found.split
+        key = f"{split}:{filename}"
+        cached = self._lru_get(lru, key)
         if cached is not None:
             return cached
         try:
+            hit = hf_corpus.fetch_rows(config=config, split=split, page_size=1,
+                                       max_rows=1, offset=found.index)
+            if hit and hit[0].get("filename") == filename:
+                self._lru_put(lru, key, hit[0])
+                return hit[0]
             for start in range(0, self.max_rows or 1 << 30, self.page_size):
                 page = hf_corpus.fetch_rows(
-                    config=hf_corpus.GT_CONFIG,
+                    config=config,
                     split=split,
                     page_size=self.page_size,
                     max_rows=self.page_size,
                     offset=start,
                 )
-                for i, r in enumerate(page):
+                for r in page:
                     if r.get("filename") == filename:
-                        self._lru_put(self._gt_lru, f"{split}:{filename}", r)
+                        self._lru_put(lru, key, r)
                         return r
                 if len(page) < self.page_size:
                     break
+                if self.page_sleep > 0:
+                    time.sleep(self.page_sleep)
         except Exception as exc:  # noqa: BLE001
             raise CorpusClosed(str(exc)) from exc
         return None
+
+    def completion_names(self) -> list[str]:
+        """Filenames for Tab completion without a Hub call per keypress:
+        the full catalog when already built, else one cached first window."""
+        if self._catalog is not None:
+            return [r.filename for r in self._catalog]
+        if self._completion_rows is None:
+            self._completion_rows = [r.filename for r in self.window("train", 0, 50, include_gt=False)]
+        return self._completion_rows

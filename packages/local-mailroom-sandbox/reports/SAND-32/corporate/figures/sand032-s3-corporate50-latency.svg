@@ -1,0 +1,197 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 790 1322" width="790" height="1322" role="img" aria-label="Per-document latency · sand032-s3-corporate50">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --good:#0ca30c; --critical:#d03b3b; }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+<rect class="bg" width="790" height="1322" rx="8"/>
+<text class="title" x="16" y="24">Per-document latency · sand032-s3-corporate50</text>
+<text class="sub" x="16" y="42">50 docs, slowest first · c32 on 2×L4 · wall 56.3s</text>
+<line class="grid" x1="260.0" y1="84" x2="260.0" y2="1288"/>
+<text class="tick" x="260.0" y="1304" text-anchor="middle">0s</text>
+<line class="grid" x1="375.0" y1="84" x2="375.0" y2="1288"/>
+<text class="tick" x="375.0" y="1304" text-anchor="middle">25s</text>
+<line class="grid" x1="490.0" y1="84" x2="490.0" y2="1288"/>
+<text class="tick" x="490.0" y="1304" text-anchor="middle">50s</text>
+<line class="grid" x1="605.0" y1="84" x2="605.0" y2="1288"/>
+<text class="tick" x="605.0" y="1304" text-anchor="middle">75s</text>
+<line class="grid" x1="720.0" y1="84" x2="720.0" y2="1288"/>
+<text class="tick" x="720.0" y="1304" text-anchor="middle">100s</text>
+<line class="axis" x1="260" y1="84" x2="260" y2="1288"/>
+<line class="ref" x1="490.0" y1="62" x2="490.0" y2="1288"/>
+<line class="ref" x1="697.0" y1="62" x2="697.0" y2="1288"/>
+<text class="reflbl" x="494.0" y="70">p50 28.9s</text>
+<text class="reflbl" x="701.0" y="70">p95 55.1s</text>
+<text class="lbl" x="252" y="104.0" text-anchor="end">56881bab · powers_of_attorney</text>
+<path class="s1" d="M260.0,93.0 H511.3 Q515.3,93.0 515.3,97.0 V103.0 Q515.3,107.0 511.3,107.0 H260.0 Z"><title>56881bab · powers_of_attorney: 55.5s — 9395 prompt / 217 completion tok</title></path>
+<text class="val" x="521.3" y="104.0">55.5s</text>
+<text class="lbl" x="252" y="128.0" text-anchor="end">74a079a9 · charter_amendment</text>
+<path class="s1" d="M260.0,117.0 H509.5 Q513.5,117.0 513.5,121.0 V127.0 Q513.5,131.0 509.5,131.0 H260.0 Z"><title>74a079a9 · charter_amendment: 55.1s — 4845 prompt / 189 completion tok</title></path>
+<text class="val" x="519.5" y="128.0">55.1s</text>
+<text class="lbl" x="252" y="152.0" text-anchor="end">05e0e785 · indenture</text>
+<path class="s1" d="M260.0,141.0 H509.5 Q513.5,141.0 513.5,145.0 V151.0 Q513.5,155.0 509.5,155.0 H260.0 Z"><title>05e0e785 · indenture: 55.1s — 7583 prompt / 198 completion tok</title></path>
+<text class="val" x="519.5" y="152.0">55.1s</text>
+<text class="lbl" x="252" y="176.0" text-anchor="end">daac6d20 · articles_of_incorporation</text>
+<path class="s1" d="M260.0,165.0 H506.2 Q510.2,165.0 510.2,169.0 V175.0 Q510.2,179.0 506.2,179.0 H260.0 Z"><title>daac6d20 · articles_of_incorporation: 54.4s — 5557 prompt / 162 completion tok</title></path>
+<text class="val" x="516.2" y="176.0">54.4s</text>
+<text class="lbl" x="252" y="200.0" text-anchor="end">16e1cc01 · charter_amendment</text>
+<path class="s1" d="M260.0,189.0 H482.3 Q486.3,189.0 486.3,193.0 V199.0 Q486.3,203.0 482.3,203.0 H260.0 Z"><title>16e1cc01 · charter_amendment: 49.2s — 5713 prompt / 216 completion tok</title></path>
+<text class="val" x="492.3" y="200.0">49.2s</text>
+<text class="lbl" x="252" y="224.0" text-anchor="end">d27c88c1 · indenture</text>
+<path class="s1" d="M260.0,213.0 H482.3 Q486.3,213.0 486.3,217.0 V223.0 Q486.3,227.0 482.3,227.0 H260.0 Z"><title>d27c88c1 · indenture: 49.2s — 5858 prompt / 194 completion tok</title></path>
+<text class="val" x="492.3" y="224.0">49.2s</text>
+<text class="lbl" x="252" y="248.0" text-anchor="end">ed8b6f24 · indenture</text>
+<path class="s1" d="M260.0,237.0 H481.9 Q485.9,237.0 485.9,241.0 V247.0 Q485.9,251.0 481.9,251.0 H260.0 Z"><title>ed8b6f24 · indenture: 49.1s — 7923 prompt / 185 completion tok</title></path>
+<text class="val" x="491.9" y="248.0">49.1s</text>
+<text class="lbl" x="252" y="272.0" text-anchor="end">dac19586 · articles_of_incorporation</text>
+<path class="s1" d="M260.0,261.0 H470.4 Q474.4,261.0 474.4,265.0 V271.0 Q474.4,275.0 470.4,275.0 H260.0 Z"><title>dac19586 · articles_of_incorporation: 46.6s — 6825 prompt / 194 completion tok</title></path>
+<text class="val" x="480.4" y="272.0">46.6s</text>
+<text class="lbl" x="252" y="296.0" text-anchor="end">836c78e9 · bylaws</text>
+<path class="s1" d="M260.0,285.0 H460.2 Q464.2,285.0 464.2,289.0 V295.0 Q464.2,299.0 460.2,299.0 H260.0 Z"><title>836c78e9 · bylaws: 44.4s — 7197 prompt / 166 completion tok</title></path>
+<text class="val" x="470.2" y="296.0">44.4s</text>
+<text class="lbl" x="252" y="320.0" text-anchor="end">22606d9c · indenture</text>
+<path class="s1" d="M260.0,309.0 H452.9 Q456.9,309.0 456.9,313.0 V319.0 Q456.9,323.0 452.9,323.0 H260.0 Z"><title>22606d9c · indenture: 42.8s — 5877 prompt / 215 completion tok</title></path>
+<text class="val" x="462.9" y="320.0">42.8s</text>
+<text class="lbl" x="252" y="344.0" text-anchor="end">a52e256c · indenture</text>
+<path class="s1" d="M260.0,333.0 H452.0 Q456.0,333.0 456.0,337.0 V343.0 Q456.0,347.0 452.0,347.0 H260.0 Z"><title>a52e256c · indenture: 42.6s — 6933 prompt / 170 completion tok</title></path>
+<text class="val" x="462.0" y="344.0">42.6s</text>
+<text class="lbl" x="252" y="368.0" text-anchor="end">d05b8bf5 · rights_instrument</text>
+<path class="s1" d="M260.0,357.0 H441.4 Q445.4,357.0 445.4,361.0 V367.0 Q445.4,371.0 441.4,371.0 H260.0 Z"><title>d05b8bf5 · rights_instrument: 40.3s — 5481 prompt / 179 completion tok</title></path>
+<text class="val" x="451.4" y="368.0">40.3s</text>
+<text class="lbl" x="252" y="392.0" text-anchor="end">edcb4a91 · powers_of_attorney</text>
+<path class="s1" d="M260.0,381.0 H432.6 Q436.6,381.0 436.6,385.0 V391.0 Q436.6,395.0 432.6,395.0 H260.0 Z"><title>edcb4a91 · powers_of_attorney: 38.4s — 6451 prompt / 194 completion tok</title></path>
+<text class="val" x="442.6" y="392.0">38.4s</text>
+<text class="lbl" x="252" y="416.0" text-anchor="end">acc64d5e · indenture</text>
+<path class="s1" d="M260.0,405.0 H428.5 Q432.5,405.0 432.5,409.0 V415.0 Q432.5,419.0 428.5,419.0 H260.0 Z"><title>acc64d5e · indenture: 37.5s — 7235 prompt / 168 completion tok</title></path>
+<text class="val" x="438.5" y="416.0">37.5s</text>
+<text class="lbl" x="252" y="440.0" text-anchor="end">59faee66 · board_resolution</text>
+<path class="s1" d="M260.0,429.0 H428.5 Q432.5,429.0 432.5,433.0 V439.0 Q432.5,443.0 428.5,443.0 H260.0 Z"><title>59faee66 · board_resolution: 37.5s — 2644 prompt / 162 completion tok</title></path>
+<text class="val" x="438.5" y="440.0">37.5s</text>
+<text class="lbl" x="252" y="464.0" text-anchor="end">817f1211 · charter_amendment</text>
+<path class="s1" d="M260.0,453.0 H428.5 Q432.5,453.0 432.5,457.0 V463.0 Q432.5,467.0 428.5,467.0 H260.0 Z"><title>817f1211 · charter_amendment: 37.5s — 2947 prompt / 168 completion tok</title></path>
+<text class="val" x="438.5" y="464.0">37.5s</text>
+<text class="lbl" x="252" y="488.0" text-anchor="end">0e736fb8 · indenture</text>
+<path class="s1" d="M260.0,477.0 H424.8 Q428.8,477.0 428.8,481.0 V487.0 Q428.8,491.0 424.8,491.0 H260.0 Z"><title>0e736fb8 · indenture: 36.7s — 2760 prompt / 151 completion tok</title></path>
+<text class="val" x="434.8" y="488.0">36.7s</text>
+<text class="lbl" x="252" y="512.0" text-anchor="end">e0a5e812 · bylaws</text>
+<path class="s1" d="M260.0,501.0 H424.8 Q428.8,501.0 428.8,505.0 V511.0 Q428.8,515.0 424.8,515.0 H260.0 Z"><title>e0a5e812 · bylaws: 36.7s — 6741 prompt / 144 completion tok</title></path>
+<text class="val" x="434.8" y="512.0">36.7s</text>
+<text class="lbl" x="252" y="536.0" text-anchor="end">5f17d24f · board_resolution</text>
+<path class="s1" d="M260.0,525.0 H422.1 Q426.1,525.0 426.1,529.0 V535.0 Q426.1,539.0 422.1,539.0 H260.0 Z"><title>5f17d24f · board_resolution: 36.1s — 2456 prompt / 155 completion tok</title></path>
+<text class="val" x="432.1" y="536.0">36.1s</text>
+<text class="lbl" x="252" y="560.0" text-anchor="end">442b9df3 · officer_certificate</text>
+<path class="s1" d="M260.0,549.0 H417.9 Q421.9,549.0 421.9,553.0 V559.0 Q421.9,563.0 417.9,563.0 H260.0 Z"><title>442b9df3 · officer_certificate: 35.2s — 4047 prompt / 163 completion tok</title></path>
+<text class="val" x="427.9" y="560.0">35.2s</text>
+<text class="lbl" x="252" y="584.0" text-anchor="end">cd9ac9b4 · officer_certificate</text>
+<path class="s1" d="M260.0,573.0 H415.6 Q419.6,573.0 419.6,577.0 V583.0 Q419.6,587.0 415.6,587.0 H260.0 Z"><title>cd9ac9b4 · officer_certificate: 34.7s — 6599 prompt / 159 completion tok</title></path>
+<text class="val" x="425.6" y="584.0">34.7s</text>
+<text class="lbl" x="252" y="608.0" text-anchor="end">46a55578 · articles_of_incorporation</text>
+<path class="s1" d="M260.0,597.0 H411.9 Q415.9,597.0 415.9,601.0 V607.0 Q415.9,611.0 411.9,611.0 H260.0 Z"><title>46a55578 · articles_of_incorporation: 33.9s — 4943 prompt / 150 completion tok</title></path>
+<text class="val" x="421.9" y="608.0">33.9s</text>
+<text class="lbl" x="252" y="632.0" text-anchor="end">ebe63cb7 · rights_instrument</text>
+<path class="s1" d="M260.0,621.0 H408.3 Q412.3,621.0 412.3,625.0 V631.0 Q412.3,635.0 408.3,635.0 H260.0 Z"><title>ebe63cb7 · rights_instrument: 33.1s — 6718 prompt / 169 completion tok</title></path>
+<text class="val" x="418.3" y="632.0">33.1s</text>
+<text class="lbl" x="252" y="656.0" text-anchor="end">3b023106 · articles_of_incorporation</text>
+<path class="s1" d="M260.0,645.0 H405.0 Q409.0,645.0 409.0,649.0 V655.0 Q409.0,659.0 405.0,659.0 H260.0 Z"><title>3b023106 · articles_of_incorporation: 32.4s — 6754 prompt / 157 completion tok</title></path>
+<text class="val" x="415.0" y="656.0">32.4s</text>
+<text class="lbl" x="252" y="680.0" text-anchor="end">091e15b5 · subsidiary_list</text>
+<path class="s1" d="M260.0,669.0 H389.9 Q393.9,669.0 393.9,673.0 V679.0 Q393.9,683.0 389.9,683.0 H260.0 Z"><title>091e15b5 · subsidiary_list: 29.1s — 2310 prompt / 137 completion tok</title></path>
+<text class="val" x="399.9" y="680.0">29.1s</text>
+<text class="lbl" x="252" y="704.0" text-anchor="end">1666d339 · rights_instrument</text>
+<path class="s1" d="M260.0,693.0 H388.5 Q392.5,693.0 392.5,697.0 V703.0 Q392.5,707.0 388.5,707.0 H260.0 Z"><title>1666d339 · rights_instrument: 28.8s — 3538 prompt / 172 completion tok</title></path>
+<text class="val" x="398.5" y="704.0">28.8s</text>
+<text class="lbl" x="252" y="728.0" text-anchor="end">21fca151 · officer_certificate</text>
+<path class="s1" d="M260.0,717.0 H386.6 Q390.6,717.0 390.6,721.0 V727.0 Q390.6,731.0 386.6,731.0 H260.0 Z"><title>21fca151 · officer_certificate: 28.4s — 6533 prompt / 163 completion tok</title></path>
+<text class="val" x="396.6" y="728.0">28.4s</text>
+<text class="lbl" x="252" y="752.0" text-anchor="end">00ae6495 · rights_instrument</text>
+<path class="s1" d="M260.0,741.0 H379.3 Q383.3,741.0 383.3,745.0 V751.0 Q383.3,755.0 379.3,755.0 H260.0 Z"><title>00ae6495 · rights_instrument: 26.8s — 2687 prompt / 142 completion tok</title></path>
+<text class="val" x="389.3" y="752.0">26.8s</text>
+<text class="lbl" x="252" y="776.0" text-anchor="end">5657643a · articles_of_incorporation</text>
+<path class="s1" d="M260.0,765.0 H377.9 Q381.9,765.0 381.9,769.0 V775.0 Q381.9,779.0 377.9,779.0 H260.0 Z"><title>5657643a · articles_of_incorporation: 26.5s — 7587 prompt / 163 completion tok</title></path>
+<text class="val" x="387.9" y="776.0">26.5s</text>
+<text class="lbl" x="252" y="800.0" text-anchor="end">f425cd09 · charter_amendment</text>
+<path class="s1" d="M260.0,789.0 H357.7 Q361.7,789.0 361.7,793.0 V799.0 Q361.7,803.0 357.7,803.0 H260.0 Z"><title>f425cd09 · charter_amendment: 22.1s — 4797 prompt / 193 completion tok</title></path>
+<text class="val" x="367.7" y="800.0">22.1s</text>
+<text class="lbl" x="252" y="824.0" text-anchor="end">116b9f53 · charter_amendment</text>
+<path class="s1" d="M260.0,813.0 H350.3 Q354.3,813.0 354.3,817.0 V823.0 Q354.3,827.0 350.3,827.0 H260.0 Z"><title>116b9f53 · charter_amendment: 20.5s — 3334 prompt / 166 completion tok</title></path>
+<text class="val" x="360.3" y="824.0">20.5s</text>
+<text class="lbl" x="252" y="848.0" text-anchor="end">a8928ec5 · charter_amendment</text>
+<path class="s1" d="M260.0,837.0 H347.1 Q351.1,837.0 351.1,841.0 V847.0 Q351.1,851.0 347.1,851.0 H260.0 Z"><title>a8928ec5 · charter_amendment: 19.8s — 4953 prompt / 170 completion tok</title></path>
+<text class="val" x="357.1" y="848.0">19.8s</text>
+<text class="lbl" x="252" y="872.0" text-anchor="end">60be90e0 · bylaws</text>
+<path class="s1" d="M260.0,861.0 H344.3 Q348.3,861.0 348.3,865.0 V871.0 Q348.3,875.0 344.3,875.0 H260.0 Z"><title>60be90e0 · bylaws: 19.2s — 7196 prompt / 166 completion tok</title></path>
+<text class="val" x="354.3" y="872.0">19.2s</text>
+<text class="lbl" x="252" y="896.0" text-anchor="end">7d9d9653 · rights_instrument</text>
+<path class="s1" d="M260.0,885.0 H336.0 Q340.0,885.0 340.0,889.0 V895.0 Q340.0,899.0 336.0,899.0 H260.0 Z"><title>7d9d9653 · rights_instrument: 17.4s — 7045 prompt / 160 completion tok</title></path>
+<text class="val" x="346.0" y="896.0">17.4s</text>
+<text class="lbl" x="252" y="920.0" text-anchor="end">10996846 · charter_amendment</text>
+<path class="s1" d="M260.0,909.0 H336.0 Q340.0,909.0 340.0,913.0 V919.0 Q340.0,923.0 336.0,923.0 H260.0 Z"><title>10996846 · charter_amendment: 17.4s — 4257 prompt / 164 completion tok</title></path>
+<text class="val" x="346.0" y="920.0">17.4s</text>
+<text class="lbl" x="252" y="944.0" text-anchor="end">38de2b5e · charter_amendment</text>
+<path class="s1" d="M260.0,933.0 H336.0 Q340.0,933.0 340.0,937.0 V943.0 Q340.0,947.0 336.0,947.0 H260.0 Z"><title>38de2b5e · charter_amendment: 17.4s — 3160 prompt / 163 completion tok</title></path>
+<text class="val" x="346.0" y="944.0">17.4s</text>
+<text class="lbl" x="252" y="968.0" text-anchor="end">7f2c7b5b · subsidiary_list</text>
+<path class="s1" d="M260.0,957.0 H336.0 Q340.0,957.0 340.0,961.0 V967.0 Q340.0,971.0 336.0,971.0 H260.0 Z"><title>7f2c7b5b · subsidiary_list: 17.4s — 2656 prompt / 157 completion tok</title></path>
+<text class="val" x="346.0" y="968.0">17.4s</text>
+<text class="lbl" x="252" y="992.0" text-anchor="end">13b1c270 · board_resolution</text>
+<path class="s1" d="M260.0,981.0 H335.6 Q339.6,981.0 339.6,985.0 V991.0 Q339.6,995.0 335.6,995.0 H260.0 Z"><title>13b1c270 · board_resolution: 17.3s — 2512 prompt / 159 completion tok</title></path>
+<text class="val" x="345.6" y="992.0">17.3s</text>
+<text class="lbl" x="252" y="1016.0" text-anchor="end">eb06437b · subsidiary_list</text>
+<path class="s1" d="M260.0,1005.0 H323.6 Q327.6,1005.0 327.6,1009.0 V1015.0 Q327.6,1019.0 323.6,1019.0 H260.0 Z"><title>eb06437b · subsidiary_list: 14.7s — 2446 prompt / 125 completion tok</title></path>
+<text class="val" x="333.6" y="1016.0">14.7s</text>
+<text class="lbl" x="252" y="1040.0" text-anchor="end">cc3d91f5 · subsidiary_list</text>
+<path class="s1" d="M260.0,1029.0 H317.6 Q321.6,1029.0 321.6,1033.0 V1039.0 Q321.6,1043.0 317.6,1043.0 H260.0 Z"><title>cc3d91f5 · subsidiary_list: 13.4s — 2232 prompt / 97 completion tok</title></path>
+<text class="val" x="327.6" y="1040.0">13.4s</text>
+<text class="lbl" x="252" y="1064.0" text-anchor="end">5765ec5f · subsidiary_list</text>
+<path class="s1" d="M260.0,1053.0 H317.6 Q321.6,1053.0 321.6,1057.0 V1063.0 Q321.6,1067.0 317.6,1067.0 H260.0 Z"><title>5765ec5f · subsidiary_list: 13.4s — 2249 prompt / 97 completion tok</title></path>
+<text class="val" x="327.6" y="1064.0">13.4s</text>
+<text class="lbl" x="252" y="1088.0" text-anchor="end">f781f7db · bylaws</text>
+<path class="s1" d="M260.0,1077.0 H310.3 Q314.3,1077.0 314.3,1081.0 V1087.0 Q314.3,1091.0 310.3,1091.0 H260.0 Z"><title>f781f7db · bylaws: 11.8s — 6603 prompt / 151 completion tok</title></path>
+<text class="val" x="320.3" y="1088.0">11.8s</text>
+<text class="lbl" x="252" y="1112.0" text-anchor="end">f72c5e65 · officer_certificate</text>
+<path class="s1" d="M260.0,1101.0 H309.8 Q313.8,1101.0 313.8,1105.0 V1111.0 Q313.8,1115.0 309.8,1115.0 H260.0 Z"><title>f72c5e65 · officer_certificate: 11.7s — 6557 prompt / 157 completion tok</title></path>
+<text class="val" x="319.8" y="1112.0">11.7s</text>
+<text class="lbl" x="252" y="1136.0" text-anchor="end">98b8597e · bylaws</text>
+<path class="s1" d="M260.0,1125.0 H308.4 Q312.4,1125.0 312.4,1129.0 V1135.0 Q312.4,1139.0 308.4,1139.0 H260.0 Z"><title>98b8597e · bylaws: 11.4s — 6615 prompt / 145 completion tok</title></path>
+<text class="val" x="318.4" y="1136.0">11.4s</text>
+<text class="lbl" x="252" y="1160.0" text-anchor="end">432fc57f · rights_instrument</text>
+<path class="s1" d="M260.0,1149.0 H306.6 Q310.6,1149.0 310.6,1153.0 V1159.0 Q310.6,1163.0 306.6,1163.0 H260.0 Z"><title>432fc57f · rights_instrument: 11.0s — 2647 prompt / 159 completion tok</title></path>
+<text class="val" x="316.6" y="1160.0">11.0s</text>
+<text class="lbl" x="252" y="1184.0" text-anchor="end">ab812830 · board_resolution</text>
+<path class="s1" d="M260.0,1173.0 H305.7 Q309.7,1173.0 309.7,1177.0 V1183.0 Q309.7,1187.0 305.7,1187.0 H260.0 Z"><title>ab812830 · board_resolution: 10.8s — 2515 prompt / 164 completion tok</title></path>
+<text class="val" x="315.7" y="1184.0">10.8s</text>
+<text class="lbl" x="252" y="1208.0" text-anchor="end">31fb1032 · officer_certificate</text>
+<path class="s1" d="M260.0,1197.0 H299.7 Q303.7,1197.0 303.7,1201.0 V1207.0 Q303.7,1211.0 299.7,1211.0 H260.0 Z"><title>31fb1032 · officer_certificate: 9.5s — 6001 prompt / 152 completion tok</title></path>
+<text class="val" x="309.7" y="1208.0">9.5s</text>
+<text class="lbl" x="252" y="1232.0" text-anchor="end">ba2b2cde · officer_certificate</text>
+<path class="s1" d="M260.0,1221.0 H293.7 Q297.7,1221.0 297.7,1225.0 V1231.0 Q297.7,1235.0 293.7,1235.0 H260.0 Z"><title>ba2b2cde · officer_certificate: 8.2s — 6545 prompt / 157 completion tok</title></path>
+<text class="val" x="303.7" y="1232.0">8.2s</text>
+<text class="lbl" x="252" y="1256.0" text-anchor="end">80a43715 · subsidiary_list</text>
+<path class="s1" d="M260.0,1245.0 H289.6 Q293.6,1245.0 293.6,1249.0 V1255.0 Q293.6,1259.0 289.6,1259.0 H260.0 Z"><title>80a43715 · subsidiary_list: 7.3s — 2250 prompt / 121 completion tok</title></path>
+<text class="val" x="299.6" y="1256.0">7.3s</text>
+<text class="lbl" x="252" y="1280.0" text-anchor="end">47f299e6 · bylaws</text>
+<path class="s1" d="M260.0,1269.0 H286.4 Q290.4,1269.0 290.4,1273.0 V1279.0 Q290.4,1283.0 286.4,1283.0 H260.0 Z"><title>47f299e6 · bylaws: 6.6s — 7237 prompt / 163 completion tok</title></path>
+<text class="val" x="296.4" y="1280.0">6.6s</text>
+</svg>

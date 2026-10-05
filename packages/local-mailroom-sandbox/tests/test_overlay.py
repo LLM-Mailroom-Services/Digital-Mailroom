@@ -63,6 +63,15 @@ def test_model_override():
     assert taxonomy["agents"]["contracts_specialist"]["model"] == "llama3.1:8b"
 
 
+def test_awq_override_pins_vllm_agents_and_champion_remap():
+    profile = load_profile("modal-vllm")
+    taxonomy = build_merged_taxonomy(profile, model_override="Qwen/Qwen3-8B-AWQ")
+    assert taxonomy["agents"]["merger_agreement_specialist"]["model"] == "Qwen/Qwen3-8B-AWQ"
+    assert taxonomy["agents"]["sorter"]["model"] == "Qwen/Qwen3-8B-AWQ"
+    assert taxonomy["vllm_model_map"]["Qwen/Qwen3-8B"] == "Qwen/Qwen3-8B-AWQ"
+    assert taxonomy["vllm_model_map"]["qwen/qwen3.7-flash"] == "Qwen/Qwen3-8B-AWQ"
+
+
 def test_agent_model_surgical_override():
     from mailroom_sandbox.overlay import parse_agent_models
 

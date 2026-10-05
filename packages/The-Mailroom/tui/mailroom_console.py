@@ -29,21 +29,27 @@ import os
 import queue
 import select
 import sys
-import termios
 import threading
 import time
-import tty
 import urllib.error
 import urllib.parse
 import urllib.request
 from collections import deque
 from typing import Any, Optional
 
+try:  # POSIX-only; --once / --resolve must still work on Windows.
+    import termios
+    import tty
+except ImportError:  # pragma: no cover - non-POSIX
+    termios = None  # type: ignore[assignment]
+    tty = None  # type: ignore[assignment]
+
 from rich.console import Console, Group
 from rich.live import Live
 from rich.panel import Panel
 from rich.text import Text
 
+from mailroom_ui.env import env_float, env_int
 from tui import commands as cmds
 from tui import views
 from tui.corpus import CorpusClient
@@ -78,9 +84,9 @@ __all__ = [
 ]
 
 API_BASE = os.environ.get("MAILROOM_API_URL", "http://127.0.0.1:8001").rstrip("/")
-POLL_INTERVAL = float(os.environ.get("MAILROOM_TUI_POLL", "3"))
+POLL_INTERVAL = env_float("MAILROOM_TUI_POLL", 3.0, minimum=0.5)
 # Same 7-day live window as the pixel console and Observatory HTTP clients.
-WINDOW_S = int(os.environ.get("MAILROOM_RECENT_WINDOW", "604800"))
+WINDOW_S = env_int("MAILROOM_RECENT_WINDOW", 604800, minimum=60)
 
 
 def _record_error(where: str, exc: BaseException) -> None:
@@ -113,6 +119,16 @@ def fetch_list(path: str) -> Optional[list[dict]]:
     return data.get("runs") or []
 
 
+def _post_headers() -> dict[str, str]:
+    """JSON headers + operator JWT (MAILROOM_OPERATOR_TOKEN) for public hosts,
+    where review writes require a reviewer login."""
+    headers = {"Accept": "application/json", "Content-Type": "application/json"}
+    token = (os.environ.get("MAILROOM_OPERATOR_TOKEN") or "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
 def post_json(path: str, body: dict, timeout: float = 60.0) -> Optional[dict]:
     """POST JSON to the visualizer (review resolve). None on failure."""
     url = f"{API_BASE}{path}"
@@ -121,7 +137,7 @@ def post_json(path: str, body: dict, timeout: float = 60.0) -> Optional[dict]:
         req = urllib.request.Request(
             url,
             data=payload,
-            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            headers=_post_headers(),
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -184,6 +200,9 @@ class LineEditor:
         self.buf = ""
         self.history: list[str] = []
         self.history_idx: Optional[int] = None
+        # Set by Ctrl+L; the REPL loop clears the scrollback and resets it.
+        self.clear_requested = False
+        self.submitted = ""
 
     def text(self) -> str:
         return self.buf
@@ -194,6 +213,10 @@ class LineEditor:
             line = self.buf
             if line.strip():
                 self.history.append(line)
+            # Keep the submitted line: the buffer is reset here, and the REPL
+            # used to read text() AFTER this — every typed command arrived
+            # empty and nothing ever ran.
+            self.submitted = line
             self.buf = ""
             self.history_idx = None
             return True
@@ -201,21 +224,27 @@ class LineEditor:
             self.buf = self.buf[:-1]
             return False
         if ch == "\x1b":  # ESC sequence (arrows / Esc)
+            # The REPL loop reads the CSI tail into `pending` (see
+            # _collect_escape); a lone Esc arrives with nothing after it.
             seq = ch
             while len(seq) < 3 and pending:
                 seq += pending.popleft()
-            if seq == "\x1b[A":  # up
+            if seq in ("\x1b[A", "\x1bOA"):  # up
                 self._history_move(-1)
-            elif seq == "\x1b[B":  # down
+            elif seq in ("\x1b[B", "\x1bOB"):  # down
                 self._history_move(1)
-            else:  # bare Esc: cancel the line
+            elif seq[1:2] in ("[", "O"):
+                pass  # other cursor/function keys: ignore, never type them
+            else:  # bare Esc: cancel the line; replay any char that followed
                 self.buf = ""
+                for extra in reversed(seq[1:]):
+                    pending.appendleft(extra)
             return False
         if ch == "\t":
             self._complete()
             return False
-        if ch in ("\x14", "\x0c"):  # Ctrl+L
-            self.buf = ""
+        if ch == "\x0c":  # Ctrl+L — clear the screen (scrollback), keep the line
+            self.clear_requested = True
             return False
         if ch == "\x03":  # Ctrl+C — cancel the line
             self.buf = ""
@@ -264,22 +293,84 @@ class LineEditor:
 _ctx: Optional[cmds.CommandContext] = None
 
 
-def _key_reader(keys: "queue.Queue[str]") -> None:
-    """Raw single-key reader (POSIX). Falls back to line input when the
-    terminal is not usable."""
+EOF_KEY = "\x04"
+
+
+def _enter_key_mode() -> Optional[list]:
+    """Put the TTY in cbreak with ISIG off; return the attrs to restore.
+
+    Runs on the MAIN thread so the caller's ``finally`` always restores the
+    terminal (the old daemon-thread ``finally`` never ran on quit/crash and
+    left the shell without echo). ISIG off makes Ctrl+C arrive as ``\x03``
+    (cancel the line, as documented) instead of a KeyboardInterrupt.
+    """
+    if termios is None or not sys.stdin.isatty():
+        return None
     try:
         fd = sys.stdin.fileno()
         old = termios.tcgetattr(fd)
         tty.setcbreak(fd)
+        mode = termios.tcgetattr(fd)
+        mode[3] &= ~termios.ISIG
+        termios.tcsetattr(fd, termios.TCSADRAIN, mode)
+        return old
+    except (termios.error, OSError, ValueError):
+        return None
+
+
+def _leave_key_mode(old: Optional[list]) -> None:
+    if old is None or termios is None:
+        return
+    try:
+        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old)
+    except (termios.error, OSError, ValueError):
+        pass
+
+
+def _key_reader(keys: "queue.Queue[str]", raw: bool, stop: threading.Event) -> None:
+    """Single-key reader. Without a usable TTY, falls back to whole lines
+    (split into keys + Enter; EOF ends the REPL instead of spinning)."""
+    if raw:
+        # Read the raw fd: sys.stdin.read(1) pulls a whole chunk into Python's
+        # buffer, after which select() on the fd no longer reports the keys
+        # still sitting in that buffer (typed-ahead input was stranded).
+        import codecs
+
+        fd = sys.stdin.fileno()
+        decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        while not stop.is_set():
+            try:
+                if select.select([fd], [], [], 0.2)[0]:
+                    chunk = os.read(fd, 1024)
+                    if not chunk:
+                        keys.put(EOF_KEY)
+                        return
+                    for ch in decoder.decode(chunk):
+                        keys.put(ch)
+            except (OSError, ValueError):
+                keys.put(EOF_KEY)
+                return
+        return
+    while not stop.is_set():
+        line = sys.stdin.readline()
+        if line == "":
+            keys.put(EOF_KEY)
+            return
+        for ch in line.rstrip("\r\n"):
+            keys.put(ch)
+        keys.put("\r")
+
+
+def _collect_escape(keys: "queue.Queue[str]", pending: deque) -> None:
+    """Read the tail of an escape sequence (arrow keys send ESC [ A).
+
+    The reader thread queues keys one at a time, so the tail is not in
+    `pending` yet — wait briefly for up to two more characters."""
+    for _ in range(2):
         try:
-            while True:
-                if select.select([sys.stdin], [], [], 0.2)[0]:
-                    keys.put(sys.stdin.read(1))
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old)
-    except Exception:
-        while True:
-            keys.put(sys.stdin.readline())
+            pending.append(keys.get(timeout=0.03))
+        except queue.Empty:
+            return
 
 
 def _prompt_line(editor: LineEditor, desk: bool) -> Text:
@@ -384,7 +475,7 @@ def _run_once(args: argparse.Namespace, console: Console) -> None:
             if not tid:
                 body = Text("no trace to inspect", style="yellow")
             else:
-                detail = fetch(f"/api/traces/{tid}")
+                detail = fetch(f"/api/traces/{urllib.parse.quote(tid, safe='')}")
                 if detail is None or detail.get("error"):
                     body = empty_hint(f"trace {tid} unavailable")
                 else:
@@ -402,11 +493,38 @@ def _run_once(args: argparse.Namespace, console: Console) -> None:
             console.print(debug_panel())
 
 
-def _run_repl(args: argparse.Namespace, console: Console) -> None:
-    global _ctx
-    keys: "queue.Queue[str]" = queue.Queue()
-    threading.Thread(target=_key_reader, args=(keys,), daemon=True).start()
+def _poll_loop(out: "queue.Queue[tuple]", stop: threading.Event) -> None:
+    """Background floor poller: network waits (WS/HTTP timeouts up to ~15 s
+    each) used to run inside the render loop and freeze typing for 40 s+
+    against an unreachable host."""
+    while not stop.is_set():
+        fresh = fetch_floor_runs()
+        if fresh is None:
+            probe_health()  # records the reason in LAST_ERRORS
+            out.put(("closed", None, None))
+        else:
+            out.put(("runs", fresh, fetch("/api/pipeline") or {}))
+        stop.wait(POLL_INTERVAL)
 
+
+def _run_repl(args: argparse.Namespace, console: Console) -> None:
+    keys: "queue.Queue[str]" = queue.Queue()
+    polls: "queue.Queue[tuple]" = queue.Queue()
+    stop = threading.Event()
+    saved_tty = _enter_key_mode()
+    try:
+        threading.Thread(target=_key_reader, args=(keys, saved_tty is not None, stop),
+                         daemon=True).start()
+        threading.Thread(target=_poll_loop, args=(polls, stop), daemon=True).start()
+        _repl_loop(args, console, keys, polls)
+    finally:
+        stop.set()
+        _leave_key_mode(saved_tty)
+
+
+def _repl_loop(args: argparse.Namespace, console: Console,
+               keys: "queue.Queue[str]", polls: "queue.Queue[tuple]") -> None:
+    global _ctx
     ctx = cmds.CommandContext()
     _ctx = ctx
     ctx.api_base = API_BASE
@@ -422,26 +540,22 @@ def _run_repl(args: argparse.Namespace, console: Console) -> None:
     pending: deque = deque()
     desk = False
     closed = False
-    last_poll = 0.0
     prev: dict[str, dict] = {}
 
     with Live(console=console, screen=True, auto_refresh=False) as live:
         while True:
-            now = time.monotonic()
-            if now - last_poll >= POLL_INTERVAL:
-                last_poll = now
-                fresh = fetch_floor_runs()
-                if fresh is None:
+            # Apply finished background polls (never block on the network).
+            while not polls.empty():
+                kind, fresh, pipeline = polls.get()
+                if kind == "closed":
                     closed = True
-                    if not probe_health():
-                        closed = True
-                else:
-                    closed = False
-                    ctx.runs = fresh
-                    if desk:
-                        runs_to_banners(prev, fresh, ctx.log)
-                    prev = {r["trace_id"]: r for r in fresh}
-                    ctx.pipeline = fetch("/api/pipeline") or {}
+                    continue
+                closed = False
+                ctx.runs = fresh
+                if desk:
+                    runs_to_banners(prev, fresh, ctx.log)
+                prev = {r["trace_id"]: r for r in fresh}
+                ctx.pipeline = pipeline
 
             # Drain keys.
             while not keys.empty() or pending:
@@ -449,11 +563,18 @@ def _run_repl(args: argparse.Namespace, console: Console) -> None:
                     ch = pending.popleft()
                 else:
                     ch = keys.get()
-                if desk and ch in ("q", "Q", "\x1b"):
+                    if ch == "\x1b":
+                        _collect_escape(keys, pending)
+                if ch == EOF_KEY:
+                    if editor.text():
+                        continue
+                    console.print("\nmailroom-tui closed.")
+                    return
+                if desk and (ch in ("q", "Q") or (ch == "\x1b" and not pending)):
                     desk = False
                     continue
                 if editor.handle(ch, pending):
-                    line = editor.text()
+                    line = editor.submitted
                     if line.strip():
                         scrollback.append(Text(f"mailroom@floor:~$ {line}",
                                                style="dim"))
@@ -470,6 +591,9 @@ def _run_repl(args: argparse.Namespace, console: Console) -> None:
                                                    "q to return", style="green"))
                         else:
                             scrollback.append(result)
+                if editor.clear_requested:
+                    editor.clear_requested = False
+                    scrollback.clear()
 
             live.update(render_repl_frame(ctx, editor, scrollback, desk,
                                           closed, len(ctx.runs)))

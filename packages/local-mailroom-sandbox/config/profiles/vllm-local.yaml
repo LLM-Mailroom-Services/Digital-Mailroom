@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=./profile.schema.json
 name: vllm-local
 description: Local vLLM OpenAI-compatible server (GPU).
 provider: vllm

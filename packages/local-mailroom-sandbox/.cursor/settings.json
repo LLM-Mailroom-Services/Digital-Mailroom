@@ -3,5 +3,10 @@
     "huggingface-skills": {
       "enabled": true
     }
+  },
+  "yaml.schemas": {
+    "config/profiles/profile.schema.json": [
+      "config/profiles/*.yaml"
+    ]
   }
 }

@@ -17,4 +17,4 @@ adversarial reviewer): roster in [`config/subagents/`](../../config/subagents/),
 prompts in [`.opencode/agents/`](../../.opencode/agents/) — sync Cursor stubs
 with `sandbox subagents sync --harness cursor`.
 
-Also see root [`AGENTS.md`](../../AGENTS.md) and [`docs/docker-offline.md`](../../docs/docker-offline.md).
+Also see root [`AGENTS.md`](../../AGENTS.md) and [`docs/setting-up/docker-offline.md`](../../docs/setting-up/docker-offline.md).

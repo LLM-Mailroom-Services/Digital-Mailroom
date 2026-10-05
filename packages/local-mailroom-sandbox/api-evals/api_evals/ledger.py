@@ -1,6 +1,6 @@
 """Tracked QWEN-flash cost ledger (issue #40).
 
-``reports/qwen-flash-cost-source.json`` holds the three known OpenRouter flash
+``reports/archive/qwen-flash-cost-source.json`` holds the three known OpenRouter flash
 runs so cost reports rebuild from a clean checkout without the gitignored
 ``reports/experiment_log.jsonl``.
 """
@@ -13,7 +13,7 @@ from typing import Any
 
 from api_evals.cost import cost_from_aggregate
 
-_LEDGER_REL = Path("reports") / "qwen-flash-cost-source.json"
+_LEDGER_REL = Path("reports") / "archive" / "qwen-flash-cost-source.json"
 
 
 def ledger_path(root: Path | None = None) -> Path:
@@ -26,7 +26,7 @@ def load_ledger(path: Path | None = None) -> dict[str, Any]:
     src = path or ledger_path()
     if not src.is_file():
         raise FileNotFoundError(
-            f"cost ledger not found at {src} — commit reports/qwen-flash-cost-source.json "
+            f"cost ledger not found at {src} — commit reports/archive/qwen-flash-cost-source.json "
             "or pass an alternate path"
         )
     data = json.loads(src.read_text(encoding="utf-8"))

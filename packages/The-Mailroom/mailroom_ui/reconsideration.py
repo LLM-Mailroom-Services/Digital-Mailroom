@@ -106,7 +106,12 @@ def collect_review_causes(
     """Return canonical cause tokens. Empty when no objective miss is present."""
     scores = scores or {}
     schema = schema or PipelineSchema()
-    floor = float(getattr(schema, "confidence_low", 0.88) or 0.88)
+    # Per-class severity (taxonomy confidence.by_class) wins over the global
+    # floor so a stricter class (e.g. contract low=0.90) is judged by its own bar.
+    try:
+        floor = float(schema.thresholds_for(doc_type).get("low", schema.confidence_low))
+    except (AttributeError, TypeError, ValueError):
+        floor = float(getattr(schema, "confidence_low", 0.88) or 0.88)
     causes: list[str] = []
 
     expected = _align_class(expected_hf_class)

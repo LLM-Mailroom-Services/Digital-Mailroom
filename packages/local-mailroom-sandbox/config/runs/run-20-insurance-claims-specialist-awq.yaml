@@ -1,0 +1,87 @@
+# AWQ + concurrency 8 — insurance_claims_specialist on 20 INSURANCE_CLAIM docs.
+# Subclass quotas scaled 2/3 from run-30-insurance-claims-specialist (6→4 / 3→2).
+# Engine/posture aligns with improved-awq-c8 / run-20-*-awq-c8 legacy completion
+# runs: Qwen3-8B-AWQ, 32768 window, 1×L4, concurrency 8, scaledown 120.
+#
+# Deploy + run (AWQ env — see `sandbox modal-matrix env Qwen/Qwen3-8B-AWQ`):
+#   modal profile activate hermes-agent-jjb
+#   eval "$(sandbox modal-matrix env Qwen/Qwen3-8B-AWQ)"
+#   # or explicit:
+#   # export SANDBOX_PROFILE=modal-vllm MODAL_VLLM_MODEL=Qwen/Qwen3-8B-AWQ \
+#   #   MODAL_VLLM_QUANTIZATION=awq MODAL_VLLM_MAX_MODEL_LEN=32768 \
+#   #   MODAL_VLLM_GPU=L4 MODAL_VLLM_IMAGE_TAG=v0.29.0 \
+#   #   MODAL_VLLM_MAX_CONTAINERS=1 MODAL_VLLM_SCALEDOWN_SECONDS=120
+#   modal run deploy/modal_vllm.py::download_model
+#   modal deploy deploy/modal_vllm.py --strategy recreate
+#   sandbox run benchmark-check --config config/runs/run-20-insurance-claims-specialist-awq.yaml
+#   sandbox run preflight --config config/runs/run-20-insurance-claims-specialist-awq.yaml --live
+#   sandbox run start --config config/runs/run-20-insurance-claims-specialist-awq.yaml --job-mode endpoint --watch
+#   ./deploy/teardown_vllm.sh
+schema: sandbox.run/v1
+run_id: run-20-insurance-claims-specialist-awq
+task: insurance_claims_specialist
+profile: modal-vllm
+
+prompt:
+  # DMR-074 local production pin (config/prompts/insurance_claims_specialist_simplified.txt).
+  default: {source: code-default}
+  agents:
+    insurance_claims_specialist:
+      source: local
+      file: insurance_claims_specialist_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  # split: test — 114 insurance_claim rows; N=20 fits (same pool as run-30)
+  split: test
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      # insurance_claim: all 6 subclasses → 20 (2/3 of run-30 quotas)
+      - doc_class: insurance_claim
+        sub_buckets:
+          - {subclass: auto, count: 4}                 # was 6
+          - {subclass: carrier, count: 4}              # was 6
+          - {subclass: property, count: 4}             # was 6
+          - {subclass: inpatient, count: 4}            # was 6
+          - {subclass: outpatient, count: 2}           # was 3
+          - {subclass: pde, count: 2}                  # was 3
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768      # AWQ L4 window (bf16 stays 16384)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: awq
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120    # attended cost-saver (DMR-076 / improved-awq-c8)
+    max_containers: 1         # cost guard — do not raise for specialist runs
+    min_containers: 0         # scale-to-zero after idle
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 8              # legacy AWQ completion posture (improved-awq-c8)
+  cost_cap_usd: 0.40          # ~2/3 of run-30 $0.50 + AWQ headroom
+  max_wall_seconds: 2400      # ~2/3 of run-30 3000s
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-20-insurance-awq
+  tags: [sandbox, job, specialist, insurance, qwen3-8b-awq, l4, benchmark, c8]

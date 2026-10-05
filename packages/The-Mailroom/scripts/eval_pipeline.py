@@ -74,25 +74,6 @@ def _lf_get(path: str) -> dict:
 
 
 def fetch_traces(*, session: str | None, since: int, environment: str, limit: int) -> list[dict]:
-    traces: list[dict] = []
-    page = 1
-    while len(traces) < limit:
-        q = [f"limit={min(50, limit - len(traces))}", "name=document-pipeline", f"page={page}"]
-        if session:
-            q.append(f"sessionId={urllib.parse.quote(session)}")
-        if environment:
-            # v4 filter: some deployments ignore this; we also filter client-side
-            q.append(f"environment={urllib.parse.quote(environment)}")
-        data = _lf_get("/api/public/traces?" + "&".join(q))
-        batch = data.get("data") or []
-        if not batch:
-            break
-        traces.extend(batch)
-        meta = data.get("meta") or {}
-        if page >= int(meta.get("totalPages") or 1):
-            break
-        page += 1
-        time.sleep(0.2)
     cutoff = None
     if since:
         cutoff = datetime.now(timezone.utc).timestamp() - since
@@ -104,20 +85,52 @@ def fetch_traces(*, session: str | None, since: int, environment: str, limit: in
         except Exception:
             return 0.0
 
-    out = []
-    for t in traces:
+    def _keep(t) -> bool:
         if cutoff and _ts(t) < cutoff:
-            continue
+            return False
         env = t.get("environment") or (t.get("metadata") or {}).get("environment")
         if environment and env and env != environment:
-            continue
+            return False
         if session:
             sid = t.get("sessionId") or t.get("session_id")
             if sid != session:
-                continue
-        out.append(t)
-        if len(out) >= limit:
+                return False
+        return True
+
+    # Fixed page size: Langfuse pages as offset=(page-1)*limit, so shrinking
+    # `limit` on the last page (the old min(50, remaining)) skipped or
+    # duplicated rows. Filter while paging and stop once `limit` rows match
+    # (or the newest-first list has passed the cutoff).
+    page_size = 50
+    out: list[dict] = []
+    seen: set = set()
+    page = 1
+    while len(out) < limit:
+        q = [f"limit={page_size}", "name=document-pipeline", f"page={page}"]
+        if session:
+            q.append(f"sessionId={urllib.parse.quote(session)}")
+        if environment:
+            # v4 filter: some deployments ignore this; we also filter client-side
+            q.append(f"environment={urllib.parse.quote(environment)}")
+        data = _lf_get("/api/public/traces?" + "&".join(q))
+        batch = data.get("data") or []
+        if not batch:
             break
+        for t in batch:
+            if t.get("id") in seen:
+                continue
+            seen.add(t.get("id"))
+            if _keep(t):
+                out.append(t)
+                if len(out) >= limit:
+                    break
+        meta = data.get("meta") or {}
+        if page >= int(meta.get("totalPages") or 1):
+            break
+        if cutoff and all(_ts(t) < cutoff for t in batch):
+            break  # newest-first: everything further is older still
+        page += 1
+        time.sleep(0.2)
     return out
 
 
@@ -148,7 +161,15 @@ def _score_map(scores: list[dict]) -> dict:
             continue
         name = score.get("name")
         if name and name not in out:
-            out[name] = score.get("value")
+            # CATEGORICAL/BOOLEAN scores carry the label in stringValue; the
+            # numeric `value` is only the category index (a judge verdict
+            # would read as 0/1/2 instead of CORRECT/PARTIAL/MISS).
+            string_value = _pick(score, "stringValue", "string_value")
+            data_type = str(_pick(score, "dataType", "data_type") or "").upper()
+            if data_type in ("CATEGORICAL", "BOOLEAN") and string_value is not None:
+                out[name] = string_value
+            else:
+                out[name] = score.get("value")
     return out
 
 

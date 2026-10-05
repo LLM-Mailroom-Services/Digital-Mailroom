@@ -69,7 +69,9 @@ local_catalog:
     - mistral:7b
   vllm:
     - Qwen/Qwen3-8B
+    - Qwen/Qwen3-8B-AWQ
     - Qwen/Qwen3-14B
+    - Qwen/Qwen3-14B-AWQ
     - meta-llama/Llama-3.1-8B-Instruct
 
 # Per-model Modal+vLLM deploy matrix (MODAL_VLLM_MODEL / MODAL_VLLM_GPU /
@@ -128,9 +130,9 @@ modal_models:
     tp_size: 1
     notes: "L4 workhorse for the Granite program (SAND-027). First-party FP8
       (compressed-tensors W8A8), auto-detected by vLLM. Pair with OpenRouter
-      `ibm-granite/granite-4.2-8b` ($0.06/$0.25 per 1M). Reasoning/tool parsers
-      must be added to the serve command (granite_thinking_parser / qwen3_coder)
-      and verified in the deploy smoke (SAND-027-6)."
+      `ibm-granite/granite-4.2-8b` ($0.06/$0.25 per 1M). Serve with the native
+      `granite` reasoning parser (`granite_thinking_parser` needs vLLM >= 0.30
+      and crash-loops pinned v0.29.0); no tool parser (extract uses no tools)."
   ibm-granite/granite-4.2-8b:
     gpu: L4
     quantization: ""
@@ -152,7 +154,10 @@ modal_models:
     quantization: awq
     max_model_len: 32768
     tp_size: 1
-    notes: Pre-quantized (~8GB); fits L4 with headroom. Open weights.
+    notes: "Official Hub AWQ (~10GB weights). Fits 1xL4 with headroom at modest
+      max_num_seqs. For C=32 + CUDA graphs + fp8 KV (isolated sorter 400),
+      override GPU to A100-40GB (sandbox runbook show a100-qwen3-14b-awq-sorter400)
+      — L4 KV cliffs at high admission the way 8B did. Open weights."
   Qwen/Qwen3-30B-A3B:
     gpu: A100-80GB
     quantization: ""
@@ -199,6 +204,15 @@ modal_models:
     notes: "DMR-056: use the PUBLISHED Qwen/Qwen3-32B-FP8 checkpoint
       (auto-detected; A100 = weight-only Marlin). AWQ ~19GB has no KV room on
       L4. A100-80GB+."
+  Qwen/Qwen3-32B-AWQ:
+    gpu: A100-80GB
+    quantization: awq
+    max_model_len: 32768
+    tp_size: 1
+    notes: "Official Hub AWQ (~20GB weights). Stretch only: C=32 + 32k ctx +
+      CUDA graphs wants A100-80GB KV headroom. Do not put on A100-40GB for
+      this sorter posture. Open weights. See a100-qwen3-14b-awq-sorter400
+      appendix for the optional swap."
   deepseek-ai/DeepSeek-R1-Distill-Qwen-7B:
     gpu: L4
     quantization: ""

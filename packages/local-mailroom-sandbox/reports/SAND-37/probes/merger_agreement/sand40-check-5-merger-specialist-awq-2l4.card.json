@@ -1,0 +1,218 @@
+{
+  "concurrency": {
+    "occupancy": 0.17809531989802913,
+    "parallelism": 5.699050236736932,
+    "slot_utilization": 0.1781
+  },
+  "conditions": {
+    "chunk_chars": 47000,
+    "concurrency": 32,
+    "dataset": {
+      "config": "ground_truth",
+      "fingerprint": "d411e98fb6b8",
+      "repo": "Lucius-Morningstar/mailroom-dataset",
+      "revision": "ed7576b6",
+      "seed": 42,
+      "split": "all"
+    },
+    "engine": {
+      "cuda_graphs": true,
+      "cudagraph_capture_sizes": [
+        1,
+        2,
+        4,
+        8,
+        16
+      ],
+      "kv_cache_dtype": "fp8",
+      "max_inputs": 32,
+      "max_model_len": 32768,
+      "max_num_seqs": 16,
+      "prefix_caching": true,
+      "quantization": "awq_marlin",
+      "thinking": false
+    },
+    "gpu": "L4",
+    "gpu_usd_per_hour": 0.8,
+    "image_tag": "v0.29.0",
+    "length_retries": 1,
+    "max_input_chars": 54000,
+    "max_retries": 2,
+    "max_tokens": 6144,
+    "modal_app": "sandbox-vllm",
+    "model": "Qwen/Qwen3-8B-AWQ",
+    "optimized": true,
+    "overlap_chars": 6500,
+    "presence_penalty": 1.0,
+    "prompt": "merger_agreement_specialist_maud_v1",
+    "replicas": 2,
+    "spec_hash": "596b9a2c722cc9b6bda926ed815eaa7aa7f4322f82d20a555e9c650929ff53cb",
+    "temperature": 0.7,
+    "temperature_source": "posture knob",
+    "top_k": 20,
+    "top_p": 0.8
+  },
+  "cost": {
+    "billed_gpu_usd": 0.126601,
+    "busy_gpu_usd": 0.12644133333333335,
+    "idle_seconds": 233.826,
+    "idle_usd": 0.103923,
+    "usd_per_document": 0.02528826666666667,
+    "usd_per_million_tokens": 0.21752636616322796,
+    "usd_per_ok_document": 0.02528826666666667
+  },
+  "documents": [
+    {
+      "calls": 6,
+      "completion_tokens": 3891,
+      "error": null,
+      "input_chars": 292602,
+      "item_id": "DOC-f4e726a7f2c25494",
+      "latency_seconds": 181.153945,
+      "ok": true,
+      "prompt_tokens": 80639,
+      "score": 0.13333333333333333
+    },
+    {
+      "calls": 9,
+      "completion_tokens": 4470,
+      "error": null,
+      "input_chars": 470685,
+      "item_id": "DOC-1e016055aa435e71",
+      "latency_seconds": 247.72815,
+      "ok": true,
+      "prompt_tokens": 124347,
+      "score": 0.125
+    },
+    {
+      "calls": 9,
+      "completion_tokens": 5814,
+      "error": null,
+      "input_chars": 438906,
+      "item_id": "DOC-52f9a5be69429299",
+      "latency_seconds": 268.796788,
+      "ok": true,
+      "prompt_tokens": 119128,
+      "score": 0.23529411764705882
+    },
+    {
+      "calls": 8,
+      "completion_tokens": 5154,
+      "error": null,
+      "input_chars": 389332,
+      "item_id": "DOC-d554890e66786170",
+      "latency_seconds": 458.003022,
+      "ok": true,
+      "prompt_tokens": 109746,
+      "score": 0.1875
+    },
+    {
+      "calls": 9,
+      "completion_tokens": 5667,
+      "error": null,
+      "input_chars": 456134,
+      "item_id": "DOC-5fa0ba13cf68b593",
+      "latency_seconds": 465.65799400000003,
+      "ok": true,
+      "prompt_tokens": 122413,
+      "score": 0.0
+    }
+  ],
+  "engine_telemetry": {
+    "captured": true,
+    "coverage": "replicas observed: 2 of 2",
+    "expected_replicas": 2,
+    "replicas": [
+      {
+        "kv_cache_usage_perc": 0.0,
+        "length_finishes": 0.0,
+        "preemptions": 0.0,
+        "prefix_cache_hit_rate": 0.217,
+        "replica": "1790832635.92",
+        "requests": 21.0,
+        "ttft_mean_seconds": 4.8284
+      },
+      {
+        "kv_cache_usage_perc": 0.0,
+        "length_finishes": 2.0,
+        "preemptions": 0.0,
+        "prefix_cache_hit_rate": 0.246,
+        "replica": "1790832637.63",
+        "requests": 22.0,
+        "ttft_mean_seconds": 4.2022
+      }
+    ],
+    "scrape_errors": []
+  },
+  "generated_at": "2026-10-01T06:44:51+00:00",
+  "latency": {
+    "max": 465.65799400000003,
+    "mean": 324.2679798,
+    "p50": 268.796788,
+    "p95": 465.65799400000003
+  },
+  "n": 5,
+  "quality": {
+    "clause": {
+      "accuracy": 0.13924050632911392,
+      "answered": 56,
+      "clean_correct": 5,
+      "clean_questions": 34,
+      "correct": 11,
+      "coverage": 0.7088607594936709,
+      "kind": "maud",
+      "precision_answered": 0.19642857142857142,
+      "questions": 79
+    },
+    "documents": 5,
+    "error_kinds": {},
+    "errors": 0,
+    "ok": 5,
+    "overall_max": 0.23529411764705882,
+    "overall_mean": 0.13622549019607844,
+    "overall_min": 0.0,
+    "overall_sd": 0.07891188589975079,
+    "parse_errors": 0,
+    "schema_valid_rate": 1.0,
+    "scoring_method": "suite+maud",
+    "suite_overall_mean": null
+  },
+  "run_id": "sand40-check-5-merger-specialist-awq-2l4",
+  "schema": "sandbox.grid-card/v1",
+  "specialist": "Merger Agreements",
+  "task": "merger_agreement_specialist",
+  "throughput": {
+    "documents_per_minute": 1.0545074922757325,
+    "tokens_per_second": 2043.1750517587427,
+    "tokens_per_second_per_gpu": 1021.5875258793714
+  },
+  "time": {
+    "cold_boot_seconds": 0.359,
+    "gpu_seconds": 284.852,
+    "wall_seconds": 284.493
+  },
+  "tokens": {
+    "completion": 24996,
+    "completion_max": 5814,
+    "completion_p95": 5814.0,
+    "completion_share": 0.043002465295758074,
+    "per_document": 116253.8,
+    "prompt": 556273,
+    "split": {
+      "calls": 41.0,
+      "chars_per_token": 4.5,
+      "completion_tokens": 24996.0,
+      "document_tokens": 455035.3333333333,
+      "documents": 5,
+      "instruction_per_call": 2469.2113821138214,
+      "instruction_tokens": 101237.66666666669,
+      "method": "fallback",
+      "per_document": {
+        "completion": 4999.2,
+        "document": 91007.06666666667,
+        "instruction": 20247.533333333336
+      }
+    },
+    "total": 581269
+  }
+}

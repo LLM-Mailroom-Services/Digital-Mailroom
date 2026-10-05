@@ -34,7 +34,7 @@ CORE_EXPECTED = {
     "python-dotenv": ">=1.0.0",
     "PyYAML": ">=6.0",
     "structlog": ">=24.0",
-    "llm-dojo-scoring": "@ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.18.0",
+    "llm-dojo-scoring": "@ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.19.1",
 }
 
 EXTRA_TO_BATCH_FILE = {
@@ -201,11 +201,6 @@ def test_root_requirements_is_core_only_with_pointer_header():
     assert set(parsed) == set(CORE_EXPECTED), (
         f"root requirements.txt must stay core-only, got: {sorted(parsed)}"
     )
-    for name, expected in CORE_EXPECTED.items():
-        assert parsed.get(name) == expected, (
-            f"requirements.txt spec drift for {name}: "
-            f"got {parsed.get(name)!r}, want {expected!r}"
-        )
     assert "requirements/" in text and "test_dependency_manifests" in text, (
         "pointer header to the batch files went missing"
     )

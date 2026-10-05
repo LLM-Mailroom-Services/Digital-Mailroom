@@ -36,24 +36,87 @@ const Obs = (() => {
     throw err;
   }
 
-  async function post(path, body) {
-    const res = await fetch(path, {
+  // Operator auth for producer writes on public hosts: JWT in
+  // sessionStorage (per tab), requested only after a 401 from a write.
+  const TOKEN_KEY = "mailroom.operatorToken";
+  function operatorToken() {
+    try { return sessionStorage.getItem(TOKEN_KEY) || ""; } catch (_e) { return ""; }
+  }
+  function setOperatorToken(tok) {
+    try {
+      if (tok) sessionStorage.setItem(TOKEN_KEY, tok);
+      else sessionStorage.removeItem(TOKEN_KEY);
+    } catch (_e) { /* storage blocked */ }
+  }
+  function authHeaders(base) {
+    const tok = operatorToken();
+    return tok ? { ...base, Authorization: `Bearer ${tok}` } : base;
+  }
+  function askCredentials(message) {
+    return new Promise((resolve) => {
+      const dlg = document.createElement("dialog");
+      dlg.className = "operator-login";
+      dlg.setAttribute("aria-labelledby", "operator-login-title");
+      dlg.innerHTML =
+        '<form method="dialog"><h2 id="operator-login-title">Operator login</h2>' +
+        '<p class="operator-login-msg"></p>' +
+        '<label>Username <input name="u" autocomplete="username" required></label>' +
+        '<label>Password <input name="p" type="password" autocomplete="current-password" required></label>' +
+        '<menu><button value="cancel" formnovalidate>Cancel</button>' +
+        '<button value="ok" class="primary">Log in</button></menu></form>';
+      dlg.querySelector(".operator-login-msg").textContent = message;
+      document.body.appendChild(dlg);
+      dlg.addEventListener("close", () => {
+        const ok = dlg.returnValue === "ok";
+        const u = dlg.querySelector('[name="u"]').value.trim();
+        const p = dlg.querySelector('[name="p"]').value;
+        dlg.remove();
+        resolve(ok && u && p ? { username: u, password: p } : null);
+      });
+      dlg.showModal();
+    });
+  }
+  async function operatorLogin() {
+    const creds = await askCredentials("This host requires an operator login for review and inbox actions.");
+    if (!creds) return false;
+    const res = await fetch("/v1/auth/login", {
       method: "POST",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify(body || {}),
+      body: JSON.stringify(creds),
     });
-    if (!res.ok) return readError(res, path, "Obs.post");
+    if (!res.ok) {
+      await readError(res, "/v1/auth/login", "Obs.login").catch((e) => dbg("login-failed", { message: e.message }));
+      return false;
+    }
+    const body = await res.json();
+    setOperatorToken(body.access_token || "");
+    return !!body.access_token;
+  }
+
+  async function sendWrite(path, init, where, retried = false) {
+    const res = await fetch(path, { ...init, headers: authHeaders(init.headers) });
+    if (res.status === 401 && !retried) {
+      setOperatorToken("");
+      if (await operatorLogin()) return sendWrite(path, init, where, true);
+    }
+    if (!res.ok) return readError(res, path, where);
     return res.json();
   }
 
+  async function post(path, body) {
+    return sendWrite(path, {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    }, "Obs.post");
+  }
+
   async function postForm(path, formData) {
-    const res = await fetch(path, {
+    return sendWrite(path, {
       method: "POST",
       headers: { Accept: "application/json" },
       body: formData,
-    });
-    if (!res.ok) return readError(res, path, "Obs.postForm");
-    return res.json();
+    }, "Obs.postForm");
   }
 
   const api = {

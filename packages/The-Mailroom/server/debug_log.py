@@ -7,6 +7,7 @@ agent can read exactly what the API served without shell access.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import threading
@@ -74,5 +75,20 @@ class DebugLogMiddleware:
                 query=scope.get("query_string", b"").decode("utf-8", "replace")[:200],
                 status=status_holder.get("status"),
                 ms=round((time.perf_counter() - start) * 1000, 1),
-                client=(scope.get("client") or ("?",))[0],
+                client=_client_tag((scope.get("client") or ("?",))[0]),
             )
+
+
+_CLIENT_SALT = os.urandom(8).hex()
+
+
+def _client_tag(addr: str) -> str:
+    """Per-process pseudonym for a client address.
+
+    /api/debug/logs is readable by anyone on the hosted edition; raw IPs
+    leaked every visitor's address to every other visitor. The salted hash
+    still groups one client's requests for debugging.
+    """
+    if not addr or addr == "?":
+        return "?"
+    return "c-" + hashlib.sha256(f"{_CLIENT_SALT}:{addr}".encode()).hexdigest()[:10]

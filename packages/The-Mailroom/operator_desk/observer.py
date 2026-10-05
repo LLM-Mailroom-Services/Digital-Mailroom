@@ -12,6 +12,7 @@ import hashlib
 import json
 import logging
 import os
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -35,6 +36,29 @@ try:
 except ImportError:  # pragma: no cover - optional extra
     class FileSystemEventHandler:  # type: ignore[no-redef]
         pass
+
+
+_TEMP_SUFFIXES = (".tmp", ".part", ".partial", ".crdownload", ".swp")
+
+
+def _is_temp_name(path: Path) -> bool:
+    name = path.name
+    return name.startswith((".", "~")) or name.endswith(_TEMP_SUFFIXES)
+
+
+def _wait_settled(path: Path, *, checks: int = 10, interval: float = 0.2) -> bool:
+    """True once the file size is stable across two reads."""
+    last = -1
+    for _ in range(checks):
+        try:
+            size = path.stat().st_size
+        except OSError:
+            return False
+        if size == last:
+            return True
+        last = size
+        time.sleep(interval)
+    return False
 
 
 class PipelineEventHandler(FileSystemEventHandler):
@@ -77,7 +101,13 @@ class PipelineEventHandler(FileSystemEventHandler):
             conn.close()
 
     def _index_if_archive(self, path: Path, bin_name: Optional[str]) -> None:
-        if bin_name != "archive" or not path.is_file():
+        if bin_name != "archive" or not path.is_file() or _is_temp_name(path):
+            return
+        # on_created fires when the file is opened for writing: wait for the
+        # size to settle so the stored checksum matches the finished file
+        # (a half-written checksum later made /verify report tampering).
+        if not _wait_settled(path):
+            log.warning("archive file %s still changing — indexing skipped", path)
             return
         data = path.read_bytes()
         upsert_archive_entry(
@@ -94,11 +124,18 @@ class PipelineEventHandler(FileSystemEventHandler):
         dest = getattr(event, "dest_path", None)
         if not src or not dest:
             return
+        if getattr(event, "is_directory", False):
+            return
         src_bin = self._get_bin_name(Path(src))
         dest_bin = self._get_bin_name(Path(dest))
-        if not (src_bin and dest_bin and src_bin != dest_bin):
-            return
         dest_path = Path(dest)
+        if src_bin and dest_bin and src_bin == dest_bin:
+            # Same-bin rename = atomic write (tmp -> final) landing in the
+            # archive: index the final name, but it is not a stage change.
+            self._index_if_archive(dest_path, dest_bin)
+            return
+        if not (src_bin and dest_bin):
+            return
         self._index_if_archive(dest_path, dest_bin)
         self.callback(
             {
@@ -113,9 +150,11 @@ class PipelineEventHandler(FileSystemEventHandler):
 
     def on_created(self, event: Any) -> None:
         src = getattr(event, "src_path", None)
-        if not src:
+        if not src or getattr(event, "is_directory", False):
             return
         path = Path(src)
+        if _is_temp_name(path):
+            return  # partial/atomic-write temp file; the rename announces it
         bin_name = self._get_bin_name(path)
         if bin_name == "inbox":
             self.callback(
@@ -160,7 +199,9 @@ class AsyncEventBridge:
         self._emit = emit
 
     def emit(self, event: dict) -> None:
-        asyncio.run_coroutine_threadsafe(self._publish(event), self.loop)
+        future = asyncio.run_coroutine_threadsafe(self._publish(event), self.loop)
+        # Errors inside _publish vanished in the unobserved future.
+        future.add_done_callback(_log_future_error)
 
     async def _publish(self, event: dict) -> None:
         if self._emit is not None:
@@ -173,6 +214,16 @@ class AsyncEventBridge:
         matter_id = document.get("matter_id")
         if matter_id:
             await publish_matter_event(str(matter_id), str(event.get("type") or "event"), event)
+
+
+def _log_future_error(future: Any) -> None:
+    try:
+        exc = future.exception()
+    except Exception as cancel:  # cancelled on shutdown
+        log.debug("observer publish cancelled: %s", cancel)
+        return
+    if exc is not None:
+        log.warning("observer publish failed: %s", exc)
 
 
 def observer_enabled() -> bool:
@@ -223,7 +274,10 @@ def _post_event(event: dict) -> None:
     try:
         with urllib.request.urlopen(req, timeout=5) as resp:
             resp.read()
-    except urllib.error.URLError as exc:
+    except urllib.error.HTTPError as exc:
+        hint = " (set MAILROOM_OPERATOR_INGEST_TOKEN on both sides)" if exc.code in (401, 403) else ""
+        log.warning("observer ingest rejected: HTTP %s%s", exc.code, hint)
+    except (urllib.error.URLError, OSError) as exc:
         log.warning("observer ingest failed: %s", exc)
 
 

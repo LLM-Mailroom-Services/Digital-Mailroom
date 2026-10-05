@@ -31,10 +31,10 @@ Cached at process level — **restart** after edits.
 | New observation type | Node hidden or filed as generation |
 
 Do **not** import `llm-dojo-scoring` at runtime; catalogs stay copied constants
-(pin documented `@v0.11.0`).
+(pin documented `@v0.16.0`).
 
 Producer **code** pin (separate from the topology mirror): extra `[pipeline]`
-installs dist `mailroom` `@2a212e76a62b` (v0.7.1). Import only through
+installs dist `mailroom` `@959bb0bce152` (0.7.1+, main after v0.7.1). Import only through
 `mailroom_ui/producer.py` (`pipeline.review_resolve`, `schemas.manifest`).
 Never import `api.main`. Bump `MAILROOM_GIT_SHA` and `pyproject.toml` together.
 

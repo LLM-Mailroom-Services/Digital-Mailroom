@@ -1,0 +1,81 @@
+# Granite sweep 5/5 (LAST) — insurance_claims_specialist on 20 INSURANCE_CLAIM docs (FP8, 1×L4).
+# Subclass quotas identical to run-20-insurance-claims-specialist-awq
+# (2/3 scale of run-30 quotas: 6→4 / 3→2) for a direct twin compare.
+# Engine/posture: ibm-granite/granite-4.2-8b-fp8, 32768 window, 1×L4,
+# concurrency 3 (HALT revision, was 8), scaledown 120, MIN=MAX=1 pinned warm (same app as runs 1-4).
+#
+# Same warm app — do NOT redeploy before this run. Teardown ONLY after this last run:
+#   sandbox run benchmark-check --config config/runs/run-20-insurance-claims-granite.yaml
+#   sandbox run preflight --config config/runs/run-20-insurance-claims-granite.yaml --live
+#   sandbox run start --config config/runs/run-20-insurance-claims-granite.yaml --job-mode endpoint --watch
+#   ./deploy/teardown_vllm.sh   # ONLY after this fifth run (+ container list + billing window)
+#   # Cold boot measured on run 1 only (note reuse).
+schema: sandbox.run/v1
+run_id: run-20-insurance-claims-granite
+task: insurance_claims_specialist
+profile: modal-vllm
+
+prompt:
+  # DMR-074 local pin (config/prompts/insurance_claims_specialist_simplified.txt) —
+  # same file as the Qwen AWQ comparator (run-20-insurance-claims-specialist-awq).
+  default: {source: code-default}
+  agents:
+    insurance_claims_specialist:
+      source: local
+      file: insurance_claims_specialist_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  # split: test — 114 insurance_claim rows; N=20 fits (same pool as run-30)
+  split: test
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      # insurance_claim: all 6 subclasses → 20 (same as Qwen AWQ twin)
+      - doc_class: insurance_claim
+        sub_buckets:
+          - {subclass: auto, count: 4}                 # avail 34
+          - {subclass: carrier, count: 4}              # avail 20
+          - {subclass: property, count: 4}             # avail 16
+          - {subclass: inpatient, count: 4}            # avail 15
+          - {subclass: outpatient, count: 2}           # avail 15
+          - {subclass: pde, count: 2}                  # avail 14
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: ibm-granite/granite-4.2-8b-fp8
+  vllm:
+    max_model_len: 32768      # FP8 L4 window (bf16 Granite 32k FAILS on 1×L4)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: compressed-tensors
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120    # attended cost-saver (DMR-076)
+    max_containers: 1         # 1×L4 cost guard — do not raise for Granite runs
+    min_containers: 1         # pinned warm across the five-run chain (no scale-to-zero)
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 3              # HALT revision: c=3 (KV math + DMR-072; was 8)
+  cost_cap_usd: 0.40          # same as Qwen AWQ twin
+  max_wall_seconds: 2400      # same as Qwen AWQ twin
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-20-insurance-granite
+  tags: [sandbox, job, specialist, insurance, granite-fp8, l4, benchmark, c8]

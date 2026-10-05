@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=./profile.schema.json
 name: modal-vllm
 description: Modal-deployed vLLM (same OpenAI /v1 surface as vllm-local).
 provider: vllm

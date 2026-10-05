@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://local-mailroom-sandbox/config/profiles/profile.schema.json",
+  "title": "Sandbox serving profile",
+  "description": "OpenAI-compatible serving profile for local-mailroom-sandbox (not a cfgd Profile CRD).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["provider", "default_model", "base_url"],
+  "properties": {
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "provider": {
+      "type": "string",
+      "enum": ["ollama", "vllm", "generic", "openrouter"]
+    },
+    "default_model": { "type": "string" },
+    "judge_model": { "type": "string" },
+    "fallback_model": { "type": "string" },
+    "base_url": { "type": "string" },
+    "base_url_env": { "type": "string" },
+    "api_key_env": { "type": ["string", "null"] },
+    "default_provider_env": { "type": "string" },
+    "compose_profiles": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "pull_models": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "health": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "models_url": { "type": "string" },
+        "chat_url": { "type": "string" }
+      }
+    },
+    "json_object": {
+      "type": "boolean",
+      "description": "Engine advertises OpenAI response_format type=json_object (health probe always sends it)."
+    },
+    "requires_api_key": { "type": "boolean" },
+    "tunnel": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "local_port": { "type": "integer" },
+        "remote_host": { "type": "string" },
+        "remote_port": { "type": "integer" },
+        "host_env": { "type": "string" },
+        "user_env": { "type": "string" },
+        "ssh_port_env": { "type": "string" },
+        "key_env": { "type": "string" }
+      }
+    }
+  }
+}

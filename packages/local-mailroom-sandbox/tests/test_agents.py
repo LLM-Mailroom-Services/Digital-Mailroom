@@ -259,3 +259,14 @@ def test_overlay_keeps_local_model_after_agent_knobs():
     assert taxonomy["agents"]["sorter"]["model"] == "qwen3:8b"
     assert taxonomy["agents"]["sorter"]["temperature"] == 0.1
     assert taxonomy["confidence"]["high"] == 0.95
+
+
+def test_isolated_eval_streams_each_row_to_row_cb(tmp_path, monkeypatch):
+    """SAND-032 review #3: rows must reach the caller as they complete, so an
+    abort after spend still leaves per-doc evidence."""
+    _isolate_log(tmp_path, monkeypatch)
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    seen: list[dict] = []
+    result = runners.run_isolated_eval("judge", mock=True, row_cb=seen.append)
+    assert len(seen) == result["scores"]["n"] > 0
+    assert all("latency_ms" in e for e in seen)

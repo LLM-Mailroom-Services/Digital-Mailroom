@@ -1,7 +1,9 @@
 # DMR-068 — L4 scale matrix: fixed-doc-size throughput probe (protocol)
 
 Status: **protocol ready; GPU cells pending spend approval** (est. **$13.08** capped
-at $15, credit-covered today). Research: vLLM v0.29.0 docs + Qwen official
+at $15, credit-covered today). Tracked in hub issue
+[LLM-Mailroom-Services/mailroom-issues#205](https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/205)
+(owner, spend decision, status). Research: vLLM v0.29.0 docs + Qwen official
 benchmarks + NVIDIA L4 + Modal pricing (all cited inline, fetched 2026-09-16).
 
 ## Why (from run-50)
@@ -125,7 +127,7 @@ Do **not** use tensor parallelism for 8B on two L4s: communication overhead
 without a meaningful latency win. APC is per-replica (shared prefixes cached
 twice); concurrency gain outweighs duplicate cache for specialist prompts.
 
-Hub epic: LLM-Mailroom-Services/mailroom-issues#193. G1 (`scale-g1-…`) is
+Hub epic: LLM-Mailroom-Services/mailroom-issues#193 (program tracker #205). G1 (`scale-g1-…`) is
 the measured decision cell once spend reopens.
 
 ## Pending

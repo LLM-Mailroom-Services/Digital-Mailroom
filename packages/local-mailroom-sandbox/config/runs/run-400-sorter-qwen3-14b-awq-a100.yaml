@@ -1,0 +1,77 @@
+# Isolated sorter n=400 on 1×A100-40GB Qwen/Qwen3-14B-AWQ (official Hub AWQ).
+# Catalog: sandbox runbook show a100-qwen3-14b-awq-sorter400
+#
+# Sorter is NOT a specialist extract agent. task=isolated → SorterAgent.classify_json
+# only (no reviewer / specialist / judge). Prompt pin is Family-B sorter_v1
+# (config/prompts/sorter_v1.txt injected over sorter_v14 lookup).
+#
+# Deploy env (canonical knobs, including KV / CUDA graphs / thinking off):
+#   set -a
+#   eval "$(sandbox run deploy-env --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml)"
+#   set +a
+#   modal run deploy/modal_vllm.py::download_model
+#   modal deploy deploy/modal_vllm.py --strategy recreate
+schema: sandbox.run/v1
+run_id: run-400-sorter-qwen3-14b-awq-a100
+task: isolated
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    sorter: {source: local, file: sorter_v1}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: train
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # FAMILY_HF_REVISION (v9.1)
+  strata:
+    buckets:                  # ∝ train mix (986/915/540/403/135 of 2979), n=400
+      - {doc_class: insurance_claim, count: 132}
+      - {doc_class: correspondence, count: 123}
+      - {doc_class: contract, count: 73}
+      - {doc_class: corporate_record, count: 54}
+      - {doc_class: merger_agreement, count: 18}
+  limit: 400
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-14B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 32
+    enable_prefix_caching: true
+    enforce_eager: false
+    quantization: awq_marlin
+    revision: ""
+    kv_cache_dtype: fp8
+    enable_thinking: false
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16, 32]
+    max_inputs: 32
+  modal:
+    app: sandbox-vllm
+    gpu: A100-40GB
+    image_tag: v0.29.0
+    scaledown_seconds: 600
+    max_containers: 1
+    min_containers: 1
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 32
+  cost_cap_usd: 4.0
+  max_wall_seconds: 7200
+
+trace:
+  sink: none
+  otlp: false
+  environment: sorter-400-qwen3-14b-awq
+  tags: [sandbox, job, sorter, isolated, qwen3-14b-awq, a100-40gb]

@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 720 424" width="720" height="424" role="img" aria-label="Cost per 1,000 documents — Modal L4 vs API Qwen3-8B">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --good:#0ca30c; --critical:#d03b3b; }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+
+<style>
+  .viz .grp { fill: var(--ink); font-size: 12px; font-weight: 600; }
+  .viz .axt { fill: var(--ink2); font-size: 11px; }
+  .viz .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .viz .lndeemph { stroke: var(--deemph); }
+  .viz .lead { stroke: var(--ink2); stroke-width: 1; }
+  .viz .hit { fill: transparent; }
+</style>
+
+<rect class="bg" width="720" height="424" rx="8"/>
+<text class="title" x="16" y="24">Cost per 1,000 documents — Modal L4 vs API Qwen3-8B</text>
+<text class="sub" x="16" y="42">Horizontal bars per class; tip notes extraction score · values from hub break-even analysis</text>
+<rect class="s1" x="16" y="53" width="10" height="10" rx="2"/><text class="lbl" x="31" y="62">Modal L4</text>
+<rect class="s2" x="95.47999999999999" y="53" width="10" height="10" rx="2"/><text class="lbl" x="110.47999999999999" y="62">API Qwen3-8B</text>
+<line class="grid" x1="157.0" y1="76" x2="157.0" y2="390"/>
+<text class="tick" x="157.0" y="406" text-anchor="middle">0 USD</text>
+<line class="grid" x1="318.7" y1="76" x2="318.7" y2="390"/>
+<text class="tick" x="318.7" y="406" text-anchor="middle">2 USD</text>
+<line class="grid" x1="480.3" y1="76" x2="480.3" y2="390"/>
+<text class="tick" x="480.3" y="406" text-anchor="middle">4 USD</text>
+<line class="grid" x1="642.0" y1="76" x2="642.0" y2="390"/>
+<text class="tick" x="642.0" y="406" text-anchor="middle">6 USD</text>
+<line class="axis" x1="157" y1="76" x2="157" y2="390"/>
+<text class="grp" x="16" y="95">Contracts</text>
+<text class="lbl" x="149" y="118.0" text-anchor="end">Modal L4 (AWQ)</text>
+<path class="s1" d="M157.0,107.0 H332.1 Q336.1,107.0 336.1,111.0 V117.0 Q336.1,121.0 332.1,121.0 H157.0 Z"><title>Contracts · Modal L4 (AWQ): 2.22 USD — score 0.601</title></path>
+<rect class="bg" x="339.1" y="106.0" width="63.1" height="16"/>
+<text class="val" x="342.1" y="118.0">2.22 USD</text>
+<text class="lbl" x="149" y="142.0" text-anchor="end">API Qwen3-8B</text>
+<path class="s2" d="M157.0,131.0 H614.1 Q618.1,131.0 618.1,135.0 V141.0 Q618.1,145.0 614.1,145.0 H157.0 Z"><title>Contracts · API Qwen3-8B: 5.70 USD — score 0.617</title></path>
+<rect class="bg" x="621.1" y="130.0" width="63.1" height="16"/>
+<text class="val" x="624.1" y="142.0">5.70 USD</text>
+<text class="grp" x="16" y="175">Corporate records</text>
+<text class="lbl" x="149" y="198.0" text-anchor="end">Modal L4 (AWQ)</text>
+<path class="s1" d="M157.0,187.0 H193.4 Q197.4,187.0 197.4,191.0 V197.0 Q197.4,201.0 193.4,201.0 H157.0 Z"><title>Corporate records · Modal L4 (AWQ): 0.50 USD — score 0.458</title></path>
+<rect class="bg" x="200.4" y="186.0" width="63.1" height="16"/>
+<text class="val" x="203.4" y="198.0">0.50 USD</text>
+<text class="lbl" x="149" y="222.0" text-anchor="end">API Qwen3-8B</text>
+<path class="s2" d="M157.0,211.0 H396.4 Q400.4,211.0 400.4,215.0 V221.0 Q400.4,225.0 396.4,225.0 H157.0 Z"><title>Corporate records · API Qwen3-8B: 3.01 USD — score 0.400</title></path>
+<rect class="bg" x="403.4" y="210.0" width="63.1" height="16"/>
+<text class="val" x="406.4" y="222.0">3.01 USD</text>
+<text class="grp" x="16" y="255">Correspondence</text>
+<text class="lbl" x="149" y="278.0" text-anchor="end">Modal L4 (AWQ)</text>
+<path class="s1" d="M157.0,267.0 H164.5 Q168.5,267.0 168.5,271.0 V277.0 Q168.5,281.0 164.5,281.0 H157.0 Z"><title>Correspondence · Modal L4 (AWQ): 0.14 USD — score 0.300</title></path>
+<rect class="bg" x="171.5" y="266.0" width="63.1" height="16"/>
+<text class="val" x="174.5" y="278.0">0.14 USD</text>
+<text class="lbl" x="149" y="302.0" text-anchor="end">API Qwen3-8B</text>
+<path class="s2" d="M157.0,291.0 H397.0 Q401.0,291.0 401.0,295.0 V301.0 Q401.0,305.0 397.0,305.0 H157.0 Z"><title>Correspondence · API Qwen3-8B: 3.02 USD — score 0.513</title></path>
+<rect class="bg" x="404.0" y="290.0" width="63.1" height="16"/>
+<text class="val" x="407.0" y="302.0">3.02 USD</text>
+<text class="grp" x="16" y="335">Insurance claims</text>
+<text class="lbl" x="149" y="358.0" text-anchor="end">Modal L4 (AWQ)</text>
+<path class="s1" d="M157.0,347.0 H196.6 Q200.6,347.0 200.6,351.0 V357.0 Q200.6,361.0 196.6,361.0 H157.0 Z"><title>Insurance claims · Modal L4 (AWQ): 0.54 USD — score 0.688</title></path>
+<rect class="bg" x="203.6" y="346.0" width="63.1" height="16"/>
+<text class="val" x="206.6" y="358.0">0.54 USD</text>
+<text class="lbl" x="149" y="382.0" text-anchor="end">API Qwen3-8B</text>
+<path class="s2" d="M157.0,371.0 H282.5 Q286.5,371.0 286.5,375.0 V381.0 Q286.5,385.0 282.5,385.0 H157.0 Z"><title>Insurance claims · API Qwen3-8B: 1.60 USD — score 0.749</title></path>
+<rect class="bg" x="289.5" y="370.0" width="63.1" height="16"/>
+<text class="val" x="292.5" y="382.0">1.60 USD</text>
+</svg>

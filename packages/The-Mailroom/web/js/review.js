@@ -2,6 +2,17 @@
 
 const ReviewView = (() => {
   const listEl = document.getElementById("review-queue");
+  // A reviewer typing notes / editing extracted_data must not lose it to the
+  // 30 s background refresh (the old refresh replaced innerHTML wholesale).
+  let dirty = false;
+  listEl.addEventListener("input", () => { dirty = true; });
+  listEl.addEventListener("change", () => { dirty = true; });
+
+  function busy() {
+    const active = document.activeElement;
+    return dirty || !!(active && listEl.contains(active) &&
+      active.matches("input, textarea, select"));
+  }
 
   function chip(run) {
     if (run.needs_reconsideration) return `<span class="chip stage-review">RECONSIDER</span>`;
@@ -68,7 +79,7 @@ const ReviewView = (() => {
         Inspector.open(card.dataset.trace);
       });
     }
-    Mailroom.bindReviewForms(listEl, { onDone: () => { refresh(); } });
+    Mailroom.bindReviewForms(listEl, { onDone: () => { dirty = false; refresh({ force: true }); } });
   }
 
   async function producerBanner() {
@@ -81,7 +92,9 @@ const ReviewView = (() => {
     return "";
   }
 
-  async function refresh() {
+  async function refresh(opts = {}) {
+    if (!opts.force && opts.background && busy()) return null;
+    dirty = false;
     listEl.innerHTML = `<div class="hint mono">LOADING REVIEW QUEUE FROM LANGFUSE…</div>`;
     try {
       const [data, hint] = await Promise.all([Mailroom.api.reviewQueue(), producerBanner()]);

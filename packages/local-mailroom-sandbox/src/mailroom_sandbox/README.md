@@ -11,7 +11,7 @@
 ## Modules
 
 | Module | Purpose |
-|:---|:---|
+| :--- | :--- |
 | `eval/` | Evaluation utilities |
 
 ## Usage

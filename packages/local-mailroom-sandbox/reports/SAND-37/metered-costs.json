@@ -1,0 +1,17 @@
+{
+  "SAND-37": {
+    "billed_usd": 0.0,
+    "metered_usd": 1.09,
+    "note": "Covers both Experiment 1 and Experiment 3 plus cold boots, pinned-warm idle between cells, the weight pre-warm, and one invalidated contracts attempt (client credential-precedence defect; excluded and rerun)."
+  },
+  "SAND-39": {
+    "billed_usd": 0.0,
+    "metered_usd": 0.49,
+    "note": "One 1\u00d7L4 session: weight pre-warm, cold boot, the five cells pinned warm, and teardown. October month-to-date metering ($1.42) less the Experiments 1 + 3 October hours ($0.93)."
+  },
+  "SAND-40": {
+    "billed_usd": 0.0,
+    "metered_usd": 1.81,
+    "note": "One 2\u00d7L4 32K session (app stopped 06:33 UTC): cold boot, the 5-agreement chunk gate, the four n=100 cells and \u2020 merger n=50, pinned-warm idle, and teardown. Excludes the two 64K validation-probe deploys earlier the same morning ($1.32) and an unrelated GT-labeler app ($0.54)."
+  }
+}

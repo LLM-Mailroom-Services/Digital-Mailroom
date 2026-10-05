@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=./profile.schema.json
 name: vllm-remote
 description: >-
   Remote vLLM reached through an SSH local port forward (lab GPU box, owned

@@ -66,6 +66,7 @@ def run_matrix(
     seed: int = 42,
     mock: bool = True,
     dry_run: bool = False,
+    console: Any = None,
 ) -> dict[str, Any]:
     cells = plan_matrix(
         task=task,
@@ -96,7 +97,10 @@ def run_matrix(
             raise ValueError(f"Unknown matrix task {task!r}")
 
     results = []
-    for cell in cells:
+    for idx, cell in enumerate(cells, start=1):
+        if console is not None:
+            detail = f"{idx}/{len(cells)} · {cell['provider']} · {cell['model']}"
+            console.phase("EVAL", detail)
         kwargs: dict[str, Any] = {
             "mock": mock,
             "sample": sample,
@@ -107,6 +111,11 @@ def run_matrix(
         if task != "legalbench":
             kwargs["prompt_version"] = cell["prompt"]
         results.append(runner(**kwargs))
+        if console is not None and not dry_run:
+            rec = results[-1].get("record") if isinstance(results[-1], dict) else None
+            acc = (rec or {}).get("accuracy") if isinstance(rec, dict) else None
+            state = f"acc {acc}" if acc is not None else cell["experiment_name"][-24:]
+            console.progress(idx, len(cells), label="cells", state=state)
     payload: dict[str, Any] = {
         "task": task,
         "cells": cells,

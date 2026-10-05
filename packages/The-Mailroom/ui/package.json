@@ -1,7 +1,7 @@
 {
   "name": "the-mailroom-ui",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.5.0",
   "type": "module",
   "description": "Optional React operator desk for The-Mailroom. Not the pixel console or Observatory. Requires Node 22+; default pip install never needs this package.",
   "scripts": {

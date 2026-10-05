@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=./profile.schema.json
 name: openrouter
 description: Opt-in cloud API. Never the sandbox default.
 provider: openrouter

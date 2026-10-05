@@ -58,3 +58,27 @@ sandbox traces export    # writes data/traces/export.json (host + last trace ids
 
 Inspect traces in the Langfuse UI. Durable scores also live in
 `reports/experiment_log.jsonl` and `reports/scores/`.
+
+## Job spans: local first, then upload
+
+`sandbox run start` in endpoint mode (the Modal-vLLM grid and SAND runs) opens a `job.run` span with one
+`job.item` child per document (`item_id`, `job.ok`, `job.attempts`, `job.error`,
+`gen_ai.usage.input_tokens` / `output_tokens`). Every span is mirrored to
+`data/traces/<run_id>.spans.jsonl.gz` (gitignored) **whatever the locked sink is**, including `sink: none`,
+so a run is never left without traces. `SANDBOX_TRACE_LOCAL=0` turns the mirror off.
+
+To browse spans live, start Phoenix (`sandbox up --compose-profile phoenix --detach`) and lock new runs with
+`trace: {sink: phoenix, otlp: true}`; the mirror still writes when Phoenix is down.
+
+Pack, upload and prune (needs the `[observability]` extra for the OTel SDK; `pyarrow` for Parquet, else `spans.csv.gz`):
+
+```bash
+# Drive for desktop path to the LOGS folder (add the shared folder as a shortcut in My Drive so it syncs)
+export SANDBOX_TRACE_UPLOAD_DIR="$HOME/Library/CloudStorage/GoogleDrive-<account>/My Drive/LLM-MAILROOM 📮/LOGS"
+sandbox traces pack <run_id> --experiment SAND-041 --runner axios --prune
+```
+
+`pack` writes `<runner>_<experiment>_<run_id>.zip` (`spans.parquet` zstd + `manifest.json`) to
+`data/runtime/exports/<YYYY-MM-DD>/`, copies it to `<dest>/<YYYY-MM-DD>/`, re-hashes the copy and tests the
+zip. `--prune` deletes the local mirror and the local zip only after that check passes; without a verified
+copy it refuses. Phoenix's own SQLite store (`~/.phoenix`) is a viewing cache and is not touched.

@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 720 232" width="720" height="232" role="img" aria-label="Wall time: seqs16 fleet → seqs32 balanced fleet">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --good:#0ca30c; --critical:#d03b3b; }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+<rect class="bg" width="720" height="232" rx="8"/>
+<text class="title" x="16" y="24">Wall time: seqs16 fleet → seqs32 balanced fleet</text>
+<text class="sub" x="16" y="42">2×L4 · lower is better</text>
+<circle class="s1" cx="22" cy="58" r="5"/><text class="lbl" x="32" y="62">seqs16</text>
+<circle class="s2" cx="97" cy="58" r="5"/><text class="lbl" x="107" y="62">seqs32 balanced</text>
+<line class="grid" x1="190.0" y1="74" x2="190.0" y2="198"/>
+<text class="tick" x="190.0" y="214" text-anchor="middle">0s</text>
+<line class="grid" x1="340.0" y1="74" x2="340.0" y2="198"/>
+<text class="tick" x="340.0" y="214" text-anchor="middle">100s</text>
+<line class="grid" x1="490.0" y1="74" x2="490.0" y2="198"/>
+<text class="tick" x="490.0" y="214" text-anchor="middle">200s</text>
+<line class="grid" x1="640.0" y1="74" x2="640.0" y2="198"/>
+<text class="tick" x="640.0" y="214" text-anchor="middle">300s</text>
+<text class="lbl" x="182" y="97.0" text-anchor="end">correspondence n=100</text>
+<line class="conn" x1="259.0" y1="93.0" x2="248.5" y2="93.0"/>
+<circle class="s1 ring" cx="259.0" cy="93.0" r="5"><title>correspondence n=100 · seqs16: 46s</title></circle>
+<circle class="s2 ring" cx="248.5" cy="93.0" r="5"><title>correspondence n=100 · seqs32 balanced: 39s</title></circle>
+<text class="val" x="269.0" y="97.0">39s</text>
+<text class="lbl" x="182" y="127.0" text-anchor="end">insurance n=50</text>
+<line class="conn" x1="281.5" y1="123.0" x2="269.5" y2="123.0"/>
+<circle class="s1 ring" cx="281.5" cy="123.0" r="5"><title>insurance n=50 · seqs16: 61s</title></circle>
+<circle class="s2 ring" cx="269.5" cy="123.0" r="5"><title>insurance n=50 · seqs32 balanced: 53s</title></circle>
+<text class="val" x="291.5" y="127.0">53s</text>
+<text class="lbl" x="182" y="157.0" text-anchor="end">corporate n=50</text>
+<line class="conn" x1="274.0" y1="153.0" x2="263.5" y2="153.0"/>
+<circle class="s1 ring" cx="274.0" cy="153.0" r="5"><title>corporate n=50 · seqs16: 56s</title></circle>
+<circle class="s2 ring" cx="263.5" cy="153.0" r="5"><title>corporate n=50 · seqs32 balanced: 49s</title></circle>
+<text class="val" x="284.0" y="157.0">49s</text>
+<text class="lbl" x="182" y="187.0" text-anchor="end">contracts n=50</text>
+<line class="conn" x1="541.0" y1="183.0" x2="520.0" y2="183.0"/>
+<circle class="s1 ring" cx="541.0" cy="183.0" r="5"><title>contracts n=50 · seqs16: 234s</title></circle>
+<circle class="s2 ring" cx="520.0" cy="183.0" r="5"><title>contracts n=50 · seqs32 balanced: 220s</title></circle>
+<text class="val" x="551.0" y="187.0">220s</text>
+</svg>

@@ -3,7 +3,7 @@
 Remote-serving paths (Modal, SSH-tunneled vLLM, CHTC/HTCondor, conda env)
 have their own guides: [`conda/`](conda/) (environment spec),
 [`htcondor/`](htcondor/) (CHTC job templates), and
-[`../docs/remote-serving.md`](../docs/remote-serving.md) (the overview).
+[`../docs/setting-up/remote-serving.md`](../docs/setting-up/remote-serving.md) (the overview).
 
 ## Compose
 
@@ -26,7 +26,7 @@ vLLM needs an NVIDIA GPU on the host. Ollama runs on CPU for smoke models
 ## Offline Dockerfile + Jupyter notebooks
 
 [`Dockerfile`](Dockerfile) builds `mailroom-sandbox:offline` (Python 3.13 + sandbox +
-Jupyter Lab). Full walkthrough: [`docs/docker-offline.md`](../docs/docker-offline.md).
+Jupyter Lab). Full walkthrough: [`docs/setting-up/docker-offline.md`](../docs/setting-up/docker-offline.md).
 
 ```bash
 # Image alone
@@ -285,7 +285,7 @@ export MODAL_VLLM_MAX_CONTAINERS=4      # 4 × L4 replicas (documented raise)
 export MODAL_VLLM_SCALEDOWN_SECONDS=600 # unattended / overnight idle window
 modal deploy deploy/modal_vllm.py
 # Specialist 5×30 attended suite uses MODAL_VLLM_SCALEDOWN_SECONDS=120
-# (docs/benchmark-l4.md); one warm app, teardown only after the fifth.
+# (docs/modal/benchmark-l4.md); one warm app, teardown only after the fifth.
 ```
 
 ### Security model
@@ -336,6 +336,10 @@ The DMR-027 job CLI's remote mode pushes a locked run dir to the
 modal deploy modal_job.py        # once (installs sandbox pkg + otel; vendored family bundled, DMR-057)
 sandbox run start --job-mode modal --config <run.yaml> --watch
 ```
+
+Long attended runs: **`sandbox watch --web`** (or terminal `sandbox watch`) tails the
+vLLM **serve** app while showing spend and checkpoints — operator guide:
+[`docs/pretty-logging/mailroom-themed-logging.md`](../docs/pretty-logging/mailroom-themed-logging.md).
 
 Deploy-time env (export before `modal deploy`): `LANGFUSE_*`,
 `OTEL_EXPORTER_OTLP_ENDPOINT`, `VLLM_BASE_URL`, `VLLM_API_KEY`, `HF_TOKEN`,

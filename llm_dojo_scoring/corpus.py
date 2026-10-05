@@ -1,8 +1,10 @@
-"""docclass-merged corpus alignment — schemas, subclasses, differentiators.
+"""mailroom-dataset corpus alignment — schemas, subclasses, differentiators.
 
 Grounded in the published Hugging Face dataset
-``Lucius-Morningstar/docclass-merged`` (default + ``ground_truth`` configs;
-1,210 rows: 1,081 train / 129 test as of the v0.8.1 alignment pass).
+``Lucius-Morningstar/mailroom-dataset`` (default + ``ground_truth`` configs;
+3,302 rows: 2,979 train / 323 test at the v9 GT-closure revision
+``46a4d3c2`` — the v9 successor of the frozen v8 ``mailroom-corpus``
+baseline).
 
 This module is the single source mapping each mailroom document class to:
 
@@ -50,7 +52,7 @@ __all__ = [
 ]
 
 #: Hugging Face dataset id this module is pinned to.
-CORPUS_ID = "Lucius-Morningstar/docclass-merged"
+CORPUS_ID = "Lucius-Morningstar/mailroom-dataset"
 
 #: Doc types that have at least one ground-truth row in the published merge.
 CORPUS_DOC_TYPES: tuple[str, ...] = (
@@ -95,24 +97,37 @@ DOC_TYPE_SUBCLASSES: dict[str, tuple[str, ...]] = {
         "officer_certificate",
         "other",
     ),
-    # Enron-derived communication form (KANBAN-079 GT enrichment).
+    # Communication form, aligned to the CURRENT dataset GT: mailroom-dataset
+    # v9 ``ground_truth.expected_subclass`` (tip 46a4d3c2) carries exactly
+    # these 8 tokens + the other-bucket. The v8-era `voicemail` key from the
+    # Enron eval-environment labeler enum is NOT in the v9 GT vocabulary and
+    # was removed here (DMR-071 adjudication 2026-09-16: the dataset pin is
+    # the source of truth). The labeler keeps its voicemail key locally —
+    # text-only Enron corpora make it 0% by construction — so the two enums
+    # intentionally differ by that one labeler-local key.
     "correspondence": (
         "email",
-        "letter",
         "memo",
+        "letter",
         "notice",
         "demand",
         "attorney_demand",
-        "meeting_request",
         "press_release",
+        "meeting_request",
+        "other",
     ),
-    # CMS DE-SynPUF *source table* subclass. Mailroom ``claim_type`` now
-    # also accepts these Hub tokens plus legacy FNOL product lines.
+    # Insurance claim-document subclass: CMS DE-SynPUF *source table* tokens
+    # (carrier/inpatient/outpatient/pde) PLUS the v8 synthetic LOB lines
+    # (property = GNOTHEIA FNOL bundles, auto = BDR motor decision letters;
+    # HUB-028/HUB-041). Mailroom ``claim_type`` also accepts these Hub tokens
+    # plus legacy FNOL product lines.
     "insurance_claim": (
         "carrier",
         "inpatient",
         "outpatient",
         "pde",
+        "property",
+        "auto",
     ),
     "due_diligence": (),
     "compliance_filing": (
@@ -131,7 +146,7 @@ DOC_TYPE_SUBCLASSES: dict[str, tuple[str, ...]] = {
     "court_opinion": (),
 }
 
-#: Observed subclass *surfaces* in docclass-merged ``ground_truth.expected_subclass``.
+#: Observed subclass *surfaces* in mailroom-dataset ``ground_truth.expected_subclass``.
 #: Used by tests to pin corpus coverage; normalizers must resolve every value
 #: to a key in :data:`DOC_TYPE_SUBCLASSES` (or ``other`` only when the
 #: surface is the canonical other-bucket).
@@ -173,10 +188,15 @@ CORPUS_SUBCLASS_SURFACES: dict[str, tuple[str, ...]] = {
     ),
     "corporate_record": (
         "articles_of_incorporation",
+        "board_resolution",
         "bylaws",
+        "charter_amendment",
+        "indenture",
+        "officer_certificate",
         "other",
         "powers_of_attorney",
         "rights_instrument",
+        "subsidiary_list",
     ),
     "correspondence": (
         "attorney_demand",
@@ -189,10 +209,12 @@ CORPUS_SUBCLASS_SURFACES: dict[str, tuple[str, ...]] = {
         "press_release",
     ),
     "insurance_claim": (
+        "auto",
         "carrier",
         "inpatient",
         "outpatient",
         "pde",
+        "property",
     ),
 }
 
@@ -231,9 +253,9 @@ CORPUS_DIFFERENTIATORS: dict[str, tuple[str, ...]] = {
 }
 
 #: Extraction-schema fields each specialist suite must score, aligned to
-#: mailroom v0.6.0 ``EXTRACTION_SCHEMAS`` + taxonomy ``field_types`` (pared
-#: checklists + semantic trio; no open-ended key_obligations dumps).
-#: ``document_name`` is on the contracts / merger schema (CUAD Document Name).
+#: live mailroom ``EXTRACTION_SCHEMAS`` + taxonomy ``field_types``.
+#: Merger is ``MergerAgreementExtraction`` (no CUAD family/clauses).
+#: ``document_name`` is on the contracts / merger schema.
 CORPUS_EXTRACTION_FIELDS: dict[str, tuple[str, ...]] = {
     "contract": (
         "document_name",
@@ -252,14 +274,13 @@ CORPUS_EXTRACTION_FIELDS: dict[str, tuple[str, ...]] = {
         "document_name",
         "parties",
         "effective_date",
-        "term_length",
+        "effective_time",
         "governing_law",
-        "contract_value",
-        "renewal_terms",
-        "cuad_family",
         "merger_consideration",
-        "cuad_clauses",
         "maud_clauses",
+        "intent",
+        "subject_matter",
+        "keywords",
     ),
     "corporate_record": (
         "entity_name",
@@ -433,7 +454,8 @@ CORRESPONDENCE_TOPICS: tuple[str, ...] = (
     "travel_logistics",
 )
 
-#: Enron ``sentiment_label`` catalog (110/110 correspondence rows populated).
+#: Enron ``sentiment_label`` catalog (1,000/1,000 correspondence rows populated
+#: at the v9 pin ``46a4d3c2``: neutral 566 / positive 254 / negative 180).
 CORRESPONDENCE_SENTIMENT_LABELS: tuple[str, ...] = (
     "negative",
     "neutral",

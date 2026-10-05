@@ -1,6 +1,8 @@
-"""Corpus alignment — suites match docclass-merged schemas/subclasses/fields.
+"""Corpus alignment — suites match mailroom-dataset schemas/subclasses/fields.
 
-Pinned to Lucius-Morningstar/docclass-merged ground_truth (1,210 rows).
+Pinned to Lucius-Morningstar/mailroom-dataset ground_truth (3,302 rows at
+v9 tip 46a4d3c2: 2,979 train / 323 test; the v9 successor of the frozen v8
+mailroom-corpus baseline).
 Network-free: catalogs are in-repo constants derived from that publish.
 """
 
@@ -54,7 +56,7 @@ def test_maud_consideration_and_insurance_source_table_are_distinct():
         "mixed_cash_stock_election"
     )
     assert subclass_equivalent("merger_agreement", "mixed_cash_stock", "mixed_cash_stock_election")
-    for src in ("carrier", "inpatient", "outpatient", "pde"):
+    for src in ("carrier", "inpatient", "outpatient", "pde", "property", "auto"):
         assert normalize_corpus_subclass("insurance_claim", src) == src
     # product-line claim_type is NOT a subclass
     assert normalize_corpus_subclass("insurance_claim", "health") == "other"
@@ -62,12 +64,33 @@ def test_maud_consideration_and_insurance_source_table_are_distinct():
 
 
 def test_correspondence_and_corporate_record_subclasses():
+    # Aligned to the CURRENT dataset GT: mailroom-dataset v9
+    # (ground_truth.expected_subclass, tip 46a4d3c2) carries exactly these 8
+    # correspondence tokens + the other-bucket. The v8-era `voicemail` key
+    # (Enron labeler enum) is not in the v9 GT vocabulary and left the catalog
+    # (DMR-071: the dataset pin is the source of truth) — it now normalizes
+    # to the sanctioned `other` fallback.
+    assert tuple(DOC_TYPE_SUBCLASSES["correspondence"]) == (
+        "email", "memo", "letter", "notice", "demand", "attorney_demand",
+        "press_release", "meeting_request", "other",
+    )
     assert normalize_corpus_subclass("correspondence", "attorney_demand") == "attorney_demand"
     assert normalize_corpus_subclass("correspondence", "press_release") == "press_release"
+    assert normalize_corpus_subclass("correspondence", "voicemail") == "other"
+    assert normalize_corpus_subclass("correspondence", "other") == "other"
     assert normalize_corpus_subclass("corporate_record", "articles_of_incorporation") == (
         "articles_of_incorporation"
     )
     assert normalize_corpus_subclass("corporate_record", "rights_instrument") == "rights_instrument"
+    # v9 GT re-pin: the observed corporate_record surfaces carry the full
+    # 10-token vocabulary (5 v8-era tokens + 5 record types the v9 corpus added).
+    assert tuple(CORPUS_SUBCLASS_SURFACES["corporate_record"]) == (
+        "articles_of_incorporation", "board_resolution", "bylaws",
+        "charter_amendment", "indenture", "officer_certificate", "other",
+        "powers_of_attorney", "rights_instrument", "subsidiary_list",
+    )
+    for src_token in CORPUS_SUBCLASS_SURFACES["corporate_record"]:
+        assert normalize_corpus_subclass("corporate_record", src_token) != "other" or src_token == "other"
 
 
 def test_specialist_suite_fields_match_corpus_extraction_schema():
@@ -91,9 +114,10 @@ def test_specialist_suites_bind_corpus_subclasses_and_differentiators():
 
 
 def test_merger_agreement_rebinds_maud_not_cuad():
+    """Merger agreement uses MAUD differentiators and field types, not CUAD."""
     merger = get_suite("merger_agreement")
     contract = get_suite("contracts_specialist")
-    assert merger.name == "contracts_specialist"
+    assert merger.name == "merger_agreement_specialist"
     assert merger.doc_type == "merger_agreement"
     assert contract.doc_type == "contract"
     assert "all_cash" in merger.subclasses
@@ -101,6 +125,10 @@ def test_merger_agreement_rebinds_maud_not_cuad():
     assert "all_cash" not in contract.subclasses
     assert "maud_clause_labels" in merger.differentiators
     assert "cuad_clause_labels" in contract.differentiators
+    assert "cuad_family" not in merger.field_types
+    assert "cuad_clauses" not in merger.field_types
+    assert "effective_time" in merger.field_types
+    assert "intent" in merger.field_types
     assert merger.honest_gap is None
     assert "maud_question_accuracy" in merger.metric_names()
 
@@ -129,7 +157,7 @@ def test_insurance_gt_fields_are_on_the_suite():
         assert field in suite.field_types
     assert suite.field_types["claimed_amount"] == "money"
     assert suite.field_types["date_of_loss"] == "date"
-    assert suite.subclasses == ("carrier", "inpatient", "outpatient", "pde")
+    assert suite.subclasses == ("carrier", "inpatient", "outpatient", "pde", "property", "auto")
 
 
 def test_contract_suite_has_cuad_clause_surface_and_document_name():

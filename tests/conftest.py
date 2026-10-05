@@ -1,8 +1,16 @@
 """Shared fixtures: a synthetic sorter results frame mirroring the
 Sorter_Experiment_Results.xlsx schema, plus export round-trip helpers."""
 
+import sys
+from pathlib import Path
+
 import pandas as pd
 import pytest
+
+# ``scripts/`` helpers are repo-root modules, not installed with the
+# package; plain ``pytest`` does not add the cwd to sys.path the way
+# ``python -m pytest`` does. Make both entry points work.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from llm_dojo_scoring.config import PER_SUBTYPE
 
@@ -67,10 +75,17 @@ def sorter_frame() -> pd.DataFrame:
 
 @pytest.fixture
 def real_artifacts() -> dict:
-    """Paths to the downloaded reference artifacts (skipped when absent)."""
+    """Paths to the downloaded reference artifacts (skipped when absent).
+
+    hub#60: the base dir is env-overridable (MAILROOM_REFERENCE_BASE) and
+    otherwise defaults to the home Downloads dir — never a hardcoded
+    username. The skip triggers on artifact ABSENCE, not directory presence.
+    """
     import os
 
-    base = "/Users/luciusjmorningstar/Downloads"
+    base = os.environ.get("MAILROOM_REFERENCE_BASE") or os.path.join(
+        os.path.expanduser("~"), "Downloads"
+    )
     paths = {
         "results": os.path.join(base, "Sorter_Experiment_Results.xlsx"),
         "sweep": os.path.join(base, "Sorter_Model_Sweep_Results.xlsx"),

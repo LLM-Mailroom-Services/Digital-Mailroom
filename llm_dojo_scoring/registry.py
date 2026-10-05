@@ -66,6 +66,7 @@ __all__ = [
 # All specialists the registry still scores (live + retired historical).
 SPECIALIST_AGENTS: tuple[str, ...] = (
     "contracts_specialist",
+    "merger_agreement_specialist",
     "corporate_records_specialist",
     "due_diligence_specialist",
     "correspondence_specialist",
@@ -73,13 +74,14 @@ SPECIALIST_AGENTS: tuple[str, ...] = (
     "court_opinions_specialist",
     "insurance_claims_specialist",
 )
-#: Live llm-mailroom extraction roster (v0.5+). Retired specialists stay
-#: in SPECIALIST_AGENTS so historical traces still validate.
+#: Live llm-mailroom extraction roster (mailroom-issues #236–#238).
+#: Retired specialists stay in SPECIALIST_AGENTS so historical traces
+#: still validate.
 LIVE_SPECIALIST_AGENTS: tuple[str, ...] = (
     "contracts_specialist",
+    "merger_agreement_specialist",
     "corporate_records_specialist",
     "correspondence_specialist",
-    "compliance_specialist",
     "insurance_claims_specialist",
 )
 
@@ -489,11 +491,22 @@ metrics:
     notes: "mailroom alias: extraction_overall_verified_precision"
   schema_valid:
     tier: 1
-    description: "Output parsed to the expected schema (quick health check — promoted per pruning plan)"
+    description: "Output parsed to the expected schema (T1 headline gate — v0.18)"
     applicable_agents: [ALL]
-    notes: "mailroom SCORE_CONFIGS name preserved; not computed in this package"
-    source: null
-    ground_truth: none
+    source: "scorecard_honesty.score_format_layer"
+    ground_truth: structural
+  parse_ok:
+    tier: 1
+    description: "Prediction parsed as JSON / structured output without prose wrapper"
+    applicable_agents: [ALL]
+    source: "scorecard_honesty.score_format_layer"
+    ground_truth: structural
+  schema_adherence:
+    tier: 1
+    description: "Required schema keys present after parse (alias of schema_valid when keys match)"
+    applicable_agents: [ALL]
+    source: "scorecard_honesty.score_format_layer"
+    ground_truth: structural
   parse_error:
     tier: 1
     description: "Output failed to parse (quick health check — promoted per pruning plan)"
@@ -572,7 +585,7 @@ metrics:
     source: "mailroom.score_aligned_classification"
   aligned_accuracy:
     tier: 1
-    description: "HF pipeline aligned doc-type accuracy (merger_agreement ≡ contract)"
+    description: "HF pipeline aligned doc-type accuracy (extract aliases only; merger_agreement ≠ contract)"
     applicable_agents: [CLASSIFIERS]
     source: "mailroom.score_aligned_classification"
   subclass_accuracy:
@@ -997,6 +1010,7 @@ metrics:
     tier: 2
     description: "|confidence - correctness| calibration gap"
     applicable_agents: [ALL]
+    source: "trace_knobs.confidence_calibration_error"
     notes: "absorbs mailroom classification_confidence + extraction_confidence (raw confidences stay at T3 as inputs)"
   hallucination_rate:
     tier: 2
@@ -1085,6 +1099,56 @@ metrics:
     description: "Wall-clock run duration"
     applicable_agents: [ALL]
     aggregation: mean
+
+  # ============ MAILROOM BERT FAST PATH (#98 intake gate; KANBAN-061) ============
+  # Latency/cost/agreement telemetry for the ONNX BERT classification fast
+  # path in llm-mailroom intake. Registered for llm-mailroom SCORE_CONFIGS;
+  # not computed in this package.
+  bert_pass:
+    tier: 1
+    units: boolean
+    description: "Intake BERT gate verdict (true = gate passed / BERT label forwarded)"
+    applicable_agents: [INTAKE]
+    aggregation: none
+    source: null
+    ground_truth: none
+    notes: "mailroom SCORE_CONFIGS name; emitted by intake gate (llm-mailroom agents/bert_intake.py)"
+  bert_sorter_agreement:
+    tier: 1
+    units: boolean
+    description: "BERT fast-path label agrees with the sorter/reviewer reference label"
+    applicable_agents: [INTAKE, sorter]
+    aggregation: none
+    source: null
+    ground_truth: none
+    notes: "mailroom SCORE_CONFIGS name; computed off-line for drift tracking"
+  bert_fail_soft:
+    tier: 1
+    units: boolean
+    description: "BERT gate failed OPEN (label discarded, sorter authority restored)"
+    applicable_agents: [INTAKE]
+    aggregation: none
+    source: null
+    ground_truth: none
+    notes: "mailroom SCORE_CONFIGS name; never true with bert_pass true for the same doc"
+  bert_elapsed_ms:
+    tier: 0
+    units: milliseconds
+    description: "BERT fast-path classifier wall-clock time (ONNX inference, intake doc)"
+    applicable_agents: [INTAKE]
+    aggregation: mean
+    source: null
+    ground_truth: none
+    notes: "mailroom SCORE_CONFIGS name; measured at intake gate"
+  fast_path_est_cost_usd:
+    tier: 1
+    units: USD
+    description: "Derived estimated cost of the BERT fast path (elapsed_ms x power x power price)"
+    applicable_agents: [INTAKE]
+    aggregation: sum
+    source: null
+    ground_truth: none
+    notes: "mailroom SCORE_CONFIGS name; derived from bert_elapsed_ms, never conflated with estimated_cost_usd (LLM call cost)"
   classification_attempts:
     tier: 3
     units: count

@@ -44,8 +44,27 @@ from typing import Any, Optional
 import structlog
 
 from .config import get_settings
+from .gt_metadata import ANNOTATION_KEYS, is_empty_value, parse_json_container
 
 logger = structlog.get_logger(__name__)
+
+#: Trace / format artifacts and Hub annotation stats — never enter
+#: :func:`score_extraction` (mailroom-issues #237 / #238).
+NEVER_SCORED_FIELDS: frozenset[str] = frozenset(
+    {"confidence", "reasoning"}
+) | ANNOTATION_KEYS
+
+#: Prompt-catalog keys retired from live models. Ignored unless the caller
+#: passed them in an explicit ``field_types`` map (historical rescoring).
+RETIRED_PROMPT_KEYS: frozenset[str] = frozenset(
+    {
+        "key_obligations",
+        "termination_clauses",
+        "key_provisions",
+        "key_points",
+        "referenced_communications",
+    }
+)
 
 # ---------------------------------------------------------------------------
 # Configuration accessors (kept for drop-in compatibility with the
@@ -77,6 +96,73 @@ def get_presence_embedding_threshold() -> float:
 
 def embedding_enabled() -> bool:
     return get_settings().field_scoring.embedding_enabled
+
+
+def get_type_bands() -> dict[str, tuple]:
+    """Per-field-type ambiguous-band overrides from the configured taxonomy.
+
+    Values are canonical tuples:
+      ``("always",)`` — every field of that type escalates to the LLM judge
+      ``("never",)``  — no field of that type ever escalates (the
+                        deterministic score is decisive both ways)
+      ``(low, high)`` — half-open band check (``low <= score < high``)
+
+    Populated by ``configure_from_taxonomy()``; empty (fall back to the
+    global ``ambiguous_band``) when no taxonomy was wired.
+    """
+    return dict(get_settings().field_scoring.type_bands)
+
+
+def field_is_ambiguous(field_type: str, score: float) -> bool:
+    """Is this field score in the (possibly type-specific) ambiguous band?
+
+    Checks the configured ``type_bands`` first (matching on the exact field
+    type or its ``namespace:name`` prefix), then falls back to the global
+    ``ambiguous_band``. Band check is half-open (``low <= score < high``): a
+    perfect score of 1.0 is never ambiguous, and a score exactly at the low
+    cutoff still escalates (fail-safe toward the judge).
+    """
+    bands = get_type_bands()
+    band = bands.get(field_type) or bands.get(field_type.split(":", 1)[0])
+    if band == ("always",):
+        return True
+    if band == ("never",):
+        return False
+    if band is not None:
+        low, high = band
+        return low <= score < high
+    low, high = get_ambiguous_band()
+    return low <= score < high
+
+
+def warm_embedding_model(blocking: bool = False) -> None:
+    """Load the embedding model OFF the document path (O-10).
+
+    The first grounded run that needs a name/free-text embedding used to
+    trigger a synchronous multi-minute SentenceTransformer download inside run
+    finalization. This kicks the load into a background thread at process
+    start instead. Failures are logged; scoring keeps the string-only score.
+
+    No-op when embedding scoring is disabled (``embedding_enabled()`` false).
+    """
+    import logging
+    import threading
+
+    if not embedding_enabled():
+        return
+
+    log = logging.getLogger(__name__)
+
+    def _run() -> None:
+        try:
+            _get_embedding()
+        except Exception as exc:  # scoring degrades to string-only
+            log.warning("embedding model warmup failed: %s", exc)
+
+    if blocking:
+        _run()
+    else:
+        threading.Thread(target=_run, daemon=True, name="embedding-warmup").start()
 
 
 def get_partial_gt_fields() -> set[str]:
@@ -484,6 +570,11 @@ class EntityListScore:
 
 
 def _as_list(value) -> list:
+    """Parse a JSON container, then return a list or wrap a non-list value.
+
+    ``None`` becomes ``[]``; existing lists are returned unchanged.
+    """
+    value = parse_json_container(value)
     if value is None:
         return []
     if isinstance(value, list):
@@ -614,6 +705,13 @@ def score_entity_list(element_type: str, pred, exp, embedding=None,
         matched += role_items
     if contained_items:
         matched += contained_items
+
+    # Role-word/contained credits are a BOUNDED credit, not an unbounded
+    # additive bonus: nothing tracks which distinct predicted items were
+    # consumed, so without the clamp an all-role-word expected list vs a
+    # single named party yields precision 2/1 = 2.0 (hub#38). The composite
+    # may never exceed the smaller of the two list sizes.
+    matched = min(matched, n_pred, n_exp)
 
     precision = matched / n_pred
     recall = matched / n_exp
@@ -826,17 +924,29 @@ def _presence_candidates(predicted: dict, category: str, field: str) -> list[str
 
     Prefers spans routed explicitly by the extractor's reasoning trace
     (``reasoning.entries[]`` whose ``field`` is the canonical CUAD category
-    name — issue #21 retag), falling back to the disaggregated items of the
-    category's mapped field (e.g. ``cuad_clauses``)."""
-    entries = (predicted.get("reasoning") or {}).get("entries") or []
-    routed = [
-        str(e.get("evidence") or e.get("section_ref") or "")
-        for e in entries
-        if str(e.get("field") or "").strip() == category
-    ]
-    if routed:
-        return [r for r in routed if r.strip()]
-    return disaggregate_clause_spans(predicted.get(field))
+    name — issue #21 retag), falling back to the category's mapped field
+    (e.g. ``cuad_clauses``): both the disaggregated spans and the raw items,
+    so a model that quotes a multi-sentence clause as one item is not lost to
+    sentence-level splitting. Disable routing with
+    ``trace_knobs.reasoning_routes_presence``.
+    """
+    if get_settings().trace_knobs.reasoning_routes_presence:
+        entries = (predicted.get("reasoning") or {}).get("entries") or []
+        routed = [
+            str(e.get("evidence") or e.get("section_ref") or "")
+            for e in entries
+            if str(e.get("field") or "").strip() == category
+        ]
+        if routed:
+            return [r for r in routed if r.strip()]
+    items = disaggregate_clause_spans(predicted.get(field))
+    seen = set(items)
+    for raw in _as_list(predicted.get(field)):
+        text = str(raw)
+        if text.strip() and text not in seen:
+            seen.add(text)
+            items.append(text)
+    return items
 
 
 def _presence_matched(item: str, answer: str) -> bool:
@@ -1050,19 +1160,29 @@ def _heuristic_field_type(field_name: str, value) -> str:
 
 
 def get_field_types(doc_class: str, taxonomy: dict | None = None) -> dict[str, str]:
-    """Field->scoring-type mapping for a doc class from a taxonomy dict
-    (``{"doc_classes": [{"key", "field_types", ...}]}``) — pass the caller's
-    own taxonomy; returns {} when the class is absent. Kept as a compatibility
-    helper so the consuming project can wire its taxonomy straight through."""
-    if not taxonomy:
-        return {}
+    """Field->scoring-type mapping for a doc class.
+
+    Resolution order:
+    1. Explicit ``taxonomy`` dict (``{"doc_classes": [{"key", "field_types"}]}``)
+       when passed — the caller's own taxonomy wins.
+    2. The wired taxonomy captured by ``configure_from_taxonomy()``
+       (``Settings.doc_class_field_types``) when the consuming project wired
+       once at import.
+    3. ``{}`` when neither is available (no taxonomy configured).
+
+    Returns {} when the class is absent. Extract aliases (currently none)
+    resolve to their canonical class; ``merger_agreement`` is its own map.
+    """
     from .mailroom import EXTRACT_CLASS_ALIASES
 
     resolved = EXTRACT_CLASS_ALIASES.get(doc_class, doc_class)
-    for cls in taxonomy.get("doc_classes", []):
-        if cls.get("key") == doc_class or cls.get("key") == resolved:
-            return dict(cls.get("field_types") or {})
-    return {}
+    if taxonomy:
+        for cls in taxonomy.get("doc_classes", []):
+            if cls.get("key") == doc_class or cls.get("key") == resolved:
+                return dict(cls.get("field_types") or {})
+        return {}
+    wired = get_settings().doc_class_field_types
+    return dict(wired.get(resolved) or wired.get(doc_class) or {})
 
 
 @dataclass
@@ -1075,6 +1195,8 @@ class ExtractionScoreResult:
     # Factuality audit per list field: {field: audit dict} with
     # verified_precision / hallucination_rate (see audit_list_field).
     entity_list_audit: dict[str, dict] = field(default_factory=dict)
+    #: Captured confidence / reasoning knobs (never in ``field_scores``).
+    trace: dict[str, Any] | None = None
 
     @property
     def needs_judge_review(self) -> bool:
@@ -1099,6 +1221,7 @@ class ExtractionScoreResult:
                 k: v.to_dict() for k, v in self.entity_list_scores.items()
             },
             "entity_list_audit": self.entity_list_audit,
+            "trace": self.trace,
         }
 
 
@@ -1112,14 +1235,20 @@ def score_extraction(
     """Score one extraction deterministically.
 
     - Only expected fields with a non-null/non-empty value count toward the
-      overall score (null expectations are not requirements).
+      overall score (null expectations are not requirements). Stringified
+      JSON containers are parsed on both sides; empty containers and
+      case-insensitive ``null`` / ``none`` / ``n/a`` / ``n.a.`` expectations
+      are skipped. Trace and annotation keys are never scored; retired
+      prompt keys require an explicit entry in ``field_types``.
     - ``overall_score`` is the mean of the per-field scores (None when no
       field is scored).
     - ``ambiguous_fields`` collects fields landing in the ambiguous band —
       the signal that escalates to the LLM judge.
     - List fields also produce ``entity_list_scores`` with precision/recall.
-    - When ``doc_text`` is provided, EVERY field the model populated produces
-      an ``entity_list_audit`` entry (the factuality guard).
+    - When verification is enabled and ``doc_text`` is nonempty, populated
+      fields in ``field_types`` produce ``entity_list_audit`` entries,
+      including scalar fields and fields absent from GT. Trace and
+      annotation keys are excluded.
     """
     predicted = predicted or {}
     expected = expected or {}
@@ -1138,10 +1267,17 @@ def score_extraction(
     entity_list_audit: dict[str, dict] = {}
 
     for key, exp_value in expected.items():
-        if exp_value is None or exp_value == "":
+        if key in NEVER_SCORED_FIELDS:
+            continue
+        if key in RETIRED_PROMPT_KEYS and key not in field_types:
+            continue
+        exp_value = parse_json_container(exp_value)
+        if is_empty_value(exp_value):
             continue
         field_type = field_types.get(key) or _heuristic_field_type(key, exp_value)
         pred_value = predicted.get(key)
+        if pred_value is not None:
+            pred_value = parse_json_container(pred_value)
         if pred_value is None:
             # A null answer satisfies a null-expectation date (blank-template
             # or label-only GT holds no real date).
@@ -1171,8 +1307,10 @@ def score_extraction(
         # Factuality audit for EVERY content field the model populated —
         # including fields the ground truth does not label.
         for key, field_type in sorted(field_types.items()):
-            pred_value = predicted.get(key)
-            if pred_value in (None, "", []) or key in entity_list_audit:
+            pred_value = parse_json_container(predicted.get(key))
+            if is_empty_value(pred_value) or key in entity_list_audit:
+                continue
+            if key in NEVER_SCORED_FIELDS:
                 continue
             if is_entity_list(field_type):
                 element_type = field_type.split(":", 1)[1] if ":" in field_type else "name"
@@ -1186,6 +1324,8 @@ def score_extraction(
 
     scored = list(field_scores.values())
     overall = round(sum(scored) / len(scored), 4) if scored else None
+    from .trace_knobs import capture_trace_knobs
+
     return ExtractionScoreResult(
         doc_class=doc_class,
         field_scores=field_scores,
@@ -1193,4 +1333,5 @@ def score_extraction(
         ambiguous_fields=ambiguous,
         entity_list_scores=entity_list_scores,
         entity_list_audit=entity_list_audit,
+        trace=capture_trace_knobs(predicted, expected=expected, correctness=overall),
     )

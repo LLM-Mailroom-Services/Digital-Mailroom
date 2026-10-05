@@ -4,6 +4,48 @@ composite score_extraction (ported behavior)."""
 import pytest
 
 from llm_dojo_scoring import field_scoring as fs
+from llm_dojo_scoring.gt_metadata import ANNOTATION_KEYS
+
+
+@pytest.mark.parametrize("key", sorted(ANNOTATION_KEYS))
+def test_annotations_never_score_or_enter_factuality_audit_even_with_explicit_map(key):
+    result = fs.score_extraction(
+        doc_class="insurance_claim",
+        expected={"claim_number": "CLM-1", key: "expected annotation"},
+        predicted={"claim_number": "CLM-1", key: "different annotation"},
+        field_types={"claim_number": "id", key: "free_text"},
+        doc_text="Claim CLM-1 was received.",
+    )
+    assert result.field_scores == {"claim_number": 1.0}
+    assert result.overall_score == 1.0
+    assert key not in result.entity_list_audit
+    assert "claim_number" in result.entity_list_audit
+
+
+@pytest.mark.parametrize("empty", ["[]", "{}", " N/A ", "null"])
+def test_empty_serialized_prediction_does_not_enter_factuality_audit(empty):
+    result = fs.score_extraction(
+        doc_class="insurance_claim",
+        expected={"claim_number": "CLM-1"},
+        predicted={"claim_number": "CLM-1", "denial_reasons": empty},
+        field_types={"claim_number": "id", "denial_reasons": "entity_list:free_text"},
+        doc_text="Claim CLM-1 was received.",
+    )
+    assert result.overall_score == 1.0
+    assert set(result.entity_list_audit) == {"claim_number"}
+
+
+def test_stringified_entity_lists_match_native_lists_without_mutating_records():
+    expected = {"reference_ids": '["A-1", "B-2"]'}
+    predicted = {"reference_ids": '["B-2", "A-1"]'}
+    result = fs.score_extraction(
+        "contract", {"reference_ids": "entity_list:id"}, predicted, expected,
+    )
+    assert result.field_scores == {"reference_ids": 1.0}
+    assert result.entity_list_scores["reference_ids"].precision == 1.0
+    assert result.entity_list_scores["reference_ids"].recall == 1.0
+    assert expected == {"reference_ids": '["A-1", "B-2"]'}
+    assert predicted == {"reference_ids": '["B-2", "A-1"]'}
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +125,62 @@ def test_entity_list_partial_gt_role_words():
     # partial-GT: role-word label matched by mere presence of a named party
     score = fs.score_entity_list("name", ["Shipper Co."], ["Shipper"], partial_gt=True)
     assert score.score == 1.0  # recall
+
+
+def test_entity_list_partial_gt_precision_capped_at_1():
+    # hub#38: role-word credits are bounded — an all-role-word expected list
+    # vs a single named party must never inflate precision beyond 1.0.
+    score = fs.score_entity_list(
+        "name", ["ACME Corp"], ["Seller", "Buyer"], partial_gt=True
+    )
+    assert score.precision <= 1.0
+    assert score.recall <= 1.0
+
+
+def test_entity_list_partial_gt_contained_items_credit_capped():
+    # hub#38: contained-label credits are bounded — a 1-item prediction whose
+    # tokens contain an expected 3-6-token label gets the credit, but the
+    # composite may not exceed min(n_pred, n_exp).
+    score = fs.score_entity_list(
+        "clause",
+        ["indemnification obligations of the seller"],
+        ["indemnification obligations", "obligations of the seller"],
+        partial_gt=True,
+    )
+    assert score.precision <= 1.0
+    assert score.recall <= 1.0
+
+
+def test_entity_list_partial_gt_mixed_case_bounded():
+    # hub#38: mixed role-word + real-entity expected list vs a single
+    # predicted entity — matched starts at the Hungarian hit, gets role
+    # credits, then clamps to min(n_pred, n_exp) = 1.
+    score = fs.score_entity_list(
+        "name", ["ACME Corp"], ["Seller", "ACME Corp", "Buyer"], partial_gt=True
+    )
+    assert score.matched <= 1
+    assert score.precision == 1.0
+    assert score.recall == pytest.approx(1 / 3)
+
+
+def test_entity_list_partial_gt_property_precision_recall_bounded():
+    # hub#38: for random (pred, exp) pairs with partial_gt, precision and
+    # recall stay within [0, 1].
+    import random
+
+    pool = [
+        "Seller", "Buyer", "Shipper", "Receiver", "Party A",
+        "ACME Corp", "Acme Corp", "Shipper Co.", "Big Corp", "Consignee",
+        "indemnification obligations", "confidentiality", "termination",
+    ]
+    rng = random.Random(1337)
+    for _ in range(100):
+        n_pred, n_exp = rng.randint(1, 4), rng.randint(1, 4)
+        pred = [rng.choice(pool) for _ in range(n_pred)]
+        exp = [rng.choice(pool) for _ in range(n_exp)]
+        score = fs.score_entity_list("name", pred, exp, partial_gt=True)
+        assert 0.0 <= score.precision <= 1.0
+        assert 0.0 <= score.recall <= 1.0
 
 
 def test_entity_list_to_dict():
@@ -279,6 +377,32 @@ def test_score_extraction_entity_list_scores_and_audit():
     assert result.entity_list_scores["parties"].score == 1.0
     assert "key_obligations" in result.entity_list_audit
     assert result.entity_list_audit["key_obligations"]["true_items"] == 1
+
+
+def test_score_extraction_skips_confidence_reasoning_and_empty_lists():
+    """``confidence`` / ``reasoning`` and matching empty lists never score as fields."""
+    result = fs.score_extraction(
+        "contract",
+        FIELD_TYPES,
+        {
+            "document_name": "MSA",
+            "parties": [],
+            "confidence": 0.99,
+            "reasoning": {"summary": "trace"},
+        },
+        {
+            "document_name": "MSA",
+            "parties": [],
+            "confidence": 0.5,
+            "reasoning": {"summary": "other"},
+        },
+    )
+    assert "confidence" not in result.field_scores
+    assert "reasoning" not in result.field_scores
+    assert "parties" not in result.field_scores
+    assert result.overall_score == 1.0
+    assert result.trace["confidence"] == 0.99
+    assert result.trace["reasoning"]["summary"] == "trace"
 
 
 def test_score_extraction_to_dict_serializable():

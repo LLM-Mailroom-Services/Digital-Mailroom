@@ -33,8 +33,8 @@
     },
     "llm-entity-extraction": {
       "branch": "main",
-      "synced_at": "2026-09-16T22:07:53Z",
-      "synced_sha": "42c54929d08e164c6ac25d8f0d2f17170a1ebe35",
+      "synced_at": "2026-10-05T04:35:50Z",
+      "synced_sha": "775b0ed6ef31ea71a0c5a3899e99d902579674ba",
       "url": "https://github.com/Exios66/llm-entity-extraction.git"
     },
     "llm-mailroom": {

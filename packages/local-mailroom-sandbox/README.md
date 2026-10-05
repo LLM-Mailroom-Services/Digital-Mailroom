@@ -70,6 +70,7 @@ sandbox datasets pull          # LIVE pinned FULL Hub pull (3302 rows) → data/
 sandbox datasets sample --per-class 40  # offline 20/40/100… per live class from that cache
 sandbox datasets prepare   # offline clean → data/runtime/prepared/
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml
+sandbox watch [--web] [--config config/runs/<name>.yaml]       # mailroom TUI + Modal log tail (see docs/pretty-logging/mailroom-themed-logging.md)
 sandbox run start --config <run.yaml> --job-mode modal --watch   # Modal worker
 sandbox prompts list | show <agent> [--variant X]
 sandbox metrics compare --runs local,modal,api | --log
@@ -99,13 +100,13 @@ GPU recommended for Qwen 8B.
 
 | Guide | Description |
 | :--- | :--- |
-| [Quickstart](docs/QUICKSTART.md) | **Start here** — install, full CLI reference, canonical workflows |
-| [Providers](docs/providers.md) | Ollama, vLLM, Modal, llama.cpp, LM Studio, OpenRouter |
+| [Quickstart](docs/setting-up/QUICKSTART.md) | **Start here** — install, full CLI reference, canonical workflows |
+| [Providers](docs/setting-up/providers.md) | Ollama, vLLM, Modal, llama.cpp, LM Studio, OpenRouter |
 | [Evals](docs/evals.md) | Runners, matrix, scoring, experiment log |
 | [Tracing](docs/tracing.md) | Langfuse v4 data model, tags, The-Mailroom |
-| [Docker offline](docs/docker-offline.md) | Dockerfile, Compose `jupyter` profile, prep notebooks |
-| [Sister repos](docs/sister-repos.md) | Family map |
-| [Layout contract](docs/LAYOUT.md) | **Which folder owns what** — the two config trees, frozen surfaces, junk policy |
+| [Docker offline](docs/setting-up/docker-offline.md) | Dockerfile, Compose `jupyter` profile, prep notebooks |
+| [Sister repos](docs/setting-up/sister-repos.md) | Family map |
+| [Layout contract](docs/setting-up/LAYOUT.md) | **Which folder owns what** — the two config trees, frozen surfaces, junk policy |
 | [Agent skills](.cursor/skills/README.md) | Langfuse, Phoenix, Braintrust, Ollama, Modal, Hugging Face |
 
 ## Layout
@@ -125,11 +126,11 @@ reports/             sandbox experiment log (not a sister-repo mirror)
 governance/          SAND-* board (README / PREFIX / TASKS / archive)
 api-evals/           OpenRouter API cost harness — its own config/runs/ + reports/ and its own CLI
                      (`python api-evals/run_api_evals.py`), not packaged, not in the Docker image.
-                     Run specs here are the real-spend `api-*` tasks; see docs/LAYOUT.md.
+                     Run specs here are the real-spend `api-*` tasks; see docs/setting-up/LAYOUT.md.
 ```
 
 Full rules — including why the two `config/runs/` trees stay separate and which
-paths are frozen by a test — are in [`docs/LAYOUT.md`](docs/LAYOUT.md).
+paths are frozen by a test — are in [`docs/setting-up/LAYOUT.md`](docs/setting-up/LAYOUT.md).
 
 ## Offline Docker + Notebooks
 
@@ -140,7 +141,7 @@ sandbox up --compose-profile langfuse --compose-profile ollama --compose-profile
 sandbox datasets prepare
 ```
 
-See [`docs/docker-offline.md`](docs/docker-offline.md).
+See [`docs/setting-up/docker-offline.md`](docs/setting-up/docker-offline.md).
 
 ---
 

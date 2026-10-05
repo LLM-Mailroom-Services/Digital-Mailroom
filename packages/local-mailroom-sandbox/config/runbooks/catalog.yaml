@@ -65,19 +65,86 @@ serving:
       model: Qwen/Qwen3-8B-AWQ
       quantization: awq
       max_model_len: 32768
+    awq-14b-a100:
+      model: Qwen/Qwen3-14B-AWQ
+      gpu: A100-40GB
+      quantization: awq_marlin
+      max_model_len: 32768
+      max_num_seqs: 32
+      gpu_memory_utilization: "0.90"
+      enable_prefix_caching: 1
+      enforce_eager: 0
+      max_containers: 1
+      min_containers: 1
+      scaledown_seconds: 600
+      extra_env:
+        MODAL_VLLM_KV_CACHE_DTYPE: fp8
+        MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES: "1,2,4,8,16,32"
+        MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS: '{"enable_thinking": false}'
+        PHOENIX_TRACING: disabled
+        SANDBOX_AGENT_KNOBS: '{"sorter":{"max_tokens":2048,"max_input_chars":12000}}'
     granite-fp8:
       model: ibm-granite/granite-4.2-8b-fp8
       quantization: compressed-tensors
       max_model_len: 32768
       extra_env:
-        MODAL_VLLM_REASONING_PARSER: granite_thinking_parser
-        MODAL_VLLM_TOOL_CALL_PARSER: qwen3_coder
-        MODAL_VLLM_ENABLE_AUTO_TOOL_CHOICE: "1"
+        # v0.29.0 has no `granite_thinking_parser` (KeyError boot crash) — the
+        # native `granite` parser is the verified pin. No tool parser: the
+        # specialist extract path uses no tool calls.
+        MODAL_VLLM_REASONING_PARSER: granite
     second-l4-dp:
       max_containers: 2
     scale-short-doc:
       max_num_seqs: 256
       scaledown_seconds: 600
+    # SAND-037 aligned specialist grid. Both shapes serve the SAND-032 frozen L5
+    # engine; they differ only in replica count. Must equal `sandbox run deploy-env`
+    # for every config in the grid-1l4 / grid-2l4 runbooks (runbook check enforces it).
+    grid-awq-1l4:
+      model: Qwen/Qwen3-8B-AWQ
+      quantization: awq_marlin
+      max_model_len: 32768
+      max_num_seqs: 16
+      enforce_eager: 0
+      max_containers: 1
+      min_containers: 1
+      extra_env:
+        MODAL_VLLM_KV_CACHE_DTYPE: fp8
+        MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES: "1,2,4,8,16"
+        MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS: '{"enable_thinking": false}'
+        MODAL_VLLM_MAX_INPUTS: "32"
+        PHOENIX_TRACING: disabled
+    grid-awq-2l4:
+      model: Qwen/Qwen3-8B-AWQ
+      quantization: awq_marlin
+      max_model_len: 32768
+      max_num_seqs: 16
+      enforce_eager: 0
+      max_containers: 2
+      min_containers: 2
+      extra_env:
+        MODAL_VLLM_KV_CACHE_DTYPE: fp8
+        MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES: "1,2,4,8,16"
+        MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS: '{"enable_thinking": false}'
+        MODAL_VLLM_MAX_INPUTS: "32"
+        PHOENIX_TRACING: disabled
+    # SAND-040 long phase. Same 2×L4 fleet as grid-awq-2l4, with the context
+    # window doubled via YaRN. One deploy cannot serve both 32768 and 65536.
+    grid-awq-2l4-64k:
+      model: Qwen/Qwen3-8B-AWQ
+      quantization: awq_marlin
+      max_model_len: 65536
+      max_num_seqs: 16
+      enforce_eager: 0
+      max_containers: 2
+      min_containers: 2
+      extra_env:
+        MODAL_VLLM_KV_CACHE_DTYPE: fp8
+        MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES: "1,2,4,8,16"
+        MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS: '{"enable_thinking": false}'
+        MODAL_VLLM_MAX_INPUTS: "32"
+        MODAL_VLLM_HF_OVERRIDES: '{"rope_parameters": {"factor": 2.0, "original_max_position_embeddings": 32768, "rope_theta": 1000000, "rope_type": "yarn"}}'
+        PHOENIX_TRACING: disabled
 
 aliases:
   l4: l4-qwen3-8b
@@ -91,6 +158,39 @@ aliases:
   awq: improved-awq
   awq-c8: improved-awq-c8
   granite: improved-granite-fp8
+  a100-sorter: a100-qwen3-14b-awq-sorter400
+  qwen3-14b-awq: a100-qwen3-14b-awq-sorter400
+  grid: grid-1l4
+  grid-1x: grid-1l4
+  grid-2x: grid-2l4
+  sand39: sand39-1l4-n50
+  sand40: sand40
+
+generated_docs:
+  index: README.md
+  families:
+    baseline: archived-experiments/qwen/STALE/baseline.md
+    improved: specialists/contracts/improved.md
+    grid: archived-experiments/qwen/qwen3-8b/grid.md
+  runbooks:
+    l4-qwen3-8b: archived-experiments/qwen/STALE/l4-qwen3-8b.md
+    l4-qwen3-8b-track-a: archived-experiments/qwen/STALE/l4-qwen3-8b-track-a.md
+    l4-qwen3-8b-track-b: archived-experiments/qwen/STALE/l4-qwen3-8b-track-b.md
+    l4-qwen3-8b-n20: archived-experiments/qwen/qwen3-8b/1L4/l4-qwen3-8b-n20.md
+    improved-awq: specialists/contracts/improved-awq.md
+    a100-qwen3-14b-awq-sorter400: specialists/sorter/a100-qwen3-14b-awq-sorter400.md
+    improved-awq-c8: specialists/contracts/improved-awq-c8.md
+    improved-correspondence-awq: specialists/correspondence/improved-correspondence-awq.md
+    improved-correspondence-awq-c8: specialists/correspondence/improved-correspondence-awq-c8.md
+    improved-correspondence-fp16-c8: specialists/correspondence/improved-correspondence-fp16-c8.md
+    improved-granite-fp8: archived-experiments/ibm-granite/granite-4.2-8b/improved-granite-fp8.md
+    improved-second-l4: archived-experiments/qwen/qwen3-8b/2L4/improved-second-l4.md
+    improved-scale-matrix: archived-experiments/qwen/STALE/improved-scale-matrix.md
+    grid-1l4: archived-experiments/qwen/qwen3-8b/1L4/grid-1l4.md
+    grid-2l4: archived-experiments/qwen/qwen3-8b/2L4/grid-2l4.md
+    sand39-1l4-n50: archived-experiments/qwen/qwen3-8b/1L4/sand39-1l4-n50.md
+    sand40-probe: tuning/sand40-probe.md
+    sand40: archived-experiments/qwen/qwen3-8b/sand40.md
 
 runbooks:
   l4-qwen3-8b:
@@ -222,6 +322,140 @@ runbooks:
       - Keep run-30-*-specialist.yaml on bf16 Qwen3-8B. Copy a YAML if an alternate scorecard needs matching engine.model.
       - benchmark-check accepts AWQ as a warning, not an error.
 
+  a100-qwen3-14b-awq-sorter400:
+    family: improved
+    title: 1×A100-40GB Qwen3-14B-AWQ isolated sorter n=400 (C=32)
+    summary: >
+      Isolated SorterAgent eval (not a specialist extract). Official
+      Qwen/Qwen3-14B-AWQ on one A100-40GB with AWQ-Marlin, fp8 KV, CUDA graphs,
+      prefix caching, thinking off, C=32. Prompt pin sorter_v1. One cold boot;
+      MIN=MAX=1 until teardown. Do not start this run without spend approval.
+    serving: awq-14b-a100
+    modal_matrix: Qwen/Qwen3-14B-AWQ
+    configs:
+      - config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    skip_check: true
+    extra_env:
+      PHOENIX_TRACING: disabled
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - matrix_hint
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run status --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml
+      - sandbox scorecard --run run-400-sorter-qwen3-14b-awq-a100
+      - modal billing summary
+    notes:
+      - "CLI: pass --profile AFTER the subcommand (sandbox health --profile modal-vllm). Never paste unicode ellipsis into commands."
+      - "Pretty logs: open sandbox watch --web --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml in a second pane (http://127.0.0.1:8765/) BEFORE sandbox run start. start --watch is the CLI session layer only and does not tail Modal dispatch logs."
+      - "Canonical deploy knobs: set -a; eval \"$(sandbox run deploy-env --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml)\"; set +a. Then download_model and modal deploy --strategy recreate once."
+      - "benchmark-check is skipped (L4 specialist gate). Engine pins are still catalog-asserted against the run YAML."
+      - "Trace sink is none so preflight is not blocked without Langfuse keys. Family default remains Langfuse when LANGFUSE_* are set; flip spec.trace.sink to langfuse then re-preflight. Keep PHOENIX_TRACING=disabled unless the Phoenix extra is installed."
+    appendix: |
+      ## Purpose
+
+      Run a **400-document isolated sorter** eval on a **higher-parameter Qwen 3** than the L4 8B-AWQ baseline, with AWQ weights, A100 serving, C=32 continuous batching, KV + CUDA-graph optimizations, and one warm replica.
+
+      ## Model choice
+
+      | Option | Hub id | GPU SKU | Verdict |
+      | --- | --- | --- | --- |
+      | Primary | `Qwen/Qwen3-14B-AWQ` | `A100-40GB` (`MODAL_VLLM_GPU`) | Conservative C=32 + 32k ctx + graphs. Official Qwen AWQ (~10GB weights). Already in `config/models.yaml`. |
+      | Stretch | `Qwen/Qwen3-32B-AWQ` | `A100-80GB` | Official Qwen AWQ (~20GB). C=32 on 40GB is an OOM/KV risk. Use only with a copied YAML (`engine.model` + `modal.gpu: A100-80GB`, cost cap ×1.2). |
+      | Not this card | `Qwen/Qwen3-8B-AWQ` on L4 | `L4` | Current specialist/sorter baseline (c=8 on L4 extract; SAND-032 sorter used 2×L4). |
+
+      14B-AWQ is the matrix row default GPU **L4** (it fits). This runbook **overrides to A100-40GB** so C=32 has KV headroom. Do not flip the L4 8B specialist suite.
+
+      ## Serving knobs
+
+      | Knob | Value | Why |
+      | --- | --- | --- |
+      | `MODAL_VLLM_MODEL` | `Qwen/Qwen3-14B-AWQ` | Official AWQ checkpoint |
+      | `MODAL_VLLM_GPU` | `A100-40GB` | 1× 40GB; Ampere AWQ-Marlin |
+      | `MODAL_VLLM_QUANTIZATION` | `awq_marlin` | Ampere kernel (not Hopper FP8) |
+      | `MODAL_VLLM_MAX_MODEL_LEN` | `32768` | AWQ KV pool; v0.29.0 raises if one 32k request cannot fit |
+      | `MODAL_VLLM_MAX_NUM_SEQS` | `32` | Admission must cover C=32 on **one** replica |
+      | `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | Leave 10% for graphs / fragmentation |
+      | `MODAL_VLLM_ENABLE_PREFIX_CACHING` | `1` | Shared sorter system prompt |
+      | `MODAL_VLLM_ENFORCE_EAGER` | `0` | CUDA graphs on (`enforce_eager=false`) |
+      | `MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES` | `1,2,4,8,16,32` | Capture batch sizes up to C |
+      | `MODAL_VLLM_KV_CACHE_DTYPE` | `fp8` | Larger KV pool; A100 FP8 is weight-only Marlin for **weights**, KV fp8 is still the pool lever |
+      | `MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS` | `{"enable_thinking": false}` | Avoid Granite-class 8192-token thinking / 408s |
+      | `MODAL_VLLM_MAX_CONTAINERS` | `1` | No scale-out unless measured queueing |
+      | `MODAL_VLLM_MIN_CONTAINERS` | `1` | Pin warm from deploy until teardown (one cold boot) |
+      | `MODAL_VLLM_SCALEDOWN_SECONDS` | `600` | Safety idle window if min ever drops; teardown at end anyway |
+      | `MODAL_VLLM_TP_SIZE` | `1` | 14B-AWQ fits one GPU |
+      | `max_tokens` / `max_input_chars` | `2048` / `12000` | Overlay sorter caps; hard retry cap `job.max_retries: 2` |
+      | `job.concurrency` | `32` | Default JobSpec C=4 starves dispatch; size C to A100 decode, not L4 c=8 |
+
+      ## Dataset and prompt
+
+      | Item | Pin |
+      | --- | --- |
+      | Task | `isolated` (SorterAgent only) |
+      | Prompt | `config/prompts/sorter_v1.txt` (`sorter_v1`). There is **no** `sorter_local_v1`. Production lookup is still `sorter_v14`; runtime override patches that key with v1 text. |
+      | Corpus | `Lucius-Morningstar/mailroom-dataset` @ `ed7576b676343e0b402ec5412cded301e629bdee`, `split: train`, seed 42 |
+      | n | 400 proportional to train mix (132/123/73/54/18) |
+
+      ## Cost estimate (do not treat as a live invoice)
+
+      Rates from `deploy/README.md` (modal.com/pricing, verified 2026-09-09) and `src/mailroom_sandbox/job/metrics.py`: **A100-40GB = $2.10/hr** ($0.000583/s). Formula from `docs/RUN-COST-DERIVATION.md`: Modal bills container-seconds, not tokens. `download_model` is CPU-only.
+
+      Anchor: SAND-032 `sand032-s6-sorter1000` isolated 8B-AWQ, 2×L4, C=32, thinking off — **458 docs in 1791.4s wall** (~3.91s wall/doc), GPU $/doc **$0.001869**, completion p50 **147** (not 8192 thinking).
+
+      | Band | Warm wall (400 docs) | +300s graphs boot | GPU $ @ $2.10/hr | $/doc |
+      | --- | --- | --- | --- | --- |
+      | Optimistic (A100 offsets 14B vs 8B-on-2×L4) | 1565s | 1865s | **$1.09** | $0.0027 |
+      | Likely (×1.5 wall vs S6) | 2347s | 2647s | **$1.54** | $0.0039 |
+      | Heavy (×2 wall / KV pressure) | 3130s | 3430s | **$2.00** | $0.0050 |
+      | Pinned-min idle (operator gap 5 min) | — | +300s | +$0.18 | — |
+      | Forgotten scaledown (no teardown) | — | +600s | +$0.35 | — |
+
+      **Headline: budget ~$1.50–$2.20 GPU for 400 docs if you teardown promptly after one cold boot; `cost_cap_usd: 4.00` (~1.9 GPU-hours) is the abort guard.**
+
+      Token-proxy (same OpenRouter Qwen-flash map as `Qwen/Qwen3-14B-AWQ`, $0.03/$0.13 per 1M) at S6 p50 7994 in + 147 out: **~$0.00026/doc**, **~$0.10 for n=400**. GPU true cost is ~6–20× the token proxy on this posture (same lesson as contracts L4 vs API).
+
+      Extrapolation: linear in N at fixed C if KV stays below cliff. Doubling N ≈ doubles warm GPU-hours; do **not** add a second A100 unless queueing is measured (`max_containers=1`).
+
+      ## Pretty logging
+
+      ```bash
+      sandbox watch --web --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml
+      # http://127.0.0.1:8765/
+      sandbox run start --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml --job-mode endpoint --watch
+      ```
+
+      See `docs/pretty-logging/mailroom-themed-logging.md` and `docs/snippets/pretty_logs.md`.
+
+      ## Failure modes
+
+      | Symptom | Likely cause | Mitigation |
+      | --- | --- | --- |
+      | HTTP 408 / proxy timeout | C too high vs decode; thinking left on; `max_tokens` huge | Confirm `enable_thinking: false`; drop C to 16; keep `max_tokens` 2048; overlay `llm_call_timeout_seconds` is 600 |
+      | OOM at load | Wrong GPU SKU or 32B on 40GB | Stay on 14B + A100-40GB; 32B only on A100-80GB |
+      | Boot raise: KV cannot hold one 32768 request | util too high or fp8 KV off | Keep `kv_cache_dtype: fp8`; lower `max_model_len` to 16384 only as last resort |
+      | CUDA graph capture fail | `enforce_eager=true` with capture sizes | YAML already requires `enforce_eager: false`; recapture after image pin change |
+      | KV cache full / latency cliff | C=32 × long sorter windows | Lower C or `max_num_seqs`; S6 was prefill-bound (p95 530s) |
+      | LengthFinish / 8192-token burn | Thinking mode | Chat-template kwargs + overlay `reasoning_effort: none` |
+      | Phoenix import errors | OTEL sidecar | `PHOENIX_TRACING=disabled` |
+      | Starved GPU | JobSpec default C=4 | This YAML pins C=32 |
+      | Second cold boot | `modal deploy --strategy recreate` mid-run or scaledown 120 with min=0 | Deploy once; min_containers=1; teardown only at end |
+
+      ## Stretch 32B (not the start config)
+
+      Copy the YAML, set `engine.model: Qwen/Qwen3-32B-AWQ`, `modal.gpu: A100-80GB`, raise `cost_cap_usd` to 5.0. Expect ~1.2× $/hr ($2.50 vs $2.10) plus slower decode. Verify KV after `/health`.
+
   improved-awq-c8:
     family: improved
     title: AWQ + 32768 + concurrency 8 (contracts N=20)
@@ -340,9 +574,7 @@ runbooks:
     assert_engine: false
     skip_check: true
     extra_env:
-      MODAL_VLLM_REASONING_PARSER: granite_thinking_parser
-      MODAL_VLLM_TOOL_CALL_PARSER: qwen3_coder
-      MODAL_VLLM_ENABLE_AUTO_TOOL_CHOICE: "1"
+      MODAL_VLLM_REASONING_PARSER: granite
     steps:
       - env
       - activate_profile
@@ -358,9 +590,10 @@ runbooks:
       - Confirm /v1/models data[0].id is ibm-granite/granite-4.2-8b-fp8
       - Confirm the replica booted at max_model_len=32768 (bf16 Granite 32k fails on 1×L4)
       - One structured-output json_object completion succeeds
-      - Thinking spans are separable (granite_thinking_parser; plugin fallback on v0.29.0)
+      - Thinking spans are separable (native `granite` parser on v0.29.0;
+        `granite_thinking_parser` needs vLLM >= 0.30 and crash-loops the pinned image)
     notes:
-      - sandbox run benchmark-check is Qwen-only. Skip it for Granite.
+      - sandbox run benchmark-check accepts the five run-20-*-granite 1×L4 pinned configs (GRANITE_ONE_GPU_RUNS); Qwen defaults unchanged.
       - After smoke, copy run-30-*-specialist.yaml and set engine.model / vllm.max_model_len / quantization to this variant before --live preflight.
       - Draw one 100-row bucket per class (seed 42) and slice 20/50 — do not re-draw.
       - OpenRouter twin id is ibm-granite/granite-4.2-8b (same string as the HF bf16 repo). Reports must say the Modal leg served -fp8.
@@ -420,6 +653,246 @@ runbooks:
       - Pin MIN_CONTAINERS = MAX_CONTAINERS = R per cell. Teardown after every cell.
       - G1 is the only cell that uses GPU=L4:2 + TP (model does not fit one L4).
       - Execution pending spend approval — this runbook documents the specs; it does not authorize GPU time.
+
+  grid-1l4:
+    family: grid
+    title: Specialist grid — 1×L4 · C8 cells (n=20 and n=50, all five classes)
+    summary: >
+      SAND-037 aligned grid, 1×L4 half: ten Qwen3-8B-AWQ specialist cells on one
+      warm L4 serving the SAND-032 frozen L5 engine (awq_marlin, fp8 KV, CUDA
+      graphs, max_num_seqs 16, thinking off, max_inputs 32) at client concurrency 8.
+      Nested split=all draws, frozen v1 simplified prompts, decode 8192 at
+      temperature 0.7. Deploy once, short classes first, teardown after the last cell.
+    serving: grid-awq-1l4
+    configs:
+      - config/runs/grid-20-correspondence-specialist-awq-1l4.yaml
+      - config/runs/grid-20-insurance-claims-specialist-awq-1l4.yaml
+      - config/runs/grid-20-corporate-records-specialist-awq-1l4.yaml
+      - config/runs/grid-20-contracts-specialist-awq-1l4.yaml
+      - config/runs/grid-20-merger-specialist-awq-1l4-rerun.yaml
+      - config/runs/grid-50-correspondence-specialist-awq-1l4.yaml
+      - config/runs/grid-50-insurance-claims-specialist-awq-1l4.yaml
+      - config/runs/grid-50-corporate-records-specialist-awq-1l4.yaml
+      - config/runs/grid-50-contracts-specialist-awq-1l4.yaml
+      - config/runs/grid-50-merger-specialist-awq-1l4.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --runbook grid-1l4   # finalized L4x1 score & cost card
+      - sandbox metrics compare --runs grid-20-correspondence-specialist-awq-1l4,grid-20-insurance-claims-specialist-awq-1l4,grid-20-corporate-records-specialist-awq-1l4,grid-20-contracts-specialist-awq-1l4,grid-20-merger-specialist-awq-1l4-rerun
+      - sandbox metrics compare --runs grid-50-correspondence-specialist-awq-1l4,grid-50-insurance-claims-specialist-awq-1l4,grid-50-corporate-records-specialist-awq-1l4,grid-50-contracts-specialist-awq-1l4,grid-50-merger-specialist-awq-1l4
+    notes:
+      - "Reports: each run brackets start with vLLM /metrics scrapes and writes reports/SAND-37/1L4/<specialist>/<run_id>.card.md + .card.json (score, cost, tokens, throughput, latency, per-replica engine telemetry, errors, per-document rows). The after step writes the finalized reports/SAND-37/1L4/L4x1-SCORE-COST-CARD.md + .json from those cards; commit the SAND-37 tree."
+      - "Spend: likely ≈ $0.80 GPU at $0.80/hr (≈ 1 h warm: S3 per-L4 throughput on the same engine, scaled by the 0.7× S2a measured at C8 on one L4); the ten cost caps sum to $5.70 and are the abort guard. Needs spend approval before deploy."
+      - "Canonical deploy knobs: set -a; eval \"$(sandbox run deploy-env --config config/runs/grid-20-correspondence-specialist-awq-1l4.yaml)\"; set +a. The export block below is identical (runbook check enforces it) and benchmark-check fails on any shell drift."
+      - "Decode is max_tokens 8192 at temperature 0.7, applied from the specialist_posture grid row via SANDBOX_AGENT_KNOBS at start; do not export SANDBOX_AGENT_KNOBS by hand and do not raise max_tokens. A LengthFinishReasonError at 8192 is a runaway loop, not a long answer (longest successful output on record: 4,055 tokens)."
+      - "preflight --force archives any earlier generation of the same run_id (the serialized grid-50-contracts-specialist-awq-1l4 attempt, locked on the old spec) and re-locks; start then resumes the fresh lock."
+      - "grid-20-merger-specialist-awq-1l4 and its -retry leg stay as committed history; the -rerun id is the aligned cell."
+      - "Full cell status and the aligned spec: docs/SPECIALIST-GRID-PLAN.md."
+
+  grid-2l4:
+    family: grid
+    title: Specialist grid — 2×L4 · C32 cells (n=20 and n=50, all five classes)
+    summary: >
+      SAND-037 aligned grid, 2×L4 half: ten Qwen3-8B-AWQ specialist cells on one
+      warm two-replica fleet serving the same frozen L5 engine at client concurrency
+      32 (16 per replica). Same draws, prompts and decode as grid-1l4; only the
+      replica count and concurrency differ.
+    serving: grid-awq-2l4
+    configs:
+      - config/runs/grid-20-correspondence-specialist-awq-2l4.yaml
+      - config/runs/grid-20-insurance-claims-specialist-awq-2l4.yaml
+      - config/runs/grid-20-corporate-records-specialist-awq-2l4.yaml
+      - config/runs/grid-20-contracts-specialist-awq-2l4.yaml
+      - config/runs/grid-20-merger-specialist-awq-2l4.yaml
+      - config/runs/grid-50-correspondence-specialist-awq-2l4.yaml
+      - config/runs/grid-50-insurance-claims-specialist-awq-2l4.yaml
+      - config/runs/grid-50-corporate-records-specialist-awq-2l4.yaml
+      - config/runs/grid-50-contracts-specialist-awq-2l4-rerun.yaml
+      - config/runs/grid-50-merger-specialist-awq-2l4.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    scrape_metrics: true
+    export_card: true
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --runbook grid-2l4   # finalized L4x2 score & cost card
+      - sandbox metrics compare --runs grid-20-correspondence-specialist-awq-2l4,grid-20-insurance-claims-specialist-awq-2l4,grid-20-corporate-records-specialist-awq-2l4,grid-20-contracts-specialist-awq-2l4,grid-20-merger-specialist-awq-2l4
+      - sandbox metrics compare --runs grid-50-correspondence-specialist-awq-2l4,grid-50-insurance-claims-specialist-awq-2l4,grid-50-corporate-records-specialist-awq-2l4,grid-50-contracts-specialist-awq-2l4-rerun,grid-50-merger-specialist-awq-2l4
+    notes:
+      - "Reports: each run brackets start with vLLM /metrics scrapes and writes reports/SAND-37/2L4/<specialist>/<run_id>.card.md + .card.json (score, cost, tokens, throughput, latency, per-replica engine telemetry, errors, per-document rows). The after step writes the finalized reports/SAND-37/2L4/L4x2-SCORE-COST-CARD.md + .json from those cards; commit the SAND-37 tree."
+      - "Spend: likely ≈ $0.55 GPU at 2 × $0.80/hr (≈ 18 min warm, from the S3 walls, plus one cold boot of ~2–4 min on each replica); the ten cost caps sum to $8.20 and are the abort guard. Needs spend approval before deploy."
+      - "Canonical deploy knobs: set -a; eval \"$(sandbox run deploy-env --config config/runs/grid-20-correspondence-specialist-awq-2l4.yaml)\"; set +a. The export block below is identical."
+      - "MIN=MAX=2 pins both replicas warm from deploy to teardown; per-replica admission is 16 at client concurrency 32."
+      - "Decode is max_tokens 8192 at temperature 0.7 from the posture row; do not raise max_tokens mid-grid. Record any LengthFinishReasonError count as a finding."
+      - "grid-50-contracts-specialist-awq-2l4 (plain awq, temperature 0.1) stays as committed history; the -rerun id is the aligned cell."
+      - "Full cell status and the aligned spec: docs/SPECIALIST-GRID-PLAN.md."
+
+  sand39-1l4-n50:
+    family: grid
+    title: SAND-39 — 1×L4 · C8 · n=50 inverse leg of the SAND-37 2×L4 scale-out (five specialists)
+    summary: >
+      Matched-sample counterpart to SAND-37's 2×L4 · C32 · n=50 half: the same five
+      specialists on the identical n=50 documents (mailroom-dataset @ ed7576b6, seed 42,
+      split=all, one class bucket each), served by ONE warm L4 at client concurrency 8
+      to match every other 1×L4 experiment. Engine, prompts, decode and temperature are
+      the SAND-37 aligned spec unchanged, so the comparison against 2×L4 · C32 isolates
+      GPU count and concurrency. Results land in the SAND-37 tree and populate the
+      SAND-39 column of the master score & cost card.
+    serving: grid-awq-1l4
+    configs:
+      - config/runs/grid-50-correspondence-specialist-awq-1l4.yaml
+      - config/runs/grid-50-insurance-claims-specialist-awq-1l4.yaml
+      - config/runs/grid-50-corporate-records-specialist-awq-1l4.yaml
+      - config/runs/grid-50-contracts-specialist-awq-1l4.yaml
+      - config/runs/grid-50-merger-specialist-awq-1l4.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --runbook grid-1l4   # refresh the L4x1 suite card (fills its n = 50 column)
+      - sandbox run card --record-metered SAND-39 <metered_usd> <billed_usd> --master   # teardown spend check → master card
+      - sandbox metrics compare --runs grid-50-correspondence-specialist-awq-1l4,grid-50-correspondence-specialist-awq-2l4
+      - sandbox metrics compare --runs grid-50-contracts-specialist-awq-1l4,grid-50-contracts-specialist-awq-2l4-rerun
+      - sandbox metrics compare --runs grid-50-merger-specialist-awq-1l4,grid-50-merger-specialist-awq-2l4
+    notes:
+      - "Matched sample: each config's dataset + prompt blocks are identical to its SAND-37 2×L4 n=50 counterpart, and a local preflight on 2026-09-30 drew the same 50 document ids in the same order for all five classes (contracts against the aligned -2l4-rerun cell)."
+      - "Reports: cards land in reports/SAND-37/1L4/<specialist>/grid-50-*-1l4.card.md + .card.json next to the SAND-37 n=20 cells. The after step refreshes 1L4/L4x1-SCORE-COST-CARD.md (n = 50 column) and regenerates reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md, whose SAND-39 column switches from pending to measured. Commit the SAND-37 tree."
+      - "Spend: likely ≈ $0.50 GPU at $0.80/hr (≈ 29 min busy, extrapolated from SAND-37 1×L4 C8 n=20 measured 687 s per 100 documents, plus one cold boot); the five cost caps sum to $3.20 and are the abort guard. Needs spend approval before deploy."
+      - "Record the teardown spend check (Metered Cost / Billed Cost lines) with sandbox run card --record-metered SAND-39 <metered> <billed> --master so the master card's cost accounting carries it."
+      - "Credentials: SAND-038 makes the LangChain specialists (contracts, merger) send the active provider's key; an OPENROUTER_API_KEY in .env no longer reaches the vLLM endpoint."
+      - "Decode is max_tokens 8192 at temperature 0.7 for contracts and merger from the posture row; do not raise max_tokens. A LengthFinishReasonError at 8192 is a recorded finding, not a reason to rerun."
+
+  sand40-probe:
+    family: grid
+    title: SAND-40 validation probe (executed 2026-10-01) — n=20 contracts and merger on 2×L4 · 64K YaRN
+    summary: >
+      Spend-gated probe before the SAND-40 scale run. Two nested n=20 draws
+      (the seeded prefix of the SAND-37 2×L4 n=50 contracts and merger documents)
+      on the 64K YaRN engine with the optimized long-document settings. About
+      $0.30–$0.80 GPU. Do not start until that spend is approved.
+    serving: grid-awq-2l4-64k
+    configs:
+      - config/runs/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml
+      - config/runs/sand40-probe-20-merger-specialist-awq-2l4-64k.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --config config/runs/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml
+      - sandbox run card --config config/runs/sand40-probe-20-merger-specialist-awq-2l4-64k.yaml
+    notes:
+      - "Spend gate: about $0.30–$0.80 at 2 × $0.80/GPU-hr, plus one cold boot. Cost caps are $0.80 (contracts) and $1.00 (merger) and are the abort guard. Needs spend approval before deploy. Modal credentials for the Hermes account are on the operator machine."
+      - "Sample: each probe is the seed-42 prefix of the scored n=50 cell (contracts → grid-50-contracts-specialist-awq-2l4-rerun; merger → grid-50-merger-specialist-awq-2l4). The n=20 set is a subset of those 50 documents."
+      - "Serving is the 64K YaRN deploy (MODAL_VLLM_HF_OVERRIDES). Sampling is native chat-completion fields on the OpenAI client (temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.0). The LangChain pipeline is not part of this deploy."
+      - "Cards land under reports/SAND-37/probes/<specialist>/. The master card reports them in a matched-document appendix and never pools them into a column."
+
+  sand40:
+    family: grid
+    title: SAND-40 scale run — four specialists n=100 + † merger n=50 · 2×L4 · C32 · one 32K deploy
+    summary: >
+      Fills the SAND-40 column of the master score & cost card on one deploy of
+      the SAND-037 2×L4 engine (native 32768 window), no redeploy. Correspondence,
+      insurance claims, corporate records and contracts run at n=100 on the
+      aligned spec unchanged (each draw contains the n=50 documents). Merger runs
+      the same 50 agreements as SAND-37 2×L4 with the optimized † settings
+      (chunked whole-document extraction, MAUD v1 prompt, Qwen3 sampling, 6144 cap,
+      one length re-sample), after a 5-agreement chunk gate.
+    serving: grid-awq-2l4
+    gate:
+      config: config/runs/sand40-check-5-merger-specialist-awq-2l4.yaml
+    configs:
+      - config/runs/sand40-100-correspondence-specialist-awq-2l4.yaml
+      - config/runs/sand40-100-insurance-claims-specialist-awq-2l4.yaml
+      - config/runs/sand40-100-corporate-records-specialist-awq-2l4.yaml
+      - config/runs/sand40-100-contracts-specialist-awq-2l4.yaml
+      - config/runs/sand40-50-merger-specialist-awq-2l4.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --master
+    notes:
+      - "Spend (estimate): four n=100 cells ≈ 12 min / ≈ $0.30 (SAND-37 2×L4 n=50 walls, doubled); gate ≈ 10–15 min / ≈ $0.20 (one chained agreement sets the wall); † merger n=50 ≈ 40–60 min / ≈ $1.10–1.60 (≈ 115k prompt tokens per agreement through ~8 chunk calls, 32 agreements in flight). Total ≈ $1.60–2.10 plus one cold boot per replica. Cost caps sum to $7.50 including the gate ($0.40). Needs spend approval before deploy."
+      - "The gate runs first: 5 agreements with the † settings, then sandbox run card --gate checks every document is ok and that vLLM accepted every chunk the documents need (extract_chunked skips a rejected chunk silently). On failure the script tears the fleet down and stops; nothing scored has run."
+      - "32K chunk sizing: max_input_chars 54,000 → 47,000-char windows + 6,500-char overlap, within the posture context-fit guard (2.4 chars/token + 4,000 system tokens + 6,144 output ≤ 32,768). SAND-37 merger text measured ≥ 3.3 chars/token, so real requests stay well under the window."
+      - "Merger stays n=50 (the SAND-37 2×L4 agreements), so the † cell compares like-for-like; the other four classes are n=100. Probe settings that are not used: the 64K YaRN window and the 128,000-char input."
+      - "Cards land in reports/SAND-37/2L4/<specialist>/ (scale cells) and reports/SAND-37/probes/merger_agreement/ (gate). The after step regenerates reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md; its SAND-40 column switches from pending to measured. Commit the SAND-37 tree."
+      - "Record the teardown spend check (Metered Cost / Billed Cost) with sandbox run card --record-metered SAND-40 <metered> <billed> --master."
+      - "Teardown follows the last cell. Do not leave the two-replica fleet warm: min_containers=2 bills both GPUs until teardown."
 
 anti_patterns:
   - anti: Independent sandbox run start per config

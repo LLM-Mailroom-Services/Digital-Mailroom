@@ -7,14 +7,24 @@ Generic: ``OTEL_EXPORTER_OTLP_ENDPOINT``.
 
 ``resolve_sink`` is pure (no otel import). ``configure_tracing``/``flush``
 import otel lazily so the runtime venv stays lean unless the feature is used.
+
+Local-first capture: every traced job also mirrors its spans to
+``data/traces/<run_id>.spans.jsonl.gz`` (gitignored), whatever the sink, so a
+run is never left without traces when Phoenix/Langfuse is down or the sink is
+``none``. ``SANDBOX_TRACE_LOCAL=0`` turns the mirror off. ``trace_pack`` turns
+the mirror into a Parquet zip for upload and prunes it once the copy verifies.
 """
 
 from __future__ import annotations
 
 import base64
+import gzip
+import json
 import logging
 import os
+import threading
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any, Iterator
 
 from pydantic import BaseModel
@@ -22,6 +32,70 @@ from pydantic import BaseModel
 _log = logging.getLogger("mailroom_sandbox.job.otel")
 
 _OTEL_WARNED = False
+
+LOCAL_TRACE_ENV = "SANDBOX_TRACE_LOCAL"
+
+
+def local_trace_path(run_id: str) -> Path | None:
+    """Where a run's local span mirror lives, or ``None`` when disabled."""
+    if os.environ.get(LOCAL_TRACE_ENV, "1").strip().lower() in ("0", "false", "no", "off"):
+        return None
+    from mailroom_sandbox.paths import data_dir
+
+    return data_dir() / "traces" / f"{run_id}.spans.jsonl.gz"
+
+
+def span_record(span: Any) -> dict[str, Any]:
+    """One finished SDK span as a flat, JSON-safe OTLP-shaped dict."""
+    ctx = span.get_span_context()
+    parent = span.parent
+    status = span.status
+    return {
+        "trace_id": format(ctx.trace_id, "032x"),
+        "span_id": format(ctx.span_id, "016x"),
+        "parent_span_id": format(parent.span_id, "016x") if parent is not None else None,
+        "name": span.name,
+        "kind": getattr(span.kind, "name", str(span.kind)),
+        "start_time_unix_nano": span.start_time,
+        "end_time_unix_nano": span.end_time,
+        "status_code": getattr(status.status_code, "name", str(status.status_code)),
+        "status_description": status.description,
+        "attributes": dict(span.attributes or {}),
+        "events": [
+            {"name": e.name, "time_unix_nano": e.timestamp, "attributes": dict(e.attributes or {})}
+            for e in (span.events or ())
+        ],
+        "resource": dict(span.resource.attributes or {}) if span.resource is not None else {},
+    }
+
+
+def _jsonl_exporter(path: Path) -> Any:
+    """A SpanExporter appending gzip JSONL (one span per line) to ``path``."""
+    from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
+
+    class JsonlGzSpanExporter(SpanExporter):
+        def __init__(self, target: Path) -> None:
+            self.path = target
+            self._lock = threading.Lock()
+            target.parent.mkdir(parents=True, exist_ok=True)
+
+        def export(self, spans):  # type: ignore[override]
+            lines = [json.dumps(span_record(s), separators=(",", ":"), default=str) for s in spans]
+            if not lines:
+                return SpanExportResult.SUCCESS
+            try:
+                # Each batch is its own gzip member; gzip.open reads them back as one stream.
+                with self._lock, gzip.open(self.path, "at", encoding="utf-8") as fh:
+                    fh.write("\n".join(lines) + "\n")
+            except OSError as exc:
+                _log.error("local span mirror write FAILED (%s)", self.path, exc_info=exc)
+                return SpanExportResult.FAILURE
+            return SpanExportResult.SUCCESS
+
+        def shutdown(self) -> None:
+            return None
+
+    return JsonlGzSpanExporter(path)
 
 
 class SinkConfig(BaseModel):
@@ -99,13 +173,15 @@ def resolve_sink(
     raise ValueError(f"unknown sink {sink!r}")
 
 
-def configure_tracing(sink_cfg: SinkConfig) -> Any:
-    """Build + activate a TracerProvider exporting to the sink (lazy imports).
+def configure_tracing(sink_cfg: SinkConfig, *, local_path: Path | None = None) -> Any:
+    """Build a TracerProvider exporting to the sink and/or a local mirror (lazy imports).
 
-    Returns a tracer, or ``None`` when the sink is inactive or otel deps are
-    missing. Also returns a provider handle via ``tracer.sandbox_provider``.
+    Returns a tracer, or ``None`` when there is nowhere to export (inactive sink
+    and no ``local_path``) or otel deps are missing. The provider handle rides
+    on ``tracer.sandbox_provider``; ``tracer.sandbox_local_path`` names the mirror.
     """
-    if not sink_cfg.active or not sink_cfg.endpoint:
+    remote = bool(sink_cfg.active and sink_cfg.endpoint)
+    if not remote and local_path is None:
         return None
     try:
         from opentelemetry import trace as oteltrace
@@ -119,20 +195,29 @@ def configure_tracing(sink_cfg: SinkConfig) -> Any:
             _OTEL_WARNED = True
             _log.warning(
                 "opentelemetry deps are NOT installed — the configured %r OTLP "
-                "sink (%s) receives NO traces; install [dev]/[pipeline] extras",
+                "sink (%s) and the local mirror receive NO traces; install the "
+                "[observability] extra",
                 sink_cfg.kind,
                 sink_cfg.endpoint,
                 exc_info=exc,
             )
         return None
 
-    headers = {k: v for k, v in sink_cfg.headers.items() if v != ""}
-    exporter = OTLPSpanExporter(endpoint=sink_cfg.endpoint, headers=headers)
     provider = TracerProvider(resource=Resource.create(sink_cfg.resource))
-    provider.add_span_processor(BatchSpanProcessor(exporter))
-    oteltrace.set_tracer_provider(provider)
-    tracer = oteltrace.get_tracer(sink_cfg.kind, "0.1.0")
+    if remote:
+        headers = {k: v for k, v in sink_cfg.headers.items() if v != ""}
+        exporter = OTLPSpanExporter(endpoint=sink_cfg.endpoint, headers=headers)
+        provider.add_span_processor(BatchSpanProcessor(exporter))
+    if local_path is not None:
+        provider.add_span_processor(BatchSpanProcessor(_jsonl_exporter(local_path)))
+    if remote:
+        # Keep the historical global registration for the remote-sink path;
+        # the tracer itself comes from this provider so a second job in the
+        # same process never silently writes to the first job's exporters.
+        oteltrace.set_tracer_provider(provider)
+    tracer = provider.get_tracer(sink_cfg.kind, "0.1.0")
     tracer.sandbox_provider = provider  # type: ignore[attr-defined]
+    tracer.sandbox_local_path = local_path  # type: ignore[attr-defined]
     return tracer
 
 
@@ -153,12 +238,31 @@ def flush_tracer(tracer: Any) -> None:
             )
 
 
+def current_context(tracer: Any) -> Any:
+    """The active otel Context to hand to worker threads (``None`` without a tracer)."""
+    if tracer is None:
+        return None
+    try:
+        from opentelemetry import context as otelcontext
+
+        return otelcontext.get_current()
+    except Exception:
+        return None
+
+
 @contextmanager
-def job_span(tracer: Any, name: str, **attrs: str) -> Iterator[Any]:
-    """A span named verb-first with string attributes (network-free no-op)."""
+def job_span(tracer: Any, name: str, *, parent: Any = None, **attrs: str) -> Iterator[Any]:
+    """A span named verb-first with string attributes (network-free no-op).
+
+    ``parent`` is an otel Context (see ``current_context``) for spans opened
+    on worker threads, where the caller's context does not propagate.
+    """
     if tracer is None:
         class _Noop:
             def set_attribute(self, *a, **k):
+                return None
+
+            def set_status(self, *a, **k):
                 return None
 
             def __enter__(self):
@@ -169,7 +273,7 @@ def job_span(tracer: Any, name: str, **attrs: str) -> Iterator[Any]:
 
         yield _Noop()
         return
-    with tracer.start_as_current_span(name) as span:
+    with tracer.start_as_current_span(name, context=parent) as span:
         for key, value in attrs.items():
             if value is not None:
                 try:

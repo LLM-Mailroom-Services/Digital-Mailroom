@@ -374,6 +374,35 @@ def test_estimate_suite_override_sec_per_doc():
     )
 
 
+def test_estimate_suite_pinned_replicas_bill():
+    """2×L4 MIN=MAX=2 bills 2× the per-GPU rate on shared wall."""
+    result = metrics.estimate_suite(
+        [
+            {
+                "run_id": "run-x2",
+                "task": "correspondence_specialist",
+                "docs": 10,
+                "concurrency": 4,
+                "gpu": "L4",
+                "model": "Qwen/Qwen3-8B-AWQ",
+                "scaledown_seconds": 120,
+                "max_containers": 2,
+            }
+        ],
+        sec_per_doc_override=40.0,
+        cold_start_seconds=0.0,
+        scaledown_seconds=0.0,
+        inter_run_gap_seconds=0.0,
+        corpus_size=None,
+    )
+    # wall = 10 * 40 / 4 = 100 s → 2 replicas × $0.80/hr
+    assert result["rows"][0]["wall_seconds"]["likely"] == pytest.approx(100.0)
+    assert result["rows"][0]["replicas"] == 2
+    assert result["suite"]["gpu_usd"]["likely"] == pytest.approx(
+        round(100.0 / 3600.0 * 1.60, 4)
+    )
+
+
 def test_usage_capture_merge_item_metrics():
     from mailroom_sandbox.job.usage_capture import merge_item_metrics, usage_from_openai_response
 
@@ -391,3 +420,94 @@ def test_usage_capture_merge_item_metrics():
     }
     resp = SimpleNamespace(usage=SimpleNamespace(prompt_tokens=7, completion_tokens=3))
     assert usage_from_openai_response(resp) == {"prompt_tokens": 7, "completion_tokens": 3}
+
+
+# ── SAND-032: replica-aware GPU cost ─────────────────────────────────────────
+
+
+def test_gpu_cost_scales_with_replicas(monkeypatch):
+    from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
+
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR", raising=False)
+    monkeypatch.delenv("MODAL_GPU_USD_PER_SEC", raising=False)
+    one = estimate_gpu_cost_usd(3600, gpu="L4")
+    two = estimate_gpu_cost_usd(3600, gpu="L4", replicas=2)
+    assert two == round(one * 2, 6)
+
+
+def test_enrich_bills_every_replica(monkeypatch):
+    from mailroom_sandbox.job.metrics import enrich_serving_report
+
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR", raising=False)
+    monkeypatch.delenv("MODAL_GPU_USD_PER_SEC", raising=False)
+    rec = {"provider": "vllm", "profile": "modal-vllm", "gpu": "L4", "n": 2}
+    items = [{"ok": True, "latency_ms": 1000.0}, {"ok": True, "latency_ms": 3000.0}]
+    one = enrich_serving_report(dict(rec), items=items, wall_seconds=100, gpu="L4")
+    two = enrich_serving_report(dict(rec), items=items, wall_seconds=100, gpu="L4", replicas=2)
+    assert two["estimated_gpu_cost_usd"] == round(one["estimated_gpu_cost_usd"] * 2, 6)
+    assert two["replicas"] == 2
+
+
+# ── SAND-032: p95 + billed span ──────────────────────────────────────────────
+
+
+def test_p95_nearest_rank():
+    from mailroom_sandbox.job.metrics import p95
+
+    assert p95([float(i) for i in range(1, 21)]) == 19.0
+    assert p95([5.0]) == 5.0
+
+
+def test_p95_empty_is_loud():
+    import pytest
+
+    from mailroom_sandbox.job.metrics import p95
+
+    with pytest.raises(ValueError):
+        p95([])
+
+
+def test_enrich_adds_p95_and_billed_span(monkeypatch):
+    from mailroom_sandbox.job.metrics import enrich_serving_report, estimate_gpu_cost_usd
+
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR", raising=False)
+    monkeypatch.delenv("MODAL_GPU_USD_PER_SEC", raising=False)
+    rec = {"provider": "vllm", "profile": "modal-vllm", "gpu": "L4", "n": 20}
+    items = [{"ok": True, "latency_ms": float(i * 1000)} for i in range(1, 21)]
+    out = enrich_serving_report(rec, items=items, wall_seconds=100, gpu="L4",
+                                replicas=2, scaledown_seconds=120, cold_boot_seconds=150)
+    assert out["latency_p95_seconds"] == 19.0
+    # scale-to-zero: boot + wall + scaledown tail, on both replicas — a LOWER bound
+    # (pre-run warm time and idle gaps are not in it; Modal usage page is truth)
+    assert out["run_span_seconds_lower_bound"] == 370.0
+    assert out["run_span_usd_lower_bound"] == estimate_gpu_cost_usd(370.0, gpu="L4", replicas=2)
+    assert "billed_span_usd" not in out
+
+
+def test_run_span_pinned_fleet_has_no_scaledown_tail(monkeypatch):
+    """Review #2: MIN=MAX pinned replicas never scale down — no tail is added."""
+    from mailroom_sandbox.job.metrics import enrich_serving_report
+
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR", raising=False)
+    rec = {"provider": "vllm", "profile": "modal-vllm", "gpu": "L4", "n": 1}
+    out = enrich_serving_report(rec, items=[{"ok": True, "latency_ms": 1000.0}], wall_seconds=100,
+                                gpu="L4", replicas=2, scaledown_seconds=None, cold_boot_seconds=150)
+    assert out["run_span_seconds_lower_bound"] == 250.0
+
+
+def test_serving_record_pinned_lock_drops_scaledown(tmp_path, monkeypatch):
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.metrics import serving_record_from_store
+
+    monkeypatch.delenv("MODAL_BILLED_GPU_SECONDS", raising=False)
+    store = RunStore(tmp_path / "r")
+    store.write_lock({"task": "correspondence_specialist", "profile": "modal-vllm",
+                      "engine": {"model": "Qwen/Qwen3-8B-AWQ", "modal": {
+                          "gpu": "L4", "max_containers": 2, "min_containers": 2,
+                          "scaledown_seconds": 120}},
+                      "job": {"concurrency": 16}})
+    store.append_item({"item_id": "a", "ok": True, "latency_ms": 1000.0,
+                       "prompt_tokens": 10, "completion_tokens": 5})
+    out = serving_record_from_store(store, wall_seconds=100, mock=False)
+    assert out["replicas"] == 2
+    assert out["run_span_seconds_lower_bound"] == 100.0

@@ -8,6 +8,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -33,6 +34,7 @@ class Activation:
     patched_prompts: bool = False
     mailroom_src: Path | None = None
     agent_models: dict[str, str] = field(default_factory=dict)
+    agent_knobs: dict[str, Any] = field(default_factory=dict)
 
 
 _ACTIVE: Activation | None = None
@@ -40,6 +42,13 @@ _ACTIVE: Activation | None = None
 
 def active() -> Activation | None:
     return _ACTIVE
+
+
+def agent_knobs_for(agent: str) -> dict[str, Any]:
+    """Run-scoped knobs for one agent in the current activation ({} when none)."""
+    knobs = (_ACTIVE.agent_knobs if _ACTIVE else {}) or {}
+    value = knobs.get(agent)
+    return dict(value) if isinstance(value, dict) else {}
 
 
 def _load_dotenv() -> None:
@@ -176,6 +185,12 @@ def activate(
     name = profile_name or os.environ.get("SANDBOX_PROFILE") or "ollama"
     profile = load_profile(name)
     apply_profile_env(profile, base_url_override=base_url)
+    if not model and str(profile.get("provider") or "") == "vllm":
+        from mailroom_sandbox.overlay import resolve_served_vllm_model
+
+        model = resolve_served_vllm_model()
+    if model and str(profile.get("provider") or "") == "vllm":
+        os.environ["VLLM_MODEL"] = str(model)
 
     mailroom_src = resolve_mailroom_src()
     if mailroom_src is not None:
@@ -220,6 +235,27 @@ def activate(
     except Exception as exc:  # noqa: BLE001 — never block activation
         _log.warning("llm timeout override failed — 120s vendor default stands: %s", exc)
 
+    # SAND-038: the vendored LangChain agents default api_key to
+    # OPENROUTER_API_KEY ahead of the resolved provider's key (drift-guarded),
+    # which 401s every contracts/merger row against Modal vLLM when .env holds
+    # an OpenRouter key. Defer to provider.api_key_env instead.
+    try:
+        from mailroom_sandbox.provider_credentials import apply_provider_credentials
+
+        apply_provider_credentials()
+    except Exception as exc:  # noqa: BLE001 — never block activation
+        _log.warning("provider credential fix failed — vendored key precedence stands: %s", exc)
+
+    # SAND-037: the vendored specialists pass temperature=0.1 as a call-site
+    # literal (drift-guarded), so a run-scoped temperature knob is applied by
+    # wrapping their _call_structured. No temperature knobs → no-op.
+    try:
+        from mailroom_sandbox.sampling import apply_sampling_overrides
+
+        apply_sampling_overrides(agent_knobs)
+    except Exception as exc:  # noqa: BLE001 — never block activation
+        _log.warning("temperature override failed — call-site temperatures stand: %s", exc)
+
     patched_prompts = False
     if prompt_variant:
         from mailroom_sandbox.prompts import patch_managed_prompt
@@ -234,6 +270,7 @@ def activate(
         patched_prompts=patched_prompts,
         mailroom_src=mailroom_src,
         agent_models=dict(agent_models or {}),
+        agent_knobs=dict(agent_knobs or {}),
     )
     _ACTIVE = activation
     runtime_dir()  # ensure exists

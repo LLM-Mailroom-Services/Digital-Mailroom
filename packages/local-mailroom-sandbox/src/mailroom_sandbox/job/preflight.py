@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import time
+from pathlib import Path
 from typing import Any
 
 import llm_dojo_scoring
@@ -246,10 +247,34 @@ def _prompt_text_sha(block: dict[str, Any]) -> str:
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
 
 
+def _resolve_report_group(
+    spec: RunSpec,
+    *,
+    run_id: str,
+    config_path: str | Path | None,
+) -> str | None:
+    """Resolve the report group; fail if an explicit runbook id is unknown."""
+    from mailroom_sandbox.report_paths import (
+        experiment_prefix,
+        report_group_for_config,
+        report_group_for_runbook,
+    )
+
+    if spec.runbook_id:
+        group = report_group_for_runbook(spec.runbook_id)
+        if group is None:
+            raise ValueError(
+                f"unknown runbook_id {spec.runbook_id!r}: no report-group catalog entry"
+            )
+        return group
+    return report_group_for_config(config_path) or experiment_prefix(run_id)
+
+
 def preflight(
     spec: RunSpec,
     *,
     run_id: str = "",
+    config_path: str | Path | None = None,
     offline: bool = False,
     force: bool = False,
     dry_run: bool = False,
@@ -293,9 +318,29 @@ def preflight(
         {"name": "prompt", "ok": True, "detail": _prompt_summary(prompt_block)}
     )
 
+    try:
+        report_group = _resolve_report_group(spec, run_id=run_id, config_path=config_path)
+    except ValueError as exc:
+        report["status"] = "failed"
+        report["checks"].append({"name": "report_group", "ok": False, "detail": str(exc)})
+        return report
+
     if existing and not force:
         drifted = existing.get("spec_hash") != spec.spec_hash()
         if not drifted and existing.get("prompt_text_sha") and existing.get("prompt_text_sha") != prompt_text_sha:
+            drifted = True
+        # Keys absent on pre-catalog locks: resume. Present keys still drift.
+        if (
+            not drifted
+            and "runbook_id" in existing
+            and existing.get("runbook_id") != (spec.runbook_id or None)
+        ):
+            drifted = True
+        if (
+            not drifted
+            and "report_group" in existing
+            and existing.get("report_group") != (report_group or None)
+        ):
             drifted = True
         if drifted:
             return {
@@ -303,7 +348,10 @@ def preflight(
                 "run_id": run_id,
                 "spec_hash": spec.spec_hash(),
                 "locked_spec_hash": existing.get("spec_hash"),
-                "detail": "spec (or resolved prompt text) drifted since the lock; pass --force to re-lock",
+                "detail": (
+                    "spec, resolved prompt text, runbook, or report group drifted "
+                    "since the lock; pass --force to re-lock"
+                ),
             }
 
     # write_lock refuses to overwrite in place, so a forced re-lock archives
@@ -420,6 +468,10 @@ def preflight(
         "git": git_snapshot(),
         "spec_core": spec_core(spec),
     }
+    if spec.runbook_id:
+        lock["runbook_id"] = spec.runbook_id
+    if report_group:
+        lock["report_group"] = report_group
     store.write_lock(lock)
     total = len(store.dataset_rows())
     store.write_checkpoint(state="prepared", cursor=0, total=total, remote=None)

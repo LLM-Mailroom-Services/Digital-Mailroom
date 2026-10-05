@@ -1,0 +1,11 @@
+blue #2456d6
+teal #0e7490
+cyan #38e0d6
+navy #0b2a4a
+gold #f5c445
+cream #ffecc8
+snow #fbfcfe
+muted #5c7184
+sky #7c9bff
+amber #ffb000
+extrude #8a5a12

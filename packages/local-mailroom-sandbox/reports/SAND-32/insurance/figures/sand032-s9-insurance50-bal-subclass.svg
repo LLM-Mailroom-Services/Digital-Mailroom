@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 720 236" width="720" height="236" role="img" aria-label="Mean overall extraction score by subclass · sand032-s9-insurance50-bal">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --good:#0ca30c; --critical:#d03b3b; }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+<rect class="bg" width="720" height="236" rx="8"/>
+<text class="title" x="16" y="24">Mean overall extraction score by subclass · sand032-s9-insurance50-bal</text>
+<text class="sub" x="16" y="42">Overall mean 0.6821 across 50 docs (0–1, higher is better)</text>
+<line class="grid" x1="190.0" y1="54" x2="190.0" y2="202"/>
+<text class="tick" x="190.0" y="218" text-anchor="middle">0</text>
+<line class="grid" x1="305.0" y1="54" x2="305.0" y2="202"/>
+<text class="tick" x="305.0" y="218" text-anchor="middle">0.2</text>
+<line class="grid" x1="420.0" y1="54" x2="420.0" y2="202"/>
+<text class="tick" x="420.0" y="218" text-anchor="middle">0.4</text>
+<line class="grid" x1="535.0" y1="54" x2="535.0" y2="202"/>
+<text class="tick" x="535.0" y="218" text-anchor="middle">0.6</text>
+<line class="grid" x1="650.0" y1="54" x2="650.0" y2="202"/>
+<text class="tick" x="650.0" y="218" text-anchor="middle">0.8</text>
+<line class="axis" x1="190" y1="54" x2="190" y2="202"/>
+<text class="lbl" x="182" y="74.0" text-anchor="end">auto (n=19)</text>
+<path class="s1" d="M190.0,63.0 H609.8 Q613.8,63.0 613.8,67.0 V73.0 Q613.8,77.0 609.8,77.0 H190.0 Z"><title>auto (n=19): 0.737</title></path>
+<text class="val" x="619.8" y="74.0">0.737</text>
+<text class="lbl" x="182" y="98.0" text-anchor="end">inpatient (n=7)</text>
+<path class="s1" d="M190.0,87.0 H583.3 Q587.3,87.0 587.3,91.0 V97.0 Q587.3,101.0 583.3,101.0 H190.0 Z"><title>inpatient (n=7): 0.691</title></path>
+<text class="val" x="593.3" y="98.0">0.691</text>
+<text class="lbl" x="182" y="122.0" text-anchor="end">property (n=8)</text>
+<path class="s1" d="M190.0,111.0 H564.4 Q568.4,111.0 568.4,115.0 V121.0 Q568.4,125.0 564.4,125.0 H190.0 Z"><title>property (n=8): 0.658</title></path>
+<text class="val" x="574.4" y="122.0">0.658</text>
+<text class="lbl" x="182" y="146.0" text-anchor="end">carrier (n=6)</text>
+<path class="s1" d="M190.0,135.0 H558.0 Q562.0,135.0 562.0,139.0 V145.0 Q562.0,149.0 558.0,149.0 H190.0 Z"><title>carrier (n=6): 0.647</title></path>
+<text class="val" x="568.0" y="146.0">0.647</text>
+<text class="lbl" x="182" y="170.0" text-anchor="end">outpatient (n=5)</text>
+<path class="s1" d="M190.0,159.0 H548.8 Q552.8,159.0 552.8,163.0 V169.0 Q552.8,173.0 548.8,173.0 H190.0 Z"><title>outpatient (n=5): 0.631</title></path>
+<text class="val" x="558.8" y="170.0">0.631</text>
+<text class="lbl" x="182" y="194.0" text-anchor="end">pde (n=5)</text>
+<path class="s1" d="M190.0,183.0 H526.4 Q530.4,183.0 530.4,187.0 V193.0 Q530.4,197.0 526.4,197.0 H190.0 Z"><title>pde (n=5): 0.592</title></path>
+<text class="val" x="536.4" y="194.0">0.592</text>
+</svg>

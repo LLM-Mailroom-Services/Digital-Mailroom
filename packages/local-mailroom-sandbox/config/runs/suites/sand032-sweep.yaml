@@ -1,0 +1,26 @@
+# SAND-032 Stage 3 — 5-specialist n=50 sweep + correspondence repeat on ONE warm
+# 2-replica L4 fleet (identical serving block → no redeploy between classes).
+# Budget gate before each class: projected total <= $4.50 (plan Task 13 Step 1).
+#
+# Activate: modal profile activate exios66
+# Check:    sandbox run benchmark-check --suite sand032-sweep --modal-profile exios66
+# Teardown: modal app stop sandbox-vllm-sand032  ONLY after the last config below
+schema: sandbox.suite/v1
+suite_id: sand032-sweep
+track: a
+title: "SAND-032 Stage 3 — five specialists at n=50 + variance repeat (2×L4, c16, fp8 KV)"
+rationale: |
+  Cheapest-first order so a budget-gate fallback (merger/contracts -> n=20)
+  only ever trims the most expensive classes. corr50-repeat last gives the
+  run-to-run variance used as error bars in the funding projections.
+modal_profile_env: SANDBOX_MODAL_PROFILE_TRACK_A
+modal_profile_default: exios66
+scaledown_seconds: 120
+warm_once: true
+configs:
+  - config/runs/sand032-s3-corr50.yaml
+  - config/runs/sand032-s3-insurance50.yaml
+  - config/runs/sand032-s3-corporate50.yaml
+  - config/runs/sand032-s3-merger50.yaml
+  - config/runs/sand032-s3-contracts50.yaml
+  - config/runs/sand032-s3-corr50-repeat.yaml

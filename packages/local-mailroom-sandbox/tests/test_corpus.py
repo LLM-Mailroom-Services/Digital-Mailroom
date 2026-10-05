@@ -615,3 +615,32 @@ def test_load_hf_rows_all_splits_concatenates(monkeypatch, tmp_path):
     assert len(rows) == 4
     assert {r["filename"] for r in rows} == {"f0.txt", "f1.txt", "f2.txt", "f3.txt"}
     assert {r["split"] for r in rows} == {"train", "test"}
+
+
+def test_single_class_bucket_draws_are_nested():
+    """SAND-032 / issue #38: one seed-42 per-class draw nests 20 ⊂ 50 ⊂ 100."""
+    from mailroom_sandbox.corpus import select_rows
+
+    rows = [
+        {"id": f"d{i:04d}", "filename": f"d{i:04d}.txt", "expected_doc_class": "correspondence",
+         "expected_subclass": "email"}
+        for i in range(1000)
+    ] + [
+        {"id": f"x{i}", "filename": f"x{i}.txt", "expected_doc_class": "contract",
+         "expected_subclass": "nda"}
+        for i in range(50)
+    ]
+
+    def draw(n):
+        chosen = select_rows(
+            rows,
+            strata={"buckets": [{"doc_class": "correspondence", "count": n}]},
+            sample_seed=42,
+            limit=None,
+        )
+        return {r["id"] for r in chosen}
+
+    d20, d50, d100 = draw(20), draw(50), draw(100)
+    assert len(d20) == 20 and len(d50) == 50 and len(d100) == 100
+    assert d20 <= d50 <= d100
+    assert all(i.startswith("d") for i in d100)

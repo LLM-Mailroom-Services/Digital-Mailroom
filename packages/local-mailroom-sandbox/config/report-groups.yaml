@@ -1,0 +1,16 @@
+schema: sandbox.report-groups/v1
+
+# Reuse one runbook ID across its run configs and experiments. Add a distinct
+# runbook/group only when its model or serving configuration changes.
+runbooks:
+  grid-1l4: SAND-37
+  grid-2l4: SAND-37
+  sand39-1l4-n50: SAND-37
+  sand40-probe: SAND-40
+  sand40: SAND-40
+
+# Compatibility for already-locked runs. New runs should carry runbook_id or
+# report_group in their run spec/lock instead of depending on their run_id.
+legacy_run_id_patterns:
+  - pattern: 'grid-(?:20|50)-(?:correspondence|insurance-claims|corporate-records|contracts|merger)-specialist-awq-(?:1l4|2l4)(?:-(?:retry|rerun))?'
+    report_group: SAND-37

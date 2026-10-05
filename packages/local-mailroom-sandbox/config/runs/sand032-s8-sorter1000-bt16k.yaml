@@ -1,0 +1,73 @@
+# SAND-032 Stage 8 (C fleet): seqs32 + max_num_batched_tokens 16384 + gpu_mem 0.93 — compare with sand032-s7-sorter1000-seqs32.
+# SAND-032 Stage 7 (B fleet): max_num_seqs 32 + CUDA graphs to 32, c64 — compare with sand032-s6-sorter1000.
+# SAND-032 Stage 6 — LLM sorter n=1000 (train, proportional to the train class mix) on the
+# frozen 2×L4 serving config (isolated sorter agent — no other prompts) (AWQ-marlin, fp8 KV, thinking off, CUDA graphs, seqs16/replica), c32.
+# Public HF mailroom-dataset only (no partner/proprietary data). Modal profile: exios66.
+#
+#   scripts/sand032/run_one.sh config/runs/sand032-s8-sorter1000-bt16k.yaml deploy stop
+schema: sandbox.run/v1
+run_id: sand032-s8-sorter1000-bt16k
+task: isolated                # sorter agent ONLY (SorterAgent.classify) — no reviewer/specialist/judge calls
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    sorter_reviewer: {source: local, file: sorter_reviewer_local_v0}
+    judge: {source: local, file: judge_local_v0}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: train
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # FAMILY_HF_REVISION (v9.1)
+  strata:
+    buckets:                  # ∝ train mix (986/915/540/403/135 of 2979)
+      - {doc_class: insurance_claim, count: 331}
+      - {doc_class: correspondence, count: 307}
+      - {doc_class: contract, count: 181}
+      - {doc_class: corporate_record, count: 136}
+      - {doc_class: merger_agreement, count: 45}
+  limit: 1000
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.93
+    max_num_seqs: 32
+    enable_prefix_caching: true
+    enforce_eager: false
+    quantization: "awq_marlin"
+    revision: ""
+    kv_cache_dtype: "fp8"
+    max_num_batched_tokens: 16384
+    enable_thinking: false
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16, 32]
+    max_inputs: 64
+  modal:
+    app: sandbox-vllm-sand032
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 2
+    min_containers: 2
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 64               # admission ×2: saturates max_num_seqs=32 on each of 2 replicas
+  cost_cap_usd: 0.8
+  max_wall_seconds: 3600
+
+trace:
+  sink: none
+  otlp: false
+  environment: sand032
+  tags: [sandbox, sand032, qwen3-8b, l4, sorter]

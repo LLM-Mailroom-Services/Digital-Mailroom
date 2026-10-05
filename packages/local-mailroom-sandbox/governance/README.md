@@ -11,7 +11,7 @@ Local board for **sandbox-isolated** work in
 | **`DMR-NNN`** | llm-entity-extraction **MESSAGE_BOARD** | Cross-family / mailroom-pipeline / dojo / entity work shared across the governed family |
 
 **Do not** open `DMR-*` cards on this board. **Do not** invent a second
-family MESSAGE_BOARD here (AGENTS.md / `docs/sister-repos.md`). When a
+family MESSAGE_BOARD here (AGENTS.md / `docs/setting-up/sister-repos.md`). When a
 sandbox change is *driven by* a family DMR, cite the DMR in the SAND card
 notes (`Related: DMR-078`) — the card ID stays `SAND-*`.
 

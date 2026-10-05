@@ -1,0 +1,878 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 1688 1212" width="1688" height="1212" role="img" aria-label="Prefix-cache hit rate over wall time">
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --good:#0ca30c; --critical:#d03b3b; }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+<rect class="bg" width="1688" height="1212" rx="8"/><text class="title" x="16" y="24">Prefix-cache hit rate over wall time</text><g transform="translate(0,36)"><svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 777 376" width="777" height="376" role="img" aria-label="Correspondence">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --good:#0ca30c; --critical:#d03b3b; }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+
+<style>
+  .viz .grp { fill: var(--ink); font-size: 12px; font-weight: 600; }
+  .viz .axt { fill: var(--ink2); font-size: 11px; }
+  .viz .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .viz .lndeemph { stroke: var(--deemph); }
+  .viz .lead { stroke: var(--ink2); stroke-width: 1; }
+  .viz .hit { fill: transparent; }
+</style>
+
+<rect class="bg" width="777" height="376" rx="8"/>
+<text class="title" x="16" y="24">Correspondence</text>
+<text class="sub" x="16" y="42">sand032-s3-corr50 · y rises with prompt mass processed (proxy); end points match vLLM /metrics cumulative hit</text>
+<line class="line ln1" x1="16" y1="58" x2="34" y2="58"/>
+<circle class="s1 ring" cx="25.0" cy="58.0" r="5"/>
+<text class="lbl" x="40" y="62">replica 1 (74.9% end)</text>
+<line class="line ln2" x1="178.95999999999995" y1="58" x2="196.95999999999995" y2="58"/>
+<circle class="s2 ring" cx="188.0" cy="58.0" r="5"/>
+<text class="lbl" x="202.95999999999995" y="62">replica 2 (55.1% end)</text>
+<line class="grid" x1="39" y1="326.0" x2="749" y2="326.0"/>
+<text class="tick" x="33" y="330.0" text-anchor="end">0</text>
+<line class="grid" x1="39" y1="277.7" x2="749" y2="277.7"/>
+<text class="tick" x="33" y="281.7" text-anchor="end">20</text>
+<line class="grid" x1="39" y1="229.4" x2="749" y2="229.4"/>
+<text class="tick" x="33" y="233.4" text-anchor="end">40</text>
+<line class="grid" x1="39" y1="181.2" x2="749" y2="181.2"/>
+<text class="tick" x="33" y="185.2" text-anchor="end">60</text>
+<line class="grid" x1="39" y1="132.9" x2="749" y2="132.9"/>
+<text class="tick" x="33" y="136.9" text-anchor="end">80</text>
+<line class="grid" x1="39.0" y1="106" x2="39.0" y2="326"/>
+<text class="tick" x="39.0" y="342" text-anchor="middle">0</text>
+<line class="grid" x1="256.2" y1="106" x2="256.2" y2="326"/>
+<text class="tick" x="256.2" y="342" text-anchor="middle">5</text>
+<line class="grid" x1="473.4" y1="106" x2="473.4" y2="326"/>
+<text class="tick" x="473.4" y="342" text-anchor="middle">10</text>
+<line class="grid" x1="690.6" y1="106" x2="690.6" y2="326"/>
+<text class="tick" x="690.6" y="342" text-anchor="middle">15</text>
+<line class="axis" x1="39" y1="326" x2="749" y2="326"/>
+<line class="axis" x1="39" y1="106" x2="39" y2="326"/>
+<text class="axt" x="16" y="90">Prefix-cache hit (%)</text>
+<text class="axt" x="394.0" y="362" text-anchor="middle">Wall time (s)</text>
+<path class="line ln1" d="M39.0,326.0 L46.0,323.2 L53.2,320.4 L61.2,317.6 L69.3,314.8 L77.5,312.0 L86.2,308.8 L95.1,305.9 L104.0,302.8 L113.1,299.8 L122.4,296.9 L132.1,293.7 L141.9,290.4 L152.2,287.5 L162.6,279.6 L173.4,276.6 L184.4,273.3 L195.8,270.4 L207.3,267.6 L218.9,264.4 L230.8,261.3 L243.2,258.3 L255.7,255.1 L268.4,252.0 L281.3,249.1 L294.2,246.1 L307.2,242.8 L320.3,238.9 L333.8,236.1 L347.4,232.9 L361.3,229.9 L375.3,218.6 L389.5,215.8 L404.7,211.7 L420.4,207.6 L436.1,204.0 L452.4,200.9 L468.9,197.9 L485.4,194.8 L501.9,190.6 L519.9,187.1 L537.9,183.5 L555.9,178.9 L574.1,175.9 L592.7,172.6 L613.0,168.3 L633.5,165.4 L654.5,161.2 L679.0,156.3 L704.7,152.4 L735.1,145.2"/>
+<path class="line ln2" d="M39.0,326.0 L46.0,323.9 L53.2,321.9 L61.2,319.8 L69.3,317.8 L77.5,315.7 L86.2,313.4 L95.1,311.2 L104.0,308.9 L113.1,306.7 L122.4,304.6 L132.1,302.2 L141.9,299.8 L152.2,297.7 L162.6,291.9 L173.4,289.7 L184.4,287.2 L195.8,285.1 L207.3,283.0 L218.9,280.7 L230.8,278.4 L243.2,276.2 L255.7,273.8 L268.4,271.5 L281.3,269.4 L294.2,267.2 L307.2,264.8 L320.3,262.0 L333.8,259.9 L347.4,257.5 L361.3,255.3 L375.3,247.0 L389.5,244.9 L404.7,241.9 L420.4,238.9 L436.1,236.3 L452.4,233.9 L468.9,231.7 L485.4,229.5 L501.9,226.4 L519.9,223.8 L537.9,221.2 L555.9,217.8 L574.1,215.6 L592.7,213.1 L613.0,210.0 L633.5,207.9 L654.5,204.8 L679.0,201.2 L704.7,198.3 L735.1,193.0"/>
+<g><title>engine ready</title><circle class="hit" cx="39.0" cy="326.0" r="12"/><circle class="s1 ring" cx="39.0" cy="326.0" r="5"/></g>
+<g><title>t=0.2s · ~1.2% (prompt-mass proxy)</title><circle class="hit" cx="46.0" cy="323.2" r="12"/><circle class="s1 ring" cx="46.0" cy="323.2" r="5"/></g>
+<g><title>t=0.3s · ~2.3% (prompt-mass proxy)</title><circle class="hit" cx="53.2" cy="320.4" r="12"/><circle class="s1 ring" cx="53.2" cy="320.4" r="5"/></g>
+<g><title>t=0.5s · ~3.5% (prompt-mass proxy)</title><circle class="hit" cx="61.2" cy="317.6" r="12"/><circle class="s1 ring" cx="61.2" cy="317.6" r="5"/></g>
+<g><title>t=0.7s · ~4.6% (prompt-mass proxy)</title><circle class="hit" cx="69.3" cy="314.8" r="12"/><circle class="s1 ring" cx="69.3" cy="314.8" r="5"/></g>
+<g><title>t=0.9s · ~5.8% (prompt-mass proxy)</title><circle class="hit" cx="77.5" cy="312.0" r="12"/><circle class="s1 ring" cx="77.5" cy="312.0" r="5"/></g>
+<g><title>t=1.1s · ~7.1% (prompt-mass proxy)</title><circle class="hit" cx="86.2" cy="308.8" r="12"/><circle class="s1 ring" cx="86.2" cy="308.8" r="5"/></g>
+<g><title>t=1.3s · ~8.3% (prompt-mass proxy)</title><circle class="hit" cx="95.1" cy="305.9" r="12"/><circle class="s1 ring" cx="95.1" cy="305.9" r="5"/></g>
+<g><title>t=1.5s · ~9.6% (prompt-mass proxy)</title><circle class="hit" cx="104.0" cy="302.8" r="12"/><circle class="s1 ring" cx="104.0" cy="302.8" r="5"/></g>
+<g><title>t=1.7s · ~10.8% (prompt-mass proxy)</title><circle class="hit" cx="113.1" cy="299.8" r="12"/><circle class="s1 ring" cx="113.1" cy="299.8" r="5"/></g>
+<g><title>t=1.9s · ~12.1% (prompt-mass proxy)</title><circle class="hit" cx="122.4" cy="296.9" r="12"/><circle class="s1 ring" cx="122.4" cy="296.9" r="5"/></g>
+<g><title>t=2.1s · ~13.4% (prompt-mass proxy)</title><circle class="hit" cx="132.1" cy="293.7" r="12"/><circle class="s1 ring" cx="132.1" cy="293.7" r="5"/></g>
+<g><title>t=2.4s · ~14.7% (prompt-mass proxy)</title><circle class="hit" cx="141.9" cy="290.4" r="12"/><circle class="s1 ring" cx="141.9" cy="290.4" r="5"/></g>
+<g><title>t=2.6s · ~15.9% (prompt-mass proxy)</title><circle class="hit" cx="152.2" cy="287.5" r="12"/><circle class="s1 ring" cx="152.2" cy="287.5" r="5"/></g>
+<g><title>t=2.8s · ~19.2% (prompt-mass proxy)</title><circle class="hit" cx="162.6" cy="279.6" r="12"/><circle class="s1 ring" cx="162.6" cy="279.6" r="5"/></g>
+<g><title>t=3.1s · ~20.4% (prompt-mass proxy)</title><circle class="hit" cx="173.4" cy="276.6" r="12"/><circle class="s1 ring" cx="173.4" cy="276.6" r="5"/></g>
+<g><title>t=3.3s · ~21.8% (prompt-mass proxy)</title><circle class="hit" cx="184.4" cy="273.3" r="12"/><circle class="s1 ring" cx="184.4" cy="273.3" r="5"/></g>
+<g><title>t=3.6s · ~23.0% (prompt-mass proxy)</title><circle class="hit" cx="195.8" cy="270.4" r="12"/><circle class="s1 ring" cx="195.8" cy="270.4" r="5"/></g>
+<g><title>t=3.9s · ~24.2% (prompt-mass proxy)</title><circle class="hit" cx="207.3" cy="267.6" r="12"/><circle class="s1 ring" cx="207.3" cy="267.6" r="5"/></g>
+<g><title>t=4.1s · ~25.5% (prompt-mass proxy)</title><circle class="hit" cx="218.9" cy="264.4" r="12"/><circle class="s1 ring" cx="218.9" cy="264.4" r="5"/></g>
+<g><title>t=4.4s · ~26.8% (prompt-mass proxy)</title><circle class="hit" cx="230.8" cy="261.3" r="12"/><circle class="s1 ring" cx="230.8" cy="261.3" r="5"/></g>
+<g><title>t=4.7s · ~28.0% (prompt-mass proxy)</title><circle class="hit" cx="243.2" cy="258.3" r="12"/><circle class="s1 ring" cx="243.2" cy="258.3" r="5"/></g>
+<g><title>t=5.0s · ~29.4% (prompt-mass proxy)</title><circle class="hit" cx="255.7" cy="255.1" r="12"/><circle class="s1 ring" cx="255.7" cy="255.1" r="5"/></g>
+<g><title>t=5.3s · ~30.7% (prompt-mass proxy)</title><circle class="hit" cx="268.4" cy="252.0" r="12"/><circle class="s1 ring" cx="268.4" cy="252.0" r="5"/></g>
+<g><title>t=5.6s · ~31.8% (prompt-mass proxy)</title><circle class="hit" cx="281.3" cy="249.1" r="12"/><circle class="s1 ring" cx="281.3" cy="249.1" r="5"/></g>
+<g><title>t=5.9s · ~33.1% (prompt-mass proxy)</title><circle class="hit" cx="294.2" cy="246.1" r="12"/><circle class="s1 ring" cx="294.2" cy="246.1" r="5"/></g>
+<g><title>t=6.2s · ~34.5% (prompt-mass proxy)</title><circle class="hit" cx="307.2" cy="242.8" r="12"/><circle class="s1 ring" cx="307.2" cy="242.8" r="5"/></g>
+<g><title>t=6.5s · ~36.1% (prompt-mass proxy)</title><circle class="hit" cx="320.3" cy="238.9" r="12"/><circle class="s1 ring" cx="320.3" cy="238.9" r="5"/></g>
+<g><title>t=6.8s · ~37.2% (prompt-mass proxy)</title><circle class="hit" cx="333.8" cy="236.1" r="12"/><circle class="s1 ring" cx="333.8" cy="236.1" r="5"/></g>
+<g><title>t=7.1s · ~38.6% (prompt-mass proxy)</title><circle class="hit" cx="347.4" cy="232.9" r="12"/><circle class="s1 ring" cx="347.4" cy="232.9" r="5"/></g>
+<g><title>t=7.4s · ~39.8% (prompt-mass proxy)</title><circle class="hit" cx="361.3" cy="229.9" r="12"/><circle class="s1 ring" cx="361.3" cy="229.9" r="5"/></g>
+<g><title>t=7.7s · ~44.5% (prompt-mass proxy)</title><circle class="hit" cx="375.3" cy="218.6" r="12"/><circle class="s1 ring" cx="375.3" cy="218.6" r="5"/></g>
+<g><title>t=8.1s · ~45.6% (prompt-mass proxy)</title><circle class="hit" cx="389.5" cy="215.8" r="12"/><circle class="s1 ring" cx="389.5" cy="215.8" r="5"/></g>
+<g><title>t=8.4s · ~47.4% (prompt-mass proxy)</title><circle class="hit" cx="404.7" cy="211.7" r="12"/><circle class="s1 ring" cx="404.7" cy="211.7" r="5"/></g>
+<g><title>t=8.8s · ~49.1% (prompt-mass proxy)</title><circle class="hit" cx="420.4" cy="207.6" r="12"/><circle class="s1 ring" cx="420.4" cy="207.6" r="5"/></g>
+<g><title>t=9.1s · ~50.5% (prompt-mass proxy)</title><circle class="hit" cx="436.1" cy="204.0" r="12"/><circle class="s1 ring" cx="436.1" cy="204.0" r="5"/></g>
+<g><title>t=9.5s · ~51.8% (prompt-mass proxy)</title><circle class="hit" cx="452.4" cy="200.9" r="12"/><circle class="s1 ring" cx="452.4" cy="200.9" r="5"/></g>
+<g><title>t=9.9s · ~53.1% (prompt-mass proxy)</title><circle class="hit" cx="468.9" cy="197.9" r="12"/><circle class="s1 ring" cx="468.9" cy="197.9" r="5"/></g>
+<g><title>t=10.3s · ~54.3% (prompt-mass proxy)</title><circle class="hit" cx="485.4" cy="194.8" r="12"/><circle class="s1 ring" cx="485.4" cy="194.8" r="5"/></g>
+<g><title>t=10.7s · ~56.1% (prompt-mass proxy)</title><circle class="hit" cx="501.9" cy="190.6" r="12"/><circle class="s1 ring" cx="501.9" cy="190.6" r="5"/></g>
+<g><title>t=11.1s · ~57.5% (prompt-mass proxy)</title><circle class="hit" cx="519.9" cy="187.1" r="12"/><circle class="s1 ring" cx="519.9" cy="187.1" r="5"/></g>
+<g><title>t=11.5s · ~59.0% (prompt-mass proxy)</title><circle class="hit" cx="537.9" cy="183.5" r="12"/><circle class="s1 ring" cx="537.9" cy="183.5" r="5"/></g>
+<g><title>t=11.9s · ~61.0% (prompt-mass proxy)</title><circle class="hit" cx="555.9" cy="178.9" r="12"/><circle class="s1 ring" cx="555.9" cy="178.9" r="5"/></g>
+<g><title>t=12.3s · ~62.2% (prompt-mass proxy)</title><circle class="hit" cx="574.1" cy="175.9" r="12"/><circle class="s1 ring" cx="574.1" cy="175.9" r="5"/></g>
+<g><title>t=12.7s · ~63.5% (prompt-mass proxy)</title><circle class="hit" cx="592.7" cy="172.6" r="12"/><circle class="s1 ring" cx="592.7" cy="172.6" r="5"/></g>
+<g><title>t=13.2s · ~65.3% (prompt-mass proxy)</title><circle class="hit" cx="613.0" cy="168.3" r="12"/><circle class="s1 ring" cx="613.0" cy="168.3" r="5"/></g>
+<g><title>t=13.7s · ~66.5% (prompt-mass proxy)</title><circle class="hit" cx="633.5" cy="165.4" r="12"/><circle class="s1 ring" cx="633.5" cy="165.4" r="5"/></g>
+<g><title>t=14.2s · ~68.3% (prompt-mass proxy)</title><circle class="hit" cx="654.5" cy="161.2" r="12"/><circle class="s1 ring" cx="654.5" cy="161.2" r="5"/></g>
+<g><title>t=14.7s · ~70.3% (prompt-mass proxy)</title><circle class="hit" cx="679.0" cy="156.3" r="12"/><circle class="s1 ring" cx="679.0" cy="156.3" r="5"/></g>
+<g><title>t=15.3s · ~71.9% (prompt-mass proxy)</title><circle class="hit" cx="704.7" cy="152.4" r="12"/><circle class="s1 ring" cx="704.7" cy="152.4" r="5"/></g>
+<g><title>t=16.0s · ~74.9% (prompt-mass proxy)</title><circle class="hit" cx="735.1" cy="145.2" r="12"/><circle class="s1 ring" cx="735.1" cy="145.2" r="5"/></g>
+<g><title>engine ready</title><circle class="hit" cx="39.0" cy="326.0" r="12"/><circle class="s2 ring" cx="39.0" cy="326.0" r="5"/></g>
+<g><title>t=0.2s · ~0.9% (prompt-mass proxy)</title><circle class="hit" cx="46.0" cy="323.9" r="12"/><circle class="s2 ring" cx="46.0" cy="323.9" r="5"/></g>
+<g><title>t=0.3s · ~1.7% (prompt-mass proxy)</title><circle class="hit" cx="53.2" cy="321.9" r="12"/><circle class="s2 ring" cx="53.2" cy="321.9" r="5"/></g>
+<g><title>t=0.5s · ~2.6% (prompt-mass proxy)</title><circle class="hit" cx="61.2" cy="319.8" r="12"/><circle class="s2 ring" cx="61.2" cy="319.8" r="5"/></g>
+<g><title>t=0.7s · ~3.4% (prompt-mass proxy)</title><circle class="hit" cx="69.3" cy="317.8" r="12"/><circle class="s2 ring" cx="69.3" cy="317.8" r="5"/></g>
+<g><title>t=0.9s · ~4.3% (prompt-mass proxy)</title><circle class="hit" cx="77.5" cy="315.7" r="12"/><circle class="s2 ring" cx="77.5" cy="315.7" r="5"/></g>
+<g><title>t=1.1s · ~5.2% (prompt-mass proxy)</title><circle class="hit" cx="86.2" cy="313.4" r="12"/><circle class="s2 ring" cx="86.2" cy="313.4" r="5"/></g>
+<g><title>t=1.3s · ~6.1% (prompt-mass proxy)</title><circle class="hit" cx="95.1" cy="311.2" r="12"/><circle class="s2 ring" cx="95.1" cy="311.2" r="5"/></g>
+<g><title>t=1.5s · ~7.1% (prompt-mass proxy)</title><circle class="hit" cx="104.0" cy="308.9" r="12"/><circle class="s2 ring" cx="104.0" cy="308.9" r="5"/></g>
+<g><title>t=1.7s · ~8.0% (prompt-mass proxy)</title><circle class="hit" cx="113.1" cy="306.7" r="12"/><circle class="s2 ring" cx="113.1" cy="306.7" r="5"/></g>
+<g><title>t=1.9s · ~8.9% (prompt-mass proxy)</title><circle class="hit" cx="122.4" cy="304.6" r="12"/><circle class="s2 ring" cx="122.4" cy="304.6" r="5"/></g>
+<g><title>t=2.1s · ~9.8% (prompt-mass proxy)</title><circle class="hit" cx="132.1" cy="302.2" r="12"/><circle class="s2 ring" cx="132.1" cy="302.2" r="5"/></g>
+<g><title>t=2.4s · ~10.8% (prompt-mass proxy)</title><circle class="hit" cx="141.9" cy="299.8" r="12"/><circle class="s2 ring" cx="141.9" cy="299.8" r="5"/></g>
+<g><title>t=2.6s · ~11.7% (prompt-mass proxy)</title><circle class="hit" cx="152.2" cy="297.7" r="12"/><circle class="s2 ring" cx="152.2" cy="297.7" r="5"/></g>
+<g><title>t=2.8s · ~14.1% (prompt-mass proxy)</title><circle class="hit" cx="162.6" cy="291.9" r="12"/><circle class="s2 ring" cx="162.6" cy="291.9" r="5"/></g>
+<g><title>t=3.1s · ~15.0% (prompt-mass proxy)</title><circle class="hit" cx="173.4" cy="289.7" r="12"/><circle class="s2 ring" cx="173.4" cy="289.7" r="5"/></g>
+<g><title>t=3.3s · ~16.1% (prompt-mass proxy)</title><circle class="hit" cx="184.4" cy="287.2" r="12"/><circle class="s2 ring" cx="184.4" cy="287.2" r="5"/></g>
+<g><title>t=3.6s · ~16.9% (prompt-mass proxy)</title><circle class="hit" cx="195.8" cy="285.1" r="12"/><circle class="s2 ring" cx="195.8" cy="285.1" r="5"/></g>
+<g><title>t=3.9s · ~17.8% (prompt-mass proxy)</title><circle class="hit" cx="207.3" cy="283.0" r="12"/><circle class="s2 ring" cx="207.3" cy="283.0" r="5"/></g>
+<g><title>t=4.1s · ~18.8% (prompt-mass proxy)</title><circle class="hit" cx="218.9" cy="280.7" r="12"/><circle class="s2 ring" cx="218.9" cy="280.7" r="5"/></g>
+<g><title>t=4.4s · ~19.7% (prompt-mass proxy)</title><circle class="hit" cx="230.8" cy="278.4" r="12"/><circle class="s2 ring" cx="230.8" cy="278.4" r="5"/></g>
+<g><title>t=4.7s · ~20.6% (prompt-mass proxy)</title><circle class="hit" cx="243.2" cy="276.2" r="12"/><circle class="s2 ring" cx="243.2" cy="276.2" r="5"/></g>
+<g><title>t=5.0s · ~21.6% (prompt-mass proxy)</title><circle class="hit" cx="255.7" cy="273.8" r="12"/><circle class="s2 ring" cx="255.7" cy="273.8" r="5"/></g>
+<g><title>t=5.3s · ~22.6% (prompt-mass proxy)</title><circle class="hit" cx="268.4" cy="271.5" r="12"/><circle class="s2 ring" cx="268.4" cy="271.5" r="5"/></g>
+<g><title>t=5.6s · ~23.4% (prompt-mass proxy)</title><circle class="hit" cx="281.3" cy="269.4" r="12"/><circle class="s2 ring" cx="281.3" cy="269.4" r="5"/></g>
+<g><title>t=5.9s · ~24.4% (prompt-mass proxy)</title><circle class="hit" cx="294.2" cy="267.2" r="12"/><circle class="s2 ring" cx="294.2" cy="267.2" r="5"/></g>
+<g><title>t=6.2s · ~25.4% (prompt-mass proxy)</title><circle class="hit" cx="307.2" cy="264.8" r="12"/><circle class="s2 ring" cx="307.2" cy="264.8" r="5"/></g>
+<g><title>t=6.5s · ~26.5% (prompt-mass proxy)</title><circle class="hit" cx="320.3" cy="262.0" r="12"/><circle class="s2 ring" cx="320.3" cy="262.0" r="5"/></g>
+<g><title>t=6.8s · ~27.4% (prompt-mass proxy)</title><circle class="hit" cx="333.8" cy="259.9" r="12"/><circle class="s2 ring" cx="333.8" cy="259.9" r="5"/></g>
+<g><title>t=7.1s · ~28.4% (prompt-mass proxy)</title><circle class="hit" cx="347.4" cy="257.5" r="12"/><circle class="s2 ring" cx="347.4" cy="257.5" r="5"/></g>
+<g><title>t=7.4s · ~29.3% (prompt-mass proxy)</title><circle class="hit" cx="361.3" cy="255.3" r="12"/><circle class="s2 ring" cx="361.3" cy="255.3" r="5"/></g>
+<g><title>t=7.7s · ~32.7% (prompt-mass proxy)</title><circle class="hit" cx="375.3" cy="247.0" r="12"/><circle class="s2 ring" cx="375.3" cy="247.0" r="5"/></g>
+<g><title>t=8.1s · ~33.6% (prompt-mass proxy)</title><circle class="hit" cx="389.5" cy="244.9" r="12"/><circle class="s2 ring" cx="389.5" cy="244.9" r="5"/></g>
+<g><title>t=8.4s · ~34.8% (prompt-mass proxy)</title><circle class="hit" cx="404.7" cy="241.9" r="12"/><circle class="s2 ring" cx="404.7" cy="241.9" r="5"/></g>
+<g><title>t=8.8s · ~36.1% (prompt-mass proxy)</title><circle class="hit" cx="420.4" cy="238.9" r="12"/><circle class="s2 ring" cx="420.4" cy="238.9" r="5"/></g>
+<g><title>t=9.1s · ~37.2% (prompt-mass proxy)</title><circle class="hit" cx="436.1" cy="236.3" r="12"/><circle class="s2 ring" cx="436.1" cy="236.3" r="5"/></g>
+<g><title>t=9.5s · ~38.1% (prompt-mass proxy)</title><circle class="hit" cx="452.4" cy="233.9" r="12"/><circle class="s2 ring" cx="452.4" cy="233.9" r="5"/></g>
+<g><title>t=9.9s · ~39.0% (prompt-mass proxy)</title><circle class="hit" cx="468.9" cy="231.7" r="12"/><circle class="s2 ring" cx="468.9" cy="231.7" r="5"/></g>
+<g><title>t=10.3s · ~40.0% (prompt-mass proxy)</title><circle class="hit" cx="485.4" cy="229.5" r="12"/><circle class="s2 ring" cx="485.4" cy="229.5" r="5"/></g>
+<g><title>t=10.7s · ~41.3% (prompt-mass proxy)</title><circle class="hit" cx="501.9" cy="226.4" r="12"/><circle class="s2 ring" cx="501.9" cy="226.4" r="5"/></g>
+<g><title>t=11.1s · ~42.3% (prompt-mass proxy)</title><circle class="hit" cx="519.9" cy="223.8" r="12"/><circle class="s2 ring" cx="519.9" cy="223.8" r="5"/></g>
+<g><title>t=11.5s · ~43.4% (prompt-mass proxy)</title><circle class="hit" cx="537.9" cy="221.2" r="12"/><circle class="s2 ring" cx="537.9" cy="221.2" r="5"/></g>
+<g><title>t=11.9s · ~44.8% (prompt-mass proxy)</title><circle class="hit" cx="555.9" cy="217.8" r="12"/><circle class="s2 ring" cx="555.9" cy="217.8" r="5"/></g>
+<g><title>t=12.3s · ~45.7% (prompt-mass proxy)</title><circle class="hit" cx="574.1" cy="215.6" r="12"/><circle class="s2 ring" cx="574.1" cy="215.6" r="5"/></g>
+<g><title>t=12.7s · ~46.7% (prompt-mass proxy)</title><circle class="hit" cx="592.7" cy="213.1" r="12"/><circle class="s2 ring" cx="592.7" cy="213.1" r="5"/></g>
+<g><title>t=13.2s · ~48.1% (prompt-mass proxy)</title><circle class="hit" cx="613.0" cy="210.0" r="12"/><circle class="s2 ring" cx="613.0" cy="210.0" r="5"/></g>
+<g><title>t=13.7s · ~48.9% (prompt-mass proxy)</title><circle class="hit" cx="633.5" cy="207.9" r="12"/><circle class="s2 ring" cx="633.5" cy="207.9" r="5"/></g>
+<g><title>t=14.2s · ~50.2% (prompt-mass proxy)</title><circle class="hit" cx="654.5" cy="204.8" r="12"/><circle class="s2 ring" cx="654.5" cy="204.8" r="5"/></g>
+<g><title>t=14.7s · ~51.7% (prompt-mass proxy)</title><circle class="hit" cx="679.0" cy="201.2" r="12"/><circle class="s2 ring" cx="679.0" cy="201.2" r="5"/></g>
+<g><title>t=15.3s · ~52.9% (prompt-mass proxy)</title><circle class="hit" cx="704.7" cy="198.3" r="12"/><circle class="s2 ring" cx="704.7" cy="198.3" r="5"/></g>
+<g><title>t=16.0s · ~55.1% (prompt-mass proxy)</title><circle class="hit" cx="735.1" cy="193.0" r="12"/><circle class="s2 ring" cx="735.1" cy="193.0" r="5"/></g>
+</svg></g><g transform="translate(852,36)"><svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 810 376" width="810" height="376" role="img" aria-label="Insurance claims">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --good:#0ca30c; --critical:#d03b3b; }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+
+<style>
+  .viz .grp { fill: var(--ink); font-size: 12px; font-weight: 600; }
+  .viz .axt { fill: var(--ink2); font-size: 11px; }
+  .viz .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .viz .lndeemph { stroke: var(--deemph); }
+  .viz .lead { stroke: var(--ink2); stroke-width: 1; }
+  .viz .hit { fill: transparent; }
+</style>
+
+<rect class="bg" width="810" height="376" rx="8"/>
+<text class="title" x="16" y="24">Insurance claims</text>
+<text class="sub" x="16" y="42">sand032-s3-insurance50 · y rises with prompt mass processed (proxy); end points match vLLM /metrics cumulative hit</text>
+<line class="line ln1" x1="16" y1="58" x2="34" y2="58"/>
+<circle class="s1 ring" cx="25.0" cy="58.0" r="5"/>
+<text class="lbl" x="40" y="62">replica 1 (71.6% end)</text>
+<line class="line ln2" x1="178.95999999999995" y1="58" x2="196.95999999999995" y2="58"/>
+<circle class="s2 ring" cx="188.0" cy="58.0" r="5"/>
+<text class="lbl" x="202.95999999999995" y="62">replica 2 (55.1% end)</text>
+<line class="grid" x1="39" y1="326.0" x2="782" y2="326.0"/>
+<text class="tick" x="33" y="330.0" text-anchor="end">0</text>
+<line class="grid" x1="39" y1="275.6" x2="782" y2="275.6"/>
+<text class="tick" x="33" y="279.6" text-anchor="end">20</text>
+<line class="grid" x1="39" y1="225.2" x2="782" y2="225.2"/>
+<text class="tick" x="33" y="229.2" text-anchor="end">40</text>
+<line class="grid" x1="39" y1="174.9" x2="782" y2="174.9"/>
+<text class="tick" x="33" y="178.9" text-anchor="end">60</text>
+<line class="grid" x1="39" y1="124.5" x2="782" y2="124.5"/>
+<text class="tick" x="33" y="128.5" text-anchor="end">80</text>
+<line class="grid" x1="39.0" y1="106" x2="39.0" y2="326"/>
+<text class="tick" x="39.0" y="342" text-anchor="middle">0</text>
+<line class="grid" x1="279.1" y1="106" x2="279.1" y2="326"/>
+<text class="tick" x="279.1" y="342" text-anchor="middle">20</text>
+<line class="grid" x1="519.1" y1="106" x2="519.1" y2="326"/>
+<text class="tick" x="519.1" y="342" text-anchor="middle">40</text>
+<line class="grid" x1="759.2" y1="106" x2="759.2" y2="326"/>
+<text class="tick" x="759.2" y="342" text-anchor="middle">60</text>
+<line class="axis" x1="39" y1="326" x2="782" y2="326"/>
+<line class="axis" x1="39" y1="106" x2="39" y2="326"/>
+<text class="axt" x="16" y="90">Prefix-cache hit (%)</text>
+<text class="axt" x="410.5" y="362" text-anchor="middle">Wall time (s)</text>
+<path class="line ln1" d="M39.0,326.0 L49.1,322.9 L59.2,319.8 L69.3,316.7 L79.8,313.6 L90.9,310.5 L102.2,307.4 L113.6,304.3 L125.1,301.1 L136.6,297.9 L148.0,294.6 L159.5,291.4 L171.0,288.3 L182.8,284.9 L194.6,281.8 L206.5,278.7 L218.4,275.5 L230.4,272.3 L242.9,269.2 L255.3,266.1 L267.7,263.0 L280.1,259.7 L292.8,256.4 L305.5,253.3 L318.7,250.0 L332.0,244.1 L345.4,240.8 L358.9,237.5 L372.5,234.1 L386.3,228.5 L400.4,225.4 L414.8,222.3 L429.6,217.3 L444.6,212.2 L460.1,209.1 L475.6,205.9 L491.7,202.8 L507.9,199.4 L524.3,196.0 L541.2,189.1 L558.3,186.0 L575.4,182.7 L592.8,179.3 L610.5,175.8 L628.3,172.4 L646.6,169.0 L667.6,163.7 L689.8,160.5 L713.0,155.4 L738.6,151.9 L767.4,145.6"/>
+<path class="line ln2" d="M39.0,326.0 L49.1,323.6 L59.2,321.2 L69.3,318.9 L79.8,316.5 L90.9,314.1 L102.2,311.7 L113.6,309.3 L125.1,306.8 L136.6,304.3 L148.0,301.8 L159.5,299.4 L171.0,297.0 L182.8,294.4 L194.6,292.0 L206.5,289.6 L218.4,287.1 L230.4,284.7 L242.9,282.3 L255.3,279.9 L267.7,277.5 L280.1,274.9 L292.8,272.4 L305.5,270.0 L318.7,267.5 L332.0,263.0 L345.4,260.4 L358.9,257.9 L372.5,255.3 L386.3,251.0 L400.4,248.6 L414.8,246.2 L429.6,242.4 L444.6,238.4 L460.1,236.0 L475.6,233.6 L491.7,231.2 L507.9,228.6 L524.3,226.0 L541.2,220.6 L558.3,218.2 L575.4,215.7 L592.8,213.1 L610.5,210.4 L628.3,207.8 L646.6,205.2 L667.6,201.1 L689.8,198.7 L713.0,194.7 L738.6,192.0 L767.4,187.2"/>
+<g><title>engine ready</title><circle class="hit" cx="39.0" cy="326.0" r="12"/><circle class="s1 ring" cx="39.0" cy="326.0" r="5"/></g>
+<g><title>t=0.8s · ~1.2% (prompt-mass proxy)</title><circle class="hit" cx="49.1" cy="322.9" r="12"/><circle class="s1 ring" cx="49.1" cy="322.9" r="5"/></g>
+<g><title>t=1.7s · ~2.5% (prompt-mass proxy)</title><circle class="hit" cx="59.2" cy="319.8" r="12"/><circle class="s1 ring" cx="59.2" cy="319.8" r="5"/></g>
+<g><title>t=2.5s · ~3.7% (prompt-mass proxy)</title><circle class="hit" cx="69.3" cy="316.7" r="12"/><circle class="s1 ring" cx="69.3" cy="316.7" r="5"/></g>
+<g><title>t=3.4s · ~4.9% (prompt-mass proxy)</title><circle class="hit" cx="79.8" cy="313.6" r="12"/><circle class="s1 ring" cx="79.8" cy="313.6" r="5"/></g>
+<g><title>t=4.3s · ~6.1% (prompt-mass proxy)</title><circle class="hit" cx="90.9" cy="310.5" r="12"/><circle class="s1 ring" cx="90.9" cy="310.5" r="5"/></g>
+<g><title>t=5.3s · ~7.4% (prompt-mass proxy)</title><circle class="hit" cx="102.2" cy="307.4" r="12"/><circle class="s1 ring" cx="102.2" cy="307.4" r="5"/></g>
+<g><title>t=6.2s · ~8.6% (prompt-mass proxy)</title><circle class="hit" cx="113.6" cy="304.3" r="12"/><circle class="s1 ring" cx="113.6" cy="304.3" r="5"/></g>
+<g><title>t=7.2s · ~9.9% (prompt-mass proxy)</title><circle class="hit" cx="125.1" cy="301.1" r="12"/><circle class="s1 ring" cx="125.1" cy="301.1" r="5"/></g>
+<g><title>t=8.1s · ~11.2% (prompt-mass proxy)</title><circle class="hit" cx="136.6" cy="297.9" r="12"/><circle class="s1 ring" cx="136.6" cy="297.9" r="5"/></g>
+<g><title>t=9.1s · ~12.5% (prompt-mass proxy)</title><circle class="hit" cx="148.0" cy="294.6" r="12"/><circle class="s1 ring" cx="148.0" cy="294.6" r="5"/></g>
+<g><title>t=10.0s · ~13.7% (prompt-mass proxy)</title><circle class="hit" cx="159.5" cy="291.4" r="12"/><circle class="s1 ring" cx="159.5" cy="291.4" r="5"/></g>
+<g><title>t=11.0s · ~15.0% (prompt-mass proxy)</title><circle class="hit" cx="171.0" cy="288.3" r="12"/><circle class="s1 ring" cx="171.0" cy="288.3" r="5"/></g>
+<g><title>t=12.0s · ~16.3% (prompt-mass proxy)</title><circle class="hit" cx="182.8" cy="284.9" r="12"/><circle class="s1 ring" cx="182.8" cy="284.9" r="5"/></g>
+<g><title>t=13.0s · ~17.5% (prompt-mass proxy)</title><circle class="hit" cx="194.6" cy="281.8" r="12"/><circle class="s1 ring" cx="194.6" cy="281.8" r="5"/></g>
+<g><title>t=14.0s · ~18.8% (prompt-mass proxy)</title><circle class="hit" cx="206.5" cy="278.7" r="12"/><circle class="s1 ring" cx="206.5" cy="278.7" r="5"/></g>
+<g><title>t=14.9s · ~20.0% (prompt-mass proxy)</title><circle class="hit" cx="218.4" cy="275.5" r="12"/><circle class="s1 ring" cx="218.4" cy="275.5" r="5"/></g>
+<g><title>t=15.9s · ~21.3% (prompt-mass proxy)</title><circle class="hit" cx="230.4" cy="272.3" r="12"/><circle class="s1 ring" cx="230.4" cy="272.3" r="5"/></g>
+<g><title>t=17.0s · ~22.5% (prompt-mass proxy)</title><circle class="hit" cx="242.9" cy="269.2" r="12"/><circle class="s1 ring" cx="242.9" cy="269.2" r="5"/></g>
+<g><title>t=18.0s · ~23.8% (prompt-mass proxy)</title><circle class="hit" cx="255.3" cy="266.1" r="12"/><circle class="s1 ring" cx="255.3" cy="266.1" r="5"/></g>
+<g><title>t=19.1s · ~25.0% (prompt-mass proxy)</title><circle class="hit" cx="267.7" cy="263.0" r="12"/><circle class="s1 ring" cx="267.7" cy="263.0" r="5"/></g>
+<g><title>t=20.1s · ~26.3% (prompt-mass proxy)</title><circle class="hit" cx="280.1" cy="259.7" r="12"/><circle class="s1 ring" cx="280.1" cy="259.7" r="5"/></g>
+<g><title>t=21.1s · ~27.6% (prompt-mass proxy)</title><circle class="hit" cx="292.8" cy="256.4" r="12"/><circle class="s1 ring" cx="292.8" cy="256.4" r="5"/></g>
+<g><title>t=22.2s · ~28.9% (prompt-mass proxy)</title><circle class="hit" cx="305.5" cy="253.3" r="12"/><circle class="s1 ring" cx="305.5" cy="253.3" r="5"/></g>
+<g><title>t=23.3s · ~30.2% (prompt-mass proxy)</title><circle class="hit" cx="318.7" cy="250.0" r="12"/><circle class="s1 ring" cx="318.7" cy="250.0" r="5"/></g>
+<g><title>t=24.4s · ~32.5% (prompt-mass proxy)</title><circle class="hit" cx="332.0" cy="244.1" r="12"/><circle class="s1 ring" cx="332.0" cy="244.1" r="5"/></g>
+<g><title>t=25.5s · ~33.8% (prompt-mass proxy)</title><circle class="hit" cx="345.4" cy="240.8" r="12"/><circle class="s1 ring" cx="345.4" cy="240.8" r="5"/></g>
+<g><title>t=26.7s · ~35.1% (prompt-mass proxy)</title><circle class="hit" cx="358.9" cy="237.5" r="12"/><circle class="s1 ring" cx="358.9" cy="237.5" r="5"/></g>
+<g><title>t=27.8s · ~36.5% (prompt-mass proxy)</title><circle class="hit" cx="372.5" cy="234.1" r="12"/><circle class="s1 ring" cx="372.5" cy="234.1" r="5"/></g>
+<g><title>t=28.9s · ~38.7% (prompt-mass proxy)</title><circle class="hit" cx="386.3" cy="228.5" r="12"/><circle class="s1 ring" cx="386.3" cy="228.5" r="5"/></g>
+<g><title>t=30.1s · ~39.9% (prompt-mass proxy)</title><circle class="hit" cx="400.4" cy="225.4" r="12"/><circle class="s1 ring" cx="400.4" cy="225.4" r="5"/></g>
+<g><title>t=31.3s · ~41.2% (prompt-mass proxy)</title><circle class="hit" cx="414.8" cy="222.3" r="12"/><circle class="s1 ring" cx="414.8" cy="222.3" r="5"/></g>
+<g><title>t=32.5s · ~43.1% (prompt-mass proxy)</title><circle class="hit" cx="429.6" cy="217.3" r="12"/><circle class="s1 ring" cx="429.6" cy="217.3" r="5"/></g>
+<g><title>t=33.8s · ~45.2% (prompt-mass proxy)</title><circle class="hit" cx="444.6" cy="212.2" r="12"/><circle class="s1 ring" cx="444.6" cy="212.2" r="5"/></g>
+<g><title>t=35.1s · ~46.4% (prompt-mass proxy)</title><circle class="hit" cx="460.1" cy="209.1" r="12"/><circle class="s1 ring" cx="460.1" cy="209.1" r="5"/></g>
+<g><title>t=36.4s · ~47.7% (prompt-mass proxy)</title><circle class="hit" cx="475.6" cy="205.9" r="12"/><circle class="s1 ring" cx="475.6" cy="205.9" r="5"/></g>
+<g><title>t=37.7s · ~48.9% (prompt-mass proxy)</title><circle class="hit" cx="491.7" cy="202.8" r="12"/><circle class="s1 ring" cx="491.7" cy="202.8" r="5"/></g>
+<g><title>t=39.1s · ~50.3% (prompt-mass proxy)</title><circle class="hit" cx="507.9" cy="199.4" r="12"/><circle class="s1 ring" cx="507.9" cy="199.4" r="5"/></g>
+<g><title>t=40.4s · ~51.6% (prompt-mass proxy)</title><circle class="hit" cx="524.3" cy="196.0" r="12"/><circle class="s1 ring" cx="524.3" cy="196.0" r="5"/></g>
+<g><title>t=41.8s · ~54.4% (prompt-mass proxy)</title><circle class="hit" cx="541.2" cy="189.1" r="12"/><circle class="s1 ring" cx="541.2" cy="189.1" r="5"/></g>
+<g><title>t=43.3s · ~55.6% (prompt-mass proxy)</title><circle class="hit" cx="558.3" cy="186.0" r="12"/><circle class="s1 ring" cx="558.3" cy="186.0" r="5"/></g>
+<g><title>t=44.7s · ~56.9% (prompt-mass proxy)</title><circle class="hit" cx="575.4" cy="182.7" r="12"/><circle class="s1 ring" cx="575.4" cy="182.7" r="5"/></g>
+<g><title>t=46.1s · ~58.2% (prompt-mass proxy)</title><circle class="hit" cx="592.8" cy="179.3" r="12"/><circle class="s1 ring" cx="592.8" cy="179.3" r="5"/></g>
+<g><title>t=47.6s · ~59.6% (prompt-mass proxy)</title><circle class="hit" cx="610.5" cy="175.8" r="12"/><circle class="s1 ring" cx="610.5" cy="175.8" r="5"/></g>
+<g><title>t=49.1s · ~61.0% (prompt-mass proxy)</title><circle class="hit" cx="628.3" cy="172.4" r="12"/><circle class="s1 ring" cx="628.3" cy="172.4" r="5"/></g>
+<g><title>t=50.6s · ~62.3% (prompt-mass proxy)</title><circle class="hit" cx="646.6" cy="169.0" r="12"/><circle class="s1 ring" cx="646.6" cy="169.0" r="5"/></g>
+<g><title>t=52.4s · ~64.5% (prompt-mass proxy)</title><circle class="hit" cx="667.6" cy="163.7" r="12"/><circle class="s1 ring" cx="667.6" cy="163.7" r="5"/></g>
+<g><title>t=54.2s · ~65.7% (prompt-mass proxy)</title><circle class="hit" cx="689.8" cy="160.5" r="12"/><circle class="s1 ring" cx="689.8" cy="160.5" r="5"/></g>
+<g><title>t=56.2s · ~67.7% (prompt-mass proxy)</title><circle class="hit" cx="713.0" cy="155.4" r="12"/><circle class="s1 ring" cx="713.0" cy="155.4" r="5"/></g>
+<g><title>t=58.3s · ~69.1% (prompt-mass proxy)</title><circle class="hit" cx="738.6" cy="151.9" r="12"/><circle class="s1 ring" cx="738.6" cy="151.9" r="5"/></g>
+<g><title>t=60.7s · ~71.6% (prompt-mass proxy)</title><circle class="hit" cx="767.4" cy="145.6" r="12"/><circle class="s1 ring" cx="767.4" cy="145.6" r="5"/></g>
+<g><title>engine ready</title><circle class="hit" cx="39.0" cy="326.0" r="12"/><circle class="s2 ring" cx="39.0" cy="326.0" r="5"/></g>
+<g><title>t=0.8s · ~0.9% (prompt-mass proxy)</title><circle class="hit" cx="49.1" cy="323.6" r="12"/><circle class="s2 ring" cx="49.1" cy="323.6" r="5"/></g>
+<g><title>t=1.7s · ~1.9% (prompt-mass proxy)</title><circle class="hit" cx="59.2" cy="321.2" r="12"/><circle class="s2 ring" cx="59.2" cy="321.2" r="5"/></g>
+<g><title>t=2.5s · ~2.8% (prompt-mass proxy)</title><circle class="hit" cx="69.3" cy="318.9" r="12"/><circle class="s2 ring" cx="69.3" cy="318.9" r="5"/></g>
+<g><title>t=3.4s · ~3.8% (prompt-mass proxy)</title><circle class="hit" cx="79.8" cy="316.5" r="12"/><circle class="s2 ring" cx="79.8" cy="316.5" r="5"/></g>
+<g><title>t=4.3s · ~4.7% (prompt-mass proxy)</title><circle class="hit" cx="90.9" cy="314.1" r="12"/><circle class="s2 ring" cx="90.9" cy="314.1" r="5"/></g>
+<g><title>t=5.3s · ~5.7% (prompt-mass proxy)</title><circle class="hit" cx="102.2" cy="311.7" r="12"/><circle class="s2 ring" cx="102.2" cy="311.7" r="5"/></g>
+<g><title>t=6.2s · ~6.6% (prompt-mass proxy)</title><circle class="hit" cx="113.6" cy="309.3" r="12"/><circle class="s2 ring" cx="113.6" cy="309.3" r="5"/></g>
+<g><title>t=7.2s · ~7.6% (prompt-mass proxy)</title><circle class="hit" cx="125.1" cy="306.8" r="12"/><circle class="s2 ring" cx="125.1" cy="306.8" r="5"/></g>
+<g><title>t=8.1s · ~8.6% (prompt-mass proxy)</title><circle class="hit" cx="136.6" cy="304.3" r="12"/><circle class="s2 ring" cx="136.6" cy="304.3" r="5"/></g>
+<g><title>t=9.1s · ~9.6% (prompt-mass proxy)</title><circle class="hit" cx="148.0" cy="301.8" r="12"/><circle class="s2 ring" cx="148.0" cy="301.8" r="5"/></g>
+<g><title>t=10.0s · ~10.6% (prompt-mass proxy)</title><circle class="hit" cx="159.5" cy="299.4" r="12"/><circle class="s2 ring" cx="159.5" cy="299.4" r="5"/></g>
+<g><title>t=11.0s · ~11.5% (prompt-mass proxy)</title><circle class="hit" cx="171.0" cy="297.0" r="12"/><circle class="s2 ring" cx="171.0" cy="297.0" r="5"/></g>
+<g><title>t=12.0s · ~12.5% (prompt-mass proxy)</title><circle class="hit" cx="182.8" cy="294.4" r="12"/><circle class="s2 ring" cx="182.8" cy="294.4" r="5"/></g>
+<g><title>t=13.0s · ~13.5% (prompt-mass proxy)</title><circle class="hit" cx="194.6" cy="292.0" r="12"/><circle class="s2 ring" cx="194.6" cy="292.0" r="5"/></g>
+<g><title>t=14.0s · ~14.5% (prompt-mass proxy)</title><circle class="hit" cx="206.5" cy="289.6" r="12"/><circle class="s2 ring" cx="206.5" cy="289.6" r="5"/></g>
+<g><title>t=14.9s · ~15.4% (prompt-mass proxy)</title><circle class="hit" cx="218.4" cy="287.1" r="12"/><circle class="s2 ring" cx="218.4" cy="287.1" r="5"/></g>
+<g><title>t=15.9s · ~16.4% (prompt-mass proxy)</title><circle class="hit" cx="230.4" cy="284.7" r="12"/><circle class="s2 ring" cx="230.4" cy="284.7" r="5"/></g>
+<g><title>t=17.0s · ~17.3% (prompt-mass proxy)</title><circle class="hit" cx="242.9" cy="282.3" r="12"/><circle class="s2 ring" cx="242.9" cy="282.3" r="5"/></g>
+<g><title>t=18.0s · ~18.3% (prompt-mass proxy)</title><circle class="hit" cx="255.3" cy="279.9" r="12"/><circle class="s2 ring" cx="255.3" cy="279.9" r="5"/></g>
+<g><title>t=19.1s · ~19.2% (prompt-mass proxy)</title><circle class="hit" cx="267.7" cy="277.5" r="12"/><circle class="s2 ring" cx="267.7" cy="277.5" r="5"/></g>
+<g><title>t=20.1s · ~20.3% (prompt-mass proxy)</title><circle class="hit" cx="280.1" cy="274.9" r="12"/><circle class="s2 ring" cx="280.1" cy="274.9" r="5"/></g>
+<g><title>t=21.1s · ~21.3% (prompt-mass proxy)</title><circle class="hit" cx="292.8" cy="272.4" r="12"/><circle class="s2 ring" cx="292.8" cy="272.4" r="5"/></g>
+<g><title>t=22.2s · ~22.2% (prompt-mass proxy)</title><circle class="hit" cx="305.5" cy="270.0" r="12"/><circle class="s2 ring" cx="305.5" cy="270.0" r="5"/></g>
+<g><title>t=23.3s · ~23.2% (prompt-mass proxy)</title><circle class="hit" cx="318.7" cy="267.5" r="12"/><circle class="s2 ring" cx="318.7" cy="267.5" r="5"/></g>
+<g><title>t=24.4s · ~25.0% (prompt-mass proxy)</title><circle class="hit" cx="332.0" cy="263.0" r="12"/><circle class="s2 ring" cx="332.0" cy="263.0" r="5"/></g>
+<g><title>t=25.5s · ~26.0% (prompt-mass proxy)</title><circle class="hit" cx="345.4" cy="260.4" r="12"/><circle class="s2 ring" cx="345.4" cy="260.4" r="5"/></g>
+<g><title>t=26.7s · ~27.0% (prompt-mass proxy)</title><circle class="hit" cx="358.9" cy="257.9" r="12"/><circle class="s2 ring" cx="358.9" cy="257.9" r="5"/></g>
+<g><title>t=27.8s · ~28.1% (prompt-mass proxy)</title><circle class="hit" cx="372.5" cy="255.3" r="12"/><circle class="s2 ring" cx="372.5" cy="255.3" r="5"/></g>
+<g><title>t=28.9s · ~29.8% (prompt-mass proxy)</title><circle class="hit" cx="386.3" cy="251.0" r="12"/><circle class="s2 ring" cx="386.3" cy="251.0" r="5"/></g>
+<g><title>t=30.1s · ~30.7% (prompt-mass proxy)</title><circle class="hit" cx="400.4" cy="248.6" r="12"/><circle class="s2 ring" cx="400.4" cy="248.6" r="5"/></g>
+<g><title>t=31.3s · ~31.7% (prompt-mass proxy)</title><circle class="hit" cx="414.8" cy="246.2" r="12"/><circle class="s2 ring" cx="414.8" cy="246.2" r="5"/></g>
+<g><title>t=32.5s · ~33.2% (prompt-mass proxy)</title><circle class="hit" cx="429.6" cy="242.4" r="12"/><circle class="s2 ring" cx="429.6" cy="242.4" r="5"/></g>
+<g><title>t=33.8s · ~34.8% (prompt-mass proxy)</title><circle class="hit" cx="444.6" cy="238.4" r="12"/><circle class="s2 ring" cx="444.6" cy="238.4" r="5"/></g>
+<g><title>t=35.1s · ~35.7% (prompt-mass proxy)</title><circle class="hit" cx="460.1" cy="236.0" r="12"/><circle class="s2 ring" cx="460.1" cy="236.0" r="5"/></g>
+<g><title>t=36.4s · ~36.7% (prompt-mass proxy)</title><circle class="hit" cx="475.6" cy="233.6" r="12"/><circle class="s2 ring" cx="475.6" cy="233.6" r="5"/></g>
+<g><title>t=37.7s · ~37.6% (prompt-mass proxy)</title><circle class="hit" cx="491.7" cy="231.2" r="12"/><circle class="s2 ring" cx="491.7" cy="231.2" r="5"/></g>
+<g><title>t=39.1s · ~38.7% (prompt-mass proxy)</title><circle class="hit" cx="507.9" cy="228.6" r="12"/><circle class="s2 ring" cx="507.9" cy="228.6" r="5"/></g>
+<g><title>t=40.4s · ~39.7% (prompt-mass proxy)</title><circle class="hit" cx="524.3" cy="226.0" r="12"/><circle class="s2 ring" cx="524.3" cy="226.0" r="5"/></g>
+<g><title>t=41.8s · ~41.8% (prompt-mass proxy)</title><circle class="hit" cx="541.2" cy="220.6" r="12"/><circle class="s2 ring" cx="541.2" cy="220.6" r="5"/></g>
+<g><title>t=43.3s · ~42.8% (prompt-mass proxy)</title><circle class="hit" cx="558.3" cy="218.2" r="12"/><circle class="s2 ring" cx="558.3" cy="218.2" r="5"/></g>
+<g><title>t=44.7s · ~43.8% (prompt-mass proxy)</title><circle class="hit" cx="575.4" cy="215.7" r="12"/><circle class="s2 ring" cx="575.4" cy="215.7" r="5"/></g>
+<g><title>t=46.1s · ~44.8% (prompt-mass proxy)</title><circle class="hit" cx="592.8" cy="213.1" r="12"/><circle class="s2 ring" cx="592.8" cy="213.1" r="5"/></g>
+<g><title>t=47.6s · ~45.9% (prompt-mass proxy)</title><circle class="hit" cx="610.5" cy="210.4" r="12"/><circle class="s2 ring" cx="610.5" cy="210.4" r="5"/></g>
+<g><title>t=49.1s · ~46.9% (prompt-mass proxy)</title><circle class="hit" cx="628.3" cy="207.8" r="12"/><circle class="s2 ring" cx="628.3" cy="207.8" r="5"/></g>
+<g><title>t=50.6s · ~48.0% (prompt-mass proxy)</title><circle class="hit" cx="646.6" cy="205.2" r="12"/><circle class="s2 ring" cx="646.6" cy="205.2" r="5"/></g>
+<g><title>t=52.4s · ~49.6% (prompt-mass proxy)</title><circle class="hit" cx="667.6" cy="201.1" r="12"/><circle class="s2 ring" cx="667.6" cy="201.1" r="5"/></g>
+<g><title>t=54.2s · ~50.6% (prompt-mass proxy)</title><circle class="hit" cx="689.8" cy="198.7" r="12"/><circle class="s2 ring" cx="689.8" cy="198.7" r="5"/></g>
+<g><title>t=56.2s · ~52.1% (prompt-mass proxy)</title><circle class="hit" cx="713.0" cy="194.7" r="12"/><circle class="s2 ring" cx="713.0" cy="194.7" r="5"/></g>
+<g><title>t=58.3s · ~53.2% (prompt-mass proxy)</title><circle class="hit" cx="738.6" cy="192.0" r="12"/><circle class="s2 ring" cx="738.6" cy="192.0" r="5"/></g>
+<g><title>t=60.7s · ~55.1% (prompt-mass proxy)</title><circle class="hit" cx="767.4" cy="187.2" r="12"/><circle class="s2 ring" cx="767.4" cy="187.2" r="5"/></g>
+</svg></g><g transform="translate(0,428)"><svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 814 376" width="814" height="376" role="img" aria-label="Corporate records">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --good:#0ca30c; --critical:#d03b3b; }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+
+<style>
+  .viz .grp { fill: var(--ink); font-size: 12px; font-weight: 600; }
+  .viz .axt { fill: var(--ink2); font-size: 11px; }
+  .viz .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .viz .lndeemph { stroke: var(--deemph); }
+  .viz .lead { stroke: var(--ink2); stroke-width: 1; }
+  .viz .hit { fill: transparent; }
+</style>
+
+<rect class="bg" width="814" height="376" rx="8"/>
+<text class="title" x="16" y="24">Corporate records</text>
+<text class="sub" x="16" y="42">sand032-s3-corporate50 · y rises with prompt mass processed (proxy); end points match vLLM /metrics cumulative hit</text>
+<line class="line ln1" x1="16" y1="58" x2="34" y2="58"/>
+<circle class="s1 ring" cx="25.0" cy="58.0" r="5"/>
+<text class="lbl" x="40" y="62">replica 1 (66.0% end)</text>
+<line class="line ln2" x1="178.95999999999995" y1="58" x2="196.95999999999995" y2="58"/>
+<circle class="s2 ring" cx="188.0" cy="58.0" r="5"/>
+<text class="lbl" x="202.95999999999995" y="62">replica 2 (43.9% end)</text>
+<line class="grid" x1="39" y1="326.0" x2="786" y2="326.0"/>
+<text class="tick" x="33" y="330.0" text-anchor="end">0</text>
+<line class="grid" x1="39" y1="271.6" x2="786" y2="271.6"/>
+<text class="tick" x="33" y="275.6" text-anchor="end">20</text>
+<line class="grid" x1="39" y1="217.2" x2="786" y2="217.2"/>
+<text class="tick" x="33" y="221.2" text-anchor="end">40</text>
+<line class="grid" x1="39" y1="162.8" x2="786" y2="162.8"/>
+<text class="tick" x="33" y="166.8" text-anchor="end">60</text>
+<line class="grid" x1="39" y1="108.4" x2="786" y2="108.4"/>
+<text class="tick" x="33" y="112.4" text-anchor="end">80</text>
+<line class="grid" x1="39.0" y1="106" x2="39.0" y2="326"/>
+<text class="tick" x="39.0" y="342" text-anchor="middle">0</text>
+<line class="grid" x1="299.2" y1="106" x2="299.2" y2="326"/>
+<text class="tick" x="299.2" y="342" text-anchor="middle">20</text>
+<line class="grid" x1="559.4" y1="106" x2="559.4" y2="326"/>
+<text class="tick" x="559.4" y="342" text-anchor="middle">40</text>
+<line class="axis" x1="39" y1="326" x2="786" y2="326"/>
+<line class="axis" x1="39" y1="106" x2="39" y2="326"/>
+<text class="axt" x="16" y="90">Prefix-cache hit (%)</text>
+<text class="axt" x="412.5" y="362" text-anchor="middle">Wall time (s)</text>
+<path class="line ln1" d="M39.0,326.0 L42.3,320.9 L46.0,319.3 L50.1,314.8 L54.9,310.5 L60.4,308.8 L65.9,306.9 L71.7,302.3 L77.6,297.7 L83.5,293.1 L90.3,291.5 L97.1,289.9 L104.5,288.2 L113.2,286.4 L122.0,284.6 L130.8,282.4 L139.5,279.4 L148.3,274.4 L158.0,269.4 L168.0,265.9 L178.3,263.6 L189.5,260.2 L202.8,254.9 L216.4,253.0 L230.7,248.4 L245.2,246.0 L259.9,244.3 L276.2,239.6 L292.9,234.9 L310.0,231.4 L327.5,226.8 L345.3,224.0 L363.5,222.2 L382.0,217.5 L400.5,215.6 L419.4,213.5 L438.3,211.6 L457.3,206.6 L476.6,202.0 L497.0,198.2 L518.4,193.3 L540.0,189.2 L562.4,184.2 L585.9,179.4 L610.7,173.8 L635.5,169.7 L660.3,165.7 L687.8,161.8 L715.6,156.5 L743.4,153.1 L771.4,146.5"/>
+<path class="line ln2" d="M39.0,326.0 L42.3,322.6 L46.0,321.6 L50.1,318.5 L54.9,315.7 L60.4,314.5 L65.9,313.3 L71.7,310.2 L77.6,307.2 L83.5,304.1 L90.3,303.0 L97.1,302.0 L104.5,300.9 L113.2,299.7 L122.0,298.4 L130.8,297.0 L139.5,295.0 L148.3,291.7 L158.0,288.3 L168.0,286.0 L178.3,284.5 L189.5,282.2 L202.8,278.7 L216.4,277.5 L230.7,274.4 L245.2,272.8 L259.9,271.7 L276.2,268.5 L292.9,265.4 L310.0,263.1 L327.5,260.0 L345.3,258.1 L363.5,257.0 L382.0,253.8 L400.5,252.5 L419.4,251.2 L438.3,249.9 L457.3,246.6 L476.6,243.6 L497.0,241.0 L518.4,237.8 L540.0,235.0 L562.4,231.7 L585.9,228.5 L610.7,224.8 L635.5,222.1 L660.3,219.4 L687.8,216.8 L715.6,213.3 L743.4,211.0 L771.4,206.6"/>
+<g><title>engine ready</title><circle class="hit" cx="39.0" cy="326.0" r="12"/><circle class="s1 ring" cx="39.0" cy="326.0" r="5"/></g>
+<g><title>t=0.3s · ~1.9% (prompt-mass proxy)</title><circle class="hit" cx="42.3" cy="320.9" r="12"/><circle class="s1 ring" cx="42.3" cy="320.9" r="5"/></g>
+<g><title>t=0.5s · ~2.4% (prompt-mass proxy)</title><circle class="hit" cx="46.0" cy="319.3" r="12"/><circle class="s1 ring" cx="46.0" cy="319.3" r="5"/></g>
+<g><title>t=0.9s · ~4.1% (prompt-mass proxy)</title><circle class="hit" cx="50.1" cy="314.8" r="12"/><circle class="s1 ring" cx="50.1" cy="314.8" r="5"/></g>
+<g><title>t=1.2s · ~5.7% (prompt-mass proxy)</title><circle class="hit" cx="54.9" cy="310.5" r="12"/><circle class="s1 ring" cx="54.9" cy="310.5" r="5"/></g>
+<g><title>t=1.6s · ~6.3% (prompt-mass proxy)</title><circle class="hit" cx="60.4" cy="308.8" r="12"/><circle class="s1 ring" cx="60.4" cy="308.8" r="5"/></g>
+<g><title>t=2.1s · ~7.0% (prompt-mass proxy)</title><circle class="hit" cx="65.9" cy="306.9" r="12"/><circle class="s1 ring" cx="65.9" cy="306.9" r="5"/></g>
+<g><title>t=2.5s · ~8.7% (prompt-mass proxy)</title><circle class="hit" cx="71.7" cy="302.3" r="12"/><circle class="s1 ring" cx="71.7" cy="302.3" r="5"/></g>
+<g><title>t=3.0s · ~10.4% (prompt-mass proxy)</title><circle class="hit" cx="77.6" cy="297.7" r="12"/><circle class="s1 ring" cx="77.6" cy="297.7" r="5"/></g>
+<g><title>t=3.4s · ~12.1% (prompt-mass proxy)</title><circle class="hit" cx="83.5" cy="293.1" r="12"/><circle class="s1 ring" cx="83.5" cy="293.1" r="5"/></g>
+<g><title>t=3.9s · ~12.7% (prompt-mass proxy)</title><circle class="hit" cx="90.3" cy="291.5" r="12"/><circle class="s1 ring" cx="90.3" cy="291.5" r="5"/></g>
+<g><title>t=4.5s · ~13.3% (prompt-mass proxy)</title><circle class="hit" cx="97.1" cy="289.9" r="12"/><circle class="s1 ring" cx="97.1" cy="289.9" r="5"/></g>
+<g><title>t=5.0s · ~13.9% (prompt-mass proxy)</title><circle class="hit" cx="104.5" cy="288.2" r="12"/><circle class="s1 ring" cx="104.5" cy="288.2" r="5"/></g>
+<g><title>t=5.7s · ~14.5% (prompt-mass proxy)</title><circle class="hit" cx="113.2" cy="286.4" r="12"/><circle class="s1 ring" cx="113.2" cy="286.4" r="5"/></g>
+<g><title>t=6.4s · ~15.2% (prompt-mass proxy)</title><circle class="hit" cx="122.0" cy="284.6" r="12"/><circle class="s1 ring" cx="122.0" cy="284.6" r="5"/></g>
+<g><title>t=7.1s · ~16.0% (prompt-mass proxy)</title><circle class="hit" cx="130.8" cy="282.4" r="12"/><circle class="s1 ring" cx="130.8" cy="282.4" r="5"/></g>
+<g><title>t=7.7s · ~17.1% (prompt-mass proxy)</title><circle class="hit" cx="139.5" cy="279.4" r="12"/><circle class="s1 ring" cx="139.5" cy="279.4" r="5"/></g>
+<g><title>t=8.4s · ~19.0% (prompt-mass proxy)</title><circle class="hit" cx="148.3" cy="274.4" r="12"/><circle class="s1 ring" cx="148.3" cy="274.4" r="5"/></g>
+<g><title>t=9.1s · ~20.8% (prompt-mass proxy)</title><circle class="hit" cx="158.0" cy="269.4" r="12"/><circle class="s1 ring" cx="158.0" cy="269.4" r="5"/></g>
+<g><title>t=9.9s · ~22.1% (prompt-mass proxy)</title><circle class="hit" cx="168.0" cy="265.9" r="12"/><circle class="s1 ring" cx="168.0" cy="265.9" r="5"/></g>
+<g><title>t=10.7s · ~23.0% (prompt-mass proxy)</title><circle class="hit" cx="178.3" cy="263.6" r="12"/><circle class="s1 ring" cx="178.3" cy="263.6" r="5"/></g>
+<g><title>t=11.6s · ~24.2% (prompt-mass proxy)</title><circle class="hit" cx="189.5" cy="260.2" r="12"/><circle class="s1 ring" cx="189.5" cy="260.2" r="5"/></g>
+<g><title>t=12.6s · ~26.1% (prompt-mass proxy)</title><circle class="hit" cx="202.8" cy="254.9" r="12"/><circle class="s1 ring" cx="202.8" cy="254.9" r="5"/></g>
+<g><title>t=13.6s · ~26.8% (prompt-mass proxy)</title><circle class="hit" cx="216.4" cy="253.0" r="12"/><circle class="s1 ring" cx="216.4" cy="253.0" r="5"/></g>
+<g><title>t=14.7s · ~28.5% (prompt-mass proxy)</title><circle class="hit" cx="230.7" cy="248.4" r="12"/><circle class="s1 ring" cx="230.7" cy="248.4" r="5"/></g>
+<g><title>t=15.8s · ~29.4% (prompt-mass proxy)</title><circle class="hit" cx="245.2" cy="246.0" r="12"/><circle class="s1 ring" cx="245.2" cy="246.0" r="5"/></g>
+<g><title>t=17.0s · ~30.0% (prompt-mass proxy)</title><circle class="hit" cx="259.9" cy="244.3" r="12"/><circle class="s1 ring" cx="259.9" cy="244.3" r="5"/></g>
+<g><title>t=18.2s · ~31.8% (prompt-mass proxy)</title><circle class="hit" cx="276.2" cy="239.6" r="12"/><circle class="s1 ring" cx="276.2" cy="239.6" r="5"/></g>
+<g><title>t=19.5s · ~33.5% (prompt-mass proxy)</title><circle class="hit" cx="292.9" cy="234.9" r="12"/><circle class="s1 ring" cx="292.9" cy="234.9" r="5"/></g>
+<g><title>t=20.8s · ~34.8% (prompt-mass proxy)</title><circle class="hit" cx="310.0" cy="231.4" r="12"/><circle class="s1 ring" cx="310.0" cy="231.4" r="5"/></g>
+<g><title>t=22.2s · ~36.5% (prompt-mass proxy)</title><circle class="hit" cx="327.5" cy="226.8" r="12"/><circle class="s1 ring" cx="327.5" cy="226.8" r="5"/></g>
+<g><title>t=23.5s · ~37.5% (prompt-mass proxy)</title><circle class="hit" cx="345.3" cy="224.0" r="12"/><circle class="s1 ring" cx="345.3" cy="224.0" r="5"/></g>
+<g><title>t=24.9s · ~38.2% (prompt-mass proxy)</title><circle class="hit" cx="363.5" cy="222.2" r="12"/><circle class="s1 ring" cx="363.5" cy="222.2" r="5"/></g>
+<g><title>t=26.4s · ~39.9% (prompt-mass proxy)</title><circle class="hit" cx="382.0" cy="217.5" r="12"/><circle class="s1 ring" cx="382.0" cy="217.5" r="5"/></g>
+<g><title>t=27.8s · ~40.6% (prompt-mass proxy)</title><circle class="hit" cx="400.5" cy="215.6" r="12"/><circle class="s1 ring" cx="400.5" cy="215.6" r="5"/></g>
+<g><title>t=29.2s · ~41.4% (prompt-mass proxy)</title><circle class="hit" cx="419.4" cy="213.5" r="12"/><circle class="s1 ring" cx="419.4" cy="213.5" r="5"/></g>
+<g><title>t=30.7s · ~42.1% (prompt-mass proxy)</title><circle class="hit" cx="438.3" cy="211.6" r="12"/><circle class="s1 ring" cx="438.3" cy="211.6" r="5"/></g>
+<g><title>t=32.1s · ~43.9% (prompt-mass proxy)</title><circle class="hit" cx="457.3" cy="206.6" r="12"/><circle class="s1 ring" cx="457.3" cy="206.6" r="5"/></g>
+<g><title>t=33.6s · ~45.6% (prompt-mass proxy)</title><circle class="hit" cx="476.6" cy="202.0" r="12"/><circle class="s1 ring" cx="476.6" cy="202.0" r="5"/></g>
+<g><title>t=35.2s · ~47.0% (prompt-mass proxy)</title><circle class="hit" cx="497.0" cy="198.2" r="12"/><circle class="s1 ring" cx="497.0" cy="198.2" r="5"/></g>
+<g><title>t=36.9s · ~48.8% (prompt-mass proxy)</title><circle class="hit" cx="518.4" cy="193.3" r="12"/><circle class="s1 ring" cx="518.4" cy="193.3" r="5"/></g>
+<g><title>t=38.5s · ~50.3% (prompt-mass proxy)</title><circle class="hit" cx="540.0" cy="189.2" r="12"/><circle class="s1 ring" cx="540.0" cy="189.2" r="5"/></g>
+<g><title>t=40.2s · ~52.2% (prompt-mass proxy)</title><circle class="hit" cx="562.4" cy="184.2" r="12"/><circle class="s1 ring" cx="562.4" cy="184.2" r="5"/></g>
+<g><title>t=42.0s · ~53.9% (prompt-mass proxy)</title><circle class="hit" cx="585.9" cy="179.4" r="12"/><circle class="s1 ring" cx="585.9" cy="179.4" r="5"/></g>
+<g><title>t=43.9s · ~56.0% (prompt-mass proxy)</title><circle class="hit" cx="610.7" cy="173.8" r="12"/><circle class="s1 ring" cx="610.7" cy="173.8" r="5"/></g>
+<g><title>t=45.9s · ~57.5% (prompt-mass proxy)</title><circle class="hit" cx="635.5" cy="169.7" r="12"/><circle class="s1 ring" cx="635.5" cy="169.7" r="5"/></g>
+<g><title>t=47.8s · ~58.9% (prompt-mass proxy)</title><circle class="hit" cx="660.3" cy="165.7" r="12"/><circle class="s1 ring" cx="660.3" cy="165.7" r="5"/></g>
+<g><title>t=49.9s · ~60.4% (prompt-mass proxy)</title><circle class="hit" cx="687.8" cy="161.8" r="12"/><circle class="s1 ring" cx="687.8" cy="161.8" r="5"/></g>
+<g><title>t=52.0s · ~62.3% (prompt-mass proxy)</title><circle class="hit" cx="715.6" cy="156.5" r="12"/><circle class="s1 ring" cx="715.6" cy="156.5" r="5"/></g>
+<g><title>t=54.1s · ~63.6% (prompt-mass proxy)</title><circle class="hit" cx="743.4" cy="153.1" r="12"/><circle class="s1 ring" cx="743.4" cy="153.1" r="5"/></g>
+<g><title>t=56.3s · ~66.0% (prompt-mass proxy)</title><circle class="hit" cx="771.4" cy="146.5" r="12"/><circle class="s1 ring" cx="771.4" cy="146.5" r="5"/></g>
+<g><title>engine ready</title><circle class="hit" cx="39.0" cy="326.0" r="12"/><circle class="s2 ring" cx="39.0" cy="326.0" r="5"/></g>
+<g><title>t=0.3s · ~1.2% (prompt-mass proxy)</title><circle class="hit" cx="42.3" cy="322.6" r="12"/><circle class="s2 ring" cx="42.3" cy="322.6" r="5"/></g>
+<g><title>t=0.5s · ~1.6% (prompt-mass proxy)</title><circle class="hit" cx="46.0" cy="321.6" r="12"/><circle class="s2 ring" cx="46.0" cy="321.6" r="5"/></g>
+<g><title>t=0.9s · ~2.7% (prompt-mass proxy)</title><circle class="hit" cx="50.1" cy="318.5" r="12"/><circle class="s2 ring" cx="50.1" cy="318.5" r="5"/></g>
+<g><title>t=1.2s · ~3.8% (prompt-mass proxy)</title><circle class="hit" cx="54.9" cy="315.7" r="12"/><circle class="s2 ring" cx="54.9" cy="315.7" r="5"/></g>
+<g><title>t=1.6s · ~4.2% (prompt-mass proxy)</title><circle class="hit" cx="60.4" cy="314.5" r="12"/><circle class="s2 ring" cx="60.4" cy="314.5" r="5"/></g>
+<g><title>t=2.1s · ~4.7% (prompt-mass proxy)</title><circle class="hit" cx="65.9" cy="313.3" r="12"/><circle class="s2 ring" cx="65.9" cy="313.3" r="5"/></g>
+<g><title>t=2.5s · ~5.8% (prompt-mass proxy)</title><circle class="hit" cx="71.7" cy="310.2" r="12"/><circle class="s2 ring" cx="71.7" cy="310.2" r="5"/></g>
+<g><title>t=3.0s · ~6.9% (prompt-mass proxy)</title><circle class="hit" cx="77.6" cy="307.2" r="12"/><circle class="s2 ring" cx="77.6" cy="307.2" r="5"/></g>
+<g><title>t=3.4s · ~8.1% (prompt-mass proxy)</title><circle class="hit" cx="83.5" cy="304.1" r="12"/><circle class="s2 ring" cx="83.5" cy="304.1" r="5"/></g>
+<g><title>t=3.9s · ~8.4% (prompt-mass proxy)</title><circle class="hit" cx="90.3" cy="303.0" r="12"/><circle class="s2 ring" cx="90.3" cy="303.0" r="5"/></g>
+<g><title>t=4.5s · ~8.8% (prompt-mass proxy)</title><circle class="hit" cx="97.1" cy="302.0" r="12"/><circle class="s2 ring" cx="97.1" cy="302.0" r="5"/></g>
+<g><title>t=5.0s · ~9.2% (prompt-mass proxy)</title><circle class="hit" cx="104.5" cy="300.9" r="12"/><circle class="s2 ring" cx="104.5" cy="300.9" r="5"/></g>
+<g><title>t=5.7s · ~9.7% (prompt-mass proxy)</title><circle class="hit" cx="113.2" cy="299.7" r="12"/><circle class="s2 ring" cx="113.2" cy="299.7" r="5"/></g>
+<g><title>t=6.4s · ~10.1% (prompt-mass proxy)</title><circle class="hit" cx="122.0" cy="298.4" r="12"/><circle class="s2 ring" cx="122.0" cy="298.4" r="5"/></g>
+<g><title>t=7.1s · ~10.7% (prompt-mass proxy)</title><circle class="hit" cx="130.8" cy="297.0" r="12"/><circle class="s2 ring" cx="130.8" cy="297.0" r="5"/></g>
+<g><title>t=7.7s · ~11.4% (prompt-mass proxy)</title><circle class="hit" cx="139.5" cy="295.0" r="12"/><circle class="s2 ring" cx="139.5" cy="295.0" r="5"/></g>
+<g><title>t=8.4s · ~12.6% (prompt-mass proxy)</title><circle class="hit" cx="148.3" cy="291.7" r="12"/><circle class="s2 ring" cx="148.3" cy="291.7" r="5"/></g>
+<g><title>t=9.1s · ~13.8% (prompt-mass proxy)</title><circle class="hit" cx="158.0" cy="288.3" r="12"/><circle class="s2 ring" cx="158.0" cy="288.3" r="5"/></g>
+<g><title>t=9.9s · ~14.7% (prompt-mass proxy)</title><circle class="hit" cx="168.0" cy="286.0" r="12"/><circle class="s2 ring" cx="168.0" cy="286.0" r="5"/></g>
+<g><title>t=10.7s · ~15.3% (prompt-mass proxy)</title><circle class="hit" cx="178.3" cy="284.5" r="12"/><circle class="s2 ring" cx="178.3" cy="284.5" r="5"/></g>
+<g><title>t=11.6s · ~16.1% (prompt-mass proxy)</title><circle class="hit" cx="189.5" cy="282.2" r="12"/><circle class="s2 ring" cx="189.5" cy="282.2" r="5"/></g>
+<g><title>t=12.6s · ~17.4% (prompt-mass proxy)</title><circle class="hit" cx="202.8" cy="278.7" r="12"/><circle class="s2 ring" cx="202.8" cy="278.7" r="5"/></g>
+<g><title>t=13.6s · ~17.9% (prompt-mass proxy)</title><circle class="hit" cx="216.4" cy="277.5" r="12"/><circle class="s2 ring" cx="216.4" cy="277.5" r="5"/></g>
+<g><title>t=14.7s · ~19.0% (prompt-mass proxy)</title><circle class="hit" cx="230.7" cy="274.4" r="12"/><circle class="s2 ring" cx="230.7" cy="274.4" r="5"/></g>
+<g><title>t=15.8s · ~19.6% (prompt-mass proxy)</title><circle class="hit" cx="245.2" cy="272.8" r="12"/><circle class="s2 ring" cx="245.2" cy="272.8" r="5"/></g>
+<g><title>t=17.0s · ~20.0% (prompt-mass proxy)</title><circle class="hit" cx="259.9" cy="271.7" r="12"/><circle class="s2 ring" cx="259.9" cy="271.7" r="5"/></g>
+<g><title>t=18.2s · ~21.1% (prompt-mass proxy)</title><circle class="hit" cx="276.2" cy="268.5" r="12"/><circle class="s2 ring" cx="276.2" cy="268.5" r="5"/></g>
+<g><title>t=19.5s · ~22.3% (prompt-mass proxy)</title><circle class="hit" cx="292.9" cy="265.4" r="12"/><circle class="s2 ring" cx="292.9" cy="265.4" r="5"/></g>
+<g><title>t=20.8s · ~23.1% (prompt-mass proxy)</title><circle class="hit" cx="310.0" cy="263.1" r="12"/><circle class="s2 ring" cx="310.0" cy="263.1" r="5"/></g>
+<g><title>t=22.2s · ~24.3% (prompt-mass proxy)</title><circle class="hit" cx="327.5" cy="260.0" r="12"/><circle class="s2 ring" cx="327.5" cy="260.0" r="5"/></g>
+<g><title>t=23.5s · ~25.0% (prompt-mass proxy)</title><circle class="hit" cx="345.3" cy="258.1" r="12"/><circle class="s2 ring" cx="345.3" cy="258.1" r="5"/></g>
+<g><title>t=24.9s · ~25.4% (prompt-mass proxy)</title><circle class="hit" cx="363.5" cy="257.0" r="12"/><circle class="s2 ring" cx="363.5" cy="257.0" r="5"/></g>
+<g><title>t=26.4s · ~26.5% (prompt-mass proxy)</title><circle class="hit" cx="382.0" cy="253.8" r="12"/><circle class="s2 ring" cx="382.0" cy="253.8" r="5"/></g>
+<g><title>t=27.8s · ~27.0% (prompt-mass proxy)</title><circle class="hit" cx="400.5" cy="252.5" r="12"/><circle class="s2 ring" cx="400.5" cy="252.5" r="5"/></g>
+<g><title>t=29.2s · ~27.5% (prompt-mass proxy)</title><circle class="hit" cx="419.4" cy="251.2" r="12"/><circle class="s2 ring" cx="419.4" cy="251.2" r="5"/></g>
+<g><title>t=30.7s · ~28.0% (prompt-mass proxy)</title><circle class="hit" cx="438.3" cy="249.9" r="12"/><circle class="s2 ring" cx="438.3" cy="249.9" r="5"/></g>
+<g><title>t=32.1s · ~29.2% (prompt-mass proxy)</title><circle class="hit" cx="457.3" cy="246.6" r="12"/><circle class="s2 ring" cx="457.3" cy="246.6" r="5"/></g>
+<g><title>t=33.6s · ~30.3% (prompt-mass proxy)</title><circle class="hit" cx="476.6" cy="243.6" r="12"/><circle class="s2 ring" cx="476.6" cy="243.6" r="5"/></g>
+<g><title>t=35.2s · ~31.3% (prompt-mass proxy)</title><circle class="hit" cx="497.0" cy="241.0" r="12"/><circle class="s2 ring" cx="497.0" cy="241.0" r="5"/></g>
+<g><title>t=36.9s · ~32.4% (prompt-mass proxy)</title><circle class="hit" cx="518.4" cy="237.8" r="12"/><circle class="s2 ring" cx="518.4" cy="237.8" r="5"/></g>
+<g><title>t=38.5s · ~33.5% (prompt-mass proxy)</title><circle class="hit" cx="540.0" cy="235.0" r="12"/><circle class="s2 ring" cx="540.0" cy="235.0" r="5"/></g>
+<g><title>t=40.2s · ~34.7% (prompt-mass proxy)</title><circle class="hit" cx="562.4" cy="231.7" r="12"/><circle class="s2 ring" cx="562.4" cy="231.7" r="5"/></g>
+<g><title>t=42.0s · ~35.9% (prompt-mass proxy)</title><circle class="hit" cx="585.9" cy="228.5" r="12"/><circle class="s2 ring" cx="585.9" cy="228.5" r="5"/></g>
+<g><title>t=43.9s · ~37.2% (prompt-mass proxy)</title><circle class="hit" cx="610.7" cy="224.8" r="12"/><circle class="s2 ring" cx="610.7" cy="224.8" r="5"/></g>
+<g><title>t=45.9s · ~38.2% (prompt-mass proxy)</title><circle class="hit" cx="635.5" cy="222.1" r="12"/><circle class="s2 ring" cx="635.5" cy="222.1" r="5"/></g>
+<g><title>t=47.8s · ~39.2% (prompt-mass proxy)</title><circle class="hit" cx="660.3" cy="219.4" r="12"/><circle class="s2 ring" cx="660.3" cy="219.4" r="5"/></g>
+<g><title>t=49.9s · ~40.2% (prompt-mass proxy)</title><circle class="hit" cx="687.8" cy="216.8" r="12"/><circle class="s2 ring" cx="687.8" cy="216.8" r="5"/></g>
+<g><title>t=52.0s · ~41.5% (prompt-mass proxy)</title><circle class="hit" cx="715.6" cy="213.3" r="12"/><circle class="s2 ring" cx="715.6" cy="213.3" r="5"/></g>
+<g><title>t=54.1s · ~42.3% (prompt-mass proxy)</title><circle class="hit" cx="743.4" cy="211.0" r="12"/><circle class="s2 ring" cx="743.4" cy="211.0" r="5"/></g>
+<g><title>t=56.3s · ~43.9% (prompt-mass proxy)</title><circle class="hit" cx="771.4" cy="206.6" r="12"/><circle class="s2 ring" cx="771.4" cy="206.6" r="5"/></g>
+</svg></g><g transform="translate(852,428)"><svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 814 376" width="814" height="376" role="img" aria-label="Contracts">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --good:#0ca30c; --critical:#d03b3b; }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+
+<style>
+  .viz .grp { fill: var(--ink); font-size: 12px; font-weight: 600; }
+  .viz .axt { fill: var(--ink2); font-size: 11px; }
+  .viz .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .viz .lndeemph { stroke: var(--deemph); }
+  .viz .lead { stroke: var(--ink2); stroke-width: 1; }
+  .viz .hit { fill: transparent; }
+</style>
+
+<rect class="bg" width="814" height="376" rx="8"/>
+<text class="title" x="16" y="24">Contracts</text>
+<text class="sub" x="16" y="42">sand032-s3-contracts50 · y rises with prompt mass processed (proxy); end points match vLLM /metrics cumulative hit</text>
+<line class="line ln1" x1="16" y1="58" x2="34" y2="58"/>
+<circle class="s1 ring" cx="25.0" cy="58.0" r="5"/>
+<text class="lbl" x="40" y="62">replica 1 (48.9% end)</text>
+<line class="line ln2" x1="178.95999999999995" y1="58" x2="196.95999999999995" y2="58"/>
+<circle class="s2 ring" cx="188.0" cy="58.0" r="5"/>
+<text class="lbl" x="202.95999999999995" y="62">replica 2 (37.8% end)</text>
+<line class="grid" x1="39" y1="326.0" x2="786" y2="326.0"/>
+<text class="tick" x="33" y="330.0" text-anchor="end">0</text>
+<line class="grid" x1="39" y1="254.1" x2="786" y2="254.1"/>
+<text class="tick" x="33" y="258.1" text-anchor="end">20</text>
+<line class="grid" x1="39" y1="182.3" x2="786" y2="182.3"/>
+<text class="tick" x="33" y="186.3" text-anchor="end">40</text>
+<line class="grid" x1="39" y1="110.4" x2="786" y2="110.4"/>
+<text class="tick" x="33" y="114.4" text-anchor="end">60</text>
+<line class="grid" x1="39.0" y1="106" x2="39.0" y2="326"/>
+<text class="tick" x="39.0" y="342" text-anchor="middle">0</text>
+<line class="grid" x1="195.3" y1="106" x2="195.3" y2="326"/>
+<text class="tick" x="195.3" y="342" text-anchor="middle">50</text>
+<line class="grid" x1="351.6" y1="106" x2="351.6" y2="326"/>
+<text class="tick" x="351.6" y="342" text-anchor="middle">100</text>
+<line class="grid" x1="507.8" y1="106" x2="507.8" y2="326"/>
+<text class="tick" x="507.8" y="342" text-anchor="middle">150</text>
+<line class="grid" x1="664.1" y1="106" x2="664.1" y2="326"/>
+<text class="tick" x="664.1" y="342" text-anchor="middle">200</text>
+<line class="axis" x1="39" y1="326" x2="786" y2="326"/>
+<line class="axis" x1="39" y1="106" x2="39" y2="326"/>
+<text class="axt" x="16" y="90">Prefix-cache hit (%)</text>
+<text class="axt" x="412.5" y="362" text-anchor="middle">Wall time (s)</text>
+<path class="line ln1" d="M39.0,326.0 L44.2,324.1 L51.6,320.1 L59.0,316.5 L66.8,312.6 L75.7,308.8 L85.5,304.9 L95.3,302.3 L105.3,297.3 L115.6,293.0 L126.5,289.3 L137.6,286.1 L149.5,282.3 L161.9,277.4 L174.8,273.5 L188.0,269.5 L201.3,267.5 L214.5,264.8 L228.2,258.5 L241.9,254.7 L255.7,250.7 L269.5,247.0 L283.7,243.0 L298.0,239.2 L312.2,235.3 L326.8,231.6 L341.8,227.8 L356.8,224.3 L371.9,219.4 L387.2,216.6 L402.6,212.8 L419.0,209.6 L435.5,205.9 L451.9,202.3 L469.8,198.2 L487.7,194.2 L506.4,190.0 L526.3,187.6 L546.4,183.7 L567.1,180.1 L589.0,176.5 L611.0,172.6 L634.7,168.6 L659.1,164.7 L684.1,160.6 L711.9,157.9 L741.1,153.8 L771.4,150.3"/>
+<path class="line ln2" d="M39.0,326.0 L44.2,324.6 L51.6,321.4 L59.0,318.7 L66.8,315.6 L75.7,312.7 L85.5,309.7 L95.3,307.7 L105.3,303.8 L115.6,300.5 L126.5,297.6 L137.6,295.2 L149.5,292.2 L161.9,288.4 L174.8,285.4 L188.0,282.3 L201.3,280.8 L214.5,278.7 L228.2,273.9 L241.9,270.9 L255.7,267.8 L269.5,264.9 L283.7,261.9 L298.0,258.9 L312.2,255.9 L326.8,253.1 L341.8,250.1 L356.8,247.4 L371.9,243.6 L387.2,241.5 L402.6,238.5 L419.0,236.0 L435.5,233.2 L451.9,230.3 L469.8,227.2 L487.7,224.1 L506.4,220.9 L526.3,219.1 L546.4,216.0 L567.1,213.2 L589.0,210.5 L611.0,207.4 L634.7,204.3 L659.1,201.3 L684.1,198.1 L711.9,196.0 L741.1,192.9 L771.4,190.2"/>
+<g><title>engine ready</title><circle class="hit" cx="39.0" cy="326.0" r="12"/><circle class="s1 ring" cx="39.0" cy="326.0" r="5"/></g>
+<g><title>t=1.7s · ~0.5% (prompt-mass proxy)</title><circle class="hit" cx="44.2" cy="324.1" r="12"/><circle class="s1 ring" cx="44.2" cy="324.1" r="5"/></g>
+<g><title>t=4.0s · ~1.6% (prompt-mass proxy)</title><circle class="hit" cx="51.6" cy="320.1" r="12"/><circle class="s1 ring" cx="51.6" cy="320.1" r="5"/></g>
+<g><title>t=6.4s · ~2.6% (prompt-mass proxy)</title><circle class="hit" cx="59.0" cy="316.5" r="12"/><circle class="s1 ring" cx="59.0" cy="316.5" r="5"/></g>
+<g><title>t=8.9s · ~3.7% (prompt-mass proxy)</title><circle class="hit" cx="66.8" cy="312.6" r="12"/><circle class="s1 ring" cx="66.8" cy="312.6" r="5"/></g>
+<g><title>t=11.8s · ~4.8% (prompt-mass proxy)</title><circle class="hit" cx="75.7" cy="308.8" r="12"/><circle class="s1 ring" cx="75.7" cy="308.8" r="5"/></g>
+<g><title>t=14.9s · ~5.9% (prompt-mass proxy)</title><circle class="hit" cx="85.5" cy="304.9" r="12"/><circle class="s1 ring" cx="85.5" cy="304.9" r="5"/></g>
+<g><title>t=18.0s · ~6.6% (prompt-mass proxy)</title><circle class="hit" cx="95.3" cy="302.3" r="12"/><circle class="s1 ring" cx="95.3" cy="302.3" r="5"/></g>
+<g><title>t=21.2s · ~8.0% (prompt-mass proxy)</title><circle class="hit" cx="105.3" cy="297.3" r="12"/><circle class="s1 ring" cx="105.3" cy="297.3" r="5"/></g>
+<g><title>t=24.5s · ~9.2% (prompt-mass proxy)</title><circle class="hit" cx="115.6" cy="293.0" r="12"/><circle class="s1 ring" cx="115.6" cy="293.0" r="5"/></g>
+<g><title>t=28.0s · ~10.2% (prompt-mass proxy)</title><circle class="hit" cx="126.5" cy="289.3" r="12"/><circle class="s1 ring" cx="126.5" cy="289.3" r="5"/></g>
+<g><title>t=31.5s · ~11.1% (prompt-mass proxy)</title><circle class="hit" cx="137.6" cy="286.1" r="12"/><circle class="s1 ring" cx="137.6" cy="286.1" r="5"/></g>
+<g><title>t=35.4s · ~12.2% (prompt-mass proxy)</title><circle class="hit" cx="149.5" cy="282.3" r="12"/><circle class="s1 ring" cx="149.5" cy="282.3" r="5"/></g>
+<g><title>t=39.3s · ~13.5% (prompt-mass proxy)</title><circle class="hit" cx="161.9" cy="277.4" r="12"/><circle class="s1 ring" cx="161.9" cy="277.4" r="5"/></g>
+<g><title>t=43.5s · ~14.6% (prompt-mass proxy)</title><circle class="hit" cx="174.8" cy="273.5" r="12"/><circle class="s1 ring" cx="174.8" cy="273.5" r="5"/></g>
+<g><title>t=47.7s · ~15.7% (prompt-mass proxy)</title><circle class="hit" cx="188.0" cy="269.5" r="12"/><circle class="s1 ring" cx="188.0" cy="269.5" r="5"/></g>
+<g><title>t=51.9s · ~16.3% (prompt-mass proxy)</title><circle class="hit" cx="201.3" cy="267.5" r="12"/><circle class="s1 ring" cx="201.3" cy="267.5" r="5"/></g>
+<g><title>t=56.2s · ~17.0% (prompt-mass proxy)</title><circle class="hit" cx="214.5" cy="264.8" r="12"/><circle class="s1 ring" cx="214.5" cy="264.8" r="5"/></g>
+<g><title>t=60.5s · ~18.8% (prompt-mass proxy)</title><circle class="hit" cx="228.2" cy="258.5" r="12"/><circle class="s1 ring" cx="228.2" cy="258.5" r="5"/></g>
+<g><title>t=64.9s · ~19.8% (prompt-mass proxy)</title><circle class="hit" cx="241.9" cy="254.7" r="12"/><circle class="s1 ring" cx="241.9" cy="254.7" r="5"/></g>
+<g><title>t=69.3s · ~20.9% (prompt-mass proxy)</title><circle class="hit" cx="255.7" cy="250.7" r="12"/><circle class="s1 ring" cx="255.7" cy="250.7" r="5"/></g>
+<g><title>t=73.8s · ~22.0% (prompt-mass proxy)</title><circle class="hit" cx="269.5" cy="247.0" r="12"/><circle class="s1 ring" cx="269.5" cy="247.0" r="5"/></g>
+<g><title>t=78.3s · ~23.1% (prompt-mass proxy)</title><circle class="hit" cx="283.7" cy="243.0" r="12"/><circle class="s1 ring" cx="283.7" cy="243.0" r="5"/></g>
+<g><title>t=82.9s · ~24.2% (prompt-mass proxy)</title><circle class="hit" cx="298.0" cy="239.2" r="12"/><circle class="s1 ring" cx="298.0" cy="239.2" r="5"/></g>
+<g><title>t=87.4s · ~25.2% (prompt-mass proxy)</title><circle class="hit" cx="312.2" cy="235.3" r="12"/><circle class="s1 ring" cx="312.2" cy="235.3" r="5"/></g>
+<g><title>t=92.1s · ~26.3% (prompt-mass proxy)</title><circle class="hit" cx="326.8" cy="231.6" r="12"/><circle class="s1 ring" cx="326.8" cy="231.6" r="5"/></g>
+<g><title>t=96.9s · ~27.3% (prompt-mass proxy)</title><circle class="hit" cx="341.8" cy="227.8" r="12"/><circle class="s1 ring" cx="341.8" cy="227.8" r="5"/></g>
+<g><title>t=101.7s · ~28.3% (prompt-mass proxy)</title><circle class="hit" cx="356.8" cy="224.3" r="12"/><circle class="s1 ring" cx="356.8" cy="224.3" r="5"/></g>
+<g><title>t=106.5s · ~29.7% (prompt-mass proxy)</title><circle class="hit" cx="371.9" cy="219.4" r="12"/><circle class="s1 ring" cx="371.9" cy="219.4" r="5"/></g>
+<g><title>t=111.4s · ~30.4% (prompt-mass proxy)</title><circle class="hit" cx="387.2" cy="216.6" r="12"/><circle class="s1 ring" cx="387.2" cy="216.6" r="5"/></g>
+<g><title>t=116.3s · ~31.5% (prompt-mass proxy)</title><circle class="hit" cx="402.6" cy="212.8" r="12"/><circle class="s1 ring" cx="402.6" cy="212.8" r="5"/></g>
+<g><title>t=121.6s · ~32.4% (prompt-mass proxy)</title><circle class="hit" cx="419.0" cy="209.6" r="12"/><circle class="s1 ring" cx="419.0" cy="209.6" r="5"/></g>
+<g><title>t=126.8s · ~33.4% (prompt-mass proxy)</title><circle class="hit" cx="435.5" cy="205.9" r="12"/><circle class="s1 ring" cx="435.5" cy="205.9" r="5"/></g>
+<g><title>t=132.1s · ~34.4% (prompt-mass proxy)</title><circle class="hit" cx="451.9" cy="202.3" r="12"/><circle class="s1 ring" cx="451.9" cy="202.3" r="5"/></g>
+<g><title>t=137.8s · ~35.6% (prompt-mass proxy)</title><circle class="hit" cx="469.8" cy="198.2" r="12"/><circle class="s1 ring" cx="469.8" cy="198.2" r="5"/></g>
+<g><title>t=143.6s · ~36.7% (prompt-mass proxy)</title><circle class="hit" cx="487.7" cy="194.2" r="12"/><circle class="s1 ring" cx="487.7" cy="194.2" r="5"/></g>
+<g><title>t=149.5s · ~37.8% (prompt-mass proxy)</title><circle class="hit" cx="506.4" cy="190.0" r="12"/><circle class="s1 ring" cx="506.4" cy="190.0" r="5"/></g>
+<g><title>t=155.9s · ~38.5% (prompt-mass proxy)</title><circle class="hit" cx="526.3" cy="187.6" r="12"/><circle class="s1 ring" cx="526.3" cy="187.6" r="5"/></g>
+<g><title>t=162.3s · ~39.6% (prompt-mass proxy)</title><circle class="hit" cx="546.4" cy="183.7" r="12"/><circle class="s1 ring" cx="546.4" cy="183.7" r="5"/></g>
+<g><title>t=169.0s · ~40.6% (prompt-mass proxy)</title><circle class="hit" cx="567.1" cy="180.1" r="12"/><circle class="s1 ring" cx="567.1" cy="180.1" r="5"/></g>
+<g><title>t=176.0s · ~41.6% (prompt-mass proxy)</title><circle class="hit" cx="589.0" cy="176.5" r="12"/><circle class="s1 ring" cx="589.0" cy="176.5" r="5"/></g>
+<g><title>t=183.0s · ~42.7% (prompt-mass proxy)</title><circle class="hit" cx="611.0" cy="172.6" r="12"/><circle class="s1 ring" cx="611.0" cy="172.6" r="5"/></g>
+<g><title>t=190.6s · ~43.8% (prompt-mass proxy)</title><circle class="hit" cx="634.7" cy="168.6" r="12"/><circle class="s1 ring" cx="634.7" cy="168.6" r="5"/></g>
+<g><title>t=198.4s · ~44.9% (prompt-mass proxy)</title><circle class="hit" cx="659.1" cy="164.7" r="12"/><circle class="s1 ring" cx="659.1" cy="164.7" r="5"/></g>
+<g><title>t=206.4s · ~46.0% (prompt-mass proxy)</title><circle class="hit" cx="684.1" cy="160.6" r="12"/><circle class="s1 ring" cx="684.1" cy="160.6" r="5"/></g>
+<g><title>t=215.3s · ~46.8% (prompt-mass proxy)</title><circle class="hit" cx="711.9" cy="157.9" r="12"/><circle class="s1 ring" cx="711.9" cy="157.9" r="5"/></g>
+<g><title>t=224.6s · ~47.9% (prompt-mass proxy)</title><circle class="hit" cx="741.1" cy="153.8" r="12"/><circle class="s1 ring" cx="741.1" cy="153.8" r="5"/></g>
+<g><title>t=234.3s · ~48.9% (prompt-mass proxy)</title><circle class="hit" cx="771.4" cy="150.3" r="12"/><circle class="s1 ring" cx="771.4" cy="150.3" r="5"/></g>
+<g><title>engine ready</title><circle class="hit" cx="39.0" cy="326.0" r="12"/><circle class="s2 ring" cx="39.0" cy="326.0" r="5"/></g>
+<g><title>t=1.7s · ~0.4% (prompt-mass proxy)</title><circle class="hit" cx="44.2" cy="324.6" r="12"/><circle class="s2 ring" cx="44.2" cy="324.6" r="5"/></g>
+<g><title>t=4.0s · ~1.3% (prompt-mass proxy)</title><circle class="hit" cx="51.6" cy="321.4" r="12"/><circle class="s2 ring" cx="51.6" cy="321.4" r="5"/></g>
+<g><title>t=6.4s · ~2.0% (prompt-mass proxy)</title><circle class="hit" cx="59.0" cy="318.7" r="12"/><circle class="s2 ring" cx="59.0" cy="318.7" r="5"/></g>
+<g><title>t=8.9s · ~2.9% (prompt-mass proxy)</title><circle class="hit" cx="66.8" cy="315.6" r="12"/><circle class="s2 ring" cx="66.8" cy="315.6" r="5"/></g>
+<g><title>t=11.8s · ~3.7% (prompt-mass proxy)</title><circle class="hit" cx="75.7" cy="312.7" r="12"/><circle class="s2 ring" cx="75.7" cy="312.7" r="5"/></g>
+<g><title>t=14.9s · ~4.5% (prompt-mass proxy)</title><circle class="hit" cx="85.5" cy="309.7" r="12"/><circle class="s2 ring" cx="85.5" cy="309.7" r="5"/></g>
+<g><title>t=18.0s · ~5.1% (prompt-mass proxy)</title><circle class="hit" cx="95.3" cy="307.7" r="12"/><circle class="s2 ring" cx="95.3" cy="307.7" r="5"/></g>
+<g><title>t=21.2s · ~6.2% (prompt-mass proxy)</title><circle class="hit" cx="105.3" cy="303.8" r="12"/><circle class="s2 ring" cx="105.3" cy="303.8" r="5"/></g>
+<g><title>t=24.5s · ~7.1% (prompt-mass proxy)</title><circle class="hit" cx="115.6" cy="300.5" r="12"/><circle class="s2 ring" cx="115.6" cy="300.5" r="5"/></g>
+<g><title>t=28.0s · ~7.9% (prompt-mass proxy)</title><circle class="hit" cx="126.5" cy="297.6" r="12"/><circle class="s2 ring" cx="126.5" cy="297.6" r="5"/></g>
+<g><title>t=31.5s · ~8.6% (prompt-mass proxy)</title><circle class="hit" cx="137.6" cy="295.2" r="12"/><circle class="s2 ring" cx="137.6" cy="295.2" r="5"/></g>
+<g><title>t=35.4s · ~9.4% (prompt-mass proxy)</title><circle class="hit" cx="149.5" cy="292.2" r="12"/><circle class="s2 ring" cx="149.5" cy="292.2" r="5"/></g>
+<g><title>t=39.3s · ~10.5% (prompt-mass proxy)</title><circle class="hit" cx="161.9" cy="288.4" r="12"/><circle class="s2 ring" cx="161.9" cy="288.4" r="5"/></g>
+<g><title>t=43.5s · ~11.3% (prompt-mass proxy)</title><circle class="hit" cx="174.8" cy="285.4" r="12"/><circle class="s2 ring" cx="174.8" cy="285.4" r="5"/></g>
+<g><title>t=47.7s · ~12.2% (prompt-mass proxy)</title><circle class="hit" cx="188.0" cy="282.3" r="12"/><circle class="s2 ring" cx="188.0" cy="282.3" r="5"/></g>
+<g><title>t=51.9s · ~12.6% (prompt-mass proxy)</title><circle class="hit" cx="201.3" cy="280.8" r="12"/><circle class="s2 ring" cx="201.3" cy="280.8" r="5"/></g>
+<g><title>t=56.2s · ~13.2% (prompt-mass proxy)</title><circle class="hit" cx="214.5" cy="278.7" r="12"/><circle class="s2 ring" cx="214.5" cy="278.7" r="5"/></g>
+<g><title>t=60.5s · ~14.5% (prompt-mass proxy)</title><circle class="hit" cx="228.2" cy="273.9" r="12"/><circle class="s2 ring" cx="228.2" cy="273.9" r="5"/></g>
+<g><title>t=64.9s · ~15.3% (prompt-mass proxy)</title><circle class="hit" cx="241.9" cy="270.9" r="12"/><circle class="s2 ring" cx="241.9" cy="270.9" r="5"/></g>
+<g><title>t=69.3s · ~16.2% (prompt-mass proxy)</title><circle class="hit" cx="255.7" cy="267.8" r="12"/><circle class="s2 ring" cx="255.7" cy="267.8" r="5"/></g>
+<g><title>t=73.8s · ~17.0% (prompt-mass proxy)</title><circle class="hit" cx="269.5" cy="264.9" r="12"/><circle class="s2 ring" cx="269.5" cy="264.9" r="5"/></g>
+<g><title>t=78.3s · ~17.8% (prompt-mass proxy)</title><circle class="hit" cx="283.7" cy="261.9" r="12"/><circle class="s2 ring" cx="283.7" cy="261.9" r="5"/></g>
+<g><title>t=82.9s · ~18.7% (prompt-mass proxy)</title><circle class="hit" cx="298.0" cy="258.9" r="12"/><circle class="s2 ring" cx="298.0" cy="258.9" r="5"/></g>
+<g><title>t=87.4s · ~19.5% (prompt-mass proxy)</title><circle class="hit" cx="312.2" cy="255.9" r="12"/><circle class="s2 ring" cx="312.2" cy="255.9" r="5"/></g>
+<g><title>t=92.1s · ~20.3% (prompt-mass proxy)</title><circle class="hit" cx="326.8" cy="253.1" r="12"/><circle class="s2 ring" cx="326.8" cy="253.1" r="5"/></g>
+<g><title>t=96.9s · ~21.1% (prompt-mass proxy)</title><circle class="hit" cx="341.8" cy="250.1" r="12"/><circle class="s2 ring" cx="341.8" cy="250.1" r="5"/></g>
+<g><title>t=101.7s · ~21.9% (prompt-mass proxy)</title><circle class="hit" cx="356.8" cy="247.4" r="12"/><circle class="s2 ring" cx="356.8" cy="247.4" r="5"/></g>
+<g><title>t=106.5s · ~22.9% (prompt-mass proxy)</title><circle class="hit" cx="371.9" cy="243.6" r="12"/><circle class="s2 ring" cx="371.9" cy="243.6" r="5"/></g>
+<g><title>t=111.4s · ~23.5% (prompt-mass proxy)</title><circle class="hit" cx="387.2" cy="241.5" r="12"/><circle class="s2 ring" cx="387.2" cy="241.5" r="5"/></g>
+<g><title>t=116.3s · ~24.4% (prompt-mass proxy)</title><circle class="hit" cx="402.6" cy="238.5" r="12"/><circle class="s2 ring" cx="402.6" cy="238.5" r="5"/></g>
+<g><title>t=121.6s · ~25.0% (prompt-mass proxy)</title><circle class="hit" cx="419.0" cy="236.0" r="12"/><circle class="s2 ring" cx="419.0" cy="236.0" r="5"/></g>
+<g><title>t=126.8s · ~25.8% (prompt-mass proxy)</title><circle class="hit" cx="435.5" cy="233.2" r="12"/><circle class="s2 ring" cx="435.5" cy="233.2" r="5"/></g>
+<g><title>t=132.1s · ~26.6% (prompt-mass proxy)</title><circle class="hit" cx="451.9" cy="230.3" r="12"/><circle class="s2 ring" cx="451.9" cy="230.3" r="5"/></g>
+<g><title>t=137.8s · ~27.5% (prompt-mass proxy)</title><circle class="hit" cx="469.8" cy="227.2" r="12"/><circle class="s2 ring" cx="469.8" cy="227.2" r="5"/></g>
+<g><title>t=143.6s · ~28.3% (prompt-mass proxy)</title><circle class="hit" cx="487.7" cy="224.1" r="12"/><circle class="s2 ring" cx="487.7" cy="224.1" r="5"/></g>
+<g><title>t=149.5s · ~29.3% (prompt-mass proxy)</title><circle class="hit" cx="506.4" cy="220.9" r="12"/><circle class="s2 ring" cx="506.4" cy="220.9" r="5"/></g>
+<g><title>t=155.9s · ~29.8% (prompt-mass proxy)</title><circle class="hit" cx="526.3" cy="219.1" r="12"/><circle class="s2 ring" cx="526.3" cy="219.1" r="5"/></g>
+<g><title>t=162.3s · ~30.6% (prompt-mass proxy)</title><circle class="hit" cx="546.4" cy="216.0" r="12"/><circle class="s2 ring" cx="546.4" cy="216.0" r="5"/></g>
+<g><title>t=169.0s · ~31.4% (prompt-mass proxy)</title><circle class="hit" cx="567.1" cy="213.2" r="12"/><circle class="s2 ring" cx="567.1" cy="213.2" r="5"/></g>
+<g><title>t=176.0s · ~32.2% (prompt-mass proxy)</title><circle class="hit" cx="589.0" cy="210.5" r="12"/><circle class="s2 ring" cx="589.0" cy="210.5" r="5"/></g>
+<g><title>t=183.0s · ~33.0% (prompt-mass proxy)</title><circle class="hit" cx="611.0" cy="207.4" r="12"/><circle class="s2 ring" cx="611.0" cy="207.4" r="5"/></g>
+<g><title>t=190.6s · ~33.9% (prompt-mass proxy)</title><circle class="hit" cx="634.7" cy="204.3" r="12"/><circle class="s2 ring" cx="634.7" cy="204.3" r="5"/></g>
+<g><title>t=198.4s · ~34.7% (prompt-mass proxy)</title><circle class="hit" cx="659.1" cy="201.3" r="12"/><circle class="s2 ring" cx="659.1" cy="201.3" r="5"/></g>
+<g><title>t=206.4s · ~35.6% (prompt-mass proxy)</title><circle class="hit" cx="684.1" cy="198.1" r="12"/><circle class="s2 ring" cx="684.1" cy="198.1" r="5"/></g>
+<g><title>t=215.3s · ~36.2% (prompt-mass proxy)</title><circle class="hit" cx="711.9" cy="196.0" r="12"/><circle class="s2 ring" cx="711.9" cy="196.0" r="5"/></g>
+<g><title>t=224.6s · ~37.0% (prompt-mass proxy)</title><circle class="hit" cx="741.1" cy="192.9" r="12"/><circle class="s2 ring" cx="741.1" cy="192.9" r="5"/></g>
+<g><title>t=234.3s · ~37.8% (prompt-mass proxy)</title><circle class="hit" cx="771.4" cy="190.2" r="12"/><circle class="s2 ring" cx="771.4" cy="190.2" r="5"/></g>
+</svg></g><g transform="translate(0,820)"><svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 836 376" width="836" height="376" role="img" aria-label="Merger agreements">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --good:#0ca30c; --critical:#d03b3b; }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+
+<style>
+  .viz .grp { fill: var(--ink); font-size: 12px; font-weight: 600; }
+  .viz .axt { fill: var(--ink2); font-size: 11px; }
+  .viz .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .viz .lndeemph { stroke: var(--deemph); }
+  .viz .lead { stroke: var(--ink2); stroke-width: 1; }
+  .viz .hit { fill: transparent; }
+</style>
+
+<rect class="bg" width="836" height="376" rx="8"/>
+<text class="title" x="16" y="24">Merger agreements</text>
+<text class="sub" x="16" y="42">sand032-s5-merger50-maud · y rises with prompt mass processed (proxy); end points match vLLM /metrics cumulative hit</text>
+<line class="line ln1" x1="16" y1="58" x2="34" y2="58"/>
+<circle class="s1 ring" cx="25.0" cy="58.0" r="5"/>
+<text class="lbl" x="40" y="62">replica 1 (30.8% end)</text>
+<line class="line ln2" x1="178.95999999999995" y1="58" x2="196.95999999999995" y2="58"/>
+<circle class="s2 ring" cx="188.0" cy="58.0" r="5"/>
+<text class="lbl" x="202.95999999999995" y="62">replica 2 (28.0% end)</text>
+<line class="grid" x1="39" y1="326.0" x2="808" y2="326.0"/>
+<text class="tick" x="33" y="330.0" text-anchor="end">0</text>
+<line class="grid" x1="39" y1="271.6" x2="808" y2="271.6"/>
+<text class="tick" x="33" y="275.6" text-anchor="end">10</text>
+<line class="grid" x1="39" y1="217.1" x2="808" y2="217.1"/>
+<text class="tick" x="33" y="221.1" text-anchor="end">20</text>
+<line class="grid" x1="39" y1="162.7" x2="808" y2="162.7"/>
+<text class="tick" x="33" y="166.7" text-anchor="end">30</text>
+<line class="grid" x1="39" y1="108.3" x2="808" y2="108.3"/>
+<text class="tick" x="33" y="112.3" text-anchor="end">40</text>
+<line class="grid" x1="39.0" y1="106" x2="39.0" y2="326"/>
+<text class="tick" x="39.0" y="342" text-anchor="middle">0</text>
+<line class="grid" x1="209.4" y1="106" x2="209.4" y2="326"/>
+<text class="tick" x="209.4" y="342" text-anchor="middle">100</text>
+<line class="grid" x1="379.8" y1="106" x2="379.8" y2="326"/>
+<text class="tick" x="379.8" y="342" text-anchor="middle">200</text>
+<line class="grid" x1="550.2" y1="106" x2="550.2" y2="326"/>
+<text class="tick" x="550.2" y="342" text-anchor="middle">300</text>
+<line class="grid" x1="720.6" y1="106" x2="720.6" y2="326"/>
+<text class="tick" x="720.6" y="342" text-anchor="middle">400</text>
+<line class="axis" x1="39" y1="326" x2="808" y2="326"/>
+<line class="axis" x1="39" y1="106" x2="39" y2="326"/>
+<text class="axt" x="16" y="90">Prefix-cache hit (%)</text>
+<text class="axt" x="423.5" y="362" text-anchor="middle">Wall time (s)</text>
+<path class="line ln1" d="M39.0,326.0 L41.8,322.5 L45.2,319.0 L48.9,315.4 L52.7,311.7 L56.6,308.1 L60.5,304.5 L64.5,300.8 L71.0,296.9 L80.2,293.3 L90.0,289.7 L100.3,286.1 L111.2,282.2 L122.2,278.5 L133.6,274.9 L145.0,271.3 L157.1,267.7 L169.6,264.0 L182.8,260.5 L196.4,256.7 L211.1,253.2 L226.3,249.7 L242.0,246.1 L258.5,242.5 L275.4,239.0 L292.6,235.3 L309.9,231.8 L328.3,228.3 L347.0,224.6 L366.6,221.0 L386.4,217.0 L406.7,213.4 L427.7,209.7 L449.1,206.2 L470.9,202.5 L492.8,198.8 L515.9,195.1 L539.4,191.4 L563.3,187.7 L587.4,184.0 L613.8,180.2 L641.0,176.5 L669.3,172.9 L697.9,169.4 L726.7,165.7 L759.7,162.0 L792.9,158.4"/>
+<path class="line ln2" d="M39.0,326.0 L41.8,322.8 L45.2,319.6 L48.9,316.3 L52.7,313.0 L56.6,309.7 L60.5,306.4 L64.5,303.1 L71.0,299.6 L80.2,296.3 L90.0,293.0 L100.3,289.7 L111.2,286.1 L122.2,282.8 L133.6,279.5 L145.0,276.3 L157.1,273.0 L169.6,269.7 L182.8,266.4 L196.4,263.0 L211.1,259.8 L226.3,256.6 L242.0,253.4 L258.5,250.1 L275.4,246.9 L292.6,243.6 L309.9,240.3 L328.3,237.1 L347.0,233.8 L366.6,230.6 L386.4,226.9 L406.7,223.6 L427.7,220.2 L449.1,217.1 L470.9,213.7 L492.8,210.4 L515.9,207.0 L539.4,203.7 L563.3,200.2 L587.4,196.9 L613.8,193.5 L641.0,190.1 L669.3,186.8 L697.9,183.6 L726.7,180.3 L759.7,176.9 L792.9,173.6"/>
+<g><title>engine ready</title><circle class="hit" cx="39.0" cy="326.0" r="12"/><circle class="s1 ring" cx="39.0" cy="326.0" r="5"/></g>
+<g><title>t=1.6s · ~0.6% (prompt-mass proxy)</title><circle class="hit" cx="41.8" cy="322.5" r="12"/><circle class="s1 ring" cx="41.8" cy="322.5" r="5"/></g>
+<g><title>t=3.7s · ~1.3% (prompt-mass proxy)</title><circle class="hit" cx="45.2" cy="319.0" r="12"/><circle class="s1 ring" cx="45.2" cy="319.0" r="5"/></g>
+<g><title>t=5.8s · ~2.0% (prompt-mass proxy)</title><circle class="hit" cx="48.9" cy="315.4" r="12"/><circle class="s1 ring" cx="48.9" cy="315.4" r="5"/></g>
+<g><title>t=8.0s · ~2.6% (prompt-mass proxy)</title><circle class="hit" cx="52.7" cy="311.7" r="12"/><circle class="s1 ring" cx="52.7" cy="311.7" r="5"/></g>
+<g><title>t=10.3s · ~3.3% (prompt-mass proxy)</title><circle class="hit" cx="56.6" cy="308.1" r="12"/><circle class="s1 ring" cx="56.6" cy="308.1" r="5"/></g>
+<g><title>t=12.6s · ~4.0% (prompt-mass proxy)</title><circle class="hit" cx="60.5" cy="304.5" r="12"/><circle class="s1 ring" cx="60.5" cy="304.5" r="5"/></g>
+<g><title>t=15.0s · ~4.6% (prompt-mass proxy)</title><circle class="hit" cx="64.5" cy="300.8" r="12"/><circle class="s1 ring" cx="64.5" cy="300.8" r="5"/></g>
+<g><title>t=18.8s · ~5.3% (prompt-mass proxy)</title><circle class="hit" cx="71.0" cy="296.9" r="12"/><circle class="s1 ring" cx="71.0" cy="296.9" r="5"/></g>
+<g><title>t=24.2s · ~6.0% (prompt-mass proxy)</title><circle class="hit" cx="80.2" cy="293.3" r="12"/><circle class="s1 ring" cx="80.2" cy="293.3" r="5"/></g>
+<g><title>t=29.9s · ~6.7% (prompt-mass proxy)</title><circle class="hit" cx="90.0" cy="289.7" r="12"/><circle class="s1 ring" cx="90.0" cy="289.7" r="5"/></g>
+<g><title>t=36.0s · ~7.3% (prompt-mass proxy)</title><circle class="hit" cx="100.3" cy="286.1" r="12"/><circle class="s1 ring" cx="100.3" cy="286.1" r="5"/></g>
+<g><title>t=42.4s · ~8.1% (prompt-mass proxy)</title><circle class="hit" cx="111.2" cy="282.2" r="12"/><circle class="s1 ring" cx="111.2" cy="282.2" r="5"/></g>
+<g><title>t=48.8s · ~8.7% (prompt-mass proxy)</title><circle class="hit" cx="122.2" cy="278.5" r="12"/><circle class="s1 ring" cx="122.2" cy="278.5" r="5"/></g>
+<g><title>t=55.5s · ~9.4% (prompt-mass proxy)</title><circle class="hit" cx="133.6" cy="274.9" r="12"/><circle class="s1 ring" cx="133.6" cy="274.9" r="5"/></g>
+<g><title>t=62.2s · ~10.0% (prompt-mass proxy)</title><circle class="hit" cx="145.0" cy="271.3" r="12"/><circle class="s1 ring" cx="145.0" cy="271.3" r="5"/></g>
+<g><title>t=69.3s · ~10.7% (prompt-mass proxy)</title><circle class="hit" cx="157.1" cy="267.7" r="12"/><circle class="s1 ring" cx="157.1" cy="267.7" r="5"/></g>
+<g><title>t=76.7s · ~11.4% (prompt-mass proxy)</title><circle class="hit" cx="169.6" cy="264.0" r="12"/><circle class="s1 ring" cx="169.6" cy="264.0" r="5"/></g>
+<g><title>t=84.4s · ~12.0% (prompt-mass proxy)</title><circle class="hit" cx="182.8" cy="260.5" r="12"/><circle class="s1 ring" cx="182.8" cy="260.5" r="5"/></g>
+<g><title>t=92.4s · ~12.7% (prompt-mass proxy)</title><circle class="hit" cx="196.4" cy="256.7" r="12"/><circle class="s1 ring" cx="196.4" cy="256.7" r="5"/></g>
+<g><title>t=101.0s · ~13.4% (prompt-mass proxy)</title><circle class="hit" cx="211.1" cy="253.2" r="12"/><circle class="s1 ring" cx="211.1" cy="253.2" r="5"/></g>
+<g><title>t=109.9s · ~14.0% (prompt-mass proxy)</title><circle class="hit" cx="226.3" cy="249.7" r="12"/><circle class="s1 ring" cx="226.3" cy="249.7" r="5"/></g>
+<g><title>t=119.1s · ~14.7% (prompt-mass proxy)</title><circle class="hit" cx="242.0" cy="246.1" r="12"/><circle class="s1 ring" cx="242.0" cy="246.1" r="5"/></g>
+<g><title>t=128.8s · ~15.3% (prompt-mass proxy)</title><circle class="hit" cx="258.5" cy="242.5" r="12"/><circle class="s1 ring" cx="258.5" cy="242.5" r="5"/></g>
+<g><title>t=138.8s · ~16.0% (prompt-mass proxy)</title><circle class="hit" cx="275.4" cy="239.0" r="12"/><circle class="s1 ring" cx="275.4" cy="239.0" r="5"/></g>
+<g><title>t=148.9s · ~16.7% (prompt-mass proxy)</title><circle class="hit" cx="292.6" cy="235.3" r="12"/><circle class="s1 ring" cx="292.6" cy="235.3" r="5"/></g>
+<g><title>t=159.0s · ~17.3% (prompt-mass proxy)</title><circle class="hit" cx="309.9" cy="231.8" r="12"/><circle class="s1 ring" cx="309.9" cy="231.8" r="5"/></g>
+<g><title>t=169.8s · ~18.0% (prompt-mass proxy)</title><circle class="hit" cx="328.3" cy="228.3" r="12"/><circle class="s1 ring" cx="328.3" cy="228.3" r="5"/></g>
+<g><title>t=180.8s · ~18.6% (prompt-mass proxy)</title><circle class="hit" cx="347.0" cy="224.6" r="12"/><circle class="s1 ring" cx="347.0" cy="224.6" r="5"/></g>
+<g><title>t=192.2s · ~19.3% (prompt-mass proxy)</title><circle class="hit" cx="366.6" cy="221.0" r="12"/><circle class="s1 ring" cx="366.6" cy="221.0" r="5"/></g>
+<g><title>t=203.9s · ~20.0% (prompt-mass proxy)</title><circle class="hit" cx="386.4" cy="217.0" r="12"/><circle class="s1 ring" cx="386.4" cy="217.0" r="5"/></g>
+<g><title>t=215.8s · ~20.7% (prompt-mass proxy)</title><circle class="hit" cx="406.7" cy="213.4" r="12"/><circle class="s1 ring" cx="406.7" cy="213.4" r="5"/></g>
+<g><title>t=228.1s · ~21.4% (prompt-mass proxy)</title><circle class="hit" cx="427.7" cy="209.7" r="12"/><circle class="s1 ring" cx="427.7" cy="209.7" r="5"/></g>
+<g><title>t=240.7s · ~22.0% (prompt-mass proxy)</title><circle class="hit" cx="449.1" cy="206.2" r="12"/><circle class="s1 ring" cx="449.1" cy="206.2" r="5"/></g>
+<g><title>t=253.5s · ~22.7% (prompt-mass proxy)</title><circle class="hit" cx="470.9" cy="202.5" r="12"/><circle class="s1 ring" cx="470.9" cy="202.5" r="5"/></g>
+<g><title>t=266.3s · ~23.4% (prompt-mass proxy)</title><circle class="hit" cx="492.8" cy="198.8" r="12"/><circle class="s1 ring" cx="492.8" cy="198.8" r="5"/></g>
+<g><title>t=279.9s · ~24.1% (prompt-mass proxy)</title><circle class="hit" cx="515.9" cy="195.1" r="12"/><circle class="s1 ring" cx="515.9" cy="195.1" r="5"/></g>
+<g><title>t=293.7s · ~24.7% (prompt-mass proxy)</title><circle class="hit" cx="539.4" cy="191.4" r="12"/><circle class="s1 ring" cx="539.4" cy="191.4" r="5"/></g>
+<g><title>t=307.7s · ~25.4% (prompt-mass proxy)</title><circle class="hit" cx="563.3" cy="187.7" r="12"/><circle class="s1 ring" cx="563.3" cy="187.7" r="5"/></g>
+<g><title>t=321.8s · ~26.1% (prompt-mass proxy)</title><circle class="hit" cx="587.4" cy="184.0" r="12"/><circle class="s1 ring" cx="587.4" cy="184.0" r="5"/></g>
+<g><title>t=337.3s · ~26.8% (prompt-mass proxy)</title><circle class="hit" cx="613.8" cy="180.2" r="12"/><circle class="s1 ring" cx="613.8" cy="180.2" r="5"/></g>
+<g><title>t=353.3s · ~27.5% (prompt-mass proxy)</title><circle class="hit" cx="641.0" cy="176.5" r="12"/><circle class="s1 ring" cx="641.0" cy="176.5" r="5"/></g>
+<g><title>t=369.9s · ~28.1% (prompt-mass proxy)</title><circle class="hit" cx="669.3" cy="172.9" r="12"/><circle class="s1 ring" cx="669.3" cy="172.9" r="5"/></g>
+<g><title>t=386.7s · ~28.8% (prompt-mass proxy)</title><circle class="hit" cx="697.9" cy="169.4" r="12"/><circle class="s1 ring" cx="697.9" cy="169.4" r="5"/></g>
+<g><title>t=403.6s · ~29.5% (prompt-mass proxy)</title><circle class="hit" cx="726.7" cy="165.7" r="12"/><circle class="s1 ring" cx="726.7" cy="165.7" r="5"/></g>
+<g><title>t=422.9s · ~30.1% (prompt-mass proxy)</title><circle class="hit" cx="759.7" cy="162.0" r="12"/><circle class="s1 ring" cx="759.7" cy="162.0" r="5"/></g>
+<g><title>t=442.5s · ~30.8% (prompt-mass proxy)</title><circle class="hit" cx="792.9" cy="158.4" r="12"/><circle class="s1 ring" cx="792.9" cy="158.4" r="5"/></g>
+<g><title>engine ready</title><circle class="hit" cx="39.0" cy="326.0" r="12"/><circle class="s2 ring" cx="39.0" cy="326.0" r="5"/></g>
+<g><title>t=1.6s · ~0.6% (prompt-mass proxy)</title><circle class="hit" cx="41.8" cy="322.8" r="12"/><circle class="s2 ring" cx="41.8" cy="322.8" r="5"/></g>
+<g><title>t=3.7s · ~1.2% (prompt-mass proxy)</title><circle class="hit" cx="45.2" cy="319.6" r="12"/><circle class="s2 ring" cx="45.2" cy="319.6" r="5"/></g>
+<g><title>t=5.8s · ~1.8% (prompt-mass proxy)</title><circle class="hit" cx="48.9" cy="316.3" r="12"/><circle class="s2 ring" cx="48.9" cy="316.3" r="5"/></g>
+<g><title>t=8.0s · ~2.4% (prompt-mass proxy)</title><circle class="hit" cx="52.7" cy="313.0" r="12"/><circle class="s2 ring" cx="52.7" cy="313.0" r="5"/></g>
+<g><title>t=10.3s · ~3.0% (prompt-mass proxy)</title><circle class="hit" cx="56.6" cy="309.7" r="12"/><circle class="s2 ring" cx="56.6" cy="309.7" r="5"/></g>
+<g><title>t=12.6s · ~3.6% (prompt-mass proxy)</title><circle class="hit" cx="60.5" cy="306.4" r="12"/><circle class="s2 ring" cx="60.5" cy="306.4" r="5"/></g>
+<g><title>t=15.0s · ~4.2% (prompt-mass proxy)</title><circle class="hit" cx="64.5" cy="303.1" r="12"/><circle class="s2 ring" cx="64.5" cy="303.1" r="5"/></g>
+<g><title>t=18.8s · ~4.9% (prompt-mass proxy)</title><circle class="hit" cx="71.0" cy="299.6" r="12"/><circle class="s2 ring" cx="71.0" cy="299.6" r="5"/></g>
+<g><title>t=24.2s · ~5.5% (prompt-mass proxy)</title><circle class="hit" cx="80.2" cy="296.3" r="12"/><circle class="s2 ring" cx="80.2" cy="296.3" r="5"/></g>
+<g><title>t=29.9s · ~6.1% (prompt-mass proxy)</title><circle class="hit" cx="90.0" cy="293.0" r="12"/><circle class="s2 ring" cx="90.0" cy="293.0" r="5"/></g>
+<g><title>t=36.0s · ~6.7% (prompt-mass proxy)</title><circle class="hit" cx="100.3" cy="289.7" r="12"/><circle class="s2 ring" cx="100.3" cy="289.7" r="5"/></g>
+<g><title>t=42.4s · ~7.3% (prompt-mass proxy)</title><circle class="hit" cx="111.2" cy="286.1" r="12"/><circle class="s2 ring" cx="111.2" cy="286.1" r="5"/></g>
+<g><title>t=48.8s · ~7.9% (prompt-mass proxy)</title><circle class="hit" cx="122.2" cy="282.8" r="12"/><circle class="s2 ring" cx="122.2" cy="282.8" r="5"/></g>
+<g><title>t=55.5s · ~8.5% (prompt-mass proxy)</title><circle class="hit" cx="133.6" cy="279.5" r="12"/><circle class="s2 ring" cx="133.6" cy="279.5" r="5"/></g>
+<g><title>t=62.2s · ~9.1% (prompt-mass proxy)</title><circle class="hit" cx="145.0" cy="276.3" r="12"/><circle class="s2 ring" cx="145.0" cy="276.3" r="5"/></g>
+<g><title>t=69.3s · ~9.7% (prompt-mass proxy)</title><circle class="hit" cx="157.1" cy="273.0" r="12"/><circle class="s2 ring" cx="157.1" cy="273.0" r="5"/></g>
+<g><title>t=76.7s · ~10.3% (prompt-mass proxy)</title><circle class="hit" cx="169.6" cy="269.7" r="12"/><circle class="s2 ring" cx="169.6" cy="269.7" r="5"/></g>
+<g><title>t=84.4s · ~10.9% (prompt-mass proxy)</title><circle class="hit" cx="182.8" cy="266.4" r="12"/><circle class="s2 ring" cx="182.8" cy="266.4" r="5"/></g>
+<g><title>t=92.4s · ~11.6% (prompt-mass proxy)</title><circle class="hit" cx="196.4" cy="263.0" r="12"/><circle class="s2 ring" cx="196.4" cy="263.0" r="5"/></g>
+<g><title>t=101.0s · ~12.2% (prompt-mass proxy)</title><circle class="hit" cx="211.1" cy="259.8" r="12"/><circle class="s2 ring" cx="211.1" cy="259.8" r="5"/></g>
+<g><title>t=109.9s · ~12.7% (prompt-mass proxy)</title><circle class="hit" cx="226.3" cy="256.6" r="12"/><circle class="s2 ring" cx="226.3" cy="256.6" r="5"/></g>
+<g><title>t=119.1s · ~13.3% (prompt-mass proxy)</title><circle class="hit" cx="242.0" cy="253.4" r="12"/><circle class="s2 ring" cx="242.0" cy="253.4" r="5"/></g>
+<g><title>t=128.8s · ~13.9% (prompt-mass proxy)</title><circle class="hit" cx="258.5" cy="250.1" r="12"/><circle class="s2 ring" cx="258.5" cy="250.1" r="5"/></g>
+<g><title>t=138.8s · ~14.5% (prompt-mass proxy)</title><circle class="hit" cx="275.4" cy="246.9" r="12"/><circle class="s2 ring" cx="275.4" cy="246.9" r="5"/></g>
+<g><title>t=148.9s · ~15.1% (prompt-mass proxy)</title><circle class="hit" cx="292.6" cy="243.6" r="12"/><circle class="s2 ring" cx="292.6" cy="243.6" r="5"/></g>
+<g><title>t=159.0s · ~15.7% (prompt-mass proxy)</title><circle class="hit" cx="309.9" cy="240.3" r="12"/><circle class="s2 ring" cx="309.9" cy="240.3" r="5"/></g>
+<g><title>t=169.8s · ~16.3% (prompt-mass proxy)</title><circle class="hit" cx="328.3" cy="237.1" r="12"/><circle class="s2 ring" cx="328.3" cy="237.1" r="5"/></g>
+<g><title>t=180.8s · ~16.9% (prompt-mass proxy)</title><circle class="hit" cx="347.0" cy="233.8" r="12"/><circle class="s2 ring" cx="347.0" cy="233.8" r="5"/></g>
+<g><title>t=192.2s · ~17.5% (prompt-mass proxy)</title><circle class="hit" cx="366.6" cy="230.6" r="12"/><circle class="s2 ring" cx="366.6" cy="230.6" r="5"/></g>
+<g><title>t=203.9s · ~18.2% (prompt-mass proxy)</title><circle class="hit" cx="386.4" cy="226.9" r="12"/><circle class="s2 ring" cx="386.4" cy="226.9" r="5"/></g>
+<g><title>t=215.8s · ~18.8% (prompt-mass proxy)</title><circle class="hit" cx="406.7" cy="223.6" r="12"/><circle class="s2 ring" cx="406.7" cy="223.6" r="5"/></g>
+<g><title>t=228.1s · ~19.4% (prompt-mass proxy)</title><circle class="hit" cx="427.7" cy="220.2" r="12"/><circle class="s2 ring" cx="427.7" cy="220.2" r="5"/></g>
+<g><title>t=240.7s · ~20.0% (prompt-mass proxy)</title><circle class="hit" cx="449.1" cy="217.1" r="12"/><circle class="s2 ring" cx="449.1" cy="217.1" r="5"/></g>
+<g><title>t=253.5s · ~20.6% (prompt-mass proxy)</title><circle class="hit" cx="470.9" cy="213.7" r="12"/><circle class="s2 ring" cx="470.9" cy="213.7" r="5"/></g>
+<g><title>t=266.3s · ~21.2% (prompt-mass proxy)</title><circle class="hit" cx="492.8" cy="210.4" r="12"/><circle class="s2 ring" cx="492.8" cy="210.4" r="5"/></g>
+<g><title>t=279.9s · ~21.9% (prompt-mass proxy)</title><circle class="hit" cx="515.9" cy="207.0" r="12"/><circle class="s2 ring" cx="515.9" cy="207.0" r="5"/></g>
+<g><title>t=293.7s · ~22.5% (prompt-mass proxy)</title><circle class="hit" cx="539.4" cy="203.7" r="12"/><circle class="s2 ring" cx="539.4" cy="203.7" r="5"/></g>
+<g><title>t=307.7s · ~23.1% (prompt-mass proxy)</title><circle class="hit" cx="563.3" cy="200.2" r="12"/><circle class="s2 ring" cx="563.3" cy="200.2" r="5"/></g>
+<g><title>t=321.8s · ~23.7% (prompt-mass proxy)</title><circle class="hit" cx="587.4" cy="196.9" r="12"/><circle class="s2 ring" cx="587.4" cy="196.9" r="5"/></g>
+<g><title>t=337.3s · ~24.4% (prompt-mass proxy)</title><circle class="hit" cx="613.8" cy="193.5" r="12"/><circle class="s2 ring" cx="613.8" cy="193.5" r="5"/></g>
+<g><title>t=353.3s · ~25.0% (prompt-mass proxy)</title><circle class="hit" cx="641.0" cy="190.1" r="12"/><circle class="s2 ring" cx="641.0" cy="190.1" r="5"/></g>
+<g><title>t=369.9s · ~25.6% (prompt-mass proxy)</title><circle class="hit" cx="669.3" cy="186.8" r="12"/><circle class="s2 ring" cx="669.3" cy="186.8" r="5"/></g>
+<g><title>t=386.7s · ~26.2% (prompt-mass proxy)</title><circle class="hit" cx="697.9" cy="183.6" r="12"/><circle class="s2 ring" cx="697.9" cy="183.6" r="5"/></g>
+<g><title>t=403.6s · ~26.8% (prompt-mass proxy)</title><circle class="hit" cx="726.7" cy="180.3" r="12"/><circle class="s2 ring" cx="726.7" cy="180.3" r="5"/></g>
+<g><title>t=422.9s · ~27.4% (prompt-mass proxy)</title><circle class="hit" cx="759.7" cy="176.9" r="12"/><circle class="s2 ring" cx="759.7" cy="176.9" r="5"/></g>
+<g><title>t=442.5s · ~28.0% (prompt-mass proxy)</title><circle class="hit" cx="792.9" cy="173.6" r="12"/><circle class="s2 ring" cx="792.9" cy="173.6" r="5"/></g>
+</svg></g></svg>

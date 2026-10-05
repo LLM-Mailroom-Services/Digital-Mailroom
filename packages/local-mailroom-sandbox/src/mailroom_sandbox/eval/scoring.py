@@ -31,6 +31,8 @@ from mailroom_sandbox.eval.schema_adherence import (
     merge_schema_adherence,
 )
 from mailroom_sandbox.eval.serving_parity import split_serving_records, to_dojo_serving_record
+from mailroom_sandbox.eval.cuad_scoring import score_cuad
+from mailroom_sandbox.eval.maud_scoring import score_maud
 
 from mailroom_sandbox.paths import reports_dir
 
@@ -55,14 +57,18 @@ _EXTRACT_PRF_KEYS = (
 )
 
 
-def scores_path() -> Path:
-    dest = reports_dir() / "scores" / "scores.jsonl"
+def scores_path(run_id: str | None = None, *, metadata: Mapping[str, Any] | None = None) -> Path:
+    from mailroom_sandbox.report_paths import experiment_prefix
+
+    prefix = experiment_prefix(run_id, metadata)
+    base = reports_dir() / "scores"
+    dest = base / prefix / "scores.jsonl" if prefix else base / "scores.jsonl"
     dest.parent.mkdir(parents=True, exist_ok=True)
     return dest
 
 
 def emit(record: ScoreRecord, path: Path | None = None) -> None:
-    LocalManifestSink(path or scores_path()).emit(record)
+    LocalManifestSink(path or scores_path(record.run_id, metadata=record.metadata)).emit(record)
 
 
 def score_classification(expected: list[str], predicted: list[str]) -> dict[str, Any]:
@@ -118,6 +124,7 @@ def score_extraction_row(
         suite = None
     predicted = predicted or {}
     expected = expected or {}
+    raw_expected = expected  # MAUD/CUAD label maps may be scoped out below
     predicted, expected = scope_extraction_pair(doc_type, predicted, expected)
     if suite is not None:
         try:
@@ -188,6 +195,22 @@ def score_extraction_row(
             if key in result:
                 payload[key] = result[key]
     payload.update(assess_extraction_payload(predicted, doc_type))
+    if doc_type == "merger_agreement" and raw_expected.get("maud_clause_labels"):
+        # SAND-032: merger GT is MAUD question→answer labels only; the suite's
+        # field map never meets it (F1 0 by construction). Headline = MAUD accuracy.
+        maud = score_maud(predicted, raw_expected["maud_clause_labels"])
+        payload.update(maud)
+        payload["suite_overall_extraction_score"] = payload["overall_extraction_score"]
+        payload["overall_extraction_score"] = maud["maud_accuracy"]
+        payload["scoring_method"] = f"{scoring_method}+maud"
+    if doc_type == "contract" and raw_expected.get("cuad_clause_labels"):
+        # SAND-032: contract GT is CUAD clause spans only; headline = CUAD
+        # category-detection F1 within the row's labeled universe.
+        cuad = score_cuad(predicted, raw_expected["cuad_clause_labels"])
+        payload.update(cuad)
+        payload["suite_overall_extraction_score"] = payload["overall_extraction_score"]
+        payload["overall_extraction_score"] = cuad["cuad_presence_f1"]
+        payload["scoring_method"] = f"{scoring_method}+cuad"
     return payload
 
 
@@ -362,9 +385,10 @@ def emit_local_vs_api_scorecard(
     comparison: Mapping[str, Any],
     *,
     run_id: str | None = None,
+    metadata: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Persist local and API T0/T1 as separate scorecards (never averaged)."""
-    em = Emitter(sinks=[LocalManifestSink(scores_path())])
+    em = Emitter(sinks=[LocalManifestSink(scores_path(run_id, metadata=metadata))])
     return emit_serving_scorecard(comparison, run_id=run_id, emitter=em)
 
 

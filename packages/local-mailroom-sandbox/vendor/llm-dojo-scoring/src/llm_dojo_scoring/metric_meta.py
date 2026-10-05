@@ -484,21 +484,7 @@ METRIC_META: dict[str, dict[str, str]] = {
         "none",
     ),
     # ----- T1 emitter-only mailroom aliases -----
-    "schema_valid": {
-        "citation": "v0.18 fail-closed format layer — JSON/schema parse before field scoring.",
-        "inclusion": "Every specialist score() with structured output; headline dashboards.",
-        "ground_truth": "structural",
-    },
-    "parse_ok": {
-        "citation": "v0.18 format vs extraction split — parse success without field match.",
-        "inclusion": "Emitted alongside schema_valid on every extraction scorecard.",
-        "ground_truth": "structural",
-    },
-    "schema_adherence": {
-        "citation": "Required-key coverage after parse (scorecard_honesty.score_format_layer).",
-        "inclusion": "T1 diagnostic when schema_valid < 1.0.",
-        "ground_truth": "structural",
-    },
+    "schema_valid": dict(_EMITTER),
     "parse_error": dict(_EMITTER),
     "success_rate": dict(_EMITTER),
     "completeness": dict(_EMITTER),
@@ -512,10 +498,4 @@ METRIC_META: dict[str, dict[str, str]] = {
     "mailroom-pipeline-judge": dict(_EMITTER),
     "mailroom-pipeline-quality": dict(_EMITTER),
     "extraction_hallucination_rate": dict(_EMITTER),
-    # ----- #106 BERT fast path (mailroom intake gate) -----
-    "bert_pass": dict(_EMITTER),
-    "bert_sorter_agreement": dict(_EMITTER),
-    "bert_fail_soft": dict(_EMITTER),
-    "bert_elapsed_ms": dict(_EMITTER),
-    "fast_path_est_cost_usd": dict(_EMITTER),
 }

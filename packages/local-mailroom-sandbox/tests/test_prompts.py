@@ -5,6 +5,13 @@ from pathlib import Path
 from mailroom_sandbox.prompts import list_variants, load_variant
 
 
+def test_sorter_v1_variant_is_family_b_v1():
+    assert "sorter_v1" in list_variants()
+    text = load_variant("sorter_v1")
+    assert "Output strict JSON only" in text
+    assert "contract_subtype" in text
+
+
 def test_sorter_local_variant_mentions_json():
     assert "sorter_local_v0" in list_variants()
     text = load_variant("sorter_local_v0")

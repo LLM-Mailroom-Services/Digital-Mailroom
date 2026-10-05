@@ -1,0 +1,74 @@
+# Granite fix re-probe — contracts_specialist on 1 CONTRACT doc (FP8, 1×L4).
+# SEPARATE instance from run-01 (FAIL record kept) and run-20-contracts-granite.
+# Fix under test: run-scoped SANDBOX_AGENT_KNOBS raises decode to 16384
+# (run-01 died with LengthFinishReasonError at 4096 completion tokens).
+# Launch with SANDBOX_AGENT_KNOBS='{"contracts_specialist":{"temperature":0.1,
+# "max_tokens":16384,"max_input_chars":18000,"reasoning_effort":"none"}}'.
+# PASS = ok + schema-valid + wall < 900s. Full 20 proceeds only on PASS.
+#
+# Same warm app — do NOT redeploy/teardown around this probe:
+#   sandbox run benchmark-check --config config/runs/run-02-contracts-granite-probe2.yaml
+#   sandbox run preflight --config config/runs/run-02-contracts-granite-probe2.yaml --live
+#   SANDBOX_AGENT_KNOBS='...' sandbox run start --config config/runs/run-02-contracts-granite-probe2.yaml --job-mode endpoint --watch
+schema: sandbox.run/v1
+run_id: run-02-contracts-granite-probe2
+task: contracts_specialist
+profile: modal-vllm
+
+prompt:
+  # DMR-074 local pin (config/prompts/contracts_specialist_v33_simplified.txt).
+  default: {source: code-default}
+  agents:
+    contracts_specialist:
+      source: local
+      file: contracts_specialist_v33_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  # split: test — same pool/doc as run-01 (service, seed 42) for comparability
+  split: test
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      - doc_class: contract
+        sub_buckets:
+          - {subclass: service, count: 1}              # avail 8
+  limit: 1
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: ibm-granite/granite-4.2-8b-fp8
+  vllm:
+    max_model_len: 32768      # FP8 L4 window (bf16 Granite 32k FAILS on 1×L4)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: compressed-tensors
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120    # attended cost-saver (DMR-076)
+    max_containers: 1         # 1×L4 cost guard — do not raise for Granite runs
+    min_containers: 1         # pinned warm (same app as the sweep chain)
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 1              # probe is serial by design (*-probe exempt from c>=2)
+  cost_cap_usd: 0.15          # single-doc probe guard (longer decode budget)
+  max_wall_seconds: 1800      # single-doc probe guard (16384-token decode room)
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-02-contracts-granite-probe2
+  tags: [sandbox, job, specialist, contracts, granite-fp8, l4, probe, c1, fix-16k]

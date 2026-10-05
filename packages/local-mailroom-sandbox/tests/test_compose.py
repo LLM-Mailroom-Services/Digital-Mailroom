@@ -100,7 +100,10 @@ def test_default_profiles_ollama():
 
 def test_modal_vllm_app_is_sandbox_scoped():
     text = (deploy_dir() / "modal_vllm.py").read_text(encoding="utf-8")
-    assert 'APP_NAME = "sandbox-vllm"' in text
+    # SAND-032: env-overridable, but the default and every override stay
+    # sandbox-vllm-scoped (enforced at import; see test_modal_vllm).
+    assert 'or "sandbox-vllm"' in text
+    assert 'APP_NAME.startswith("sandbox-vllm")' in text
     assert "build_vllm_command" in text
     assert "MODAL_VLLM_MODEL" in text
     assert "sandbox-hf-cache" in text

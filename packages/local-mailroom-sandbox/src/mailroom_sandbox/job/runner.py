@@ -21,7 +21,7 @@ from mailroom_sandbox.eval.prompt_provenance import (
     resolve_logged_prompt_version,
     stamp_prompt_provenance,
 )
-from mailroom_sandbox.job.otel import job_span
+from mailroom_sandbox.job.otel import current_context, job_span
 from mailroom_sandbox.job.usage_capture import (
     merge_item_metrics,
     usage_from_pipeline,
@@ -236,6 +236,11 @@ def _run_whole_run(
     max_wall = _max_wall_seconds(store)
     cost_cap = _cost_cap_usd(store)
     gpu = _lock_gpu(store)
+    replicas = _lock_replicas(store)
+    from mailroom_sandbox.report_paths import experiment_prefix
+
+    report_group = experiment_prefix(store.run_id, lock)
+    score_metadata = {"report_group": report_group} if report_group else None
     # SAND-018: the isolated-agent path used to show nothing until it finished.
     # Write a running checkpoint per completed item and forward events so
     # `sandbox run status` (and --watch) track a live specialist run.
@@ -259,7 +264,10 @@ def _run_whole_run(
         elif task == "chained":
             result = eval_runners.run_chained_eval(rows=locked_rows, **kwargs)
         elif task == "local_vs_api":
-            result = eval_runners.run_local_vs_api_eval(**kwargs)
+            result = eval_runners.run_local_vs_api_eval(
+                score_metadata=score_metadata,
+                **kwargs,
+            )
         elif task == "sorter_vs_modernbert":
             result = eval_runners.run_sorter_vs_modernbert_eval(**kwargs)
         elif task == "isolated":
@@ -272,7 +280,10 @@ def _run_whole_run(
                 max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap,
                 gpu=gpu,
+                replicas=replicas,
                 progress_cb=_progress,
+                row_cb=lambda entry: _persist_isolated_items(store, [entry]),
+                score_metadata=score_metadata,
                 **kwargs,
             )
         elif task in _agent_task_names():
@@ -286,7 +297,10 @@ def _run_whole_run(
                 max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap,
                 gpu=gpu,
+                replicas=replicas,
                 progress_cb=_progress,
+                row_cb=lambda entry: _persist_isolated_items(store, [entry]),
+                score_metadata=score_metadata,
                 **kwargs,
             )
         else:
@@ -301,6 +315,7 @@ def _run_whole_run(
         store.append_event("failed", "error", cursor=0, last_error=str(exc)[:512])
         return {"state": "failed", "task": task, "error": str(exc)[:512], "ok": 0, "errors": 1}
 
+    _persist_isolated_items(store, result.get("rows") if isinstance(result, dict) else None)
     scores = result.get("scores") or {}
     # The delegated runner reports how many rows it actually processed; fall
     # back to the locked dataset length when the runner has no n.
@@ -327,6 +342,12 @@ def _run_whole_run(
         record.setdefault("run_id", store.run_id)
     store.write_checkpoint(state="done", cursor=processed, total=processed, remote=None)
     store.append_event("done", "info", cursor=processed, ok_count=processed)
+    from mailroom_sandbox.job.dated_reports import maybe_write_run_reports
+
+    maybe_write_run_reports(store, scores=scores if isinstance(scores, dict) else None)
+    from mailroom_sandbox.job.grid_cards import maybe_write_card
+
+    maybe_write_card(store, scores=scores if isinstance(scores, dict) else None)
     return {
         "state": "done",
         "task": task,
@@ -375,7 +396,9 @@ def _estimate_run_gpu_usd(store: RunStore, wall_seconds: float) -> float:
     from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
 
     gpu = _lock_gpu(store) or "L4"
-    return float(estimate_gpu_cost_usd(wall_seconds, gpu=gpu) or 0.0)
+    return float(
+        estimate_gpu_cost_usd(wall_seconds, gpu=gpu, replicas=_lock_replicas(store)) or 0.0
+    )
 
 
 def verify_dataset_lock(store: RunStore) -> None:
@@ -465,6 +488,48 @@ def _lock_gpu(store: RunStore) -> str | None:
     return None
 
 
+def _persist_isolated_items(store: RunStore, rows: list[dict[str, Any]] | None) -> int:
+    """SAND-032: isolated specialist runs wrote no items.jsonl — per-doc rows
+    are the evidence the reports and offline BT rows are built from."""
+    if not rows:
+        return 0
+    seen = {i.get("item_id") for i in store.load_items()}
+    written = 0
+    for row in rows:
+        item_id = row.get("id")
+        if item_id in seen:
+            continue
+        store.append_item(
+            {
+                "item_id": item_id,
+                "ok": not row.get("error"),
+                "error": row.get("error"),
+                "pred": row.get("pred"),
+                "score": row.get("score"),
+                "latency_ms": row.get("latency_ms"),
+                "prompt_tokens": row.get("prompt_tokens"),
+                "completion_tokens": row.get("completion_tokens"),
+                "ts": utc_now(),
+            }
+        )
+        seen.add(item_id)
+        written += 1
+    return written
+
+
+def _lock_replicas(store: RunStore) -> int:
+    """Concurrently-billed replicas (SAND-032: MIN=MAX pinned 2×L4 bills 2 GPUs).
+
+    ``max_containers`` over-estimates a scale-to-zero config — the safe
+    direction for a spend cap.
+    """
+    engine = (store.read_lock() or {}).get("engine") or {}
+    modal = engine.get("modal") if isinstance(engine, dict) else None
+    if isinstance(modal, dict):
+        return max(1, int(modal.get("max_containers") or 1))
+    return 1
+
+
 def _build_record(
     store: RunStore, task: str, model: str | None, scores: dict[str, Any], *, mock: bool,
     wall_seconds: float | None = None,
@@ -536,6 +601,37 @@ def _build_record(
     return record
 
 
+def _beacon_hook(run_id: str, *, task: str, on_event: Any = None) -> tuple[Any, Any]:
+    """mailroom.beacon/v1 for `sandbox run start`: wrap ``on_event`` so every progress
+    event also updates the job's heartbeat (shown by `sandbox board`). Never raises."""
+    from mailroom_sandbox.tui.beacon import Beacon
+
+    beacon = Beacon(run_id, package="local-mailroom-sandbox", title=f"{run_id} · {task}")
+
+    def wrapped(ev: dict[str, Any]) -> None:
+        beacon.update(
+            phase=str(ev.get("state") or "running").upper(),
+            done=ev.get("cursor"),
+            total=ev.get("total"),
+            ok=ev.get("ok"),
+            errors=ev.get("errors"),
+        )
+        if on_event is not None:
+            on_event(ev)
+
+    def finish(summary: dict[str, Any] | None) -> None:
+        summary = summary or {}
+        state = str(summary.get("state") or "")
+        beacon.finish(
+            "failed" if state in ("failed", "cancelled") else "done",
+            done=summary.get("cursor"),
+            total=summary.get("total"),
+            phase=state.upper() or "DONE",
+        )
+
+    return wrapped, finish
+
+
 def run_job(
     store: RunStore,
     *,
@@ -549,6 +645,32 @@ def run_job(
     on_event=None,
 ) -> dict[str, Any]:
     """Run (or resume) the locked job to completion and return a summary."""
+    if dry_run:
+        return _run_job(store, task=task, model=model, profile=profile, mock=mock, dry_run=True,
+                        max_items=max_items, tracer=tracer, on_event=on_event)
+    wrapped, finish = _beacon_hook(store.run_id, task=task or _lock_task(store), on_event=on_event)
+    try:
+        summary = _run_job(store, task=task, model=model, profile=profile, mock=mock, dry_run=False,
+                           max_items=max_items, tracer=tracer, on_event=wrapped)
+    except BaseException:
+        finish({"state": "failed"})
+        raise
+    finish(summary if isinstance(summary, dict) else None)
+    return summary
+
+
+def _run_job(
+    store: RunStore,
+    *,
+    task: str | None = None,
+    model: str | None = None,
+    profile: str | None = None,
+    mock: bool | None = None,
+    dry_run: bool = False,
+    max_items: int | None = None,
+    tracer: Any = None,
+    on_event=None,
+) -> dict[str, Any]:
     task = task or _lock_task(store)
     model = model or _lock_model(store)
     profile = profile or _lock_profile(store)
@@ -626,6 +748,10 @@ def run_job(
     max_wall = _max_wall_seconds(store)
     cap_abort_reason: str | None = None
 
+    # Worker threads do not inherit the caller's otel context; hand it over
+    # explicitly so item spans nest under the run span.
+    parent_ctx = current_context(tracer)
+
     def _attempt(index: int) -> tuple[Any, str | None, float, dict[str, Any]]:
         """Run one row (with retries); return (value, error, latency_ms, usage)."""
         row = rows[index]
@@ -633,7 +759,14 @@ def run_job(
         value: Any = None
         error: str | None = None
         usage: dict[str, Any] = {}
-        with job_span(tracer, "job.item", item_index=str(index), task=task):
+        with job_span(
+            tracer,
+            "job.item",
+            parent=parent_ctx,
+            item_index=str(index),
+            item_id=str(row.get("id") or row.get("filename") or index),
+            task=task,
+        ) as span:
             attempt = 0
             while attempt < retries + 1:
                 attempt += 1
@@ -652,6 +785,17 @@ def run_job(
                     usage = {}
                     if attempt <= retries:
                         time.sleep(0.2)
+            span.set_attribute("job.ok", error is None)
+            span.set_attribute("job.attempts", attempt)
+            if error is not None:
+                span.set_attribute("job.error", error)
+            for key, attr in (
+                ("prompt_tokens", "gen_ai.usage.input_tokens"),
+                ("completion_tokens", "gen_ai.usage.output_tokens"),
+                ("llm_calls", "job.llm_calls"),
+            ):
+                if isinstance(usage.get(key), (int, float)):
+                    span.set_attribute(attr, usage[key])
         latency_ms = round((time.perf_counter() - started) * 1000.0, 3)
         return value, error, latency_ms, usage
 
@@ -889,6 +1033,12 @@ def run_job(
     experiment_log.append(record)
     store.append_event("done", "info", cursor=final_cursor, ok_count=ok_count)
     store.write_checkpoint(state="done", cursor=final_cursor, total=total, remote=None)
+    from mailroom_sandbox.job.dated_reports import maybe_write_run_reports
+
+    maybe_write_run_reports(store, scores=scores, wall_seconds=wall_seconds)
+    from mailroom_sandbox.job.grid_cards import maybe_write_card
+
+    maybe_write_card(store, scores=scores, wall_seconds=wall_seconds)
     return {
         "state": "done",
         "task": task,

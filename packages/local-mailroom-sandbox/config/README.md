@@ -11,7 +11,7 @@
 ## Structure
 
 | Path | Contents |
-|:---|:---|
+| :--- | :--- |
 | [`mailroom.taxonomy.base.yaml`](mailroom.taxonomy.base.yaml) | Document classes, agents, prompts |
 | [`taxonomy.overlay.yaml`](taxonomy.overlay.yaml) | Overlay applied on top of the base |
 | [`models.yaml`](models.yaml) | Serving/model catalog (providers, quantization, GPU) |
@@ -26,7 +26,7 @@
 > (`vllm-local` / `vllm-remote` / `modal-vllm`). The real-spend OpenRouter
 > `api-*` specs live in [`../api-evals/config/runs/`](../api-evals/config/runs/)
 > and run through `python ../api-evals/run_api_evals.py`. See
-> [`../docs/LAYOUT.md`](../docs/LAYOUT.md).
+> [`../docs/setting-up/LAYOUT.md`](../docs/setting-up/LAYOUT.md).
 
 ## Profile selection
 

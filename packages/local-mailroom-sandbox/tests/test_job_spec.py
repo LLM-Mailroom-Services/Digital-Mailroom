@@ -210,3 +210,55 @@ def test_strata_nested_sub_buckets_shape_rejected():
     ):
         with pytest.raises(ValueError):
             DatasetSpec(strata=bad)
+
+
+# ── SAND-032: new vLLM knobs ─────────────────────────────────────────────────
+
+
+def test_vllmspec_new_fields_default_off():
+    from mailroom_sandbox.job.spec import VLLMSpec
+
+    v = VLLMSpec()
+    assert v.kv_cache_dtype == ""
+    assert v.enable_thinking is None
+    assert v.cudagraph_capture_sizes == []
+    assert v.max_num_batched_tokens is None
+    assert v.max_inputs == 0
+
+
+def test_vllmspec_rejects_unknown_kv_dtype():
+    import pytest
+
+    from mailroom_sandbox.job.spec import VLLMSpec
+
+    with pytest.raises(ValueError, match="kv_cache_dtype"):
+        VLLMSpec(kv_cache_dtype="int4")
+
+
+def test_vllmspec_capture_sizes_require_eager_off():
+    import pytest
+
+    from mailroom_sandbox.job.spec import VLLMSpec
+
+    with pytest.raises(ValueError, match="enforce_eager"):
+        VLLMSpec(enforce_eager=True, cudagraph_capture_sizes=[1, 2])
+    assert VLLMSpec(enforce_eager=False, cudagraph_capture_sizes=[1, 2]).cudagraph_capture_sizes == [1, 2]
+
+
+def test_spec_hash_unchanged_for_yamls_without_sand032_knobs():
+    """New default-off VLLMSpec fields must not re-hash existing run YAMLs."""
+    from mailroom_sandbox.job.spec import load_run_spec, spec_hash
+    from mailroom_sandbox.paths import config_dir
+
+    spec = load_run_spec(config_dir() / "runs" / "run-50-correspondence-specialist-awq.yaml")
+    assert spec_hash(spec) == "88a40670a6e7e5f007883e67331498670c1f978c11d049a43a07448740ea366d"
+
+
+def test_spec_hash_changes_when_sand032_knob_set():
+    from mailroom_sandbox.job.spec import load_run_spec, spec_hash
+    from mailroom_sandbox.paths import config_dir
+
+    spec = load_run_spec(config_dir() / "runs" / "run-50-correspondence-specialist-awq.yaml")
+    before = spec_hash(spec)
+    spec.engine.vllm.kv_cache_dtype = "fp8"
+    assert spec_hash(spec) != before

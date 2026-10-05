@@ -18,7 +18,7 @@ from mailroom_sandbox.paths import data_dir
 
 _log = logging.getLogger("mailroom_sandbox.job.spec")
 
-FAMILY_HF_REVISION = "ed7576b676343e0b402ec5412cded301e629bdee"  # v9.1 mailroom-dataset tip (quality revision; #110 / mailroom-issues#196)
+FAMILY_HF_REVISION = "ed7576b676343e0b402ec5412cded301e629bdee"  # v9.1 mailroom-dataset Hub tip (pin SHA; HF tag v9.1 pending, #58)
 HF_DEFAULT_REPO = "Lucius-Morningstar/mailroom-dataset"
 # Full corpus row count at FAMILY_HF_REVISION (train+test; mailroom-ml pin).
 FAMILY_CORPUS_SIZE = 3302
@@ -248,6 +248,31 @@ class VLLMSpec(BaseModel):
     enforce_eager: bool = True
     quantization: str = ""
     revision: str = ""
+    # SAND-032 knobs (all default OFF so existing run YAMLs are unchanged).
+    kv_cache_dtype: str = ""  # "" = vLLM auto; "fp8" pinned for SAND-032 2×L4
+    enable_thinking: bool | None = None  # None = send no chat-template kwargs
+    cudagraph_capture_sizes: list[int] = Field(default_factory=list)
+    max_num_batched_tokens: int | None = None
+    max_inputs: int = 0  # >0 wraps serve() in @modal.concurrent(max_inputs=…)
+    # SAND-040: HF config overrides passed to `vllm serve --hf-overrides` (JSON). The
+    # 64K Qwen3 window is YaRN ×2 over the native 32768:
+    # {"rope_parameters": {"rope_type": "yarn", "factor": 2.0,
+    #  "original_max_position_embeddings": 32768, "rope_theta": 1000000}}
+    # (v0.29.0 reads Transformers-v5 `rope_parameters`; vLLM derives max len 65536).
+    hf_overrides: dict[str, Any] | None = None
+
+    @field_validator("kv_cache_dtype")
+    @classmethod
+    def _kv(cls, v: str) -> str:
+        if v not in {"", "auto", "fp8", "fp8_e4m3", "fp8_e5m2"}:
+            raise ValueError(f"kv_cache_dtype {v!r} not supported on v0.29.0")
+        return v
+
+    @model_validator(mode="after")
+    def _graphs_need_no_eager(self) -> "VLLMSpec":
+        if self.cudagraph_capture_sizes and self.enforce_eager:
+            raise ValueError("cudagraph_capture_sizes requires enforce_eager=false")
+        return self
 
     @field_validator("max_model_len")
     @classmethod
@@ -447,6 +472,7 @@ class TraceSpec(BaseModel):
 class RunSpec(BaseModel):
     schema_name: str = Field(default="sandbox.run/v1", alias="schema")
     run_id: str | None = None
+    runbook_id: str | None = None
     task: str = "sorter"
     profile: str = "modal-vllm"
     prompt: dict[str, Any] = Field(default_factory=dict)  # {default:..., agents:{name:...}}
@@ -513,6 +539,21 @@ def prompt_resolution_map(spec: RunSpec) -> dict[str, Any]:
     return normalized if normalized else {"default": {"source": "code-default"}}
 
 
+# SAND-032 knobs hash only when set, so pre-SAND-032 run YAMLs keep their
+# recorded spec_hash (locks, resume, and hashes cited in committed reports).
+_HASH_WHEN_SET = ("kv_cache_dtype", "enable_thinking", "cudagraph_capture_sizes",
+                  "max_num_batched_tokens", "max_inputs", "hf_overrides")
+
+
+def _vllm_core(vllm: VLLMSpec) -> dict[str, Any]:
+    core = vllm.model_dump()
+    defaults = VLLMSpec().model_dump()
+    for key in _HASH_WHEN_SET:
+        if core.get(key) == defaults[key]:
+            core.pop(key, None)
+    return core
+
+
 def spec_core(spec: RunSpec) -> dict[str, Any]:
     """The behavioral core the spec_hash covers (excludes run_id/timestamps)."""
     return {
@@ -521,7 +562,7 @@ def spec_core(spec: RunSpec) -> dict[str, Any]:
         "engine": {
             "kind": spec.engine.kind,
             "model": spec.engine.model,
-            "vllm": spec.engine.vllm.model_dump(),
+            "vllm": _vllm_core(spec.engine.vllm),
             "modal": spec.engine.modal.model_dump() if spec.engine.modal else None,
         },
         "job": spec.job.model_dump(),

@@ -1,0 +1,81 @@
+# Run B — correspondence_specialist on 50 CORRESPONDENCE docs (AWQ, 2×L4).
+# Quotas fill the 62-row test pool (demand/notice pools exhaust at 3 each).
+# Engine/posture: Qwen3-8B-AWQ, 32768 window, 2×L4 data-parallel (MIN=MAX=2
+# pinned during runs, SAME warm app as Run A), concurrency 8, DMR-074
+# production prompt pin, scaledown 120.
+#
+# Same warm app as Run A — do NOT redeploy before this run:
+#   modal profile activate hermes-agent-jjb
+#   sandbox run benchmark-check --config config/runs/run-50-correspondence-specialist-awq.yaml
+#   sandbox run preflight --config config/runs/run-50-correspondence-specialist-awq.yaml --live
+#   sandbox run start --config config/runs/run-50-correspondence-specialist-awq.yaml --job-mode endpoint --watch
+#   ./deploy/teardown_vllm.sh   # ONLY after this last run (+ container list + billing window)
+schema: sandbox.run/v1
+run_id: run-50-correspondence-specialist-awq
+task: correspondence_specialist
+profile: modal-vllm
+
+prompt:
+  # DMR-074 local production pin (config/prompts/correspondence_specialist_production.txt).
+  default: {source: code-default}
+  agents:
+    correspondence_specialist:
+      source: local
+      file: correspondence_specialist_production
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  # split: test — 62 correspondence rows; N=50 fits
+  split: test
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      # correspondence (62 test rows): all 7 test subclasses → 50
+      - doc_class: correspondence
+        sub_buckets:
+          - {subclass: email, count: 24}               # avail 30
+          - {subclass: letter, count: 7}               # avail 9
+          - {subclass: press_release, count: 6}        # avail 8
+          - {subclass: memo, count: 4}                 # avail 5
+          - {subclass: meeting_request, count: 3}      # avail 4
+          - {subclass: demand, count: 3}               # avail 3 (pool exhausted)
+          - {subclass: notice, count: 3}               # avail 3 (pool exhausted)
+  limit: 50
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768      # AWQ L4 window (bf16 stays 16384)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: awq
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120    # attended cost-saver (DMR-076 / improved-awq-c8)
+    max_containers: 2         # 2×L4 data-parallel (one replica per L4)
+    min_containers: 2         # pinned warm during Runs A+B (no scale-to-zero)
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 8              # ~4 per replica across the 2×L4 pair
+  cost_cap_usd: 0.80          # ~2.5× Run A: docs + 2-replica billing headroom
+  max_wall_seconds: 3600
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-50-correspondence-awq
+  tags: [sandbox, job, specialist, correspondence, qwen3-8b-awq, l4, benchmark, c8, x2]

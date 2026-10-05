@@ -41,8 +41,8 @@ vendor/**/__pycache__/
 # Reports generated at runtime (keep README)
 reports/scores/
 reports/experiment_log.jsonl
-api-evals/reports/
 reports/experiment_log.md
+api-evals/reports/
 
 # IDE / OS
 .vscode/
@@ -115,3 +115,5 @@ cursor-record/
 logs/
 tmp/
 temp/
+data/mailroom.db-shm
+data/mailroom.db-wal

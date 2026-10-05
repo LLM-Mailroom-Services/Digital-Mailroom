@@ -44,6 +44,13 @@ KNOB_ENV = (
     "MODAL_VLLM_MAX_CONTAINERS",
     "MODAL_VLLM_MIN_CONTAINERS",
     "MODAL_VLLM_STARTUP_TIMEOUT_SECONDS",
+    "MODAL_VLLM_KV_CACHE_DTYPE",
+    "MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS",
+    "MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES",
+    "MODAL_VLLM_MAX_NUM_BATCHED_TOKENS",
+    "MODAL_VLLM_CHAT_TEMPLATE",
+    "MODAL_VLLM_MAX_INPUTS",
+    "MODAL_VLLM_APP_NAME",
     "HF_TOKEN",
 )
 
@@ -148,6 +155,15 @@ def _install_modal_stub() -> None:
     stub.Image = _Image
     stub.App = _App
     stub.web_server = _web_server
+
+    def _concurrent(*, max_inputs=None, target_inputs=None):
+        def deco(fn):
+            fn.concurrent_kwargs = {"max_inputs": max_inputs, "target_inputs": target_inputs}
+            return fn
+
+        return deco
+
+    stub.concurrent = _concurrent
     sys.modules["modal"] = stub
 
 
@@ -633,3 +649,121 @@ class TestVersionPins:
         assert "1.5.5" in text
         assert "v0.29.0" in text
         assert "huggingface-secret" in text
+
+
+class TestSand032Knobs:
+    def test_new_knobs_absent_by_default(self):
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B-AWQ")
+        for flag in (
+            "--kv-cache-dtype",
+            "--default-chat-template-kwargs",
+            "--compilation-config",
+            "--max-num-batched-tokens",
+            "--chat-template",
+            "--hf-overrides",
+        ):
+            assert flag not in cmd
+
+    def test_hf_overrides_passed_when_set(self, monkeypatch):
+        monkeypatch.setenv(
+            "MODAL_VLLM_HF_OVERRIDES",
+            '{"rope_parameters": {"factor": 2.0, "rope_type": "yarn"}}',
+        )
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B-AWQ")
+        assert cmd[cmd.index("--hf-overrides") + 1] == (
+            '{"rope_parameters": {"factor": 2.0, "rope_type": "yarn"}}'
+        )
+
+    def test_kv_cache_dtype_fp8(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_KV_CACHE_DTYPE", "fp8")
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B-AWQ")
+        assert cmd[cmd.index("--kv-cache-dtype") + 1] == "fp8"
+
+    def test_thinking_off_kwargs_passed_verbatim_json(self, monkeypatch):
+        import json as _json
+
+        monkeypatch.setenv(
+            "MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS", '{"enable_thinking": false}'
+        )
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B-AWQ")
+        raw = cmd[cmd.index("--default-chat-template-kwargs") + 1]
+        assert _json.loads(raw) == {"enable_thinking": False}
+
+    def test_invalid_chat_template_kwargs_fail_at_import(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS", "{not json")
+        with pytest.raises(ValueError, match="DEFAULT_CHAT_TEMPLATE_KWARGS"):
+            _load_app_module()
+
+    def test_cudagraph_capture_sizes_render_compilation_config(self, monkeypatch):
+        import json as _json
+
+        monkeypatch.setenv("MODAL_VLLM_ENFORCE_EAGER", "0")
+        monkeypatch.setenv("MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES", "1,2,4,8,16")
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B-AWQ")
+        cfg = _json.loads(cmd[cmd.index("--compilation-config") + 1])
+        assert cfg == {"cudagraph_capture_sizes": [1, 2, 4, 8, 16]}
+        assert "--enforce-eager" not in cmd
+
+    def test_capture_sizes_with_eager_is_rejected(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_ENFORCE_EAGER", "1")
+        monkeypatch.setenv("MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES", "1,2")
+        with pytest.raises(ValueError, match="enforce_eager"):
+            _load_app_module()
+
+    def test_batched_tokens_and_chat_template(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_MAX_NUM_BATCHED_TOKENS", "8192")
+        monkeypatch.setenv("MODAL_VLLM_CHAT_TEMPLATE", "/templates/qwen3_nothink.jinja")
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B-AWQ")
+        assert cmd[cmd.index("--max-num-batched-tokens") + 1] == "8192"
+        assert cmd[cmd.index("--chat-template") + 1] == "/templates/qwen3_nothink.jinja"
+
+    def test_new_knobs_forwarded_to_container(self):
+        mod = _load_app_module()
+        for key in (
+            "MODAL_VLLM_KV_CACHE_DTYPE",
+            "MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS",
+            "MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES",
+            "MODAL_VLLM_MAX_NUM_BATCHED_TOKENS",
+            "MODAL_VLLM_CHAT_TEMPLATE",
+            "MODAL_VLLM_MAX_INPUTS",
+        ):
+            assert key in mod.CONFIG_ENV_KEYS
+
+    def test_serve_not_concurrent_by_default(self):
+        mod = _load_app_module()
+        assert getattr(mod.serve.fn, "concurrent_kwargs", None) is None
+
+    def test_max_inputs_wraps_serve_in_modal_concurrent(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_MAX_INPUTS", "32")
+        mod = _load_app_module()
+        assert mod.serve.fn.concurrent_kwargs["max_inputs"] == 32
+
+
+class TestDedicatedApp:
+    def test_default_app_name_unchanged(self):
+        mod = _load_app_module()
+        assert mod.APP_NAME == "sandbox-vllm"
+        assert mod.app.name == "sandbox-vllm"
+
+    def test_app_name_env_gives_dedicated_app(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_APP_NAME", "sandbox-vllm-sand032")
+        mod = _load_app_module()
+        assert mod.app.name == "sandbox-vllm-sand032"
+
+    def test_vllm_help_probe_is_cpu_only(self):
+        mod = _load_app_module()
+        kwargs = mod.vllm_help.kwargs
+        assert "gpu" not in kwargs
+        assert kwargs["timeout"] <= 600
+
+
+    def test_app_name_must_stay_sandbox_scoped(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_APP_NAME", "mailroom-ml-trainer")
+        with pytest.raises(ValueError, match="sandbox-vllm"):
+            _load_app_module()

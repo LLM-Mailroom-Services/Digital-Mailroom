@@ -2,6 +2,167 @@
 
 ## [Unreleased]
 
+### Added — local-first job traces (pack → upload → prune)
+
+- Endpoint-mode runs (`sandbox run start`, the Modal-vLLM grid and SAND runs) now build a tracer; before this
+  they always passed `tracer=None`, so no job spans were ever emitted whatever the locked sink said.
+- Each run gets a `job.run` span with its `job.item` children nested across worker threads, carrying
+  item id, ok/error, attempts and token usage.
+- Spans are mirrored to `data/traces/<run_id>.spans.jsonl.gz` even with `sink: none`
+  (`SANDBOX_TRACE_LOCAL=0` disables); Phoenix/Langfuse/OTLP export is unchanged.
+- `sandbox traces pack <run_id> [--dest DIR] [--prune]` zips the mirror as zstd Parquet + manifest, copies it
+  to a synced upload folder (`SANDBOX_TRACE_UPLOAD_DIR`, e.g. the Drive LOGS folder) under a date
+  subfolder, verifies the copy by SHA-256, and only then deletes the local copies. See `docs/tracing.md`.
+
+### Changed — SAND-040 runs on one 32K deploy; † merger keeps the optimized settings
+
+- `sandbox runbook show sand40` deploys the SAND-037 2×L4 engine once (native 32768 window, no 64K
+  redeploy). Correspondence, insurance claims, corporate records and contracts run n=100 on the aligned spec
+  unchanged. Merger runs the same 50 agreements as SAND-37 2×L4 with the optimized † settings: chunked
+  whole-document extraction (47,000-char windows + 6,500 overlap, sized to the 32K window), the MAUD v1
+  prompt, Qwen3 sampling (0.7 / top_p 0.8 / top_k 20 / presence 1.0), a 6,144 cap and one length re-sample.
+- A 5-agreement gate cell (`sand40-check-5-merger-specialist-awq-2l4`) runs first on the same deploy;
+  `sandbox run card --gate` fails unless every document is ok and vLLM accepted every chunk the documents need
+  (`extract_chunked` skips a rejected chunk silently). On failure the script tears down and stops.
+- Runbook catalog: optional `gate: {config: …}` renders the gate before the scored loop.
+- Master card: new *Merger † settings* table (SAND-37 vs SAND-40, changed settings in bold, result and
+  matched-agreement delta once measured); SAND-40 column reads 100 (merger 50†).
+- Removed the unrun 64K long-phase cells and the `sand40-short` / `sand40-long` runbooks. The executed 64K
+  probes stay as a matched-document appendix.
+
+### Changed — SAND-040 master score & cost card validated and fully detailed
+
+- Validated `reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md` three ways: a fresh `sandbox run card --master`
+  render is identical to the committed card; every pooled and per-specialist figure recomputes from the
+  per-document rows in the 15 cell cards (ok counts, tokens, busy-window cost, throughput, p50 latency, MAUD
+  accuracy and coverage, CUAD F1); every finding's numbers match the cards. Card p95 latency is nearest-rank.
+- Contracts is now labeled as what it measures: the per-document CUAD clause-presence F1 averaged over
+  successful documents with CUAD labels (micro F1 in parentheses). The run reports count unlabeled documents
+  as 0, which is why they read about 0.10 lower.
+- New master sections: per-cell detail for each posture (errors by kind, schema-valid rate, score sd, p50/p95,
+  tokens per document, completion p95/max, wall, busy GPU $, $ per 1M tokens, tokens/s/GPU); clause scoring
+  detail (CUAD precision, recall, value accuracy; MAUD questions, answered, correct, precision); vLLM engine
+  telemetry (requests, length-capped finishes, preemptions, prefix-cache hit rate, TTFT); run conditions by
+  specialist; pooled wall, token split, length finishes and preemptions.
+- SAND-40 validation probes appear in an appendix with a matched-document comparison against the SAND-37
+  2×L4 cell, never in the pooled columns. On matched documents the 64K contracts probe is flat (−0.002,
+  8 better / 7 worse); the merger probe gains +0.081 MAUD accuracy (14 / 3) while reading 11.5× the prompt
+  tokens through chunked extraction.
+- The SAND-40 header no longer commits the run to a 64K YaRN redeploy; each SAND-40 card records its window.
+
+### Added — SAND-037 aligned specialist grid and runbooks
+
+- All 20 Qwen3-8B-AWQ specialist grid cells (5 classes × n = 20/50 × 1×L4 C8 / 2×L4 C32) now share one spec:
+  the SAND-032 frozen L5 engine (`awq_marlin`, fp8 KV, CUDA graphs, `max_num_seqs` 16 per replica, thinking off,
+  `max_inputs` 32), `split: all` single-class draws at seed 42 (n = 20 nests in n = 50), the frozen v1
+  `*_simplified` prompts, and `max_tokens` 8192. Only n, replicas and concurrency vary. Previously the 1×L4 cells
+  ran plain `awq` eager at `max_num_seqs` 8, the 2×L4 cells plain `awq`, and the n = 20 insurance / corporate /
+  merger draws were stratified on `split: test` / `train`.
+- `docs/SPECIALIST-GRID-PLAN.md`: the aligned spec, the length-error analysis, all 20 cell run ids, and the
+  existing records each cell supersedes.
+- Runbooks `grid-1l4` and `grid-2l4` (new `grid` catalog family, serving variants that differ only in replica
+  count): one warm deploy per fleet shape, ten cells each.
+- Eight new run YAMLs (the n = 20 cells the grid lacked, plus `grid-20-merger-specialist-awq-1l4-rerun` and
+  `grid-50-contracts-specialist-awq-2l4-rerun`, which leave the executed cells' reports intact); every grid YAML
+  is generated from one template.
+
+- SAND-37 score & cost cards (`mailroom_sandbox.job.grid_cards`): every grid run writes
+  `reports/SAND-37/<1L4|2L4>/<specialist>/<run_id>.card.{md,json}` (conditions; run, time, cost, tokens,
+  throughput, latency, per-replica vLLM telemetry, quality and CUAD/MAUD clause scoring; error ledger;
+  per-document rows), and `sandbox run card --runbook grid-1l4|grid-2l4` writes the finalized
+  `L4x1-` / `L4x2-SCORE-COST-CARD.{md,json}` from the committed card JSON. The runner writes the card at the end of
+  each grid run; `sandbox run card --config` re-renders it after the `/metrics` after-scrape, reusing the runner's
+  busy wall. The grid runbooks bracket each start with `scrape-metrics` before/after and end with the suite card
+  (catalog flags `scrape_metrics`, `export_card`).
+
+### Fixed — SAND-037 runaway decoding on contracts and merger
+
+- Every LengthFinishReasonError on record is a contracts or merger document that used its whole cap (4096, 8192
+  or 16384), while successful outputs top out at 4,055 tokens and the failing documents change between runs.
+  Those two specialists decode under the JSON-schema grammar at a call-site `temperature=0.1`; near-greedy
+  decoding loops and job retries replay the loop. Grid contracts and merger cells now run at temperature 0.7
+  (Qwen3's documented non-thinking setting); the json_object classes keep 0.1.
+- `mailroom_sandbox.sampling`: applies a run-scoped `temperature` knob to the vendored specialists, whose call
+  sites pass `temperature=0.1` as a literal (previously a configured temperature never reached the request).
+  Installed at `activate()`; agents without a knob are untouched.
+- `sandbox runbook check` fails when a grid runbook's export block disagrees with `sandbox run deploy-env` for any
+  of its configs; `sandbox run benchmark-check` applies its deploy-env drift gate to grid cells as well as
+  SAND-032 runs. The `preflight_force` catalog flag renders `preflight --live --force` to re-lock a drifted run.
+
+### Added — SAND-036 warm vs cold GPUs, cost per 1M tokens, Modal vs API break-even, mailroom-issues Pages site
+
+- `reports/dashboard/gpu_report.py`: cost per 1M tokens on three bases (warm busy-window, one cold batch, program-loaded),
+  warm-fleet cost per token at falling utilization with the break-even busy share, and a warm vs cold section (boot
+  measurements, warm vs cold $/doc and $/1M per workload, the batch size that amortizes a cold start, keep warm vs
+  scale to zero with the threshold = scale-down + L5 boot). Every setup value and date in the report is read from the
+  serving exports and run reports; the hub `fleet` extract gains `scaledown` and each run's own score.
+- `reports/dashboard/breakeven.py`: one per-document Modal-vs-API calculation (verdict per class, every measured Modal
+  configuration against the cheapest hosted model, warm and cold break-even volumes, the optimal measured deployment)
+  quoted by the cost comparison's §3, the GPU report and the site, so no two reports disagree.
+- Dark, high-contrast figures: `scripts/sand032/viz.py` renders every chart as a dark card on the reference palette's
+  dark steps (validated `--mode dark`: ALL PASS), with a fixed color per model (`ENTITY`) and a legend whenever
+  bars carry more than one color; subtitles in sentence case. All 51 SAND-032 figures re-rendered
+  (`rerender.py`, data unchanged). The Pages site and the hub dashboard are dark by default.
+- `reports/dashboard/source_charts.py`: the eval-environment and mailroom-ml charts the reports used to copy are
+  redrawn from hub data in the same kit, so every report figure shares one theme.
+- `reports/dashboard/export_pngs.py`: 2× PNG of every report figure for slides (`mailroom-issues/reports/viz/`).
+- The per-token comparison includes the Qwen3.7-Flash n = 50 legs (token counts now extracted and cross-checked
+  against their reports); the sorter table lists every hosted model's largest run (Qwen3-8B: n = 20).
+- Model per route made explicit: Qwen3-8B-AWQ is the only model self-hosted on Modal; Qwen3.7-Flash and every other
+  hosted model ran through the API only. The cost comparison's §3.2 adds the same-model comparison (Qwen3-8B-AWQ on
+  Modal vs Qwen3-8B via the API), isolating the route from the model.
+- `reports/dashboard/pages_site.py` + `export_hub_reports.py --site`: the three reports as a static GitHub Pages site
+  for `mailroom-issues/docs/` (inline SVG, no JavaScript, no external requests; covered by `--check`).
+- Hub snapshot re-pinned to eval-environment `86b4e54` (main, including the qwen3.7-flash suite README); `markdown-it-py`
+  joins `[dev]` (requirements regenerated with `scripts/sync_requirements.py`).
+- `tests/test_gpu_report.py`: the $/1M identity, the keep-warm threshold, the amortizing batch, the break-evens and the
+  optimal row, and site integrity (no scripts, every internal link and anchor resolves).
+
+### Added — SAND-035 cross-repo report audit + Modal vs API cost comparison
+
+- `scripts/sand032/viz.py` sizes label columns by measured text width (middle ellipsis, full label in
+  `<title>`), gives reference-line labels their own lane, and spaces dumbbell legends by measured width;
+  `dumbbell(val=...)` overrides the end-of-row label. `scripts/sand032/rerender.py` re-lays all 51
+  committed SAND-032 figures from their embedded data and asserts the data is unchanged (`--check`).
+- Reports hub: **Modal vs API** tab (cost vs quality per specialist and for the sorter); snapshot synced to
+  eval-environment `f6bb510` / mailroom-ml `d3ad222` (the merged chart-layout fixes; source SHAs only, no
+  values changed); Qwen3.7-Flash n = 50 legs cross-checked; the merger
+  leg eval-environment files under Qwen3-8B is labelled by its logged model (Qwen3.7-Flash, frozen prompts).
+- `reports/dashboard/export_hub_reports.py` writes `COST-COMPARISON-MODAL-VS-API.md`, `MASTER-REPORT.md` and
+  figures for `mailroom-issues/reports/`; `report_audit.json` records the sweep (0 overflow / 0 collisions /
+  0 broken links across the three repos).
+
+- `reports/dashboard/gpu_report.py` writes `MODAL-VLLM-GPU-REPORT.md` for `mailroom-issues/reports/`: cost per token,
+  GPU spend breakdown, client-slot occupancy, per-replica vLLM metrics and the second-L4 analysis. The hub gains a
+  `fleet` section (`hub_extract.sand032_fleet`): all 24 SAND-032 serving exports cross-checked against their run
+  reports (wall, tokens, throughput, busy and billed GPU $, slot occupancy, replica request split). `viz.hbar` gains
+  `domain_max` so small multiples can share one scale.
+
+### Fixed — SAND-036
+
+- Hub stratum means and the legacy spend total use `math.fsum`, so `hub_data.json` is identical whether it is
+  rebuilt on Python 3.11 or 3.12 (3.12's `sum()` compensates, 3.11's does not; the two differed in the last digit).
+
+### Fixed — SAND-035
+
+- `build_hub.py --check` crashed (`KeyError: 'run_id'`) on eval-environment log rows without a run id.
+- Latency/subclass figure labels overflowed the left edge; p50/p95 labels collided with each other and
+  the subtitle.
+- Broken relative links in CHANGELOG, docs, RUN-20 serving reports and agent prompts.
+- SAND-032 spend: the program summary's header gave the stage 1–5 ledger ($1.21) while its closing ledger read $2.80;
+  the runs alone bill $2.18. The header is corrected, and the hub checks it against the closing ledger and the runs'
+  billed GPU $.
+- The S6 sorter's $/doc was the billed figure (with its 131 s cold boot); the hub now uses the busy-window basis like
+  every other run and records the report's figure as a documented source issue.
+
+### Changed — governance: DMR-068 hub tracker + SAND board reconciliation
+
+- `docs/scale-matrix.md` status line cites the DMR-068 hub tracker
+  (LLM-Mailroom-Services/mailroom-issues#205) for owner and spend decision.
+- `governance/TASKS.md` gains rows for SAND-021..025, which existed only as
+  GitHub issues (#27-#31), and states that the board is the SAND numbering
+  authority (highest id in use: SAND-033). Closes mailroom-issues#194.
+
 ### Added — SAND-031 centralized operator runbooks
 
 - **Single edit surface:** [`config/runbooks/catalog.yaml`](config/runbooks/catalog.yaml).
@@ -14,7 +175,7 @@
   (blocked), Granite 4.2-8B FP8 swap-in, second-L4 data parallel, scale-matrix
   cells — `sandbox runbook list --family improved`.
 - CLI: `sandbox runbook list|show|check|write`. Tests:
-  `tests/test_runbooks.py`. `docs/benchmark-l4.md` is now the pointer;
+  `tests/test_runbooks.py`. `docs/modal/benchmark-l4.md` is now the pointer;
   operator scripts are generated.
 
 ### Changed — monorepo target Digital-Mailroom (2026-09-24)
@@ -51,8 +212,8 @@
 - `VLLMSpec` gains `enable_prefix_caching` / `enforce_eager`; specialist and
   cost-eval run YAMLs pin the new posture. Scale-matrix cells keep
   `max_num_seqs: 256` and must export `MODAL_VLLM_MAX_NUM_SEQS=256` at deploy.
-- Docs: `deploy/README.md`, `docs/benchmark-l4.md`, `docs/scale-matrix.md`
-  (container topology), `docs/modal-serving-ops.md`, skill knobs.
+- Docs: `deploy/README.md`, `docs/modal/benchmark-l4.md`, `docs/scale-matrix.md`
+  (container topology), `docs/modal/modal-serving-ops.md`, skill knobs.
 
 ### Added — SAND-020 correspondence extraction-quality diagnosis (issue #21)
 
@@ -65,7 +226,7 @@
   scalars are not events; empty-list inventions zero overall; F1 TP requires
   typed score ≥ 1.0; isolated `exact_match` is a runner alias of overall.
 - **Offline diagnosis** of `run-20-correspondence-awq-c8` (fingerprint
-  `285f423d3708`): [`docs/extraction-quality-diagnosis.md`](docs/extraction-quality-diagnosis.md)
+  `285f423d3708`): [`docs/archive/extraction-quality-diagnosis.md`](docs/archive/extraction-quality-diagnosis.md)
   (best/worst docs, token evidence, owner-locked 0.25 / 0.50 gates).
 - **FP16 twin YAML** [`config/runs/run-20-correspondence-fp16-c8.yaml`](config/runs/run-20-correspondence-fp16-c8.yaml)
   — same draw, `Qwen/Qwen3-8B`, **not run** (spend/auth blocked). Runbook:
@@ -99,7 +260,7 @@
 ### Added — SAND-018 single-class 20-contract Modal run + full-corpus logged sample (2026-09-25)
 
 - **`config/runs/run-20-contracts-specialist.yaml`** — the runbook's
-  [`docs/benchmark-l4.md`](docs/benchmark-l4.md) L4 Qwen pins (`Qwen/Qwen3-8B`,
+  [`docs/modal/benchmark-l4.md`](docs/modal/benchmark-l4.md) L4 Qwen pins (`Qwen/Qwen3-8B`,
   L4, `v0.29.0`, `max_model_len=16384`, scaledown 120, `contracts_specialist_v33`
   local prompt) applied to a **20-contract** single-class run drawn as a seeded
   random sample (`sample_seed=42`) from the **full** corpus (`split: all`, 3,302
@@ -171,7 +332,7 @@
   llm-entity-extraction's MESSAGE_BOARD — do not open DMR cards on the
   local board.
 - Legacy `SANDBOX-050-*` mission archived → epic `SAND-010` (+ sub-cards).
-- Docs: `AGENTS.md`, `docs/sister-repos.md`, `docs/modal-doc-jobs.md` gate
+- Docs: `AGENTS.md`, `docs/setting-up/sister-repos.md`, `docs/modal/modal-doc-jobs.md` gate
   rows (`SAND-014`). Drift guard: `tests/test_governance_sand.py`.
 
 ### Added — DMR-078b requirements completeness (2026-09-24)
@@ -215,7 +376,7 @@
 - **CLI:** `sandbox run suite --suite track-a|track-b|full` (runbook /
   `--print-loop` / `--check` / `--execute`); `sandbox metrics estimate-suite
   --suite …`; `sandbox run benchmark-check --suite …`.
-- **Docs:** two-operator runbook in `docs/benchmark-l4.md` + `.env.example`
+- **Docs:** two-operator runbook in `docs/modal/benchmark-l4.md` + `.env.example`
   profile-name placeholders (no secrets). Spend posture unchanged: scaledown
   120, c=4, L4, max_containers=1, warm-once per track.
 
@@ -224,7 +385,7 @@
 - **Attended scaledown 120s** pinned in all five `run-30-*-specialist.yaml`
   (`engine.modal.scaledown_seconds`) + deploy default
   `MODAL_VLLM_SCALEDOWN_SECONDS=120`; restore **600** for unattended/overnight.
-- **Loud warm-once headers** on every run-30 YAML + `docs/benchmark-l4.md`
+- **Loud warm-once headers** on every run-30 YAML + `docs/modal/benchmark-l4.md`
   (one `sandbox-vllm` app through all five runs; teardown only after the fifth).
 - **`sandbox run benchmark-check`** enforces spend posture: scaledown=120,
   min_containers=0, max_containers=1, concurrency=4, limit=30, DMR-074 local
@@ -240,7 +401,7 @@
   **v0.7.1** (`2a212e76`, `vendor/llm-mailroom/VENDOR.md`), llm-dojo-scoring
   **v0.15.0** (`9db1417b`, vendor snapshot refreshed with the emitter
   counters in the same commit so the hub#62 drift guard stays byte-identical);
-  the corpus pin is **v9.1 `ed7576b6`** (`FAMILY_HF_REVISION`).
+  the corpus pin is **v9 `46a4d3c2`** (`FAMILY_HF_REVISION`).
 - **Tracing loudness:** `eval/tracing.py` now warns on every silent-degrade
   path (dojo constants fallback, mailroom-setup/SDK unavailability,
   `propagate_attributes` failure) and COUNTS lost score emissions + failed
@@ -277,7 +438,7 @@
 
 ### Planned (not yet shipped — hub#54)
 
-- **DMR-059 — Modal doc-pipeline job queue plan**: `docs/modal-doc-jobs.md`
+- **DMR-059 — Modal doc-pipeline job queue plan**: `docs/modal/modal-doc-jobs.md`
   designs a `sandbox-doc-jobs` Modal app modeled on the Modal docs tutorial
   (`09_job_queues/doc_ocr_jobs.py`) — a CPU-side document job queue whose LLM
   is the already-deployed `sandbox-vllm` endpoint: bytes staged on a
@@ -287,7 +448,7 @@
   progress mirror, `modal run` local-entrypoint smoke, and
   `Function.from_name(...).spawn(...)` consumption. Three phases (mock
   smoke → live vLLM → CLI). **Not yet shipped** — the card is still
-  `in_progress` on the board and neither `docs/modal-doc-jobs.md` nor
+  `in_progress` on the board and neither `docs/modal/modal-doc-jobs.md` nor
   `.opencode/agents/` now ships the coding subagent roster (SAND-017); Modal
   doc-jobs code remains unshipped — this entry documents the queue plan only.
 
@@ -381,7 +542,7 @@
 
 - **DMR-058 — full CLI verification sweep + quickstart**: every `sandbox`
   command exercised against a fresh in-repo `.venv` (offline + live Hub
-  paths); `docs/QUICKSTART.md` is the verified full command reference
+  paths); `docs/setting-up/QUICKSTART.md` is the verified full command reference
   (install, flag-placement rules, workflows, exit codes, troubleshooting).
   New extras: `[pipeline]` (vendored langchain stack for the legalbench
   suite / live mailroom paths), `[dev]` now carries the Hub client
@@ -407,7 +568,7 @@
   `deploy/htcondor/` CHTC job templates — batch eval (in-job vLLM, works
   on the shared GPU Lab where `condor_ssh_to_job` is unavailable) and an
   owned-GPU server variant tied to the tunnel profile
-  (`docs/remote-serving.md` is the overview).
+  (`docs/setting-up/remote-serving.md` is the overview).
 - **Modal deploy hardening (SDK 1.5.5 / vLLM v0.28.0)**: `deploy/modal_vllm.py`
   now pins the Modal SDK (`modal==1.5.5` in the `[deploy]` extra), defaults to
   `vllm/vllm-openai:v0.28.0` (matching the local compose pin), caches vLLM
@@ -422,7 +583,7 @@
   (`tests/test_modal_vllm.py`) pin the argv builder, bearer env mapping,
   secret construction, cost guards, and the SDK/image pins. Docs:
   `deploy/README.md` (deploy → verify → cost → security → troubleshooting),
-  `.cursor/skills/modal/SKILL.md`, `docs/remote-serving.md`,
+  `.cursor/skills/modal/SKILL.md`, `docs/setting-up/remote-serving.md`,
   `config/.env.example`.
 
 - **DMR-027 — sandbox job CLI (`sandbox run`)**: a spec-driven, locked,

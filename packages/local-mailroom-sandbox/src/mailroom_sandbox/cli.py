@@ -14,6 +14,27 @@ from mailroom_sandbox.paths import repo_root, vendor_dir
 from mailroom_sandbox.runtime import activate, resolve_dojo_src, resolve_mailroom_src
 
 
+
+def _activation_model(spec, cli_model):
+    """SAND-032: graph tasks (sorter) must call the model the run YAML serves.
+
+    Activating with only the profile default sent `Qwen/Qwen3-8B` to an AWQ
+    fleet (vLLM 404 on every request). An explicit --model still wins.
+    """
+    return cli_model or (spec.engine.model if getattr(spec, "engine", None) else None)
+
+
+def _activation_knobs(spec):
+    """Apply posture decode budget (grid cells: 8192, above the 4096 JSON cap)."""
+    import json
+
+    from mailroom_sandbox.job.specialist_posture import agent_knobs_for_run
+
+    knobs = agent_knobs_for_run(getattr(spec, "run_id", None))
+    if knobs:
+        os.environ["SANDBOX_AGENT_KNOBS"] = json.dumps(knobs)
+    return knobs
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -204,7 +225,7 @@ def build_parser() -> argparse.ArgumentParser:
     sa_prop.set_defaults(handler=_cmd_subagents_propagate)
     subagents_p.set_defaults(handler=_cmd_subagents_list)
 
-    pipe = sub.add_parser("pipeline", help="Run mailroom watcher or API", parents=[shared])
+    pipe = sub.add_parser("pipeline", help="Run mailroom inbox watcher or API (not the Tray TUI watch)", parents=[shared])
     pipe_sub = pipe.add_subparsers(dest="pipeline_cmd")
     w = pipe_sub.add_parser("watcher", parents=[shared])
     w.set_defaults(handler=_cmd_watcher)
@@ -339,6 +360,22 @@ def build_parser() -> argparse.ArgumentParser:
     tr = p.add_subparsers(dest="traces_cmd")
     exp = tr.add_parser("export", parents=[shared])
     exp.set_defaults(handler=_cmd_traces_export)
+    pk = tr.add_parser(
+        "pack",
+        help="Zip a run's local span mirror (Parquet), copy it to --dest and verify; --prune deletes local copies",
+        parents=[shared],
+    )
+    pk.add_argument("run_id")
+    pk.add_argument("--experiment", help="experiment label for the zip name (default: run_id prefix)")
+    pk.add_argument("--runner", help="who ran it: claude | axios (default: claude inside Claude Code, else axios)")
+    pk.add_argument(
+        "--dest",
+        default=os.environ.get("SANDBOX_TRACE_UPLOAD_DIR"),
+        help="synced upload folder, e.g. the Drive LOGS folder (env SANDBOX_TRACE_UPLOAD_DIR); a <date>/ subfolder is added",
+    )
+    pk.add_argument("--date", help="date subfolder YYYY-MM-DD (default: today UTC)")
+    pk.add_argument("--prune", action="store_true", help="after a verified copy, delete the local mirror and local zip")
+    pk.set_defaults(handler=_cmd_traces_pack)
     p.set_defaults(handler=_cmd_traces_help)
 
     p = sub.add_parser("profiles", help="List provider profiles", parents=[shared])
@@ -363,6 +400,104 @@ def build_parser() -> argparse.ArgumentParser:
     tun.set_defaults(handler=_cmd_tunnel_help)
 
     _run_parser(sub, shared)
+
+    watch_p = sub.add_parser(
+        "watch",
+        help="Tray TUI: live in-tray + spend + Modal dispatch log for any locked run",
+        parents=[shared],
+    )
+    watch_p.add_argument("--config", default=None, help="run YAML to watch")
+    watch_p.add_argument(
+        "--follow", default=None,
+        help="file holding the CURRENT run YAML path; re-read every frame",
+    )
+    watch_p.add_argument("--app", default=None, help="Modal serve app override (default: engine.modal.app; modal job mode also tails sandbox-job)")
+    watch_p.add_argument("--ledger", default=None, help="spend ledger JSON ({spent_usd})")
+    watch_p.add_argument("--cap-usd", type=float, default=5.0)
+    watch_p.add_argument("--interval", type=float, default=1.0, help="max seconds between redraws (logs and run-store changes redraw immediately)")
+    watch_p.add_argument("--no-bell", action="store_true", help="do not ring the terminal bell on a new critical watchdog alert")
+    watch_p.add_argument("--once", action="store_true", help="render one frame and exit")
+    watch_p.add_argument("--no-logs", action="store_true", help="do not follow Modal dispatch logs (serve + worker); job events still shown")
+    watch_p.add_argument(
+        "--web",
+        action="store_true",
+        help="Tray TUI in the browser on localhost (SSE); frees the terminal tab",
+    )
+    watch_p.add_argument(
+        "--host",
+        default=None,
+        help="web UI bind host (default 127.0.0.1; only with --web)",
+    )
+    watch_p.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="web UI port (default 8765; 0 = ephemeral; only with --web)",
+    )
+    watch_p.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="do not open a browser tab (only with --web; also NO_BROWSER=1)",
+    )
+    watch_p.add_argument(
+        "--demo",
+        action="store_true",
+        help="with --web: serve a synthetic looping run (dev server; no Modal, no spend)",
+    )
+    watch_p.set_defaults(handler=_cmd_watch)
+
+    dev_p = sub.add_parser(
+        "dev",
+        help="Tray TUI dev server: themed browser UI on a synthetic run (= watch --web --demo)",
+        parents=[shared],
+    )
+    dev_p.add_argument("--host", default=None, help="bind host (default 127.0.0.1)")
+    dev_p.add_argument("--port", type=int, default=None, help="port (default 8765; 0 = ephemeral)")
+    dev_p.add_argument("--interval", type=float, default=1.0, help="seconds per demo tick")
+    dev_p.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
+    dev_p.set_defaults(handler=_cmd_dev)
+
+    board_p = sub.add_parser(
+        "board",
+        help="persistent mailroom job board: every beacon job in the package family (browser; --tui for terminal)",
+        parents=[shared],
+    )
+    board_p.add_argument("--root", default=None, help="beacon dir (default $MAILROOM_BEACON_DIR or ~/.mailroom/jobs)")
+    board_p.add_argument("--tui", action="store_true", help="terminal TUI instead of the browser page")
+    board_p.add_argument("--once", action="store_true", help="with --tui: render one frame and exit")
+    board_p.add_argument("--host", default=None, help="bind host (default 127.0.0.1)")
+    board_p.add_argument("--port", type=int, default=None, help="port (default 8767; 0 = ephemeral)")
+    board_p.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
+    board_p.add_argument("--stale-s", type=float, default=120.0, help="heartbeat age that marks a running job stalled")
+    board_p.add_argument("--interval", type=float, default=1.0, help="refresh seconds")
+    board_p.add_argument("--demo", action="store_true", help="also run synthetic demo jobs (dev server; no Modal)")
+    board_p.set_defaults(handler=_cmd_board)
+
+    beacon_p = sub.add_parser("beacon", help="publish a mailroom.beacon/v1 heartbeat (shell jobs)", parents=[shared])
+    beacon_sub = beacon_p.add_subparsers(dest="beacon_cmd", required=True)
+    bu = beacon_sub.add_parser("update", help="create/update a job heartbeat", parents=[shared])
+    bu.add_argument("--job", required=True)
+    bu.add_argument("--package", required=True)
+    bu.add_argument("--title", default="")
+    bu.add_argument("--phase", default=None)
+    bu.add_argument("--done", type=int, default=None)
+    bu.add_argument("--total", type=int, default=None)
+    bu.add_argument("--ok", type=int, default=None)
+    bu.add_argument("--errors", type=int, default=None)
+    bu.add_argument("--metric", action="append", default=[], help="key=value (repeatable)")
+    bu.add_argument("--log", default=None, help="append one log line")
+    bu.add_argument("--finish", choices=("done", "failed"), default=None)
+    bu.add_argument("--root", default=None)
+    bu.set_defaults(handler=_cmd_beacon_update)
+
+    score_p = sub.add_parser(
+        "scorecard",
+        help="mailroom TUI scorecard for a finished run (SAND-032)",
+        parents=[shared],
+    )
+    score_p.add_argument("--run", dest="run_id", required=True, help="run id (e.g. sand032-l0-baseline)")
+    score_p.add_argument("--serving-dir", default=None, help="default: reports/serving (nested SAND trees and legacy flat exports)")
+    score_p.set_defaults(handler=_cmd_scorecard)
 
     rb = sub.add_parser(
         "runbook",
@@ -444,7 +579,7 @@ def build_parser() -> argparse.ArgumentParser:
     mserv = metrics_sub.add_parser(
         "serving-record",
         parents=[shared],
-        help="write reports/serving/<run_id>.serving.json from a stored run",
+        help="write a serving export under the canonical reports/serving tree",
     )
     mserv.add_argument("--run", dest="run_id", required=True, help="run-id with lock + items")
     mserv.add_argument(
@@ -456,7 +591,7 @@ def build_parser() -> argparse.ArgumentParser:
     mserv.add_argument(
         "--out",
         default="",
-        help="output path (default: reports/serving/<run_id>.serving.json)",
+        help="output path (default: canonical nested reports/serving path for this run)",
     )
     mserv.add_argument("--json", action="store_true", help="print the record to stdout")
     mserv.set_defaults(handler=_cmd_metrics_serving_record)
@@ -538,7 +673,20 @@ def build_parser() -> argparse.ArgumentParser:
     mb_eval = mb_sub.add_parser("eval", parents=[shared], help="run mailroom-ml eval_modernbert.py")
     mb_eval.add_argument("--sample", type=int, default=50)
     mb_eval.add_argument("--seed", type=int, default=42)
+    mb_eval.add_argument(
+        "--subset",
+        default="test",
+        choices=["test", "train", "all", "heldout-plus"],
+        help="eval pool (test=323 held-out; all=finetune corpus for large "
+        "samples; heldout-plus=1323 extended set, mailroom-ml "
+        "training/build_heldout_plus.py)",
+    )
     mb_eval.add_argument("--checkpoint", default=None, help="override MODERNBERT_MODEL_PATH")
+    mb_eval.add_argument(
+        "--append-log",
+        action="store_true",
+        help="append serving record to reports/experiment_log.jsonl",
+    )
     mb_eval.add_argument("--json", action="store_true")
     mb_eval.set_defaults(handler=_cmd_modernbert_eval)
     mb.set_defaults(handler=_cmd_modernbert_help)
@@ -594,6 +742,11 @@ def _run_parser(sub, shared):
         help="benchmark-check: require Hermes Modal profile (default on)",
     )
     common.add_argument(
+        "--modal-profile",
+        default=None,
+        help="benchmark-check: required active Modal profile (e.g. exios66); overrides Hermes",
+    )
+    common.add_argument(
         "--allow-non-hermes",
         action="store_true",
         help="benchmark-check: skip Hermes profile requirement",
@@ -622,6 +775,61 @@ def _run_parser(sub, shared):
         help="loud Modal L4 Qwen reproducibility gate (Hermes profile, pins)",
     )
     bcheck.set_defaults(handler=_cmd_run_benchmark_check)
+    denv = run_sub.add_parser(
+        "deploy-env",
+        parents=[common],
+        help="print the MODAL_VLLM_* exports a run YAML implies (SAND-032)",
+    )
+    denv.set_defaults(handler=_cmd_run_deploy_env)
+    scrape_p = run_sub.add_parser(
+        "scrape-metrics",
+        parents=[common],
+        help="sample vLLM /metrics per replica into the run dir (SAND-032)",
+    )
+    scrape_p.add_argument("--label", choices=["before", "after"], required=True)
+    scrape_p.set_defaults(handler=_cmd_run_scrape_metrics)
+    card_p = run_sub.add_parser(
+        "card",
+        parents=[common],
+        help="SAND-037 score & cost card: --config (one run) or --runbook grid-1l4|grid-2l4 (suite)",
+    )
+    card_p.add_argument(
+        "--runbook",
+        default=None,
+        choices=["grid-1l4", "grid-2l4"],
+        help="write the finalized L4x1 / L4x2 suite card from the per-run cards",
+    )
+    card_p.add_argument(
+        "--master",
+        action="store_true",
+        help="write reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md (two-page executive) + SAND-37-MASTER-APPENDIX.md across SAND-37 / SAND-39 / SAND-40 postures",
+    )
+    card_p.add_argument(
+        "--gate",
+        action="store_true",
+        help="SAND-040 chunked cell: exit 1 unless every document is ok and every expected chunk reached vLLM",
+    )
+    card_p.add_argument(
+        "--record-metered",
+        nargs=3,
+        metavar=("STUDY", "METERED_USD", "BILLED_USD"),
+        default=None,
+        help="record a study's session Modal spend (teardown spend check) for the master card, e.g. SAND-39 0.62 0.00",
+    )
+    card_p.set_defaults(handler=_cmd_run_card)
+    export_bt = run_sub.add_parser(
+        "export-bt",
+        parents=[common],
+        help="write offline Braintrust-Experiment-shaped rows (gitignored; SAND-032)",
+    )
+    export_bt.set_defaults(handler=_cmd_run_export_bt)
+    dispose_p = run_sub.add_parser(
+        "dispose",
+        parents=[common],
+        help="delete a run's offline BT rows once its report is tracked in git",
+    )
+    dispose_p.add_argument("--report", required=True)
+    dispose_p.set_defaults(handler=_cmd_run_dispose)
     suite_p = run_sub.add_parser(
         "suite",
         parents=[common],
@@ -1369,9 +1577,14 @@ def _cmd_legalbench(args: argparse.Namespace) -> int:
 def _cmd_eval(args: argparse.Namespace) -> int:
     from mailroom_sandbox.eval import runners
     from mailroom_sandbox.eval.agents import SPECS
+    from mailroom_sandbox.tui.session import MailroomConsole
 
     mock = _mock_for(args, subcommand="eval")
     os.environ["SANDBOX_RUN_MODE"] = "mock" if mock else "local"
+    console = MailroomConsole()
+    exp = args.experiment_name or f"sandbox_{args.task}"
+    console.run_banner(run_id=exp, task=args.task, subtitle="sandbox eval")
+    console.phase("EVAL", "mock" if mock else args.profile or "local")
     kwargs = {
         "mock": mock,
         "sample": args.sample,
@@ -1381,8 +1594,13 @@ def _cmd_eval(args: argparse.Namespace) -> int:
         "model": args.model,
         "agent_models": _agent_models(args),
     }
+    def _eval_progress(done: int, total: int, ok: int, errors: int) -> None:
+        console.progress(done, total, ok=ok, errors=errors)
+
     if args.task in SPECS:
-        result = runners.run_isolated_eval(args.task, prompt_version=args.prompt, **kwargs)
+        result = runners.run_isolated_eval(
+            args.task, prompt_version=args.prompt, progress_cb=_eval_progress, **kwargs
+        )
     elif args.task == "pipeline":
         result = runners.run_pipeline_eval(
             prompt_version=args.prompt, connected=True, **kwargs
@@ -1410,24 +1628,45 @@ def _cmd_eval(args: argparse.Namespace) -> int:
         # task — a future composite registered without its own arm would have
         # been silently misrouted (scorecard pollution).
         raise SystemExit(f"error: task {args.task!r} has no dispatch arm in _cmd_eval")
+    scores = result.get("scores") if isinstance(result, dict) else None
+    summary = ""
+    if isinstance(scores, dict) and scores.get("accuracy") is not None:
+        summary = f"accuracy {scores['accuracy']}"
+    elif isinstance(result, dict) and result.get("n") is not None:
+        summary = f"n={result['n']}"
+    console.complete(state="done", summary=summary or exp)
     _print(result)
     return 0
 
 
 def _cmd_matrix(args: argparse.Namespace) -> int:
     from mailroom_sandbox.eval.matrix import run_matrix
+    from mailroom_sandbox.tui.session import MailroomConsole
 
     mock = _mock_for(args, subcommand="matrix")
+    console = MailroomConsole()
+    providers = [p.strip() for p in args.providers.split(",") if p.strip()]
+    models = [m.strip() for m in args.models.split(",") if m.strip()]
+    console.run_banner(
+        run_id=f"matrix_{args.task}",
+        task=args.task,
+        subtitle=f"{len(providers)} providers × {len(models)} models",
+    )
     result = run_matrix(
         task=args.task,
-        providers=[p.strip() for p in args.providers.split(",") if p.strip()],
-        models=[m.strip() for m in args.models.split(",") if m.strip()],
+        providers=providers,
+        models=models,
         prompts=[x.strip() for x in args.prompts.split(",") if x.strip()],
         sample=args.sample,
         seed=args.seed,
         mock=mock,
         dry_run=args.dry_run,
+        console=console,
     )
+    if args.dry_run:
+        console.complete(state="prepared", summary=f"{result.get('n', 0)} cells planned")
+    else:
+        console.complete(state="done", summary=f"{len(result.get('results') or [])} cells")
     _print(result)
     return 0
 
@@ -1493,7 +1732,34 @@ def _cmd_datasets_prepare(args: argparse.Namespace) -> int:
 
 
 def _cmd_traces_help(args: argparse.Namespace) -> int:
-    print("Use: sandbox traces export")
+    print("Use: sandbox traces export | sandbox traces pack RUN_ID [--dest DIR] [--prune]")
+    return 0
+
+
+def _cmd_traces_pack(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.job import trace_pack
+
+    if args.prune and not args.dest:
+        print("error: --prune needs --dest (or SANDBOX_TRACE_UPLOAD_DIR): local copies go only after a verified upload")
+        return 2
+    try:
+        result = trace_pack.pack(
+            args.run_id,
+            experiment=args.experiment,
+            runner=args.runner,
+            dest=Path(args.dest).expanduser() if args.dest else None,
+            date=args.date,
+        )
+    except FileNotFoundError as exc:
+        print(f"error: {exc}")
+        return 1
+    if args.dest and not result["verified"]:
+        _print(result)
+        print("error: uploaded copy did not verify; nothing pruned")
+        return 1
+    if args.prune:
+        result["pruned"] = trace_pack.prune(result)
+    _print(result)
     return 0
 
 
@@ -1589,13 +1855,14 @@ def _cmd_run_benchmark_check(args) -> int:
     from mailroom_sandbox.job.spec import load_run_spec
 
     suite_name = (getattr(args, "suite", None) or "").strip()
-    require_hermes = not bool(getattr(args, "allow_non_hermes", False))
+    modal_profile = (getattr(args, "modal_profile", None) or "").strip() or None
+    require_hermes = not bool(getattr(args, "allow_non_hermes", False)) and modal_profile is None
     if suite_name:
         report = check_suite_benchmark_posture(
             suite_name,
             require_hermes=require_hermes,
             require_modernbert=False,
-        )
+        )  # suite YAML carries its own Modal profile (sand032-sweep → exios66)
     else:
         spec = None
         if getattr(args, "config", None):
@@ -1604,6 +1871,7 @@ def _cmd_run_benchmark_check(args) -> int:
             spec=spec,
             require_hermes=require_hermes,
             require_modernbert=False,
+            expected_modal_profile=modal_profile,
         )
     if getattr(args, "json", False):
         _print(report)
@@ -1612,6 +1880,263 @@ def _cmd_run_benchmark_check(args) -> int:
         for err in report.get("errors") or []:
             print(f"ERROR: {err}", file=sys.stderr)
     return 0 if report.get("ok") else 1
+
+
+def _cmd_run_deploy_env(args) -> int:
+    """SAND-032: YAML is the source of truth for deploy knobs — render it."""
+    from mailroom_sandbox.job.deploy_env import render_exports
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    if not getattr(args, "config", None):
+        print("ERROR: --config required", file=sys.stderr)
+        return 2
+    sys.stdout.write(render_exports(load_run_spec(args.config)))
+    return 0
+
+
+def _cmd_run_scrape_metrics(args) -> int:
+    """SAND-032: per-replica vLLM /metrics snapshot (measured TTFT, KV, preemptions)."""
+    from mailroom_sandbox.job import spec as spec_mod
+    from mailroom_sandbox.job import vllm_metrics
+
+    if not getattr(args, "config", None):
+        print("ERROR: --config required", file=sys.stderr)
+        return 2
+    spec = spec_mod.load_run_spec(args.config)
+    expected = spec.engine.modal.max_containers if spec.engine.modal else 1
+    result = vllm_metrics.scrape(
+        spec_mod.engine_base_url(spec),
+        os.environ.get("VLLM_API_KEY", "").strip(),
+        expected=expected,
+    )
+    dest = spec_mod.runs_root() / spec_mod.resolve_run_id(spec) / f"vllm_metrics_{args.label}.json"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
+    print(f"{result['coverage']} → {dest}")
+    for err in result.get("errors") or []:
+        print(f"WARN: scrape error: {err}", file=sys.stderr)
+    return 0
+
+
+def _cmd_run_card(args) -> int:
+    """SAND-037: per-run card under reports/SAND-37/<shape>/<specialist>/, or the suite card."""
+    from mailroom_sandbox.job import grid_cards
+
+    if getattr(args, "record_metered", None):
+        from mailroom_sandbox.job.grid_master import record_metered
+
+        study, metered, billed = args.record_metered
+        print(f"metered spend → {record_metered(study, float(metered), float(billed))}")
+        if not getattr(args, "master", False):
+            return 0
+    if getattr(args, "master", False):
+        from mailroom_sandbox.job.grid_master import write_master
+
+        from mailroom_sandbox.job.grid_reader import write_reader
+
+        paths = write_master()
+        print(f"master card → {paths['md']} (+ appendix {paths['appendix']})")
+        reader = write_reader()
+        print(f"reader report → {reader['md']} (+ notebook {reader['ipynb']})")
+        if reader["pdf"]:
+            print(f"reader PDF → {reader['pdf']}")
+        else:
+            print("reader PDF skipped: Chrome not found (set SANDBOX_CHROME); READER-REPORT.pdf is now stale")
+        return 0
+    if getattr(args, "runbook", None):
+        replicas = 1 if args.runbook == "grid-1l4" else 2
+        paths = grid_cards.write_suite(replicas)
+        print(f"suite card → {paths['md']}")
+        return 0
+    if not getattr(args, "config", None):
+        print("ERROR: --config or --runbook required", file=sys.stderr)
+        return 2
+    from mailroom_sandbox.job import spec as spec_mod
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    spec = spec_mod.load_run_spec(args.config)
+    store = RunStore(spec_mod.runs_root() / spec_mod.resolve_run_id(spec))
+    if not store.load_items():
+        print(f"ERROR: no items for {store.run_id} — run it first", file=sys.stderr)
+        return 2
+    paths = grid_cards.write_card(store)
+    print(f"run card → {paths['md']}")
+    if getattr(args, "gate", False):
+        problems = grid_cards.chunk_gate(store)
+        for line in problems:
+            print(f"GATE FAIL: {line}", file=sys.stderr)
+        if problems:
+            return 1
+        print(f"gate passed: every chunk of {store.run_id} reached vLLM")
+    return 0
+
+
+def _bt_run_context(args):
+    from mailroom_sandbox import paths
+    from mailroom_sandbox.job import spec as spec_mod
+
+    spec = spec_mod.load_run_spec(args.config)
+    run_id = spec_mod.resolve_run_id(spec)
+    return run_id, spec_mod.runs_root() / run_id, paths.runtime_dir() / "bt_experiments"
+
+
+def _cmd_run_export_bt(args) -> int:
+    """SAND-032: offline evidence rows for one run (never uploaded)."""
+    from mailroom_sandbox.job import bt_offline
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    if not getattr(args, "config", None):
+        print("ERROR: --config required", file=sys.stderr)
+        return 2
+    run_id, store_dir, out_root = _bt_run_context(args)
+    if not (store_dir / "items.jsonl").is_file():
+        print(f"ERROR: run {run_id} has no items.jsonl at {store_dir}", file=sys.stderr)
+        return 1
+    commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"], capture_output=True, text=True
+    ).stdout.strip()
+    out = bt_offline.write_experiment(RunStore(store_dir), out_root=out_root, git_commit=commit)
+    print(f"offline BT rows → {out}")
+    return 0
+
+
+def _cmd_run_dispose(args) -> int:
+    """SAND-032: remove offline rows only after the run's report is committed."""
+    from mailroom_sandbox.job import bt_offline
+
+    if not getattr(args, "config", None):
+        print("ERROR: --config required", file=sys.stderr)
+        return 2
+    run_id, _store_dir, out_root = _bt_run_context(args)
+    try:
+        removed = bt_offline.dispose(
+            run_id,
+            out_root=out_root,
+            report=Path(args.report),
+            is_tracked=lambda p: bt_offline.git_tracked(p),
+        )
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    print(f"disposed {run_id}" if removed else f"nothing to dispose for {run_id}")
+    return 0
+
+
+def _cmd_watch(args) -> int:
+    from mailroom_sandbox import watch as watch_mod
+    from mailroom_sandbox.job import spec as spec_mod
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    from mailroom_sandbox import paths
+
+    if getattr(args, "demo", False):
+        return _serve_demo(args)
+    sand032 = paths.runtime_dir() / "sand032"
+    if not args.config and not args.follow and (sand032 / "current").is_file():
+        # Bare `sandbox watch`: follow the current SAND-032 run with its ledger.
+        args.follow = str(sand032 / "current")
+        if not args.ledger and (sand032 / "spend.json").is_file():
+            args.ledger = str(sand032 / "spend.json")
+    if not args.config and not args.follow:
+        print("ERROR: --config or --follow required", file=sys.stderr)
+        return 2
+
+    def resolve():
+        cfg = args.config
+        if args.follow:
+            cfg = Path(args.follow).read_text(encoding="utf-8").strip() or args.config
+        spec = spec_mod.load_run_spec(cfg)
+        app = args.app or (spec.engine.modal.app if spec.engine.modal else "sandbox-vllm")
+        return RunStore(spec_mod.runs_root() / spec_mod.resolve_run_id(spec)), app
+
+    common = dict(
+        resolve=resolve,
+        ledger=Path(args.ledger) if args.ledger else None,
+        cap_usd=args.cap_usd,
+        logs=not args.no_logs,
+        interval=args.interval,
+        sand032_root=sand032 if sand032.is_dir() else None,
+    )
+    if getattr(args, "web", False):
+        from mailroom_sandbox.tui import web as web_mod
+
+        host = args.host or web_mod.DEFAULT_HOST
+        port = web_mod.DEFAULT_PORT if args.port is None else args.port
+        open_browser = False if args.no_browser else None
+        return web_mod.serve_watch_web(**common, host=host, port=port, open_browser=open_browser)
+    return watch_mod.watch(**common, once=args.once, bell=not getattr(args, "no_bell", False))
+
+
+def _serve_demo(args) -> int:
+    """Dev server: the web watch UI driven by a synthetic run in a temp dir."""
+    import tempfile
+
+    from mailroom_sandbox.tui import web as web_mod
+    from mailroom_sandbox.tui.demo import DemoRun
+
+    root = Path(tempfile.mkdtemp(prefix="mailroom-watch-demo-"))
+    demo = DemoRun(root)
+    return web_mod.serve_watch_web(
+        resolve=demo.resolve,
+        ledger=demo.ledger,
+        cap_usd=5.0,
+        logs=False,
+        interval=getattr(args, "interval", None) or 1.0,
+        times_dir=demo.times_dir,
+        log_path=None,
+        serving_dir=demo.serving_dir,
+        host=args.host or web_mod.DEFAULT_HOST,
+        port=web_mod.DEFAULT_PORT if args.port is None else args.port,
+        open_browser=False if args.no_browser else None,
+        tick=demo.step,
+    )
+
+
+def _cmd_dev(args) -> int:
+    return _serve_demo(args)
+
+
+def _cmd_board(args) -> int:
+    from mailroom_sandbox.tui import board as board_mod
+
+    root = Path(args.root).expanduser() if args.root else None
+    if args.tui:
+        return board_mod.run_board_tui(root=root, stale_s=args.stale_s, interval=args.interval, once=args.once)
+    return board_mod.serve_board(
+        root=root,
+        host=args.host or "127.0.0.1",
+        port=board_mod.DEFAULT_PORT if args.port is None else args.port,
+        open_browser=False if args.no_browser else None,
+        stale_s=args.stale_s,
+        interval=args.interval,
+        demo=args.demo,
+    )
+
+
+def _cmd_beacon_update(args) -> int:
+    from mailroom_sandbox.tui.beacon import Beacon
+
+    b = Beacon(args.job, package=args.package, title=args.title, root=args.root, resume=True, pid=None)
+    metrics = dict(m.split("=", 1) for m in args.metric if "=" in m)
+    fields = {k: getattr(args, k) for k in ("phase", "done", "total", "ok", "errors")}
+    if args.log:
+        b.log(args.log)
+    if args.finish:
+        b.finish(args.finish, metrics=metrics or None, **fields)
+    else:
+        b.update(metrics=metrics or None, **fields)
+    return 0
+
+
+def _cmd_scorecard(args) -> int:
+    from mailroom_sandbox import watch as watch_mod
+    from mailroom_sandbox.job import spec as spec_mod
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.paths import reports_dir
+
+    store = RunStore(spec_mod.runs_root() / str(args.run_id))
+    serving = Path(args.serving_dir) if args.serving_dir else reports_dir() / "serving"
+    return watch_mod.print_scorecard(store, serving_dir=serving)
 
 
 def _cmd_run_suite(args) -> int:
@@ -1738,15 +2263,23 @@ def _cmd_modernbert_status(args) -> int:
 
 
 def _cmd_modernbert_eval(args) -> int:
-    from mailroom_sandbox.modernbert import run_modernbert_eval, serving_record_from_eval
+    from mailroom_sandbox.modernbert import (
+        append_experiment_log_from_eval,
+        run_modernbert_eval,
+        serving_record_from_eval,
+    )
 
     report = run_modernbert_eval(
         sample=int(args.sample),
         seed=int(args.seed),
+        subset=str(args.subset),
         checkpoint=args.checkpoint,
     )
     record = serving_record_from_eval(report)
-    out = {"report": report, "serving_record": record}
+    log_path = None
+    if getattr(args, "append_log", False):
+        log_path = append_experiment_log_from_eval(report)
+    out = {"report": report, "serving_record": record, "experiment_log": str(log_path) if log_path else None}
     if getattr(args, "json", False):
         _print(out)
     else:
@@ -1822,15 +2355,17 @@ def _cmd_modal_matrix_env(args) -> int:
 
 
 def _run_load_spec(args) -> tuple[object, Path]:
+    """Load the run spec and return it with a resolved ``--config`` path."""
     config = getattr(args, "config", None)
     if not config:
         raise SystemExit("run commands need --config <run.yaml>")
     from mailroom_sandbox.job.spec import load_run_spec
 
-    return load_run_spec(config), Path(config)
+    return load_run_spec(config), Path(config).resolve()
 
 
 def _run_id_required(args) -> str:
+    """Return ``--run-id`` or the id embedded in ``--config``."""
     run_id = getattr(args, "run_id", None) or ""
     if not run_id and getattr(args, "config", None):
         from mailroom_sandbox.job.spec import load_run_spec
@@ -1842,12 +2377,14 @@ def _run_id_required(args) -> str:
 
 
 def _cmd_run_preflight(args) -> int:
+    """Run job preflight and print the lock report."""
     from mailroom_sandbox.job import preflight
 
-    spec, _ = _run_load_spec(args)
+    spec, config_path = _run_load_spec(args)
     report = preflight.preflight(
         spec,
         run_id=getattr(args, "run_id", None) or "",
+        config_path=config_path,
         offline=bool(getattr(args, "offline", False)),
         force=bool(getattr(args, "force", False)),
         dry_run=bool(getattr(args, "dry_run", False)),
@@ -1860,25 +2397,32 @@ def _cmd_run_preflight(args) -> int:
 
 
 def _cmd_run_start(args) -> int:
+    """Lock a run via preflight, then start it locally or on Modal."""
     from mailroom_sandbox.job import preflight
     from mailroom_sandbox.job import remote as job_remote
     from mailroom_sandbox.job import runner
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.spec import run_dir
 
-    spec, _ = _run_load_spec(args)
+    spec, config_path = _run_load_spec(args)
     # DMR-072: the job path must activate the runtime profile like every other
     # live CLI path. Without it the vendored pipeline loads its own default
     # config (openrouter, no key) and the sorter node falls through to the
     # graph's doc_type="unknown" default — a 50-item "run" then "completes" in
     # seconds with 0.0 scores, ok=True rows, and zero endpoint calls (the
     # silent-fallback trap; now also hard-guarded in runner._predict_row).
-    activate(spec.profile, model=getattr(args, "model", None), agent_models=_agent_models(args))
+    activate(
+        spec.profile,
+        model=_activation_model(spec, getattr(args, "model", None)),
+        agent_models=_agent_models(args),
+        agent_knobs=_activation_knobs(spec),
+    )
     if getattr(args, "mock", None) is not None or getattr(args, "local", None) is not None:
         spec.job.mock = bool(args.mock)
     report = preflight.preflight(
         spec,
         run_id=getattr(args, "run_id", None) or "",
+        config_path=config_path,
         offline=bool(getattr(args, "offline", False)),
         force=bool(getattr(args, "force", False)),
         dry_run=bool(getattr(args, "dry_run", False)),
@@ -1922,28 +2466,67 @@ def _cmd_run_start(args) -> int:
 
 
 def _run_endpoint(store, args) -> dict:
-    from mailroom_sandbox.job import runner
+    from mailroom_sandbox.job import otel, runner
+    from mailroom_sandbox.tui.session import MailroomConsole, run_event_handler
 
     watch = bool(getattr(args, "watch", False))
+    console = MailroomConsole()
+    lock = store.read_lock() or {}
+    task = str(lock.get("task") or "")
+    console.run_banner(run_id=store.run_id, task=task, subtitle="sandbox run · endpoint")
+    console.phase("PREFLIGHT", "lock verified · scoring dataset")
+    on_event = run_event_handler(console)
 
-    def _on_event(ev: dict) -> None:
-        if watch:
-            print(
-                f"[run] {ev.get('cursor')}/{ev.get('total')} "
-                f"ok={ev.get('ok')} errors={ev.get('errors')} {ev.get('state', '')}",
-                file=sys.stderr,
-                flush=True,
+    tracer = _endpoint_tracer(store.run_id, lock)
+    try:
+        with store.acquire(), otel.job_span(
+            tracer,
+            "job.run",
+            run_id=store.run_id,
+            task=task,
+            model=str((lock.get("engine") or {}).get("model") or ""),
+        ) as run_span:
+            summary = runner.run_job(
+                store,
+                mock=None,
+                dry_run=False,
+                max_items=getattr(args, "max_items", None),
+                tracer=tracer,
+                on_event=on_event,
             )
+            for key in ("state", "cursor", "total", "ok", "errors"):
+                if summary.get(key) is not None:
+                    run_span.set_attribute(f"job.{key}", summary[key])
+    finally:
+        otel.flush_tracer(tracer)
+    local_path = getattr(tracer, "sandbox_local_path", None)
+    if local_path is not None and Path(local_path).is_file():
+        summary.setdefault("trace_local_path", str(local_path))
+    state = str(summary.get("state") or "unknown")
+    detail = f"{summary.get('cursor', summary.get('ok', ''))}/{summary.get('total', '')} {task}".strip()
+    console.complete(state=state, summary=detail)
+    return summary
 
-    with store.acquire():
-        return runner.run_job(
-            store,
-            mock=None,
-            dry_run=False,
-            max_items=getattr(args, "max_items", None),
-            tracer=None,
-            on_event=_on_event,
+
+def _endpoint_tracer(run_id: str, lock: dict):
+    """Tracer for an endpoint-mode run: the locked sink plus the local span mirror."""
+    from mailroom_sandbox.job import otel
+
+    trace_block = lock.get("trace") or {}
+    try:
+        sink_cfg = otel.resolve_sink(
+            sink=trace_block.get("sink", "none"),
+            otlp=bool(trace_block.get("otlp", True)),
+            endpoint=trace_block.get("endpoint"),
+            environment=trace_block.get("environment", "pilot"),
+            service_name="sandbox-job",
+            run_id=run_id,
+            tags=trace_block.get("tags") or ["sandbox", "job"],
         )
+    except ValueError as exc:
+        print(f"warning: trace sink unusable ({exc}); local span mirror only")
+        sink_cfg = otel.resolve_sink(sink="none", run_id=run_id)
+    return otel.configure_tracing(sink_cfg, local_path=otel.local_trace_path(run_id))
 
 
 def _finalize_remote(store) -> bool:
@@ -1968,9 +2551,20 @@ def _finalize_remote(store) -> bool:
 
 def _watch_remote(store, args) -> int:
     from mailroom_sandbox.job import remote as job_remote
+    from mailroom_sandbox.tui.session import MailroomConsole, remote_progress_line
 
     import time
     from datetime import datetime, timezone
+
+    console = MailroomConsole()
+    lock = store.read_lock() or {}
+    console.run_banner(
+        run_id=store.run_id,
+        task=str(lock.get("task") or ""),
+        subtitle="sandbox run · modal worker",
+        route="INBOX → SPECIALIST → REPORT",
+    )
+    console.phase("DEPLOY", "remote job · state dict mirror")
 
     # hub#41: the watch must fail after a stall, never poll forever. A worker
     # that dies before its first state_dict.put leaves the Dict without a
@@ -1982,7 +2576,7 @@ def _watch_remote(store, args) -> int:
     while True:
         progress = job_remote.read_progress(store)
         state = (progress or {}).get("state") or store.state() or "unknown"
-        print(f"{store.run_id} {state} {progress or {}}")
+        remote_progress_line(console, store.run_id, progress)
         heartbeat_at = (progress or {}).get("heartbeat_at")
         if heartbeat_at:
             try:
@@ -1993,6 +2587,7 @@ def _watch_remote(store, args) -> int:
                 pass
         if state in {"done", "failed"}:
             _finalize_remote(store)
+            console.complete(state=state, summary=store.run_id)
             if state == "failed":
                 error = (progress or {}).get("error") or (store.read_checkpoint() or {}).get(
                     "last_error"
@@ -2043,6 +2638,7 @@ def _cmd_run_status(args) -> int:
 
 
 def _cmd_run_resume(args) -> int:
+    """Resume a locked run after re-checking preflight when ``--config`` is set."""
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.spec import run_dir
 
@@ -2052,7 +2648,13 @@ def _cmd_run_resume(args) -> int:
     if getattr(args, "config", None):
         from mailroom_sandbox.job.spec import load_run_spec
 
-        activate(load_run_spec(args.config).profile, model=getattr(args, "model", None), agent_models=_agent_models(args))
+        _spec = load_run_spec(args.config)
+        activate(
+            _spec.profile,
+            model=_activation_model(_spec, getattr(args, "model", None)),
+            agent_models=_agent_models(args),
+            agent_knobs=_activation_knobs(_spec),
+        )
     store = RunStore(run_dir(run_id))
     if not store.read_lock():
         _print({"run_id": run_id, "error": "no locked run to resume"})
@@ -2060,11 +2662,17 @@ def _cmd_run_resume(args) -> int:
     if getattr(args, "config", None):
         from mailroom_sandbox.job import preflight
 
-        spec, _ = _run_load_spec(args)
-        report = preflight.preflight(spec, run_id=run_id, offline=False, force=bool(getattr(args, "force", False)))
-        if report.get("status") == "drift_refused":
+        spec, config_path = _run_load_spec(args)
+        report = preflight.preflight(
+            spec,
+            run_id=run_id,
+            config_path=config_path,
+            offline=False,
+            force=bool(getattr(args, "force", False)),
+        )
+        if report.get("status") != "prepared":
             _print(report)
-            return 3
+            return 3 if report.get("status") == "drift_refused" else 1
     if _job_mode(store) == "modal":
         from mailroom_sandbox.job import remote as job_remote
 

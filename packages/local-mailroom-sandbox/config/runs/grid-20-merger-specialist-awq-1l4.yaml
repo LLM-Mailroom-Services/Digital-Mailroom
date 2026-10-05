@@ -1,0 +1,68 @@
+# Qwen3-8B-AWQ specialist grid cell (v1 / simplified stem).
+# Keep GPU warm (min_containers pinned); teardown only after the shape queue.
+# 1xL4 c=8; 2xL4 c=32 (16 per replica). PHOENIX_TRACING=disabled at launch.
+# Decode 8192 via start-time SANDBOX_AGENT_KNOBS (clears 4096 LengthFinish JSON).
+# Dedicated merger_agreement_specialist (not contracts CUAD confound).
+schema: sandbox.run/v1
+run_id: grid-20-merger-specialist-awq-1l4
+task: merger_agreement_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    merger_agreement_specialist:
+      source: local
+      file: merger_agreement_specialist_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: train
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
+  strata:
+    buckets:
+      - doc_class: merger_agreement
+        sub_buckets:
+          - {subclass: all_cash, count: 7}
+          - {subclass: other, count: 7}
+          - {subclass: all_stock, count: 3}
+          - {subclass: mixed_cash_stock, count: 2}
+          - {subclass: mixed_cash_stock_election, count: 1}
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 8
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: awq
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 1
+    min_containers: 1
+    prewarm: true
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 8
+  cost_cap_usd: 0.7
+  max_wall_seconds: 3600
+
+trace:
+  sink: none
+  otlp: false
+  environment: qwen-grid
+  tags: [sandbox, job, specialist, qwen3-8b-awq, l4, grid]

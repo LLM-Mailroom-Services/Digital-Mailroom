@@ -106,11 +106,13 @@ stems. Sorter / scale / example runs do not load specialist prompts.
 | `run-20-contracts-awq-c8.yaml` | `run-20-contracts-awq-c8` | `contracts_specialist` | `contracts_specialist_v33_simplified` |
 | `run-30-contracts-specialist.yaml` | `run-30-contracts-specialist` | `contracts_specialist` | `contracts_specialist_v33_simplified` |
 | `run-30-corporate-records-specialist.yaml` | `run-30-corporate-records-specialist` | `corporate_records_specialist` | `corporate_records_specialist_simplified` |
+| `run-20-insurance-claims-specialist-awq.yaml` | `run-20-insurance-claims-specialist-awq` | `insurance_claims_specialist` | `insurance_claims_specialist_simplified` |
 | `run-30-insurance-claims-specialist.yaml` | `run-30-insurance-claims-specialist` | `insurance_claims_specialist` | `insurance_claims_specialist_simplified` |
 | `run-30-merger-specialist.yaml` | `run-30-merger-specialist` | `merger_agreement_specialist` | `merger_agreement_specialist_simplified` |
 | `suites/run-30-specialists-full.yaml` | suite | (chains the five run-30 YAMLs) | same as those YAMLs |
 | `suites/run-30-specialists-track-a.yaml` | suite | contracts + corporate + correspondence | same as those YAMLs |
 | `suites/run-30-specialists-track-b.yaml` | suite | merger + insurance | same as those YAMLs |
+| `run-400-sorter-qwen3-14b-awq-a100.yaml` | `run-400-sorter-qwen3-14b-awq-a100` | `isolated` | `sorter_v1` |
 | `example.yaml` | `fixture-sorter-smoke` | `sorter` | `sorter_reviewer_local_v0`, `judge_local_v0` |
 | `pilot-sorter-modal-hf.yaml` | `pilot-sorter-modal-hf` | `sorter` | `sorter_reviewer_local_v0`, `judge_local_v0` |
 | `run-50-modal-hf.yaml` | `run-50-modal-hf` | `sorter` | `sorter_reviewer_local_v0`, `judge_local_v0` |
@@ -139,6 +141,7 @@ to `sandbox eval` / `sandbox matrix`. Unset = mailroom in-code fallbacks.
 
 | Stem | Extraction-facing? | Used by `config/runs/**`? | SAND-026 action |
 | --- | --- | --- | --- |
+| `sorter_v1` | no (classification) | `run-400-sorter-qwen3-14b-awq-a100.yaml` | vendored Family-B `sorter_v1` text; isolated sorter pin |
 | `sorter_local_v0` | no (classification) | no (CLI `--prompt` only) | audit only — left as-is |
 | `sorter_reviewer_local_v0` | no (classification review) | `example.yaml`, `pilot-sorter-modal-hf.yaml`, `run-50-modal-hf.yaml` | audit only — left as-is |
 | `judge_local_v0` | grades an extraction; does not extract fields | same three sorter YAMLs | audit only — left as-is |

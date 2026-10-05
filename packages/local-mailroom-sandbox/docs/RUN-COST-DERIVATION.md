@@ -21,7 +21,7 @@ numbers are extrapolated and must be re-derived after the N=20 probe (SAND-028-4
 `src/mailroom_sandbox/eval/runners.py` records **per document**, per run:
 
 | Field | Line | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | `prompt_tokens` | 307–309 | input tokens billed by the provider |
 | `completion_tokens` | 307–309 | output + thinking tokens billed |
 | `latency_ms` | 223 | end-to-end per-doc latency |
@@ -67,7 +67,7 @@ is serving the other `C-1` documents for that same wall window.
 **Validated against the measured contracts run** (concurrency 8, cold boot 161.1 s, L4 $0.80/h):
 
 | | model | measured record | error |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | per-doc cost | **$0.01632** | **$0.01877** | 13 % |
 
 The 13 % gap is the 3 LengthFinish documents' unrecorded container time — the model is
@@ -78,7 +78,7 @@ The 13 % gap is the 3 LengthFinish documents' unrecorded container time — the 
 Per-document statistics from `reports/RUN-20-CONTRACTS-AWQ-C8-REPORT.md`:
 
 | Metric | mean | p50 | p95 | min | max |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | prompt tokens | 11 434.6 | 12 131.0 | 13 349.0 | 7 991 | 13 485 |
 | completion tokens | 1 506.7 | 1 364.0 | 2 875.4 | 386 | 3 029 |
 | latency (s) | 523.1 | 627.6 | 809.3 | 29.3 | 817.6 |
@@ -86,7 +86,7 @@ Per-document statistics from `reports/RUN-20-CONTRACTS-AWQ-C8-REPORT.md`:
 **Per-document cost, both legs:**
 
 | Leg | mean | p95 |
-|---|---|---|
+| --- | --- | --- |
 | B · OpenRouter @ $0.06/$0.25 | **$0.001063** | $0.001403 |
 | B · OpenRouter @ $0.03/$0.13 (Qwen-flash, contrast) | $0.000539 | $0.000716 |
 | A · Modal L4 | **$0.0188** (measured) | $0.0243 (model) |
@@ -104,7 +104,7 @@ That asymmetry, not the cap, is the most decision-relevant number in this docume
   figure, but it is **UNVERIFIED** — see §7 to confirm it against the pinned corpus.
 
 | N | API (mean tokens) | API (p95 tokens) | Modal (model) | Modal (measured-scaled) |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | 20 | **$0.021** | $0.028 | $0.33 | $0.38 |
 | 100 | **$0.106** | $0.140 | $1.67 | $1.88 |
 | 600 | **$0.64** | $0.84 | $9.83 | $11.26 |
@@ -120,7 +120,7 @@ that it should not be gated behind a per-wave approval; it is ~2 % of the $6 sof
 prompt can steer and OpenRouter cannot be told to suppress it:
 
 | Scenario | per-doc | N=100 | N=600 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | measured (mean) | $0.001063 | $0.106 | $0.64 |
 | +50 % completion | $0.001251 | $0.125 | $0.75 |
 | +100 % completion | $0.001439 | $0.144 | $0.86 |

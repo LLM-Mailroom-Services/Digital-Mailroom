@@ -1,0 +1,52 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mailroom-watch-dev",
+      "runtimeExecutable": "scripts/mailroom-tui",
+      "runtimeArgs": [
+        "dev",
+        "--no-browser",
+        "--port",
+        "8765"
+      ],
+      "port": 8765
+    },
+    {
+      "name": "mailroom-watch-live",
+      "runtimeExecutable": "scripts/mailroom-tui",
+      "runtimeArgs": [
+        "web",
+        "--no-browser",
+        "--port",
+        "8766"
+      ],
+      "port": 8766
+    },
+    {
+      "name": "mailroom-board",
+      "runtimeExecutable": "scripts/mailroom-tui",
+      "runtimeArgs": [
+        "board",
+        "--no-browser",
+        "--port",
+        "8767"
+      ],
+      "port": 8767
+    },
+    {
+      "name": "mailroom-board-demo",
+      "runtimeExecutable": "scripts/mailroom-tui",
+      "runtimeArgs": [
+        "board",
+        "--demo",
+        "--no-browser",
+        "--port",
+        "8768",
+        "--root",
+        "/tmp/mailroom-board-demo"
+      ],
+      "port": 8768
+    }
+  ]
+}

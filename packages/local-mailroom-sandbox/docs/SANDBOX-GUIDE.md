@@ -4,7 +4,7 @@ A single reference for setting up, configuring, and using every feature of
 `local-mailroom-sandbox`. This is the checklist; the deep-dive docs live in
 `docs/` subdirectory files linked throughout. For a fast on-ramp with the
 full verified command list, start with
-[`docs/QUICKSTART.md`](QUICKSTART.md).
+[`docs/setting-up/QUICKSTART.md`](setting-up/QUICKSTART.md).
 
 ---
 
@@ -30,7 +30,7 @@ full verified command list, start with
 ## 1. Prerequisites
 
 | Requirement | Version | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Python | 3.11+ | `pyproject.toml` `requires-python` |
 | Docker + Compose | latest | For compose profiles and the Jupyter image |
 | NVIDIA GPU (optional) | Any CUDA GPU | Required only for `vllm` compose profile or local vLLM |
@@ -55,7 +55,7 @@ cp config/.env.example .env          # edit as needed
 **What each extra provides:**
 
 | Extra | Packages |
-|---|---|
+| --- | --- |
 | `dev` | pytest, ruff, mypy |
 | `notebooks` | jupyter, ipykernel |
 | `hf` | huggingface_hub, pyarrow |
@@ -72,7 +72,7 @@ cp config/.env.example .env          # edit as needed
 The sandbox reads `.env` from the repo root. Key groups:
 
 | Variable | Default | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `SANDBOX_PROFILE` | `ollama` | Active provider profile |
 | `DEFAULT_PROVIDER` | `ollama` | Mailroom LLM provider |
 | `OBSERVABILITY_PROVIDER` | `langfuse` | Tracing backend (`langfuse` / `phoenix` / `braintrust` / `none`) |
@@ -82,7 +82,7 @@ The sandbox reads `.env` from the repo root. Key groups:
 ### Config files
 
 | File | Purpose |
-|---|---|
+| --- | --- |
 | `config/profiles/*.yaml` | Provider profiles (ollama, vllm-local, modal-vllm, etc.) |
 | `config/models.yaml` | OpenRouter→local model ID mapping |
 | `config/taxonomy.overlay.yaml` | Agent-level overrides (temperature, max_tokens) |
@@ -111,7 +111,7 @@ SANDBOX_PROFILE=vllm-local sandbox eval sorter --local
 ## 4. Provider profiles
 
 | Profile | Provider | Base URL | Default Model | When to use |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `ollama` | Ollama | `localhost:11434/v1` | `qwen3:8b` | Default; CPU-capable |
 | `vllm-local` | vLLM | `localhost:8000/v1` | `Qwen/Qwen3-8B` | Local GPU host |
 | `vllm-remote` | vLLM | `localhost:18000/v1` (SSH forward) | `Qwen/Qwen3-8B` | Lab/remote GPU |
@@ -145,7 +145,7 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 ### Core commands
 
 | Command | Description |
-|---|---|
+| --- | --- |
 | `sandbox profiles` | List available profiles |
 | `sandbox agents list` | Show all pipeline agents and their current models |
 | `sandbox cutover --profile X --agent-model NAME=tag` | Override one agent's model |
@@ -159,7 +159,7 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 ### Eval commands
 
 | Command | Description |
-|---|---|
+| --- | --- |
 | `sandbox eval sorter --mock` | Isolated sorter eval (no LLM) |
 | `sandbox eval sorter --local` | Sorter eval against live provider |
 | `sandbox eval judge --mock` | Judge eval |
@@ -170,7 +170,7 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 ### Job commands (`sandbox run`)
 
 | Command | Description |
-|---|---|
+| --- | --- |
 | `sandbox run preflight --config <run.yaml>` | Validate and lock a run spec |
 | `sandbox run start --config <run.yaml> --mock` | Execute a locked run |
 | `sandbox run status --run-id <id>` | Check run progress |
@@ -181,7 +181,7 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 ### Prompt & metric commands
 
 | Command | Description |
-|---|---|
+| --- | --- |
 | `sandbox prompts list` | All pipeline agent prompts (local + Langfuse) |
 | `sandbox prompts show <agent>` | Show a specific agent's prompt |
 | `sandbox metrics compare --runs local,modal,api` | Compare serving metrics |
@@ -192,7 +192,7 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 ### Dataset commands
 
 | Command | Description |
-|---|---|
+| --- | --- |
 | `sandbox datasets prepare` | Load/clean/write fixtures to `data/runtime/prepared/` |
 
 ### Tunnel commands
@@ -203,7 +203,7 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 > rejects the flag.
 
 | Command | Description |
-|---|---|
+| --- | --- |
 | `sandbox tunnel --profile vllm-remote plan` | Print the SSH command |
 | `sandbox tunnel --profile vllm-remote up` | Start SSH forward |
 | `sandbox tunnel --profile vllm-remote status` | Check tunnel status |
@@ -224,7 +224,7 @@ SANDBOX_LOCAL_LLM=1 pytest -v            # include live LLM tests
 ### Compose profiles
 
 | Profile | Services | Port(s) |
-|---|---|---|
+| --- | --- | --- |
 | `langfuse` | postgres, clickhouse, redis, minio, langfuse-web, langfuse-worker | 3000 |
 | `ollama` | sandbox-ollama | 11434 |
 | `jupyter` | builds `deploy/Dockerfile`, Lab | 8888 |
@@ -256,7 +256,7 @@ docker run --rm --entrypoint sandbox mailroom-sandbox:offline pilot --mock
 ### Notebooks
 
 | Notebook | Purpose |
-|---|---|
+| --- | --- |
 | `notebooks/01_offline_environment_setup.ipynb` | Copy .env, activate profile, verify |
 | `notebooks/02_load_clean_prepare_data.ipynb` | Load/clean/write `data/runtime/prepared/` |
 | `notebooks/03_offline_sandbox_smoke.ipynb` | Mock pilot/smoke test |
@@ -363,7 +363,7 @@ dataset:
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
   split: test
-  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (v9.1 mailroom-dataset quality tip; FAMILY_HF_REVISION)
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (v9.1 mailroom-dataset Hub tip (pin SHA))
   strata: {expected: [insurance_claim, contract]}
   limit: 50
   sample_seed: 42
@@ -399,6 +399,10 @@ data/runtime/runs/<run_id>/
 cd deploy && modal deploy modal_job.py  # one-time
 sandbox run start --job-mode modal --config config/runs/my-run.yaml --watch
 ```
+
+For endpoint evals against Modal vLLM, run the **mailroom watch TUI** in a second
+terminal or browser tab (`sandbox watch` / `sandbox watch --web`) to tail serve-app
+logs and track spend — see [pretty-logging/mailroom-themed-logging.md](pretty-logging/mailroom-themed-logging.md).
 
 ---
 
@@ -440,7 +444,7 @@ sandbox health --profile modal-vllm
 ### Key knobs
 
 | Variable | Default | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `MODAL_VLLM_MODEL` | `Qwen/Qwen3-8B` | HF model id |
 | `MODAL_VLLM_GPU` | `L4` | GPU type |
 | `MODAL_VLLM_MAX_MODEL_LEN` | `16384` | Context cap — DMR-056: boot-valid default (v0.29.0 raises when the KV pool can't hold one request); AWQ/FP8 rows use 32768 |
@@ -487,7 +491,7 @@ sandbox tunnel  --profile vllm-remote down
 ### Backends
 
 | Backend | Default | When to use |
-|---|---|---|
+| --- | --- | --- |
 | Langfuse 3 | Yes (`OBSERVABILITY_PROVIDER=langfuse`) | Production tracing |
 | Arize Phoenix | Optional sidecar | Local OTLP tracing |
 | Braintrust | Opt-in | Hosted eval platform |
@@ -561,7 +565,7 @@ python scripts/reporting/render_experiment_log.py
 ## 14. Troubleshooting
 
 | Symptom | Cause | Fix |
-|---|---|---|
+| --- | --- | --- |
 | `401` on `/v1/models` | Bearer token mismatch | Ensure `VLLM_API_KEY == MODAL_VLLM_API_TOKEN` |
 | First request slow | Cold start (Modal) | Pre-warm weights or raise `MODAL_VLLM_SCALEDOWN_SECONDS` |
 | CUDA OOM at boot | Model too large for GPU | Lower `MAX_MODEL_LEN`, quantize, or use bigger GPU |

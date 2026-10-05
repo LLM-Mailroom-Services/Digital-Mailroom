@@ -11,7 +11,7 @@
 ## Files
 
 | File | Purpose |
-|:---|:---|
+| :--- | :--- |
 | [`ollama.yaml`](ollama.yaml) | Local Ollama (`:11434/v1`) |
 | [`vllm-local.yaml`](vllm-local.yaml) | Local vLLM (`:8000/v1`) |
 | [`vllm-remote.yaml`](vllm-remote.yaml) | Remote vLLM (tunneled/SSH) |

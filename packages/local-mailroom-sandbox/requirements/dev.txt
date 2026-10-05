@@ -6,5 +6,17 @@
 
 pytest>=8.0
 pytest-mock>=3.12
+markdown-it-py>=3.0
 huggingface_hub>=0.24
 pyarrow>=15.0
+langchain-core>=0.3
+langchain-openai>=0.2
+langgraph>=0.2
+requests>=2.31
+watchdog>=4.0
+sqlalchemy>=2.0
+aiosqlite>=0.20
+greenlet>=3.0
+pypdf>=4.0
+pdfplumber>=0.11
+pillow>=10.0

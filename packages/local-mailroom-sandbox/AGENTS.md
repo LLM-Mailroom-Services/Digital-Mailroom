@@ -89,6 +89,7 @@ sandbox up --compose-profile jupyter  # Lab on :8888 (deploy/Dockerfile)
 sandbox tunnel plan|up|status|down    # SSH forward for vllm-remote (HUB-026)
 modal run deploy/modal_vllm.py::download_model  # Modal: pre-warm HF cache ([deploy])
 modal deploy deploy/modal_job.py  # Modal job worker (remote runs)
+sandbox watch [--web] [--config config/runs/<name>.yaml|--follow <current-file>]  # terminal TUI or localhost browser UI (SSE); docs/pretty-logging/mailroom-themed-logging.md
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml [--job-mode endpoint|modal] [--watch]
 sandbox runbook list|show <id>|check|write   # operator runbooks (catalog → docs/runbooks/)
 sandbox prompts list|show <agent>     # all pipeline agent prompts (local + Langfuse)
@@ -97,19 +98,26 @@ sandbox subagents sync --harness all  # OpenCode frontmatter + .cursor/agents/ s
 sandbox subagents propagate              # materialize + sync all mapped family checkouts
 sandbox subagents materialize --package digital-mailroom --root <path>  # monorepo hub export
 sandbox metrics compare --runs local,modal,api   # serving metrics comparison
+sandbox watch --web                   # mailroom pretty-logs TUI in the browser (http://127.0.0.1:8765/, SSE); full command matrix in docs/pretty-logging/mailroom-themed-logging.md
+sandbox dev                           # dev server: same themed UI on a synthetic looping run (no Modal/spend)
+scripts/mailroom-tui dev|web|score <run>   # launcher; .claude/launch.json → mailroom-watch-dev / -live
+sandbox board [--tui] [--demo]        # persistent job board: every mailroom.beacon/v1 job (~/.mailroom/jobs), browser :8767 or terminal
+sandbox beacon update --job ID --package P --done N --total M   # shell jobs publish to the board
+# long Python jobs: `with Beacon(job_id, package=...) as b: b.update(done=i, total=n)` (mailroom_sandbox/tui/beacon.py — vendorable single file)
+# keep the board up across reboots: deploy/launchd/com.mailroom.board.plist (install steps in the file)
 # SANDBOX_DEBUG=1 → set -x + results/run.log diagnostics (CHTC/Modal, DMR-053)
 ```
 
 - Config: `config/profiles/*.yaml` + `config/taxonomy.overlay.yaml` + `config/components.yaml` + `config/models.yaml` + `config/runbooks/catalog.yaml`.
-- Remote serving (Modal / SSH-tunneled vLLM / CHTC / conda): `docs/remote-serving.md` + `deploy/htcondor/` + `deploy/conda/`. Modal deploy workflow (SDK pinned `modal==1.5.5`; pre-warm → deploy → verify → teardown, cost guards, troubleshooting) lives in `deploy/README.md`. CLI rule: pass `--profile` AFTER the subcommand (or via `SANDBOX_PROFILE`) — a `--profile` before the subcommand is clobbered by the subparser default.
+- Remote serving (Modal / SSH-tunneled vLLM / CHTC / conda): `docs/setting-up/remote-serving.md` + `deploy/htcondor/` + `deploy/conda/`. Modal deploy workflow (SDK pinned `modal==1.5.5`; pre-warm → deploy → verify → teardown, cost guards, troubleshooting) lives in `deploy/README.md`. CLI rule: pass `--profile` AFTER the subcommand (or via `SANDBOX_PROFILE`) — a `--profile` before the subcommand is clobbered by the subparser default.
 - Runtime taxonomy is written to `data/runtime/taxonomy.yaml` (gitignored).
 - Prepared fixtures: `data/runtime/prepared/` via notebooks or `sandbox datasets prepare`.
 - Experiment log: `reports/experiment_log.jsonl` (sandbox-local, not a sister-repo mirror).
 - Tracing default: Langfuse 3 / SDK v4 (`OBSERVABILITY_PROVIDER=langfuse`). Phoenix is an optional sidecar. OpenRouter is opt-in.
-- Docker: `deploy/Dockerfile` + Compose profiles including `jupyter` — see `docs/docker-offline.md`.
+- Docker: `deploy/Dockerfile` + Compose profiles including `jupyter` — see `docs/setting-up/docker-offline.md`.
 - Serving/run cost: [`docs/RUN-COST-DERIVATION.md`](docs/RUN-COST-DERIVATION.md) — per-doc cost
   derivation (OpenRouter token-billing is exact; Modal is container-time), the wave/escalation cap
-  rules, and the repo layout index at `docs/LAYOUT.md`.
+  rules, and the repo layout index at `docs/setting-up/LAYOUT.md`.
 - Agent skills: `.cursor/skills/` (router + Langfuse / Braintrust / Phoenix / Ollama / Modal / Hugging Face).
 
 ## Reduced agent profile (HUB-015)

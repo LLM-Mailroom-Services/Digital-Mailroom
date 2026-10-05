@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=./profile.schema.json
 name: lmstudio
 description: LM Studio local server (OpenAI-compatible on :1234).
 provider: generic

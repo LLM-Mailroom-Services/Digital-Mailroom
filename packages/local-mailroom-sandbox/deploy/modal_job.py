@@ -298,10 +298,19 @@ def run_job(payload: dict) -> dict:
         raise
 
 
+def _deploy_operator_line(phase: str, message: str) -> None:
+    try:
+        from mailroom_sandbox.tui.session import operator_emit
+
+        operator_emit(message, phase=phase)
+    except Exception:
+        print(message)
+
+
 @app.local_entrypoint()
 def main(debug: bool = False) -> None:
-    print(f"Deploy:  modal deploy {Path(__file__).name}")
-    print("Then:    sandbox run start --job-mode modal --config <run>.yaml")
+    _deploy_operator_line("DEPLOY", f"modal deploy {Path(__file__).name}")
+    _deploy_operator_line("RUN", "sandbox run start --job-mode modal --config <run>.yaml")
     if debug:
         print("=== sandbox-job app config ===")
         print(f"  volumes: {RUNS_VOLUME_NAME} -> {RUNS_MOUNT}, {HF_VOLUME_NAME} -> {HF_MOUNT}")

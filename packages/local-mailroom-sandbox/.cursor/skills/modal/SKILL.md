@@ -115,4 +115,4 @@ structured outputs.
 
 - Local default: [ollama](../ollama/SKILL.md)  
 - Hub weights: [huggingface](../huggingface/SKILL.md)  
-- Docs: `deploy/README.md`, `docs/remote-serving.md`, `docs/providers.md`
+- Docs: `deploy/README.md`, `docs/setting-up/remote-serving.md`, `docs/setting-up/providers.md`

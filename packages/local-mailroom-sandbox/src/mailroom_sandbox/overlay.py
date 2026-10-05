@@ -9,6 +9,7 @@ provider/model for the active profile, writes the result under
 from __future__ import annotations
 
 import logging
+import os
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,41 @@ from mailroom_sandbox.paths import config_dir, profiles_dir, runtime_dir
 _log = logging.getLogger("mailroom_sandbox.overlay")
 
 _MAP_WARNED: set[str] = set()
+
+_DENSE_QWEN3_8B = "Qwen/Qwen3-8B"
+
+
+def resolve_served_vllm_model(explicit: str | None = None) -> str | None:
+    """OpenAI ``model`` id the live vLLM process actually serves.
+
+    Prefer an explicit run/CLI pin, then ``VLLM_MODEL`` / ``MODAL_VLLM_MODEL``.
+    An AWQ (or other) deploy 404s if the client still posts the profile
+    default dense id ``Qwen/Qwen3-8B``.
+    """
+    for cand in (explicit, os.environ.get("VLLM_MODEL"), os.environ.get("MODAL_VLLM_MODEL")):
+        if cand and str(cand).strip():
+            return str(cand).strip()
+    return None
+
+
+def pin_served_vllm_ids(taxonomy: dict, served: str | None) -> dict:
+    """Force every vLLM agent + champion remap onto the served HF id."""
+    if not served:
+        return taxonomy
+    served = str(served).strip()
+    if not served:
+        return taxonomy
+    agents = taxonomy.get("agents") or {}
+    for agent in agents.values():
+        if isinstance(agent, dict) and str(agent.get("provider") or "") == "vllm":
+            agent["model"] = served
+    mapping = taxonomy.setdefault("vllm_model_map", {})
+    if isinstance(mapping, dict) and served != _DENSE_QWEN3_8B:
+        for key, val in list(mapping.items()):
+            if val == _DENSE_QWEN3_8B:
+                mapping[key] = served
+        mapping[_DENSE_QWEN3_8B] = served
+    return taxonomy
 
 
 def deep_merge(base: Any, overlay: Any) -> Any:
@@ -228,6 +264,9 @@ def build_merged_taxonomy(
     merged = apply_agent_overrides(merged, agent_knobs)
     # CLI --agent-model is surgical and always wins last.
     merged = apply_agent_models(merged, agent_models)
+    served = resolve_served_vllm_model(model_override)
+    if served and serving_family(profile) == "vllm":
+        pin_served_vllm_ids(merged, served)
     return merged
 
 

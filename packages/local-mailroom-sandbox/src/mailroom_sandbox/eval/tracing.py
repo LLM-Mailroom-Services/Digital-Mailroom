@@ -546,6 +546,36 @@ def child_observation(
         yield span
 
 
+def _emit_mailroom_score(
+    wire: str,
+    value: float | int | str,
+    *,
+    comment: str | None,
+    data_type: str | None,
+) -> bool:
+    """Score through the vendored ``observability.scores`` public API.
+
+    The pinned mailroom surface is ``score_trace(name, value, *, data_type,
+    comment, ...)``; there is no ``score``. Feature-detect so a future rename
+    lands on the SDK fallback instead of an AttributeError per run. Returns
+    False when the mailroom path cannot take the score (no entry point, or
+    mailroom does not consider Langfuse its provider), so the caller falls back
+    to the SDK rather than dropping it.
+    """
+    from observability import scores as mailroom_scores  # type: ignore
+
+    emit = getattr(mailroom_scores, "score_trace", None) or getattr(mailroom_scores, "score", None)
+    if emit is None:
+        raise AttributeError(
+            "observability.scores exposes neither score_trace nor score"
+        )
+    is_enabled = getattr(mailroom_scores, "is_enabled", None)
+    if is_enabled is not None and not is_enabled():
+        return False
+    emit(wire, value, comment=comment, data_type=data_type)
+    return True
+
+
 def emit_langfuse_score(
     name: str,
     value: float | int | str,
@@ -561,9 +591,8 @@ def emit_langfuse_score(
         if span is None:
             _warn_once(
                 "braintrust-score-outside-span",
-                "braintrust score %r emitted with no active span — no trace to attach "
-                "it to; the score is LOST",
-                wire,
+                f"braintrust score {wire!r} emitted with no active span — no trace to "
+                "attach it to; the score is LOST",
             )
             _SCORE_EMIT_FAILURES += 1
             return
@@ -576,14 +605,12 @@ def emit_langfuse_score(
     setup = _mailroom_setup()
     if setup is not None:
         try:
-            from observability import scores as mailroom_scores  # type: ignore
-
-            mailroom_scores.score(wire, value, comment=comment, data_type=data_type)
-            return
+            if _emit_mailroom_score(wire, value, comment=comment, data_type=data_type):
+                return
         except Exception as exc:
             _warn_once(
                 "mailroom-score-path-failed",
-                "mailroom score path failed for %r — falling back to Langfuse SDK",
+                f"mailroom score path failed for {wire!r} — falling back to Langfuse SDK",
                 exc,
             )
     client = _sdk_client()

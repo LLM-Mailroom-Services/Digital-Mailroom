@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import statistics
 from datetime import datetime
@@ -54,6 +55,11 @@ SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
     "Qwen/Qwen3-8B-AWQ": (0.03, 0.13),
     "Qwen/Qwen3-14B": (0.03, 0.13),
     "Qwen/Qwen3-14B-AWQ": (0.03, 0.13),
+    # SAND-027 Granite twin: OpenRouter ibm-granite/granite-4.2-8b list price
+    # ($0.06/$0.25 per 1M) applies to both the bf16 id and the -fp8 Modal leg
+    # (same weights; FP8 is the 1×L4 serve form).
+    "ibm-granite/granite-4.2-8b": (0.06, 0.25),
+    "ibm-granite/granite-4.2-8b-fp8": (0.06, 0.25),
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B": (0.05, 0.25),  # deepseek-v4-flash
     "deepseek-ai/DeepSeek-R1-Distill-Llama-8B": (0.05, 0.25),
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": (0.435, 0.87),  # deepseek-v4-pro
@@ -112,15 +118,28 @@ def gpu_usd_per_hour(gpu: str | None = None) -> float:
     return DEFAULT_GPU_USD_PER_HOUR["L4"]
 
 
+def p95(values: Sequence[float]) -> float:
+    """Nearest-rank 95th percentile (no interpolation — defensible in reports)."""
+    ordered = sorted(float(v) for v in values)
+    if not ordered:
+        raise ValueError("p95 of empty sequence")
+    rank = max(1, math.ceil(0.95 * len(ordered)))
+    return ordered[rank - 1]
+
+
 def estimate_gpu_cost_usd(
     gpu_seconds: float,
     *,
     gpu: str | None = None,
+    replicas: int = 1,
 ) -> float | None:
-    """USD for ``gpu_seconds`` of billed/busy time at the configured rate."""
+    """USD for ``gpu_seconds`` of wall on ``replicas`` concurrently-billed GPUs.
+
+    SAND-032: pinned MIN=MAX data-parallel replicas each bill the full wall.
+    """
     if gpu_seconds is None or gpu_seconds <= 0:
         return None
-    rate = gpu_usd_per_hour(gpu)
+    rate = gpu_usd_per_hour(gpu) * max(1, int(replicas))
     return round(gpu_seconds / 3600.0 * rate, 6)
 
 
@@ -430,12 +449,16 @@ def enrich_serving_report(
     cold_boot_seconds: float | None = None,
     gpu: str | None = None,
     scores: Mapping[str, Any] | None = None,
+    replicas: int = 1,
+    scaledown_seconds: float | None = None,
 ) -> dict[str, Any]:
     """Extend a ``record_from_run`` dict with wall/concurrency/latency_sum fields.
 
     Also adds the SAND-028-1 idle-fraction block when wall and latency sums exist.
     """
     out = dict(record)
+    replicas = max(1, int(replicas or 1))
+    out["replicas"] = replicas
     if scores:
         out["scores"] = dict(scores)
     ok_items = [i for i in items if i.get("ok", True) is not False]
@@ -462,6 +485,7 @@ def enrich_serving_report(
             "latency_max_seconds",
             round(max(latencies_ms) / 1000.0, 6),
         )
+        out.setdefault("latency_p95_seconds", round(p95(latencies_ms) / 1000.0, 6))
     if wall_seconds is not None and wall_seconds > 0:
         out["wall_seconds"] = round(float(wall_seconds), 3)
     if conc > 1:
@@ -486,7 +510,17 @@ def enrich_serving_report(
             float(cold_boot_seconds) if cold_boot_seconds is not None else 0.0
         )
         out["gpu_seconds"] = round(billed, 3)
-        gpu_cost = estimate_gpu_cost_usd(billed, gpu=gpu_class)
+        gpu_cost = estimate_gpu_cost_usd(billed, gpu=gpu_class, replicas=replicas)
+        # SAND-032: LOWER bound on what Modal bills for this run — boot + wall
+        # (+ scale-down tail for scale-to-zero fleets; pinned MIN=MAX fleets pass
+        # scaledown_seconds=None), on every replica. Pre-run warm time and idle
+        # gaps between suite configs are NOT included: the Modal usage page is
+        # the ground truth and is reconciled in the spend ledger.
+        span = billed + float(scaledown_seconds or 0.0)
+        out["run_span_seconds_lower_bound"] = round(span, 3)
+        out["run_span_usd_lower_bound"] = estimate_gpu_cost_usd(
+            span, gpu=gpu_class, replicas=replicas
+        )
         if gpu_cost is not None:
             out["estimated_gpu_cost_usd"] = gpu_cost
             n_ok = len(ok_items) or int(out.get("n") or 0)
@@ -504,11 +538,13 @@ def enrich_serving_report(
         out["slot_utilization"] = round(busy_slot / float(wall_seconds), 4)
         idle_container = max(0.0, float(wall_seconds) - busy_slot)
         out["idle_container_seconds"] = round(idle_container, 3)
-        idle_usd = estimate_gpu_cost_usd(idle_container, gpu=gpu_class)
+        idle_usd = estimate_gpu_cost_usd(idle_container, gpu=gpu_class, replicas=replicas)
         if idle_usd is not None:
             out["idle_estimated_usd"] = idle_usd
         if cold_boot_seconds is not None:
-            boot_usd = estimate_gpu_cost_usd(float(cold_boot_seconds), gpu=gpu_class)
+            boot_usd = estimate_gpu_cost_usd(
+                float(cold_boot_seconds), gpu=gpu_class, replicas=replicas
+            )
             if boot_usd is not None:
                 out["boot_estimated_usd"] = boot_usd
 
@@ -567,12 +603,31 @@ def serving_record_from_store(
         cold_boot_seconds=cold_boot_seconds,
         gpu=gpu,
         scores=scores,
+        replicas=max(1, int(modal.get("max_containers") or 1)),
+        # Pinned MIN=MAX fleets never scale down, so no tail is added.
+        scaledown_seconds=(
+            None
+            if int(modal.get("min_containers") or 0) >= max(1, int(modal.get("max_containers") or 1))
+            or modal.get("scaledown_seconds") is None
+            else float(modal["scaledown_seconds"])
+        ),
     )
 
 
-def default_serving_json_path(run_id: str) -> Path:
+def default_serving_json_path(run_id: str, *, store: RunStore | None = None) -> Path:
     from mailroom_sandbox.paths import repo_root
 
+    if store is not None:
+        from mailroom_sandbox.job.dated_reports import serving_export_path
+
+        canonical = serving_export_path(store, repo=repo_root())
+        if canonical is not None:
+            return canonical
+    from mailroom_sandbox.report_paths import experiment_prefix
+
+    prefix = experiment_prefix(run_id)
+    if prefix:
+        return repo_root() / "reports" / "serving" / prefix / f"{run_id}.serving.json"
     return repo_root() / "reports" / "serving" / f"{run_id}.serving.json"
 
 
@@ -583,13 +638,17 @@ def write_serving_json(
     wall_seconds: float | None = None,
     scores: Mapping[str, Any] | None = None,
 ) -> Path:
-    """Write ``reports/serving/<run_id>.serving.json`` (or ``path``)."""
+    """Write serving JSON; default path also publishes the dated specialist tree."""
     payload = serving_record_from_store(
         store, wall_seconds=wall_seconds, scores=scores
     )
-    dest = Path(path) if path is not None else default_serving_json_path(store.run_id)
+    dest = Path(path) if path is not None else default_serving_json_path(store.run_id, store=store)
     dest.parent.mkdir(parents=True, exist_ok=True)
     _atomic_write_serving_json(dest, payload)
+    if path is None:
+        from mailroom_sandbox.job.dated_reports import maybe_write_run_reports
+
+        maybe_write_run_reports(store, wall_seconds=wall_seconds, scores=scores)
     return dest
 
 
@@ -1251,7 +1310,6 @@ def estimate_suite(
         gpu = str(data.get("gpu") or "L4").split(":")[0]
         model = str(data.get("model") or "Qwen/Qwen3-8B")
         sd = data.get("scaledown_seconds")
-        max_c = int(data.get("max_containers") or 1)
 
         bands = _sec_per_doc_for(run_id, task)
         if sec_per_doc_override is not None and sec_per_doc_override > 0:
@@ -1274,6 +1332,10 @@ def estimate_suite(
             if gpu_usd_per_hour_rate is not None
             else gpu_usd_per_hour(gpu)
         )
+        # Pinned data-parallel replicas bill concurrently: wall is shared but
+        # GPU $ scales with the replica count (2×L4 MIN=MAX=2 bills 2× L4).
+        replicas = max(1, int(data.get("max_containers") or 1))
+        bill_rate = rate * replicas
 
         wall: dict[str, float] = {}
         cost: dict[str, float] = {}
@@ -1281,12 +1343,12 @@ def estimate_suite(
             sec = float(bands[band])
             wall_s = (docs * sec) / concurrency
             wall[band] = round(wall_s, 1)
-            cost[band] = round(wall_s / 3600.0 * rate, 4)
+            cost[band] = round(wall_s / 3600.0 * bill_rate, 4)
 
-        if max_c > 1:
+        if replicas > 1:
             notes.append(
-                f"{run_id}: max_containers={max_c} — estimate assumes 1 warm "
-                "replica (benchmark default); multiply GPU $ if more stay warm"
+                f"{run_id}: max_containers={replicas} pinned replicas — GPU $ "
+                f"billed at {replicas}× ${rate}/GPU-hr (wall shared, cost scaled)"
             )
 
         rows.append(
@@ -1303,8 +1365,10 @@ def estimate_suite(
                 "wall_seconds": wall,
                 "gpu_usd": cost,
                 "gpu_usd_per_hour": rate,
+                "replicas": replicas,
                 "notes": (
-                    "1 LLM call/doc; wall=(docs×sec/doc)/concurrency on 1×GPU"
+                    "1 LLM call/doc; wall=(docs×sec/doc)/concurrency shared "
+                    f"across {replicas}×GPU; GPU $ billed ×{replicas}"
                 ),
             }
         )
@@ -1323,7 +1387,14 @@ def estimate_suite(
     gap_total = max(0, n_runs - 1) * float(inter_run_gap_seconds)
     overhead_s = float(cold_start_seconds) + suite_scaledown + gap_total
     rate0 = float(rows[0]["gpu_usd_per_hour"])
-    overhead_usd = round(overhead_s / 3600.0 * rate0, 4)
+    # Overhead bills every pinned replica (2×L4 MIN=MAX=2 keeps both warm).
+    overhead_replicas = max(int(r.get("replicas") or 1) for r in rows)
+    overhead_usd = round(overhead_s / 3600.0 * rate0 * overhead_replicas, 4)
+    if overhead_replicas > 1:
+        notes.append(
+            f"suite overhead billed ×{overhead_replicas} pinned replicas "
+            f"(cold={cold_start_seconds}s + scaledown={suite_scaledown}s + gaps)"
+        )
 
     suite_wall: dict[str, float] = {}
     suite_usd: dict[str, float] = {}
@@ -1359,7 +1430,7 @@ def estimate_suite(
             wall_h = (mean_busy_per_doc_wall * corpus_size) / 3600.0
             corpus_wall_h[band] = round(wall_h, 2)
         oh_only = round(
-            (float(cold_start_seconds) + suite_scaledown) / 3600.0 * rate0, 4
+            (float(cold_start_seconds) + suite_scaledown) / 3600.0 * rate0 * overhead_replicas, 4
         )
         corpus = {
             "corpus_size": int(corpus_size),
@@ -1394,11 +1465,15 @@ def estimate_suite(
             "inter_run_gap_seconds": inter_run_gap_seconds,
             "overhead_seconds": round(overhead_s, 1),
             "overhead_usd": overhead_usd,
+            "overhead_replicas": overhead_replicas,
             "wall_seconds": suite_wall,
             "wall_hours": {b: round(suite_wall[b] / 3600.0, 3) for b in _BANDS},
             "gpu_usd": suite_usd,
             "gpu_usd_per_document": cpd,
-            "posture": "one warm 1×GPU app across configs; teardown after last",
+            "posture": (
+                f"one warm {overhead_replicas}×GPU app across configs; "
+                "teardown after last"
+            ),
         },
         "corpus_extrapolation": corpus,
         "confidence_notes": notes,

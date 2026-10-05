@@ -37,3 +37,9 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "local_llm" in item.keywords:
             item.add_marker(skip)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_beacon_dir(tmp_path, monkeypatch):
+    """Runs started in tests publish mailroom beacons — keep them out of ~/.mailroom/jobs."""
+    monkeypatch.setenv("MAILROOM_BEACON_DIR", str(tmp_path / "_beacons"))

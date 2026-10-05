@@ -81,7 +81,7 @@ def test_archive_maps_legacy_sandbox_050_to_sand():
 
 
 def test_sister_repos_documents_sand_vs_dmr():
-    text = (ROOT / "docs" / "sister-repos.md").read_text(encoding="utf-8")
+    text = (ROOT / "docs" / "setting-up" / "sister-repos.md").read_text(encoding="utf-8")
     assert "SAND-*" in text or "`SAND-*" in text or "**`SAND-*" in text
     assert "MESSAGE_BOARD" in text
     assert "DMR-*" in text or "`DMR-*" in text or "**`DMR-*" in text

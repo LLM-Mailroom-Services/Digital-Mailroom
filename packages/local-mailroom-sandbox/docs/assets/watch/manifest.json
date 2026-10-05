@@ -1,0 +1,176 @@
+{
+  "generated_by": "scripts/sand032/capture_watch_screenshots.py",
+  "cases": [
+    {
+      "name": "sorting-wide-color",
+      "title": "SORTING \u2014 wide color (100 cols, owl open)",
+      "description": "Mid-run SORTING frame: in-tray + postage side by side, dispatch log roles.",
+      "kind": "watch",
+      "width": 100,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "queued-narrow-plain",
+      "title": "QUEUED \u2014 narrow plain (70 cols, NO_COLOR)",
+      "description": "Waiting run in plain mode: stacked panels, no ANSI, compact hero.",
+      "kind": "watch",
+      "width": 70,
+      "color": false,
+      "blink": false
+    },
+    {
+      "name": "deploying",
+      "title": "DEPLOYING \u2014 modal deploy",
+      "description": "Driver has started the deploy; the fleet image + app are being pushed.",
+      "kind": "watch",
+      "width": 100,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "preflight",
+      "title": "PREFLIGHT \u2014 engine verified",
+      "description": "Engine is up; the TUI has baselined /metrics before sorting starts.",
+      "kind": "watch",
+      "width": 100,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "cold-boot-container-starting",
+      "title": "COLD BOOT \u2014 container starting",
+      "description": "First boot sub-phase: the container is up, weights not yet loading.",
+      "kind": "watch",
+      "width": 100,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "cold-boot-loading-weights",
+      "title": "COLD BOOT \u2014 loading weights",
+      "description": "Boot sub-phase derived from Modal log markers (BOOT_MARKERS).",
+      "kind": "watch",
+      "width": 100,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "cold-boot-profiling-kv",
+      "title": "COLD BOOT \u2014 profiling KV cache",
+      "description": "Boot sub-phase: vLLM is sizing the KV cache pool.",
+      "kind": "watch",
+      "width": 100,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "cold-boot-cuda-graphs",
+      "title": "COLD BOOT \u2014 capturing CUDA graphs",
+      "description": "Boot sub-phase: engine is capturing CUDA graphs before serving.",
+      "kind": "watch",
+      "width": 100,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "cold-boot-engine-ready",
+      "title": "COLD BOOT \u2014 engine ready",
+      "description": "Final boot sub-phase: the engine answers on its port; preflight is next.",
+      "kind": "watch",
+      "width": 100,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "teardown-scorecard",
+      "title": "TEARDOWN \u2014 scorecard",
+      "description": "Post-run scorecard: quality + serving record + /metrics replica row.",
+      "kind": "watch",
+      "width": 110,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "stopped-scorecard",
+      "title": "STOPPED \u2014 fleet stopped, billing ended",
+      "description": "Terminal phase: the scorecard stays on screen after the fleet stops.",
+      "kind": "watch",
+      "width": 110,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "over-gate",
+      "title": "POSTAGE \u2014 over-gate warning",
+      "description": "Spend past the $4.50 projected-total gate: gold warning row in postage.",
+      "kind": "watch",
+      "width": 100,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "blink-owl",
+      "title": "Blink frame \u2014 owl (-,-)",
+      "description": "Same SORTING frame with blink=True: the owl blinks every 7th second.",
+      "kind": "watch",
+      "width": 100,
+      "color": true,
+      "blink": true
+    },
+    {
+      "name": "dispatch-roles",
+      "title": "Dispatch log \u2014 every role",
+      "description": "One line per classify_log_line role: error, warn, throughput, kv, ready, plain.",
+      "kind": "watch",
+      "width": 100,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "program-route",
+      "title": "Program route \u2014 ladder + sweep",
+      "description": "Done / live / queued marks with fleet tags across the 13-run program.",
+      "kind": "watch",
+      "width": 110,
+      "color": false,
+      "blink": false
+    },
+    {
+      "name": "board-terminal",
+      "title": "Job board \u2014 running/stalled/failed/done",
+      "description": "sandbox board --tui with one job per status; tone follows status.",
+      "kind": "board",
+      "width": 100,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "board-empty",
+      "title": "Job board \u2014 empty in-tray",
+      "description": "First-run hint with the Beacon publish snippet.",
+      "kind": "board",
+      "width": 100,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "session-cli",
+      "title": "Session CLI \u2014 tail-friendly lines (no alt-screen)",
+      "description": "sandbox run / eval / matrix output on stderr via MailroomConsole.",
+      "kind": "session",
+      "width": 72,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "web-theme",
+      "title": "Browser theme \u2014 pretty_log palette tokens",
+      "description": "watch --web and board browser derive CSS tokens from pretty_log; terminal and browser never drift.",
+      "kind": "web-theme",
+      "width": 100,
+      "color": true,
+      "blink": false
+    }
+  ]
+}

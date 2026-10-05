@@ -210,7 +210,7 @@ def cmd_report(args: argparse.Namespace) -> int:
                 f"reports/experiment_log.jsonl is absent (gitignored) — cannot rebuild from log.\n"
                 f"Use the tracked ledger instead:\n"
                 f"  python api-evals/run_api_evals.py report --from-ledger\n"
-                f"Source: reports/qwen-flash-cost-source.json",
+                f"Source: reports/archive/qwen-flash-cost-source.json",
                 file=sys.stderr,
             )
             return 1
@@ -221,7 +221,7 @@ def cmd_report(args: argparse.Namespace) -> int:
                 "no api-evals records in reports/experiment_log.jsonl.\n"
                 "For the three known QWEN-flash runs, rebuild from the tracked ledger:\n"
                 "  python api-evals/run_api_evals.py report --from-ledger\n"
-                "Source: reports/qwen-flash-cost-source.json",
+                "Source: reports/archive/qwen-flash-cost-source.json",
                 file=sys.stderr,
             )
             return 1
@@ -278,7 +278,7 @@ def main(argv: list[str] | None = None) -> int:
     p_rep.add_argument(
         "--from-ledger",
         action="store_true",
-        help="read reports/qwen-flash-cost-source.json (offline reproducible)",
+        help="read reports/archive/qwen-flash-cost-source.json (offline reproducible)",
     )
     p_rep.add_argument(
         "--from-log",

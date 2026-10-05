@@ -28,7 +28,8 @@ HEADER = """\
 # extras=() → base only. ``all`` expands every real extra.
 EXPORTS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("base.txt", ()),
-    ("dev.txt", ("dev",)),
+    # [dev] self-references [pipeline] (the suite imports the vendored graph).
+    ("dev.txt", ("dev", "pipeline")),
     ("pipeline.txt", ("pipeline",)),
     ("deploy.txt", ("deploy",)),
     ("observability.txt", ("observability",)),

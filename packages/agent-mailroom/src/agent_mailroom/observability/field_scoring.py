@@ -1,7 +1,7 @@
-"""Field scoring — compatibility shim over ``llm-dojo-scoring`` v0.16.0.
+"""Field scoring — compatibility shim over ``llm-dojo-scoring`` v0.19.1.
 
 Pinned to the same release as llm-mailroom 0.7.1 @959bb0b
-(``llm-dojo-scoring @ git+…@v0.16.0``). Core scoring lives in the package;
+(``llm-dojo-scoring @ git+…@v0.19.1``). Core scoring lives in the package;
 this module keeps Agent Mailroom glue:
 
 - taxonomy → ``configure()`` wiring
@@ -169,7 +169,7 @@ def score_field(
     if not DOJO_AVAILABLE:
         warnings.warn(
             "llm-dojo-scoring is not installed; install the package pin "
-            "(llm-dojo-scoring @ v0.16.0) for production scoring",
+            "(llm-dojo-scoring @ v0.19.1) for production scoring",
             RuntimeWarning,
             stacklevel=2,
         )
@@ -252,7 +252,7 @@ def score_extraction(
     field_types: dict[str, str] | None = None,
     doc_text: str | None = None,
 ) -> dict[str, Any]:
-    """Score an extraction against gold using llm-dojo-scoring v0.16.0."""
+    """Score an extraction against gold using llm-dojo-scoring v0.19.1."""
     predicted = predicted or {}
     expected = expected or {}
     keys = sorted(

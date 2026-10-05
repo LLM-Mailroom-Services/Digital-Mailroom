@@ -6,7 +6,7 @@ The Mailroom is a self-contained hybrid:
 - **Hive** — atomic mailboxes. Agents write JSON to `outbox/`; the router delivers to `inbox/` and the office draws a flying envelope.
 - **Office** — a walking pixel floor branded **The Mailroom**. LimeZu Modern Interiors tilesets paint the rooms when `office/tiles/` is present; the original procedural rooms are the fallback. A hardened Electron shell can wrap the same `/office/` UI the browser already uses.
 - **Harnesses** — OpenRouter is primary. OpenAI, Ollama, vLLM, generic OpenAI-compatible, and mock are registered fallbacks.
-- **Scoring** — deterministic field scoring via [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) **v0.16.0** (same pin as llm-mailroom 0.7.1 @959bb0b); `observability/field_scoring.py` is a shim + SQLite glue.
+- **Scoring** — deterministic field scoring via [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) **v0.19.1** (same pin as llm-mailroom 0.7.1 @959bb0b); `observability/field_scoring.py` is a shim + SQLite glue.
 - **Upstream mirror** — `config/taxonomy.yaml` and `agents/prompts.json` mirror llm-mailroom 0.7.1 @959bb0b: five live classes (merger_agreement has its own `merger_agreement_specialist` + `MergerAgreementExtraction`; `compliance_filing` is retired), the per-agent harness keys, `llm_retry`, `run_limits`, `cost_models` and the local model maps.
 - **Hub corpora** — Lucius-Morningstar datasets pull through the same inbox the watcher already drains.
 

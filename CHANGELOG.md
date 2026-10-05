@@ -20,6 +20,22 @@ belongs to the standalone mailroom lineage that became `packages/llm-mailroom`
 and is recorded there, not here.
 
 ## [Unreleased]
+### Added
+
+- **Feeder import (dojo v0.19.1 + sandbox @62a71e9 + remaining Exios66 tips):**
+  pull-only overlay into `packages/*` — feeder content wins on overlapping
+  paths; hub-only files are kept; **no subtree-push** (feeders are never
+  overwritten from the hub). Cursors: `llm-dojo-scoring` `f6ae6ece` (v0.19.1,
+  frozen `production_prompts` v1), `local-mailroom-sandbox` `62a71e99`,
+  `llm-mailroom` `ceec589a`, `llm-entity-extraction` `775b0ed6`,
+  `agent-mailroom` `e511c773`, `The-Mailroom` `d7b388ef`,
+  `mailroom-corpus-eda` `2a620023`. Consumer pins `llm-dojo-scoring @ v0.19.1`;
+  sandbox `vendor/` refreshed from the workspace (`scripts/sync_vendor.py`).
+  Hub issues [#233](https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/233)
+  (closed), [#235](https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/235),
+  [#238](https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/238);
+  dojo [#31](https://github.com/Exios66/llm-dojo-scoring/issues/31).
+
 ### Removed
 
 - **`.github/workflows/ci.yml`:** dropped the hub#176 per-package pytest matrix on

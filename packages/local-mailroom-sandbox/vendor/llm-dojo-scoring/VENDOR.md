@@ -12,9 +12,9 @@ network or an install to score runs.
   in the Digital-Mailroom monorepo — the development source of truth;
   hub#62 doctrine).
 - Lineage: upstream tag `v0.15.0` (`9db1417b`) was the last tagged pin; the
-  vendored tree mirrors the monorepo workspace snapshot, refreshed with the
-  DMR-061 emitter counters on 2026-09-14 so the drift guard stays
-  byte-identical.
+  vendored tree now mirrors the monorepo workspace snapshot of **v0.19.1**
+  (`f6ae6ece`, 2026-10-05) so the drift guard stays byte-identical. The
+  `v0.15.0` string is retained here as historical lineage (sandbox pin test).
 - Layout: upstream package dir relocated under `src/` (mirrors
   `vendor/llm-mailroom/src`); upstream `tests/`, `examples/`, `docs/` are not
   vendored.

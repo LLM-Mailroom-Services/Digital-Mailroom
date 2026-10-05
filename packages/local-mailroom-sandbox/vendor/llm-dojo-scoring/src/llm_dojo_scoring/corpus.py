@@ -2,8 +2,9 @@
 
 Grounded in the published Hugging Face dataset
 ``Lucius-Morningstar/mailroom-dataset`` (default + ``ground_truth`` configs;
-1,210 rows: 1,081 train / 129 test as of the v0.8.1 alignment pass —
-the v9 successor of the frozen v8 ``mailroom-corpus`` baseline).
+3,302 rows: 2,979 train / 323 test at the v9 GT-closure revision
+``46a4d3c2`` — the v9 successor of the frozen v8 ``mailroom-corpus``
+baseline).
 
 This module is the single source mapping each mailroom document class to:
 
@@ -252,9 +253,9 @@ CORPUS_DIFFERENTIATORS: dict[str, tuple[str, ...]] = {
 }
 
 #: Extraction-schema fields each specialist suite must score, aligned to
-#: mailroom v0.6.0 ``EXTRACTION_SCHEMAS`` + taxonomy ``field_types`` (pared
-#: checklists + semantic trio; no open-ended key_obligations dumps).
-#: ``document_name`` is on the contracts / merger schema (CUAD Document Name).
+#: live mailroom ``EXTRACTION_SCHEMAS`` + taxonomy ``field_types``.
+#: Merger is ``MergerAgreementExtraction`` (no CUAD family/clauses).
+#: ``document_name`` is on the contracts / merger schema.
 CORPUS_EXTRACTION_FIELDS: dict[str, tuple[str, ...]] = {
     "contract": (
         "document_name",
@@ -273,14 +274,13 @@ CORPUS_EXTRACTION_FIELDS: dict[str, tuple[str, ...]] = {
         "document_name",
         "parties",
         "effective_date",
-        "term_length",
+        "effective_time",
         "governing_law",
-        "contract_value",
-        "renewal_terms",
-        "cuad_family",
         "merger_consideration",
-        "cuad_clauses",
         "maud_clauses",
+        "intent",
+        "subject_matter",
+        "keywords",
     ),
     "corporate_record": (
         "entity_name",
@@ -454,7 +454,8 @@ CORRESPONDENCE_TOPICS: tuple[str, ...] = (
     "travel_logistics",
 )
 
-#: Enron ``sentiment_label`` catalog (110/110 correspondence rows populated).
+#: Enron ``sentiment_label`` catalog (1,000/1,000 correspondence rows populated
+#: at the v9 pin ``46a4d3c2``: neutral 566 / positive 254 / negative 180).
 CORRESPONDENCE_SENTIMENT_LABELS: tuple[str, ...] = (
     "negative",
     "neutral",

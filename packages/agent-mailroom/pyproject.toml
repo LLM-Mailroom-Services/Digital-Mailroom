@@ -19,7 +19,7 @@ dependencies = [
     "httpx>=0.27",
     "python-multipart>=0.0.9",
     # Same pin as llm-mailroom 0.7.1 @959bb0b (KANBAN-061 shim over shared engine).
-    "llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.16.0",
+    "llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.19.1",
 ]
 
 [project.optional-dependencies]

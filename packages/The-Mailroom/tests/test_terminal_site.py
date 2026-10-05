@@ -33,9 +33,13 @@ def test_site_files_exist():
 
 
 def test_index_references_assets():
-    assert 'href="css/terminal.css?v=0.4.0"' in INDEX
-    assert 'src="js/data.js?v=0.4.0"' in INDEX
-    assert 'src="js/terminal.js?v=0.4.0"' in INDEX
+    # Cache-bust follows pyproject.toml (scripts/release.py rewrites it).
+    import re
+
+    ver = re.search(r'^version = "([^"]+)"', (ROOT / "pyproject.toml").read_text(), re.M).group(1)
+    assert f'href="css/terminal.css?v={ver}"' in INDEX
+    assert f'src="js/data.js?v={ver}"' in INDEX
+    assert f'src="js/terminal.js?v={ver}"' in INDEX
     assert 'id="cmdInput"' in INDEX
     assert 'id="ghostText"' in INDEX
     assert 'id="blockCursor"' in INDEX
@@ -46,7 +50,10 @@ def test_index_references_assets():
 def test_manifest_covers_every_synced_package():
     """The site's repos manifest must cover every package the monorepo
     mirrors upstream (mailroom-dev's packages/) plus the hub/derived repos."""
-    sync = json.loads((ROOT.parents[1] / "scripts" / "packages_sync.json").read_text())
+    sync_path = ROOT.parents[1] / "scripts" / "packages_sync.json"
+    if not sync_path.is_file():
+        pytest.skip("packages_sync.json lives in the Digital-Mailroom monorepo only")
+    sync = json.loads(sync_path.read_text())
     synced = {k.lower() for k in sync["packages"].keys()}
     names = {n.lower() for n in REPO_URLS}
     assert not (synced - names), f"data.js missing synced packages: {sorted(synced - names)}"

@@ -32,6 +32,9 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+# Aware sort sentinel: parsed run timestamps are tz-aware UTC.
+EPOCH = datetime.min.replace(tzinfo=timezone.utc)
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv  # noqa: E402
@@ -68,7 +71,7 @@ def _sessions(runs, limit: int = 50) -> list[dict]:
         grouped.setdefault(sid, []).append(r)
     out = []
     for sid, rs in grouped.items():
-        rs.sort(key=lambda r: (r.updated_at or r.created_at or datetime.min), reverse=True)
+        rs.sort(key=lambda r: (r.updated_at or r.created_at or EPOCH), reverse=True)
         created = [r.created_at for r in rs if r.created_at]
         updated = [r.updated_at or r.created_at for r in rs if (r.updated_at or r.created_at)]
         out.append({

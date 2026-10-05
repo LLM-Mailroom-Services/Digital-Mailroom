@@ -1,6 +1,6 @@
 """Hugging Face corpus pin for The-Mailroom eval / Langfuse dataset sync.
 
-``Lucius-Morningstar/mailroom-dataset`` (v9, pinned revision) is the
+``Lucius-Morningstar/mailroom-dataset`` (v9.1, pinned revision) is the
 authoritative full corpus. Display still comes from Langfuse traces; this
 module only covers Hub GT / pilot intake so scripts hit one pinned revision
 via the datasets-server REST API (no ``datasets`` / ``huggingface_hub``
@@ -23,10 +23,9 @@ ORG = "Lucius-Morningstar"
 # stays as the frozen v8 baseline.
 FULL_CORPUS_ID = f"{ORG}/mailroom-dataset"
 EXAMPLES_ID = f"{ORG}/docclass-pilot"
-# v9 tip (2026-09-13): mailroom-dataset v1 GT-closure revision — 3,302-row
-# hardened ground_truth; supporting_documents closed on the INSURBIAS auto
-# rows, EX-10 cuad dated exception (epic #27).
-FULL_CORPUS_REVISION = "ed7576b676343e0b402ec5412cded301e629bdee"
+# v9.1 (Hub tag v9.1 → ed7576b): mailroom-dataset GT refresh — 3,302-row
+# hardened ground_truth; supersedes the v9 GT-closure tip (46a4d3c2).
+FULL_CORPUS_REVISION = "v9.1"
 GT_CONFIG = "ground_truth"
 DEFAULT_CONFIG = "default"
 ROWS_API = "https://datasets-server.huggingface.co/rows"
@@ -74,6 +73,11 @@ def fetch_rows(
     corpus catalog).  ``page_sleep`` paces requests between pages — the
     unauthenticated Hub budget is small, so long exports should pass
     something like 1.0.
+
+    ``revision`` is forwarded as a query parameter, but the datasets-server
+    ``/rows`` endpoint is documented against the default branch; treat the
+    pin as best-effort here and use the parquet/``resolve/<rev>`` path when
+    byte-exact pinned rows are required.
     """
     ds = dataset or corpus_id()
     rev = revision if revision is not None else corpus_revision()
@@ -110,6 +114,10 @@ def fetch_rows(
                 last = exc
                 if exc.code == 429:
                     time.sleep(5.0 * (2 ** attempt))  # 5s, 10s, 20s, 40s
+                elif 400 <= exc.code < 500:
+                    # 400/401/403/404/422 are answers, not blips — retrying
+                    # just burned ~20 s before the same error.
+                    break
                 else:
                     time.sleep(2 * (attempt + 1))
             except Exception as exc:  # noqa: BLE001 — transient Hub blips

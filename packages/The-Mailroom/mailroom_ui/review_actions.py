@@ -50,6 +50,91 @@ def pipeline_configured() -> bool:
     return bool(pipeline_base_url() and _token())
 
 
+def _http_error(exc: urllib.error.HTTPError) -> ReviewActionError:
+    raw = ""
+    try:
+        raw = exc.read().decode("utf-8", errors="replace")
+    except Exception as read_exc:  # body already consumed / socket closed
+        log.debug("producer error body unreadable: %s", read_exc)
+    detail: Any = raw[:400] if raw else (exc.reason or str(exc))
+    try:
+        parsed = json.loads(raw) if raw else {}
+        if isinstance(parsed, dict):
+            detail = parsed.get("detail") or parsed.get("error") or parsed
+    except ValueError:
+        pass  # non-JSON error body: keep the raw text as detail
+    return ReviewActionError(str(detail)[:400], status=int(exc.code), detail=detail)
+
+
+def _open(req: urllib.request.Request, timeout: float) -> tuple[bytes, Any]:
+    """Send one producer request; every failure becomes ReviewActionError.
+
+    HTTPError/URLError were the only mapped cases — a read timeout
+    (``TimeoutError``) or a dropped connection escaped as a bare 500.
+    """
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.read(), resp.headers
+    except urllib.error.HTTPError as exc:
+        raise _http_error(exc) from exc
+    except urllib.error.URLError as exc:
+        if isinstance(exc.reason, TimeoutError):
+            raise ReviewActionError("producer timed out", status=504) from exc
+        raise ReviewActionError(f"producer unreachable: {exc.reason}", status=502) from exc
+    except TimeoutError as exc:  # socket.timeout is an alias on 3.10+
+        raise ReviewActionError("producer timed out", status=504) from exc
+    except OSError as exc:  # connection reset mid-read, etc.
+        raise ReviewActionError(f"producer connection failed: {exc}", status=502) from exc
+
+
+def _json_payload(raw: bytes) -> dict[str, Any]:
+    if not raw:
+        return {}
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        snippet = raw[:120].decode("utf-8", errors="replace")
+        raise ReviewActionError(
+            f"producer returned non-JSON body: {snippet!r}", status=502,
+        ) from exc
+    return payload if isinstance(payload, dict) else {"data": payload}
+
+
+def disposition_filename(header: str) -> str:
+    """Filename from a Content-Disposition header (RFC 6266 / 5987 aware)."""
+    if not header:
+        return ""
+    import re
+
+    star = re.search(r"filename\*\s*=\s*([^']*)'[^']*'([^;]+)", header, re.I)
+    if star:
+        try:
+            name = urllib.parse.unquote(star.group(2).strip().strip('"'), encoding=star.group(1) or "utf-8")
+            return os.path.basename(name.replace("\\", "/")).strip()
+        except (LookupError, UnicodeDecodeError):
+            pass
+    from email.message import Message
+
+    msg = Message()
+    msg["content-disposition"] = header
+    name = msg.get_filename() or ""
+    return os.path.basename(name.replace("\\", "/")).strip()
+
+
+def content_disposition(name: str, *, disposition: str = "attachment") -> str:
+    """Header-safe Content-Disposition for an arbitrary (unicode) filename.
+
+    Interpolating the raw name broke on quotes and raised
+    UnicodeEncodeError (HTTP 500) for any non-latin-1 character.
+    """
+    base = os.path.basename((name or "").replace("\\", "/")).strip() or "download"
+    ascii_name = "".join(
+        ch if 32 <= ord(ch) < 127 and ch not in '"\\;' else "_" for ch in base
+    )
+    quoted = urllib.parse.quote(base, safe="")
+    return f"{disposition}; filename=\"{ascii_name}\"; filename*=UTF-8''{quoted}"
+
+
 def _request_json(
     method: str,
     url: str,
@@ -66,27 +151,8 @@ def _request_json(
     if token:
         headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read().decode("utf-8")
-    except urllib.error.HTTPError as exc:
-        raw = ""
-        try:
-            raw = exc.read().decode("utf-8")
-        except Exception:
-            pass
-        detail: Any = raw[:400] if raw else (exc.reason or str(exc))
-        try:
-            parsed = json.loads(raw) if raw else {}
-            if isinstance(parsed, dict):
-                detail = parsed.get("detail") or parsed.get("error") or parsed
-        except Exception:
-            pass
-        raise ReviewActionError(str(detail)[:400], status=int(exc.code), detail=detail) from exc
-    except urllib.error.URLError as exc:
-        raise ReviewActionError(f"producer unreachable: {exc.reason}", status=502) from exc
-    payload = json.loads(raw) if raw else {}
-    return payload if isinstance(payload, dict) else {"data": payload}
+    raw, _headers = _open(req, timeout)
+    return _json_payload(raw)
 
 
 _MAX_UPLOAD_BYTES = 32 * 1024 * 1024
@@ -134,27 +200,8 @@ def _request_multipart(
     if token:
         headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read().decode("utf-8")
-    except urllib.error.HTTPError as exc:
-        raw = ""
-        try:
-            raw = exc.read().decode("utf-8")
-        except Exception:
-            pass
-        detail: Any = raw[:400] if raw else (exc.reason or str(exc))
-        try:
-            parsed = json.loads(raw) if raw else {}
-            if isinstance(parsed, dict):
-                detail = parsed.get("detail") or parsed.get("error") or parsed
-        except Exception:
-            pass
-        raise ReviewActionError(str(detail)[:400], status=int(exc.code), detail=detail) from exc
-    except urllib.error.URLError as exc:
-        raise ReviewActionError(f"producer unreachable: {exc.reason}", status=502) from exc
-    payload = json.loads(raw) if raw else {}
-    return payload if isinstance(payload, dict) else {"data": payload}
+    raw, _headers = _open(req, timeout)
+    return _json_payload(raw)
 
 
 def _request_bytes(
@@ -169,30 +216,9 @@ def _request_bytes(
     if token:
         headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(url, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = resp.read()
-            content_type = resp.headers.get("Content-Type") or "application/octet-stream"
-            disposition = resp.headers.get("Content-Disposition") or ""
-            filename = ""
-            if "filename=" in disposition:
-                filename = disposition.split("filename=", 1)[1].strip().strip('"')
-    except urllib.error.HTTPError as exc:
-        raw = ""
-        try:
-            raw = exc.read().decode("utf-8")
-        except Exception:
-            pass
-        detail: Any = raw[:400] if raw else (exc.reason or str(exc))
-        try:
-            parsed = json.loads(raw) if raw else {}
-            if isinstance(parsed, dict):
-                detail = parsed.get("detail") or parsed.get("error") or parsed
-        except Exception:
-            pass
-        raise ReviewActionError(str(detail)[:400], status=int(exc.code), detail=detail) from exc
-    except urllib.error.URLError as exc:
-        raise ReviewActionError(f"producer unreachable: {exc.reason}", status=502) from exc
+    data, resp_headers = _open(req, timeout)
+    content_type = resp_headers.get("Content-Type") or "application/octet-stream"
+    filename = disposition_filename(resp_headers.get("Content-Disposition") or "")
     return data, content_type, filename
 
 
@@ -417,6 +443,11 @@ def fetch_source(
         data["configured"] = True
         data["error"] = None
         data.setdefault("source", "producer")
+        # The producer's source payload doesn't carry `readable`; the UIs gate
+        # on it, so real text rendered as "(empty document text)".
+        if "readable" not in data:
+            text = data.get("text")
+            data["readable"] = isinstance(text, str) and bool(text.strip())
         return data
     except ReviewActionError as exc:
         if exc.status != 404:

@@ -75,6 +75,52 @@ def write_version(version: tuple[int, int, int], root: Path = ROOT) -> None:
     path.write_text(text)
 
 
+# Every other place the app version is spelled out. They drifted by up to
+# three releases (FastAPI 0.3.0, Observatory ?v=0.3.13 cache-bust, README
+# badge, ui/package.json) because only pyproject.toml was bumped.
+_VERSION_SITES: tuple[tuple[str, str, str], ...] = (
+    ("web/index.html", r"\?v=[0-9][0-9.]*", "?v={v}"),
+    ("hosted/index.html", r"\?v=[0-9][0-9.]*", "?v={v}"),
+    ("terminal/index.html", r"\?v=[0-9][0-9.]*", "?v={v}"),
+    ("README.md", r"badge/version-[0-9.]+-blue", "badge/version-{v}-blue"),
+    ("README.md", r"badge/release-v[0-9.]+-blue\)\]\(https://github.com/Exios66/The-Mailroom/releases/tag/v[0-9.]+",
+     "badge/release-v{v}-blue)](https://github.com/Exios66/The-Mailroom/releases/tag/v{v}"),
+    ("ui/package.json", r'"version": "[0-9.]+"', '"version": "{v}"'),
+)
+
+
+def sync_version_sites(version: tuple[int, int, int], root: Path = ROOT) -> list[str]:
+    """Rewrite every secondary version string; return the files touched."""
+    ver = f"{version[0]}.{version[1]}.{version[2]}"
+    touched: list[str] = []
+    for rel, pattern, repl in _VERSION_SITES:
+        path = root / rel
+        if not path.exists():
+            continue
+        text = path.read_text()
+        new = re.sub(pattern, repl.format(v=ver), text)
+        if new != text:
+            path.write_text(new)
+            if rel not in touched:
+                touched.append(rel)
+    return touched
+
+
+def version_site_drift(root: Path = ROOT) -> list[str]:
+    """Secondary version strings that disagree with pyproject.toml."""
+    ver = current_version(root)
+    ver_s = f"{ver[0]}.{ver[1]}.{ver[2]}"
+    drift: list[str] = []
+    for rel, pattern, _repl in _VERSION_SITES:
+        path = root / rel
+        if not path.exists():
+            continue
+        for hit in re.findall(pattern, path.read_text()):
+            if ver_s not in hit:
+                drift.append(f"{rel}: {hit}")
+    return drift
+
+
 def release_changelog(version: tuple[int, int, int], note: str, root: Path = ROOT) -> None:
     """Move the Unreleased body under ``## [X.Y.Z] - date``; leave Unreleased empty.
 
@@ -115,6 +161,12 @@ def check_state() -> None:
         print(f"warn: pyproject version {ver_s} has no CHANGELOG header")
     if headers and ver_s in headers and bullets:
         print(f"warn: Unreleased entries remain after {ver_s} was released")
+    dupes = sorted({h for h in headers if headers.count(h) > 1})
+    if dupes:
+        fail(f"CHANGELOG.md repeats version headers: {', '.join(dupes)}")
+    drift = version_site_drift()
+    if drift:
+        fail("version strings disagree with pyproject.toml:\n  " + "\n  ".join(drift))
     print("running tests...")
     subprocess.run([sys.executable, "-m", "pytest", "tests/", "-q"], cwd=ROOT, check=True)
     print(f"ok: version {ver_s} · changelog entries: {len(bullets)} unreleased")
@@ -148,11 +200,15 @@ def main() -> None:
     subprocess.run([sys.executable, "-m", "pytest", "tests/", "-q"], cwd=ROOT, check=True)
 
     write_version(version)
+    touched = sync_version_sites(version)
     release_changelog(version, args.note)
     print(f"bumped to {ver_s}; CHANGELOG [Unreleased] moved to [{ver_s}]")
+    if touched:
+        print(f"synced version strings in: {', '.join(touched)}")
 
     print("\nnext steps:")
-    print(f"  git add pyproject.toml CHANGELOG.md README.md wiki/ docs/")
+    print(f"  git add pyproject.toml CHANGELOG.md README.md ui/package.json "
+          f"web/index.html hosted/index.html terminal/index.html wiki/ docs/")
     print(f"  git commit -m \"{args.note or f'Release {ver_s}'}\"")
     print(f"  git tag -a v{ver_s} -m \"{ver_s} — {args.note or 'release'}\"")
     print("  git push && git push --tags")

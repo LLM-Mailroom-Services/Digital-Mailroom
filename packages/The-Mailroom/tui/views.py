@@ -50,6 +50,17 @@ STATION_BY_STAGE = {
 }
 
 
+
+def _add_row(table: Table, *cells: Any) -> None:
+    """Add a row with plain strings as literal Text.
+
+    Rich parses str cells as console markup: a filename or escalation reason
+    containing ``[x]`` vanished, and an unbalanced ``[/x]`` raised
+    MarkupError and crashed the TUI. Renderables pass through untouched.
+    """
+    table.add_row(*(Text(c) if isinstance(c, str) else c for c in cells))
+
+
 def _fmt(v, spec="{:.2f}") -> str:
     if v is None:
         return "-"
@@ -116,7 +127,7 @@ def floor_table(runs: list[dict]) -> Table:
     for r in ordered:
         verdict = r.get("verdict") or "-"
         route = ">".join((r.get("routing_path") or [])[:5])
-        table.add_row(
+        _add_row(table, 
             (r.get("filename") or r["trace_id"])[:34],
             STATION_BY_STAGE.get(r.get("stage"), "?"),
             (r.get("doc_type") or "-").replace("_", " "),
@@ -143,7 +154,7 @@ def review_table(runs: list[dict]) -> Table:
     table.add_column("WHY", style="yellow", max_width=50)
     for r in runs:
         verdict = r.get("verdict") or "-"
-        table.add_row(
+        _add_row(table, 
             (r.get("filename") or r["trace_id"])[:34],
             (r.get("doc_type") or "-").replace("_", " "),
             _fmt(r.get("classification_confidence")),
@@ -195,12 +206,12 @@ def metrics_table(m: dict) -> Table:
         if value is not None:
             rows.append((label, f"{value:.4f}" if isinstance(value, float) else value))
     for name, value in rows:
-        table.add_row(name, "-" if value is None else str(value))
+        _add_row(table, name, "-" if value is None else str(value))
     verdicts = m.get("verdict_counts") or {}
     if verdicts:
         table.add_section()
         for k, v in sorted(verdicts.items()):
-            table.add_row(f"verdict {k}", str(v))
+            _add_row(table, f"verdict {k}", str(v))
     return table
 
 
@@ -239,7 +250,7 @@ def inspect_panels(run: dict) -> list[Panel]:
                 "escalation_reason", "failure_class", "run_aborted", "error_message"):
         value = run.get(key)
         if value is not None:
-            kv.add_row(labels.get(key, key), str(value))
+            _add_row(kv, labels.get(key, key), str(value))
     panels = [Panel(Group(head, kv), title="RUN", border_style="blue")]
 
     spans = run.get("spans") or []
@@ -256,7 +267,7 @@ def inspect_panels(run: dict) -> list[Panel]:
         label = s.get("name") or "?"
         if s.get("is_root"):
             label = f"{label} [root]"
-        st.add_row(label, (s.get("observation_type") or "SPAN"),
+        _add_row(st, label, (s.get("observation_type") or "SPAN"),
                    Text(status, style=style),
                    _fmt(s.get("latency"), "{:.1f}s"),
                    (s.get("error_message") or "")[:40])
@@ -271,7 +282,7 @@ def inspect_panels(run: dict) -> list[Panel]:
     gt.add_column("COST", justify="right")
     gt.add_column("LATENCY", justify="right")
     for g in gens:
-        gt.add_row(g.get("name") or "-", g.get("model") or "-",
+        _add_row(gt, g.get("name") or "-", g.get("model") or "-",
                    str(g.get("usage_input_tokens") or 0),
                    str(g.get("usage_output_tokens") or 0),
                    _money(g.get("cost_usd"), "{:.4f}"),
@@ -291,7 +302,7 @@ def inspect_panels(run: dict) -> list[Panel]:
         sct.add_column("SCORE", style="bold")
         sct.add_column("VALUE")
         for name, value in entries:
-            sct.add_row(name, str(value))
+            _add_row(sct, name, str(value))
         panels.append(Panel(sct, title="SCORES", border_style="blue"))
     return panels
 
@@ -308,7 +319,7 @@ def sessions_table(payload: dict) -> Table:
         if runs:
             r = runs[0]
             latest = f"{(r.get('filename') or r.get('trace_id') or '')[:28]} [{r.get('stage') or '-'}]"
-        table.add_row(
+        _add_row(table, 
             str(s.get("name") or s.get("id") or "matter")[:28],
             str(s.get("trace_count") or len(runs)),
             str(s.get("updated_at") or "-")[:19],
@@ -354,7 +365,7 @@ def corpus_table(rows: list[SlimRow], title: str = "MAILROOM-DATASET") -> Table:
     table.add_column("SHA256", style="grey50", no_wrap=True, max_width=12)
     table.add_column("CHARS", justify="right")
     for r in rows:
-        table.add_row(
+        _add_row(table, 
             r.filename[:40],
             r.split,
             (r.doc_class or "-").replace("_", " "),
@@ -371,12 +382,12 @@ def corpus_stats_table(split_counts: dict[str, int],
     split_table.add_column("SPLIT", style="bold")
     split_table.add_column("ROWS", justify="right")
     for split, count in split_counts.items():
-        split_table.add_row(split, str(count))
+        _add_row(split_table, split, str(count))
     class_table = Table(title="DOC CLASSES", box=None, pad_edge=False, expand=True)
     class_table.add_column("DOC CLASS", style="cyan")
     class_table.add_column("ROWS", justify="right")
     for cls, count in class_counts.items():
-        class_table.add_row(cls.replace("_", " "), str(count))
+        _add_row(class_table, cls.replace("_", " "), str(count))
     return Group(
         split_table,
         class_table,
@@ -417,7 +428,7 @@ def corpus_detail_panels(slim: SlimRow, row: Optional[dict],
             value = gt[key]
             if value is None or value == "":
                 continue
-            kv.add_row(key.replace("_", " "), str(value)[:70])
+            _add_row(kv, key.replace("_", " "), str(value)[:70])
         panels.append(Panel(kv, title="GROUND TRUTH", border_style="green"))
     return panels
 
@@ -435,7 +446,7 @@ def repos_table(repos: list[dict]) -> Table:
     table.add_column("DESCRIPTION", max_width=70)
     for r in repos:
         desc = r.get("live_description") or r.get("blurb") or ""
-        table.add_row(r["name"], r.get("role", "-"), r.get("dist", "-"),
+        _add_row(table, r["name"], r.get("role", "-"), r.get("dist", "-"),
                       desc[:70])
     return table
 
@@ -451,19 +462,19 @@ def repo_panel(repo: dict, meta: Optional[dict]) -> Panel:
     kv = Table(box=None, pad_edge=False)
     kv.add_column("FIELD", style="dim")
     kv.add_column("VALUE")
-    kv.add_row("role", repo.get("role", "-"))
-    kv.add_row("dist", repo.get("dist", "-"))
+    _add_row(kv, "role", repo.get("role", "-"))
+    _add_row(kv, "dist", repo.get("dist", "-"))
     if meta:
         for key, label in (("stars", "stars"), ("language", "language"),
                            ("updated_at", "updated"),
                            ("homepage", "homepage")):
             value = meta.get(key)
             if value:
-                kv.add_row(label, str(value))
+                _add_row(kv, label, str(value))
         if meta.get("archived"):
-            kv.add_row("archived", "yes", )
+            _add_row(kv, "archived", "yes", )
     else:
-        kv.add_row("live metadata", "unavailable (offline or rate-limited)")
+        _add_row(kv, "live metadata", "unavailable (offline or rate-limited)")
     return Panel(Group(body, kv), title="REPOSITORY", border_style="blue")
 
 

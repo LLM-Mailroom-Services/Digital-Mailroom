@@ -1,7 +1,8 @@
 # Releases
 
-**Current:** [v0.4.0](https://github.com/Exios66/The-Mailroom/releases/tag/v0.4.0)
-(2026-09-04) — terminal TUI + terminal GH Pages site.
+**Current:** [v0.5.0](https://github.com/Exios66/The-Mailroom/releases/tag/v0.5.0)
+(2026-09-28) — upstream resync to llm-mailroom 959bb0b + full audit (public binds
+fail closed on default operator credentials — see CHANGELOG).
 Demos: [`docs/demos.md`](demos.md).
 
 The-Mailroom follows **Semantic Versioning** (`MAJOR.MINOR.PATCH`) with the
@@ -20,7 +21,8 @@ version living in `pyproject.toml` and the release record in `CHANGELOG.md`.
 1. Run the full test suite: `python -m pytest tests/ -q`.
 2. Move `## [Unreleased]` entries in `CHANGELOG.md` under
    `## [X.Y.Z] - YYYY-MM-DD`.
-3. Bump the version in `pyproject.toml`.
+3. Bump the version in `pyproject.toml` (`scripts/release.py --bump` also
+   rewrites the `?v=` cache-busts, README badges and `ui/package.json`).
 4. Update `README.md` if commands/config/screens changed.
 5. Update `wiki/` + `docs/` if architecture/config/usage changed.
 6. Commit everything in one change, then tag:

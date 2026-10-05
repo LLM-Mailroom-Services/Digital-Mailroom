@@ -186,11 +186,15 @@ const Main = (() => {
     }));
   }
 
-  function applySnapshot(runs) {
-    // V-27: a non-empty snapshot proves the backend is serving even when the
-    // async health check hasn't resolved yet — dropping it left a blank floor
-    // until the next poll tick. Health checks keep correcting the flag after.
-    if (runs && runs.length) langfuseOk = true;
+  function applySnapshot(runs, stale = false) {
+    // V-27: a non-empty FRESH snapshot proves the backend is serving even when
+    // the async health check hasn't resolved yet. A stale one (source down,
+    // last-good floor) must not flip the lamp back on — that made the screen
+    // alternate OPEN/CLOSED every health tick.
+    if (runs && runs.length && !stale && !langfuseOk) {
+      langfuseOk = true;
+      applySource();
+    }
     if (!langfuseOk && !demoMode) return;
     lastSnapshot = runs;
     const ids = new Set(runs.map((r) => r.trace_id));
@@ -275,18 +279,35 @@ const Main = (() => {
     }
   }
 
+  let liveSeen = false;
+  let liveStarted = false;
+
+  // Start WS + polling fallback the first time health is ok — including
+  // when the FIRST probe failed (the page used to stay blank until reload).
+  function startLive() {
+    if (liveStarted || Mailroom.staticMode) return;
+    liveStarted = true;
+    setTimeout(() => {
+      if (!wsOk && !Mailroom.staticMode) startFallbackPolling();
+    }, 8000);
+    Mailroom.connectWS(onMessage);
+  }
+
   async function checkHealth() {
     if (Mailroom.staticMode) { applySource(); return true; }
     try {
       const h = await Mailroom.api.health();
+      liveSeen = true;
       // Source-agnostic "ok" (multi/phoenix sources) with langfuse fallback.
       langfuseOk = !!(h.ok ?? h.langfuse);
       if (langfuseOk && !Mailroom.meta) await loadMeta();
     } catch (err) {
       // GH Pages / no live API: fall back to bundled snapshots. A missing
       // /api/health is expected here — do NOT paint it as an error banner
-      // or red console line; that was the Pages boot flash.
-      const enabled = await Mailroom.enableStaticMode();
+      // or red console line; that was the Pages boot flash. Once a live API
+      // has answered, a transient failure is an outage (MAILROOM CLOSED),
+      // never a permanent switch to static mode.
+      const enabled = !liveSeen && await Mailroom.enableStaticMode();
       if (enabled) {
         langfuseOk = true;
         ConsoleView.log(`no live API (${err.message || err}) — serving bundled snapshot`, "c-dim");
@@ -313,7 +334,7 @@ const Main = (() => {
       }
       applySource();
     } else if (msg.type === "snapshot") {
-      applySnapshot(msg.runs || []);
+      applySnapshot(msg.runs || [], !!msg.stale);
       if (msg.pipeline) applyPipeline(msg.pipeline);
       if (msg.fetched_at) lastFetchedAt = msg.fetched_at;
       if (typeof msg.poll_interval_s === "number" && msg.poll_interval_s > 0) {
@@ -337,7 +358,7 @@ const Main = (() => {
       if (!langfuseOk || wsOk) return;
       try {
         const data = await Mailroom.api.traces(604800, 200);
-        applySnapshot(data.runs || []);
+        applySnapshot(data.runs || [], data.source === "langfuse-cache");
         try {
           applyPipeline(await Mailroom.api.pipeline());
         } catch (_e) { /* pipeline URL optional */ }
@@ -408,7 +429,7 @@ const Main = (() => {
     }
     setInterval(() => {
       if (activeTab === "review") {
-        ReviewView.refresh().catch((e) => Mailroom.showError(`review: ${e.message || e}`));
+        ReviewView.refresh({ background: true }).catch((e) => Mailroom.showError(`review: ${e.message || e}`));
       }
       if (activeTab === "sessions") {
         SessionsView.refresh().catch((e) => Mailroom.showError(`sessions: ${e.message || e}`));
@@ -423,7 +444,7 @@ const Main = (() => {
 
     document.getElementById("closed-retry").addEventListener("click", () => {
       ConsoleView.log("retrying connection…", "c-dim");
-      checkHealth();
+      checkHealth().then((ok) => { if (ok) startLive(); });
     });
 
     // Demo envelopes are opt-in via ?demo=1 and only when Langfuse is down.
@@ -438,17 +459,12 @@ const Main = (() => {
       }
     });
 
-    setInterval(checkHealth, 5000);
-    // WS starts only once the first health probe resolves: in snapshot mode
-    // there is no /ws endpoint to hold open (GH Pages), so don't spin a
-    // reconnect loop against static hosting.
-    checkHealth().then((ok) => {
-      if (!ok) return;
-      setTimeout(() => {
-        if (!wsOk && !Mailroom.staticMode) startFallbackPolling();
-      }, 8000);
-      if (!Mailroom.staticMode) Mailroom.connectWS(onMessage);
-    });
+    // WS starts only once a health probe succeeds: in snapshot mode there is
+    // no /ws endpoint to hold open (GH Pages), so don't spin a reconnect loop
+    // against static hosting.
+    const probe = () => checkHealth().then((ok) => { if (ok) startLive(); });
+    setInterval(probe, 5000);
+    probe();
 
     if (requestedView && tabEls.some((t) => t.dataset.view === requestedView)) {
       switchView(requestedView);

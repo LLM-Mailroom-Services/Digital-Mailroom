@@ -234,3 +234,7 @@ const ObservatoryDebug = (() => {
 
   return { record, dump, exportAll, pullServer, pushClient, explain, install };
 })();
+
+// A top-level `const` is not a window property: app.js / client.js guard on
+// window.ObservatoryDebug, so without this every dbg() call was a no-op.
+window.ObservatoryDebug = ObservatoryDebug;

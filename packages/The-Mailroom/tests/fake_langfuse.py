@@ -57,6 +57,7 @@ def make_trace(
     classify_generation_output: object | None = None,
     doc_subclass: str | None = None,
     contract_subtype: str | None = None,
+    ml_triage_output: dict | None = None,
 ) -> dict:
     base_time = base_time or datetime(2026, 1, 1, 12, 0, 0)
     span_names = list(span_names or [
@@ -72,6 +73,10 @@ def make_trace(
             span_names.insert(span_names.index("intake-document") + 1, "normalize-intake")
         else:
             span_names.insert(0, "normalize-intake")
+    if ml_triage_output is not None and "intake-ml-triage" not in span_names:
+        # llm-mailroom #85 M6a: ModernBERT triage SPAN inside intake_node.
+        at = span_names.index("intake-document") + 1 if "intake-document" in span_names else 0
+        span_names.insert(at, "intake-ml-triage")
     obs = []
     if include_root:
         obs.append(
@@ -92,6 +97,8 @@ def make_trace(
         span_out = {"stage": "ok", "error": "boom"} if error_spans else {"stage": "ok"}
         if name == "normalize-intake" and intake_output:
             span_out = dict(intake_output)
+        elif name == "intake-ml-triage" and ml_triage_output is not None:
+            span_out = dict(ml_triage_output)
         elif name == "classify-document" and (doc_subclass or contract_subtype):
             span_out = {
                 **span_out,
@@ -231,6 +238,7 @@ def make_trace_v4(
     doc_subclass: str | None = None,
     contract_subtype: str | None = None,
     output_extra: dict | None = None,
+    ml_triage_output: dict | None = None,
 ) -> dict:
     """A trace shaped like the Langfuse v4 SDK (camelCase observations).
 
@@ -244,6 +252,8 @@ def make_trace_v4(
     span_names = ["intake-document", "classify-document", "extract-fields", "archive-document"]
     if intake_output:
         span_names.insert(1, "normalize-intake")
+    if ml_triage_output is not None:
+        span_names.insert(1, "intake-ml-triage")
     obs = [
         Obj(
             id=f"v4-chain-{trace_id}",
@@ -260,6 +270,8 @@ def make_trace_v4(
         span_out = {"stage": "ok"}
         if name == "normalize-intake" and intake_output:
             span_out = dict(intake_output)
+        elif name == "intake-ml-triage" and ml_triage_output is not None:
+            span_out = dict(ml_triage_output)
         elif name == "classify-document" and (doc_subclass or contract_subtype):
             span_out = {
                 "stage": "ok",

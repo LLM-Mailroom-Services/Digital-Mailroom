@@ -12,6 +12,7 @@ from typing import Any, Optional
 from fastapi import WebSocket
 
 from mailroom_ui.classification import archive_name_from_run, classification_from_run
+from mailroom_ui.env import env_int
 from mailroom_ui.langfuse_source import LangfuseSource, list_recent_runs
 from mailroom_ui.models import PipelineRun, Stage
 from mailroom_ui.pipeline_ops import fetch_pipeline_ops
@@ -47,7 +48,6 @@ def floor_payload(run: PipelineRun) -> dict[str, Any]:
         "intake_changed": run.intake_changed,
         "intake_method": run.intake_method,
         "intake_chars": run.intake_chars,
-        "intake_bert": run.intake_bert,
         "classification_confidence": run.classification_confidence,
         "extraction_confidence": run.extraction_confidence,
         "review_decision": run.review_decision,
@@ -137,6 +137,17 @@ def apply_light_identity(full: PipelineRun, light: PipelineRun) -> PipelineRun:
     return full.model_copy(update=updates)
 
 
+_SEND_TIMEOUT_S = 5.0
+
+
+def source_names(src: object) -> str:
+    """Snapshot provenance: the configured backend(s), e.g. ``langfuse+phoenix``."""
+    subs = getattr(src, "sources", None)
+    if isinstance(subs, list):
+        return "+".join(type(s).__name__.replace("Source", "").lower() for s in subs)
+    return type(src).__name__.replace("Source", "").lower()
+
+
 def poll_enrich_mode() -> str:
     """``all`` = legacy N+1 get_run; ``inflight`` (default) = hot runs only."""
     raw = (os.environ.get("MAILROOM_POLL_ENRICH") or "inflight").strip().lower()
@@ -185,6 +196,13 @@ class PollHub:
         self.runs: list[PipelineRun] = []
         self.pipeline_ops: dict[str, Any] = {"configured": False, "watcher": "unconfigured"}
         self._details: dict[str, tuple[float, dict[str, Any], tuple[Any, ...]]] = {}
+        # trace id -> light fingerprint of the last SUCCESSFUL full fetch.
+        # `inflight` mode used to never enrich a run that was already parked
+        # or finished when first seen (e.g. after a restart): metrics, the
+        # review queue and reconsideration then read light runs with $0 cost,
+        # no verdict and no grounded scores — forever.
+        self._enriched_fp: dict[str, tuple[Any, ...]] = {}
+        self.enrich_budget = env_int("MAILROOM_POLL_ENRICH_BUDGET", 10, minimum=0)
         self._task: Optional[asyncio.Task] = None
         self._stop = asyncio.Event()
 
@@ -208,8 +226,28 @@ class PollHub:
 
     async def connect(self, ws: WebSocket) -> None:
         await ws.accept()
-        self.clients.add(ws)
+        # Initial snapshot BEFORE joining the broadcast set, so a concurrent
+        # broadcast can't interleave a second send on the same socket.
         await ws.send_json(self._snapshot_message(stale=False))
+        self.clients.add(ws)
+
+    async def _broadcast(self, payload: dict[str, Any]) -> None:
+        """Send to every client concurrently; one slow socket can't stall
+        the poll loop (sends were sequential with no timeout)."""
+
+        async def _send(ws: WebSocket) -> Optional[WebSocket]:
+            try:
+                await asyncio.wait_for(ws.send_json(payload), timeout=_SEND_TIMEOUT_S)
+                return None
+            except Exception:
+                return ws
+
+        clients = list(self.clients)
+        if not clients:
+            return
+        for dead in await asyncio.gather(*(_send(ws) for ws in clients)):
+            if dead is not None:
+                self.clients.discard(dead)
 
     def disconnect(self, ws: WebSocket) -> None:
         self.clients.discard(ws)
@@ -240,14 +278,7 @@ class PollHub:
                 if runs is not None:
                     self.snapshot = runs
                 payload = self._snapshot_message(stale=runs is None)
-                dead: list[WebSocket] = []
-                for ws in list(self.clients):
-                    try:
-                        await ws.send_json(payload)
-                    except Exception:
-                        dead.append(ws)
-                for ws in dead:
-                    self.clients.discard(ws)
+                await self._broadcast(payload)
             except Exception as exc:  # pragma: no cover - defensive
                 log.warning("poller iteration failed: %s", exc)
             try:
@@ -299,6 +330,8 @@ class PollHub:
         full_runs: list[PipelineRun] = []
         current_ids: set[str] = set()
         prev_by_id = {r.trace_id: r for r in self.runs if r.trace_id}
+        budget = self.enrich_budget
+        mode = poll_enrich_mode()
         for run in runs:
             if not run.trace_id:
                 continue
@@ -306,10 +339,19 @@ class PollHub:
             cached = self._details.get(run.trace_id)
             prev = prev_by_id.get(run.trace_id)
             chosen: PipelineRun = run
-            mode = poll_enrich_mode()
+            fp = run_fingerprint(run)
             want_enrich = mode == "all" or (
                 mode == "inflight" and is_conveyor_hot(prev or run)
             )
+            if not want_enrich and mode == "inflight" and budget > 0 \
+                    and self._enriched_fp.get(run.trace_id) != fp:
+                # Enrich-once: parked/finished runs get one full fetch when
+                # first seen or when their light identity changes (late
+                # scores, a reused id's new session) — bounded per cycle so a
+                # cold start never turns into a 200-trace N+1.
+                want_enrich = True
+                budget -= 1
+                cached = None  # force a fetch, not the 60 s detail cache
             if want_enrich and not self._needs_refresh(run, cached, now, prev):
                 chosen = apply_light_identity(prev, run) if prev is not None else run
                 payload = floor_payload(chosen)
@@ -351,8 +393,9 @@ class PollHub:
                     full = None
                 chosen = apply_light_identity(full, run) if full is not None else run
                 payload = floor_payload(chosen)
-                self._details[run.trace_id] = (now, payload, run_fingerprint(run))
+                self._details[run.trace_id] = (now, payload, fp)
                 if full is not None:
+                    self._enriched_fp[run.trace_id] = fp
                     try:
                         persist_run(run.trace_id, {
                             **payload,
@@ -377,6 +420,9 @@ class PollHub:
         for tid in list(self._details):
             if tid not in current_ids:
                 del self._details[tid]
+        for tid in list(self._enriched_fp):
+            if tid not in current_ids:
+                del self._enriched_fp[tid]
         self.runs = full_runs
-        persist_floor(out, source="langfuse")
+        persist_floor(out, source=source_names(self.source))
         return out

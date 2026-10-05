@@ -51,8 +51,9 @@ const ConsoleView = (() => {
     const btn = document.getElementById("debug-toggle");
     if (!btn) return;
     btn.addEventListener("click", () => {
-      const on = !(localStorage.getItem("mailroom.debug") === "1");
-      localStorage.setItem("mailroom.debug", on ? "1" : "0");
+      const current = window.__MAILROOM_DEBUG__ ? window.__MAILROOM_DEBUG__.verbose : false;
+      const on = !current;
+      try { localStorage.setItem("mailroom.debug", on ? "1" : "0"); } catch (e) { /* storage blocked */ }
       setDebug(on);
       log(`DEBUG MODE ${on ? "ON" : "OFF"}`, on ? "c-ok" : "c-warn");
     });

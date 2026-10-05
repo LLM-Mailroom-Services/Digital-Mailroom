@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from .models import PipelineRun
+from .sources import TraceSourceUnavailable
 
 log = logging.getLogger("mailroom.multi_source")
 
@@ -41,24 +42,37 @@ class MultiSource:
         return out[:limit]
 
     def _fanout(self, method: str, /, default: Any, **kw) -> list[Any]:
+        """Per-source isolation — but if EVERY source failed, raise.
+
+        Swallowing a total outage returned [] (an empty, healthy-looking
+        floor) instead of the MAILROOM CLOSED state.
+        """
         batches = []
+        errors: list[str] = []
         for src in self.sources:
             try:
                 batches.append(getattr(src, method)(**kw))
             except Exception as exc:
                 log.warning("%s failed on %s: %s", method, type(src).__name__, exc)
+                errors.append(f"{type(src).__name__}: {exc}")
                 batches.append([])
+        if errors and len(errors) == len(self.sources):
+            raise TraceSourceUnavailable(f"{method}: all sources failed ({'; '.join(errors)})"[:400])
         return batches
 
     def _first(self, method: str, trace_id: str):
+        failures = 0
         for src in self.sources:
             try:
                 result = getattr(src, method)(trace_id)
             except Exception as exc:
                 log.warning("%s(%s) failed on %s: %s", method, trace_id, type(src).__name__, exc)
+                failures += 1
                 continue
             if result is not None and (not isinstance(result, list) or result):
                 return result
+        if failures == len(self.sources):
+            raise TraceSourceUnavailable(f"{method}({trace_id}): all sources failed")
         return None if method != "get_observations" and method != "get_scores" else []
 
     # -------------------------------------------------------------- traces
@@ -97,6 +111,7 @@ class MultiSource:
         return merged
 
     def get_run(self, trace_id: str, *, force_refresh: bool = False) -> Optional[PipelineRun]:
+        failures = 0
         for src in self.sources:
             try:
                 if force_refresh and hasattr(src, "invalidate_run"):
@@ -107,12 +122,16 @@ class MultiSource:
                     run = src.get_run(trace_id)
                 except Exception as exc:
                     log.warning("get_run(%s) failed on %s: %s", trace_id, type(src).__name__, exc)
+                    failures += 1
                     continue
             except Exception as exc:
                 log.warning("get_run(%s) failed on %s: %s", trace_id, type(src).__name__, exc)
+                failures += 1
                 continue
             if run is not None:
                 return run
+        if failures == len(self.sources):
+            raise TraceSourceUnavailable(f"get_run({trace_id}): all sources failed")
         return None
 
     def invalidate_run(self, trace_id: str) -> None:
@@ -144,19 +163,23 @@ class MultiSource:
     # -------------------------------------------------------------- health
 
     def health(self) -> dict[str, Any]:
-        out: dict[str, Any] = {"source": "+".join(s.health().get("source", "?") for s in self.sources)}
+        out: dict[str, Any] = {}
+        names: list[str] = []
         ok_any = False
         for src in self.sources:
+            # One probe per source (it used to call health() twice, the
+            # first time outside any try).
             try:
                 h = src.health()
             except Exception as exc:
                 log.warning("health failed on %s: %s", type(src).__name__, exc)
                 h = {}
             key = h.get("source") or type(src).__name__.lower()
+            names.append(str(key))
             ok = bool(h.get("ok"))
             ok_any = ok_any or ok
             out[key] = ok
         # "langfuse"/"phoenix" keys carry their own truth; "ok" is the
         # source-agnostic lamp signal the SPA renders.
         out["ok"] = ok_any
-        return out
+        return {"source": "+".join(names), **out}

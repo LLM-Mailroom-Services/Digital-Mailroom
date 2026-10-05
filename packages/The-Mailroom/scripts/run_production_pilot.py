@@ -21,6 +21,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -86,6 +87,7 @@ def main() -> int:
             "--target-chars", str(args.target_chars)]
     print(f"pipeline {pipe}")
     print(" ".join(cmd))
+    started = time.time()
     proc = subprocess.run(cmd, cwd=str(pipe), env={**env, "PYTHONPATH": str(pipe / "src")})
     if args.check:
         # local scorer contract
@@ -98,19 +100,33 @@ def main() -> int:
     out_json = ROOT / "docs" / "reports" / "evaluations" / f"hf-pilot-{stamp}.json"
     out_md = ROOT / "docs" / "reports" / "evaluations" / f"hf-pilot-{stamp}.md"
     out_json.parent.mkdir(parents=True, exist_ok=True)
+    # Score only THIS run: the window covers the run plus margin (a fixed
+    # 7200 s mixed in older pilots), and the manifest must be one the run
+    # just wrote — picking the lexically-last report.json scored a previous
+    # session whenever this run wrote none.
+    since = int(time.time() - started) + 600
     eval_cmd = [sys.executable, str(ROOT / "scripts" / "eval_pipeline.py"),
-                "--environment", "pilot", "--since", "7200",
+                "--environment", "pilot", "--since", str(since),
                 "--out", str(out_json), "--md", str(out_md)]
-    reports = sorted((pipe / "data" / "hf_pilot").glob("*/report.json"))
-    if reports:
+    fresh = [p for p in (pipe / "data" / "hf_pilot").glob("*/report.json")
+             if p.stat().st_mtime >= started - 1]
+    fresh.sort(key=lambda p: p.stat().st_mtime)
+    if not fresh:
+        if proc.returncode != 0:
+            print("pilot exited non-zero and wrote no report.json — nothing to score", file=sys.stderr)
+            return proc.returncode
+        print("warning: pilot wrote no report.json; scoring by time window only", file=sys.stderr)
+    else:
+        report = fresh[-1]
         try:
-            session = json.loads(reports[-1].read_text(encoding="utf-8")).get("session_id")
-        except Exception:
+            session = json.loads(report.read_text(encoding="utf-8")).get("session_id")
+        except (OSError, ValueError) as exc:
+            print(f"warning: unreadable {report}: {exc}", file=sys.stderr)
             session = None
         if session:
             eval_cmd += ["--session", session]
             print(f"eval session {session}")
-        eval_cmd += ["--manifest", str(reports[-1])]
+        eval_cmd += ["--manifest", str(report)]
     ev = subprocess.run(eval_cmd, cwd=str(ROOT), env=env)
     return ev.returncode
 

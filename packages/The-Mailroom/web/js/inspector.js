@@ -125,14 +125,17 @@ const Inspector = (() => {
     if (run.environment) parts.push(`<span class="chip">ENV ${Mailroom.esc(run.environment)}</span>`);
     if (run.release) parts.push(`<span class="chip">REL ${Mailroom.esc(run.release)}</span>`);
     if (run.user_id) parts.push(`<span class="chip">USER ${Mailroom.esc(run.user_id)}</span>`);
-    if (run.attempt != null) parts.push(`<span class="chip">ATTEMPT ${run.attempt}</span>`);
+    if (run.attempt != null) parts.push(`<span class="chip">ATTEMPT ${Mailroom.esc(run.attempt)}</span>`);
     if (run.retried) parts.push(`<span class="chip">RETRIED</span>`);
 
     let verdict = "—";
     let vcls = "";
     if (run.verdict) {
       verdict = run.verdict;
-      vcls = `verdict-${run.verdict}`;
+      // Verdict is a raw Langfuse score value: whitelist the class token
+      // instead of interpolating it into an attribute.
+      const token = String(run.verdict).toUpperCase();
+      vcls = ["CORRECT", "PARTIAL", "MISS"].includes(token) ? `verdict-${token}` : "";
     }
     const verdictChip = run.verdict
       ? `<span class="chip ${vcls}">VERDICT ${Mailroom.esc(run.verdict)}</span>`

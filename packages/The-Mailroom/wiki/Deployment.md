@@ -21,6 +21,35 @@ mailroom-hosted                # Observatory on 0.0.0.0
 
 ---
 
+## Container topology (constellation, llm-mailroom @959bb0b)
+
+The-Mailroom only *reads* traces; every other container belongs to the
+producer or the local sandbox. Ports as shipped:
+
+| Service | Image / compose file | Port | Talks to |
+|---|---|---|---|
+| **The-Mailroom** console (`mailroom-web`) | `Dockerfile` (`python -m server.main`) | `:8001` | Langfuse (read), producer `/v1` (operator writes) |
+| **The-Mailroom** Observatory (`mailroom-hosted`) | `Dockerfile` default CMD | `:7860` (platform `PORT` wins) | same |
+| Operator desk stack | `operator_desk/docker-compose.yml` (`mailroom`, `mailroom-observer`, `nginx`, optional `mailroom-ui`) | `:8001`, `:80`, `:5174` | the visualizer; bins under `/data` |
+| llm-mailroom producer | llm-mailroom `deploy/docker-compose.producer.yml` | `:8000` | Langfuse (write), OpenRouter / vLLM / Ollama / llamafile |
+| Local LLM sidecars | llm-mailroom `deploy/docker-compose.{ollama,llamafile}.yml` | `:11434` / `:8080` | producer (`DEFAULT_PROVIDER=ollama\|llamafile`) |
+| Self-hosted Langfuse 3 (+ postgres, clickhouse, redis, minio) | local-mailroom-sandbox `deploy/docker-compose.yml` | `:3000` | producer + this visualizer |
+| Phoenix / vLLM / llama.cpp (sandbox profiles) | same | `:6006` / `:8000` / `:8080` | producer; `MAILROOM_SOURCE=phoenix\|both` here |
+
+Pairing notes:
+
+- Visualizer ↔ producer: `MAILROOM_PIPELINE_URL=http://127.0.0.1:8000`,
+  `MAILROOM_PIPELINE_TOKEN` = the producer's `MAILROOM_API_TOKEN`,
+  `MAILROOM_PIPELINE_API_PREFIX=/v1`. The sandbox's vLLM also defaults to
+  `:8000` — run only one of them on the host port, or remap.
+- Visualizer ↔ sandbox Langfuse: `LANGFUSE_HOST=http://localhost:3000` (from
+  a container: `http://host.docker.internal:3000`) with the sandbox project's
+  keys. US cloud stays the default.
+- Anything bound beyond loopback (compose, Railway, Spaces) must set
+  `MAILROOM_OPERATOR_JWT_SECRET` and a non-default
+  `MAILROOM_OPERATOR_ADMIN_PASSWORD`: operator login, review resolve and
+  inbox upload fail closed otherwise (read-only display keeps working).
+
 ## Railway
 
 Railway **retired Config as Code** (`railway.json` / `railway.toml`) — new

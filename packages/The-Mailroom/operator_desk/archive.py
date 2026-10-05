@@ -17,8 +17,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from .auth import UserProfile, get_current_user
-from .db import archive_dir, base_dir, connect, write_audit
+from .auth import UserProfile, get_current_user, require_role
+from .db import archive_dir, base_dir, connect, db_path, write_audit
 
 log = logging.getLogger("mailroom.operator.archive")
 
@@ -46,6 +46,16 @@ def _safe_archive_path(raw: str) -> Path:
     allowed = (archive_dir().resolve(), base_dir().resolve())
     if not any(root == resolved or root in resolved.parents for root in allowed):
         raise HTTPException(status_code=400, detail="archive path escapes base dir")
+    # base_dir also holds the operator SQLite store (password hashes): an
+    # index row pointing at it must never be downloadable.
+    try:
+        db_file = db_path().expanduser().resolve()
+    except OSError:
+        db_file = None
+    if (db_file is not None and resolved in {db_file, db_file.with_name(db_file.name + "-wal"),
+                                             db_file.with_name(db_file.name + "-journal")}) \
+            or resolved.suffix.lower() in {".db", ".sqlite", ".sqlite3", ".db-wal", ".db-journal"}:
+        raise HTTPException(status_code=400, detail="not an archive document")
     return resolved
 
 
@@ -83,7 +93,7 @@ async def list_archive(
 
 
 @router.get("/{doc_id}/download")
-async def download_archive(doc_id: str, user: UserProfile = Depends(get_current_user)):
+async def download_archive(doc_id: str, user: UserProfile = Depends(require_role("reviewer"))):
     row = _entry_row(doc_id)
     if not row or not row["archive_path"]:
         raise HTTPException(status_code=404, detail="Archive entry not found")
@@ -100,12 +110,13 @@ async def download_archive(doc_id: str, user: UserProfile = Depends(get_current_
         path,
         filename=path.name,
         media_type="application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{path.name}"'},
+        # FileResponse(filename=...) emits an RFC 5987 header itself; the old
+        # hand-built one broke on quotes / non-latin-1 names.
     )
 
 
 @router.get("/{doc_id}/preview")
-async def preview_archive(doc_id: str, user: UserProfile = Depends(get_current_user)):
+async def preview_archive(doc_id: str, user: UserProfile = Depends(require_role("reviewer"))):
     row = _entry_row(doc_id)
     if not row:
         raise HTTPException(status_code=404, detail="Archive entry not found")
@@ -138,7 +149,7 @@ async def preview_archive(doc_id: str, user: UserProfile = Depends(get_current_u
 
 
 @router.get("/{doc_id}/verify")
-async def verify_checksum(doc_id: str, user: UserProfile = Depends(get_current_user)):
+async def verify_checksum(doc_id: str, user: UserProfile = Depends(require_role("reviewer"))):
     row = _entry_row(doc_id)
     if not row:
         raise HTTPException(status_code=404, detail="Archive entry not found")
@@ -159,5 +170,5 @@ async def verify_checksum(doc_id: str, user: UserProfile = Depends(get_current_u
         "valid": valid,
         "computed": sha256,
         "expected": expected,
-        "path": str(path),
+        "path": path.name,  # never leak the absolute server path
     }

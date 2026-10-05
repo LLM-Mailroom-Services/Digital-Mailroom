@@ -1,7 +1,7 @@
 # The-Mailroom
 
-![version](https://img.shields.io/badge/version-0.3.0-blue)
-[![release](https://img.shields.io/badge/release-v0.4.0-blue)](https://github.com/Exios66/The-Mailroom/releases/tag/v0.4.0)
+![version](https://img.shields.io/badge/version-0.5.0-blue)
+[![release](https://img.shields.io/badge/release-v0.5.0-blue)](https://github.com/Exios66/The-Mailroom/releases/tag/v0.5.0)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![data source](https://img.shields.io/badge/data%20source-Langfuse%20only-6C5CE7)
 
@@ -17,7 +17,7 @@ Four surfaces share one display API (`/api/*` + `/ws`):
 | Pixel-art console | `mailroom-web` → `http://127.0.0.1:8001/` | the CRT conveyor floor |
 | Hosted Observatory | `mailroom-hosted` (also `/live` on the same server) | public operations desk |
 | TUI | `mailroom-tui` | typed-command REPL (`MAILROOM_API_URL`) |
-| Terminal site | `…/terminal/` on GH Pages (pending live publish — DMR-013; URL 404s until `publish_pages.sh` lands) | owlcot-style TTY: `ls`/`cat`/`cd`, `corpus ls | show`,`repos` |
+| Terminal site | `…/terminal/` on GH Pages | owlcot-style TTY: `ls`/`cat`/`cd`, `corpus ls | show`,`repos` |
 
 The terminal site and the TUI both add a **dataset viewer** (`corpus …`
 commands over `Lucius-Morningstar/mailroom-dataset` — slim windowed
@@ -52,9 +52,9 @@ board, one discussion log, and one trace contract:
 
 | Repository | Role | Relationship to The-Mailroom |
 | --- | --- | --- |
-| [llm-mailroom](https://github.com/Exios66/llm-mailroom) | LangGraph state machine processing legal documents through specialist LLM agents (classify → extract → report → archive); pin `@2a212e76a62b` / **v0.7.1** (package `mailroom` 0.7.1) | **Upstream** — its Langfuse project is this visualizer's sole data source; optional `pip install -e ".[pipeline]"` imports `pipeline.review_resolve` |
+| [llm-mailroom](https://github.com/Exios66/llm-mailroom) | LangGraph state machine processing legal documents through specialist LLM agents (classify → extract → report → archive); pin `@959bb0bce152` / **0.7.1+** (main after v0.7.1) (package `mailroom` 0.7.1) | **Upstream** — its Langfuse project is this visualizer's sole data source; optional `pip install -e ".[pipeline]"` imports `pipeline.review_resolve` |
 | [llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction) | Prompt-experiment loop (prompt versions × models, paired-bootstrap ablations) | Breeds the pipeline's sorter/specialist prompts; hosts the shared kanban board + governance log for the whole chain |
-| [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Deterministic, field-type-aware scoring engine (`@v0.11.0`) | Upstream governed dependency of both pipeline repos |
+| [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Deterministic, field-type-aware scoring engine (`@v0.16.0`) | Upstream governed dependency of both pipeline repos |
 | [Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment) | EDA + pipeline-ready correspondence dataset (CMU Enron corpus) | Corpus feed for the pipeline's `correspondence` doc class |
 | [claims-data-eda](https://github.com/Exios66/claims-data-eda) | Insurance-claims candidate-corpus EDA (CMS DE-SynPUF direction) | Candidate corpus feed for the `insurance_claim` doc class |
 | [atticus-investigation](https://github.com/Exios66/atticus-investigation) | LegalBench classification prompt-engineering pipeline | Eval sibling — same methodology family, LegalBench focus |
@@ -68,7 +68,7 @@ Full relationship map: [`llm-mailroom/docs/sister-repos.md`](https://github.com/
 
 ```bash
 pip install -e ".[dev]"
-pip install -e ".[pipeline]"  # optional: import llm-mailroom @ 2a212e76a62b (v0.7.1)
+pip install -e ".[pipeline]"  # optional: import llm-mailroom @ 959bb0bce152 (0.7.1+, main after v0.7.1)
 cp .env.example .env      # add LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY
 mailroom-web              # → http://127.0.0.1:8001  (pixel-art console)
                           #    Observatory is also at /live on the same server
@@ -76,19 +76,8 @@ mailroom-hosted           # → public Observatory on 0.0.0.0 (container-ready)
 mailroom-tui              # typed-command REPL (floor/corpus/repos/inspect)
 pip install -e ".[operator]"  # optional: operator desk (auth / archive / observer)
 pip install -e ".[ui]"        # marker only; React desk still needs Node
-mailroom-observer         # optional CLI bin watcher (compose uses MAILROOM_OBSERVER=1)
+mailroom-observer         # bin watcher (or MAILROOM_OBSERVER=1 on mailroom-web)
 # optional React desk: cd ui && npm install && npm run build  →  /desk
-```
-
-Production Docker path (single nginx `:80` front door; builds the `operator`
-image target — `.[operator]` + the React `/desk` build baked in). Both
-operator secrets are required:
-
-```bash
-cd operator_desk
-export MAILROOM_OPERATOR_JWT_SECRET="$(openssl rand -hex 32)"
-export MAILROOM_OPERATOR_ADMIN_PASSWORD='<strong-password>'
-docker compose up --build     # → http://localhost/ , /live , /desk
 ```
 
 <details>
@@ -288,7 +277,7 @@ envelopes are opt-in (`?demo=1`) and only when the trace source is down.
 - The sister pipeline repo `../llm-mailroom` (optional — `MAILROOM_TAXONOMY`
   live override, production-pilot scripts, or `mailroom_ui/producer.py`
   checkout import). Prefer `pip install -e ".[pipeline]"` to pin dist
-  `mailroom` @ `2a212e76a62b` (v0.7.1) when you want to import `pipeline.review_resolve`.
+  `mailroom` @ `959bb0bce152` (0.7.1+, main after v0.7.1) when you want to import `pipeline.review_resolve`.
 - `arize-phoenix-client` (optional — only for the Phoenix trace source)
 
 </details>
@@ -302,33 +291,11 @@ Pages snapshot and not the pixel-art console.
 
 ```bash
 mailroom-hosted                          # 0.0.0.0:8001  →  / and /live
-docker build -t mailroom-observatory .   # default `observatory` target = hosted
+docker build -t mailroom-observatory .
 docker run --rm -p 7860:7860 --env-file .env mailroom-observatory
 python scripts/publish_space.py --check  # Hugging Face Docker Space payload
 # Railway: see docs/deployment.md (.railway/railway.py IaC + PORT preference;
 # GET /health = liveness (+ platform, build_sha), GET /api/health = Langfuse)
-```
-
-**Operator edition (single front door):** the root `Dockerfile` also ships
-`--target operator` — the hosted runtime + `.[operator]` extras + the baked
-React desk at `/desk` — plus the lean `--target operator-core` (extras, no
-Node stage) for an optional standalone observer image. An `observatory`
-alias keeps `docker build .` (no `--target`) byte-identical to the hosted
-image above.
-Compose is the production path for the operator desk: nginx `:80` is the
-ONLY published port, `MAILROOM_OBSERVER=1` runs the in-process bin watcher
-inside `mailroom` (no `mailroom-observer` sidecar — issue #78), and
-`MAILROOM_OPERATOR_JWT_SECRET` /
-`MAILROOM_OPERATOR_ADMIN_PASSWORD` are fail-fast (`${VAR:?}`, no dev
-defaults). The same secrets are required outside compose (bare
-`docker run` / k8s / `mailroom-web`) unless you opt in with
-`MAILROOM_OPERATOR_ALLOW_DEV_DEFAULTS=1` or `MAILROOM_ENV=development`:
-
-```bash
-cd operator_desk
-export MAILROOM_OPERATOR_JWT_SECRET="$(openssl rand -hex 32)"
-export MAILROOM_OPERATOR_ADMIN_PASSWORD='<strong-password>'
-docker compose up --build                # → http://localhost/desk
 ```
 
 Hugging Face Space: SDK **Docker**, root directory **empty** (repo-root
@@ -451,12 +418,18 @@ producer `MAILROOM_API_TOKEN`.
 `MAILROOM_PIPELINE_API_PREFIX` defaults to `/v1`. `MAILROOM_API_URL` is the TUI → this
 visualizer (`:8001`), not the producer. The operator desk (`operator_desk/`)
 adds `MAILROOM_OPERATOR_*` (JWT, admin seed, ingest token) plus
-`MAILROOM_BASE_DIR`, `MAILROOM_OPERATOR_DB`, and `MAILROOM_OBSERVER`. In the
-Docker compose path `MAILROOM_OPERATOR_JWT_SECRET` and
-`MAILROOM_OPERATOR_ADMIN_PASSWORD` are required and compose fails fast without
-them. The GH Pages edition adds `MAILROOM_SOURCE`
+`MAILROOM_BASE_DIR`, `MAILROOM_OPERATOR_DB`, and `MAILROOM_OBSERVER`. The GH Pages edition adds `MAILROOM_SOURCE`
 (`langfuse|phoenix|both`), `PHOENIX_ENDPOINT` / `PHOENIX_API_KEY` /
 `MAILROOM_PHOENIX_PROJECT`, `MAILROOM_CORS_ORIGINS`, and `MAILROOM_DEBUG`.
+
+> [!WARNING]
+> **Public deploys fail closed (0.5.0).** On the hosted edition or any
+> non-loopback `MAILROOM_HOST`, review resolve and inbox upload need an
+> operator login (reviewer+), and login is refused until
+> `MAILROOM_OPERATOR_JWT_SECRET` is set and the admin password is rotated
+> away from `changeme`. Read-only display is unaffected. Cross-origin browser
+> writes need the origin listed in `MAILROOM_CORS_ORIGINS`; the TUI sends
+> `MAILROOM_OPERATOR_TOKEN`. See `docs/operator-desk.md`.
 
 > [!IMPORTANT]
 > `pipeline_schema.py` is cached at process level — editing `taxonomy.yaml`

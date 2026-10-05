@@ -20,27 +20,56 @@ const Mailroom = (() => {
   // ?api= (empty) CLEARS a stale persisted base — previously qs.get("api")
   // was falsy for "" so localStorage could never be unset, and a dead
   // localhost base blanked the GH Pages snapshot fallback.
+  //
+  // A crafted link could otherwise point this console — and its review
+  // POSTs — at someone else's server for good. Loopback/same-origin bases
+  // persist silently; any other host needs an explicit confirmation.
+  function trustedBase(base) {
+    if (!base) return true;
+    try {
+      const u = new URL(base, location.href);
+      if (u.origin === location.origin) return true;
+      return ["localhost", "127.0.0.1", "[::1]", "::1"].includes(u.hostname);
+    } catch (e) {
+      return false;
+    }
+  }
   let BASE = "";
   if (qs.has("api")) {
-    BASE = (qs.get("api") || "").trim().replace(/\/+$/, "");
-    try { localStorage.setItem("mailroom.api", BASE); } catch (e) { /* private mode */ }
+    const requested = (qs.get("api") || "").trim().replace(/\/+$/, "");
+    if (trustedBase(requested) ||
+        window.confirm(`Connect this console to the API server at ${requested}?\n` +
+                       "Review decisions you make will be sent there.")) {
+      BASE = requested;
+      try { localStorage.setItem("mailroom.api", BASE); } catch (e) { /* private mode */ }
+    }
   } else {
-    BASE = (localStorage.getItem("mailroom.api") || "").trim().replace(/\/+$/, "");
+    try {
+      BASE = (localStorage.getItem("mailroom.api") || "").trim().replace(/\/+$/, "");
+    } catch (e) { BASE = ""; }
   }
   const url = (path) => {
     if (!BASE) return path;
     const p = path.startsWith("/") ? path : `/${path}`;
     return `${BASE}${p}`;
   };
-  // Bundled snapshots always live next to the SPA (GH Pages docs/ or a local
-  // export). Never prefix them with the live API BASE.
-  const snapUrl = (path) => String(path).replace(/^\/+/, "");
+  // Bundled snapshots live in the site's data/ dir (GH Pages docs/ or a local
+  // export). Never prefix them with the live API BASE. On Pages the console
+  // is staged under /pixel/ while data/ sits at the site root, so resolve
+  // one level up there (a <meta name="mailroom-snapshot-root"> overrides).
+  const SNAP_ROOT = (() => {
+    const meta = document.querySelector('meta[name="mailroom-snapshot-root"]');
+    if (meta && meta.content) return meta.content.replace(/\/?$/, "/");
+    return /\/pixel\/(index\.html)?$/.test(location.pathname) ? "../" : "";
+  })();
+  const snapUrl = (path) => SNAP_ROOT + String(path).replace(/^\/+/, "");
   const safeId = (id) => String(id).replace(/[^A-Za-z0-9._-]/g, "_");
 
   // ---- debug capture -----------------------------------------------------
   const MAX_DEBUG_EVENTS = 500;
   const dbgEvents = [];
-  let debugVerbose = qs.has("debug") || localStorage.getItem("mailroom.debug") === "1";
+  let debugVerbose = qs.has("debug");
+  try { debugVerbose = debugVerbose || localStorage.getItem("mailroom.debug") === "1"; } catch (e) { /* storage blocked */ }
 
   // ---- review-tray probe limiter -----------------------------------------
   // Every REVIEW card fires context + source probes on render; a long queue
@@ -198,13 +227,71 @@ const Mailroom = (() => {
     return res.json();
   }
 
-  async function post(path, body) {
+  // ---- operator auth (public binds) ---------------------------------------
+  // On a hosted/public server, producer writes need an operator JWT. The
+  // token lives in sessionStorage (per tab, never localStorage) and is only
+  // requested after the server answers 401 to a write.
+  const TOKEN_KEY = "mailroom.operatorToken";
+  function operatorToken() {
+    try { return sessionStorage.getItem(TOKEN_KEY) || ""; } catch (e) { return ""; }
+  }
+  function setOperatorToken(tok) {
+    try {
+      if (tok) sessionStorage.setItem(TOKEN_KEY, tok);
+      else sessionStorage.removeItem(TOKEN_KEY);
+    } catch (e) { /* storage blocked: token lives for this call only */ }
+  }
+  function askCredentials(message) {
+    return new Promise((resolve) => {
+      const dlg = document.createElement("dialog");
+      dlg.className = "operator-login";
+      dlg.innerHTML =
+        '<form method="dialog"><p class="operator-login-msg"></p>' +
+        '<label>USER <input name="u" autocomplete="username" required></label>' +
+        '<label>PASS <input name="p" type="password" autocomplete="current-password" required></label>' +
+        '<menu><button value="cancel" formnovalidate>CANCEL</button>' +
+        '<button value="ok">LOG IN</button></menu></form>';
+      dlg.querySelector(".operator-login-msg").textContent = message;
+      document.body.appendChild(dlg);
+      dlg.addEventListener("close", () => {
+        const ok = dlg.returnValue === "ok";
+        const u = dlg.querySelector('[name="u"]').value.trim();
+        const p = dlg.querySelector('[name="p"]').value;
+        dlg.remove();
+        resolve(ok && u && p ? { username: u, password: p } : null);
+      });
+      dlg.showModal();
+    });
+  }
+  async function operatorLogin(message) {
+    const creds = await askCredentials(message || "Operator login required on this host.");
+    if (!creds) return false;
+    const res = await fetch(url("/v1/auth/login"), {
+      method: "POST",
+      headers: { "Accept": "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify(creds),
+    });
+    if (!res.ok) {
+      let detail = "";
+      try { const b = await res.json(); detail = b && b.detail ? ` — ${b.detail}` : ""; } catch (e) { /* ignore */ }
+      showError(`Operator login failed (HTTP ${res.status})${detail}`);
+      return false;
+    }
+    const body = await res.json();
+    setOperatorToken(body.access_token || "");
+    return !!body.access_token;
+  }
+
+  async function post(path, body, _retried = false) {
     const t0 = performance.now();
+    const headers = { "Accept": "application/json", "Content-Type": "application/json" };
+    const tok = operatorToken();
+    if (tok) headers.Authorization = `Bearer ${tok}`;
     let res;
     try {
       res = await fetch(url(path), {
         method: "POST",
-        headers: { "Accept": "application/json", "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(body || {}),
       });
     } catch (err) {
@@ -212,6 +299,10 @@ const Mailroom = (() => {
       throw err;
     }
     capture("fetch", { url: path, status: res.status, ms: Math.round(performance.now() - t0), method: "POST" });
+    if (res.status === 401 && !_retried) {
+      setOperatorToken("");
+      if (await operatorLogin()) return post(path, body, true);
+    }
     if (!res.ok) {
       let detail = "";
       try {
@@ -369,7 +460,6 @@ const Mailroom = (() => {
       contract: "Contract / Agreement",
       corporate_record: "Corporate Record",
       correspondence: "Correspondence",
-      compliance_filing: "Compliance Filing",
       insurance_claim: "Insurance Claim",
       merger_agreement: "Merger Agreement",
       unknown: "Unknown",
@@ -490,7 +580,8 @@ const Mailroom = (() => {
         if (open) open.hidden = true;
         return;
       }
-      if (!src.readable || !src.text) {
+      // `readable` is optional on producer payloads — real text counts.
+      if (src.readable === false || !src.text) {
         pane.textContent = src.error || "(empty document text)";
         if (open) open.hidden = true;
         return;
@@ -613,7 +704,7 @@ const Mailroom = (() => {
     if (BASE) {
       const u = new URL(BASE, location.href);
       const proto = u.protocol === "https:" ? "wss" : "ws";
-      return `${proto}//${u.host}/ws`;
+      return `${proto}://${u.host}/ws`;
     }
     const proto = location.protocol === "https:" ? "wss" : "ws";
     return `${proto}://${location.host}/ws`;

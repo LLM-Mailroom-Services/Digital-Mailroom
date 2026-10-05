@@ -395,7 +395,10 @@ def test_corpus_command_ls_with_mock(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def _sync_packages():
-    sync = json.loads((ROOT.parents[1] / "scripts" / "packages_sync.json").read_text())
+    path = ROOT.parents[1] / "scripts" / "packages_sync.json"
+    if not path.is_file():
+        pytest.skip("packages_sync.json lives in the Digital-Mailroom monorepo only")
+    sync = json.loads(path.read_text())
     return {k.lower() for k in sync["packages"].keys()}
 
 
@@ -462,6 +465,8 @@ def test_line_editor_history_and_enter():
     assert editor.handle("i", pending) is False
     assert editor.handle("\r", pending) is True
     assert editor.text() == ""
+    # The REPL dispatches `submitted` — reading text() after Enter got "".
+    assert editor.submitted == "hi"
     assert editor.history == ["hi"]
     # backspace
     editor.handle("x", pending)
@@ -472,3 +477,47 @@ def test_line_editor_history_and_enter():
     editor.handle("z", pending)
     editor.handle("\x03", pending)
     assert editor.text() == ""
+
+
+def test_line_editor_arrow_keys_recall_history_not_typed_text():
+    from tui.mailroom_console import LineEditor
+    from rich.console import Console as RC
+    editor = LineEditor(RC(force_terminal=True, width=120))
+    pending = deque()
+    for ch in "help\r":
+        editor.handle(ch, pending)
+    pending.extend("[A")          # tail collected by _collect_escape
+    editor.handle("\x1b", pending)
+    assert editor.text() == "help"
+    pending.extend("[C")          # right arrow: ignored, never typed
+    editor.handle("\x1b", pending)
+    assert editor.text() == "help"
+    editor.handle("\x0c", pending)  # Ctrl+L requests a screen clear
+    assert editor.clear_requested and editor.text() == "help"
+
+
+def test_rich_markup_in_trace_strings_is_literal():
+    from rich.console import Console as RC
+    from tui.views import floor_table
+
+    run = {"trace_id": "t1", "filename": "weird[/bold] [x].pdf", "stage": "review",
+           "doc_type": "contract", "routing_path": ["[/oops]"]}
+    console = RC(record=True, width=200)
+    console.print(floor_table([run]))  # raised MarkupError before
+    assert "[x].pdf" in console.export_text()
+
+
+def test_corpus_bad_page_flag_is_a_usage_message():
+    from tui import commands as cmds
+
+    ctx = cmds.CommandContext()
+    out = cmds.run_command(ctx, "corpus ls --page nope")
+    assert "expects a number" in str(out[0])
+
+
+def test_inline_flag_does_not_swallow_next_arg():
+    from tui.commands import _clean_args, _flag
+
+    consumed: set = set()
+    assert _flag(["--page=2", "extra"], "--page", consumed=consumed) == "2"
+    assert _clean_args(["--page=2", "extra"], consumed) == ["extra"]

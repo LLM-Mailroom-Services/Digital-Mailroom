@@ -12,8 +12,9 @@ verdicts). v4 SDK payloads use `observationType` (camelCase) as well as
 from __future__ import annotations
 
 import json
+import math
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from .models import Generation, NodeSpan, PipelineRun, Score, Stage
@@ -48,6 +49,12 @@ _OUTPUT_STAGE_MAP = {
 _LIVE_STAGE_NAMES = {s.value for s in Stage}
 
 DEFAULT_SCHEMA = PipelineSchema.load()
+
+# Sort sentinel for missing timestamps. Every parsed timestamp is tz-aware
+# UTC (parse_dt), so the fallback must be aware too — a naive datetime.min
+# raises "can't compare offset-naive and offset-aware datetimes" the moment
+# one observation lacks a start time.
+EPOCH = datetime.min.replace(tzinfo=timezone.utc)
 
 
 def parse_dt(value: Any) -> Optional[datetime]:
@@ -136,49 +143,39 @@ def _as_dict(value: Any) -> dict[str, Any]:
 
 
 def _usage_tokens(usage: Any) -> tuple[Optional[int], Optional[int], Optional[int]]:
+    """(total, input, output) from v2/v3 ``usage`` or v4 ``usageDetails``.
+
+    ``_pick`` (not ``or``) so a genuine 0 is kept instead of falling through.
+    """
     usage = _as_dict(usage)
     return (
-        usage.get("total") or usage.get("total_tokens"),
-        usage.get("input") or usage.get("prompt_tokens"),
-        usage.get("output") or usage.get("completion_tokens"),
+        _int(_pick(usage, "total", "total_tokens", "totalTokens")),
+        _int(_pick(usage, "input", "prompt_tokens", "input_tokens", "inputTokens")),
+        _int(_pick(usage, "output", "completion_tokens", "output_tokens", "outputTokens")),
     )
 
 
 def _cost_details(cost: Any) -> float:
     cost = _as_dict(cost)
-    total = (
-        cost.get("total")
-        or cost.get("total_cost")
-        or cost.get("totalPrice")
-        or cost.get("totalCost")
-    )
+    total = _float(_pick(cost, "total", "total_cost", "totalPrice", "totalCost"))
     if total is not None:
-        return float(total)
-    inp = (
-        cost.get("input")
-        or cost.get("input_cost")
-        or cost.get("inputPrice")
-        or 0
-    )
-    out = (
-        cost.get("output")
-        or cost.get("output_cost")
-        or cost.get("outputPrice")
-        or 0
-    )
-    try:
-        return float(inp) + float(out)
-    except (TypeError, ValueError):
-        return 0.0
+        return total
+    inp = _float(_pick(cost, "input", "input_cost", "inputPrice")) or 0.0
+    out = _float(_pick(cost, "output", "output_cost", "outputPrice")) or 0.0
+    return inp + out
 
 
 def _int(value: Any) -> Optional[int]:
-    if value is None:
+    if value is None or isinstance(value, bool):
         return None
     try:
         return int(value)
     except (TypeError, ValueError):
-        return None
+        try:
+            f = float(value)
+        except (TypeError, ValueError):
+            return None
+        return int(f) if math.isfinite(f) and f.is_integer() else None
 
 
 def _jsonish(value: Any) -> Any:
@@ -305,26 +302,13 @@ def _lift_ground_truth(
     return expected_hf, expected_subclass
 
 
-def _lift_intake(
-    spans: list[NodeSpan],
-    trace_output: Optional[dict] = None,
-) -> dict[str, Any]:
+def _lift_intake(spans: list[NodeSpan]) -> dict[str, Any]:
     empty = {
         "intake_messy": None,
         "intake_changed": None,
         "intake_method": None,
         "intake_chars": None,
-        # #111: the terminal manifest's ``intake`` block rides the trace
-        # output and carries the BERT intake handoff (+ ``gate_outcome``)
-        # the Observatory BERT lane panels read. Kept as-is (whitelisted
-        # upstream in llm-mailroom bert_intake.py / _attach_gate_outcome);
-        # None when the manifest predates the lane.
-        "intake_bert": None,
     }
-    intake_meta = _as_dict((trace_output or {}).get("intake"))
-    bert = intake_meta.get("bert")
-    if isinstance(bert, dict) and bert:
-        empty["intake_bert"] = _as_dict(bert)
     for span in spans:
         if span.name != "normalize-intake":
             continue
@@ -342,7 +326,6 @@ def _lift_intake(
             "intake_changed": bool(changed) if changed is not None else None,
             "intake_method": _clean(out.get("method")),
             "intake_chars": _int(chars),
-            "intake_bert": empty["intake_bert"],
         }
     return empty
 
@@ -440,6 +423,19 @@ _NODE_OBSERVATION_TYPES = frozenset({
 _GENERATION_OBSERVATION_TYPES = frozenset({"GENERATION"})
 
 
+def _looks_like_generation(obs: dict[str, Any]) -> bool:
+    """Untyped observation carrying a model or real token usage.
+
+    ``model_dump()`` emits ``usage: None`` on every SDK model, so key presence
+    alone would turn every untyped span into a GENERATION.
+    """
+    return (
+        _pick(obs, "model", "modelId") is not None
+        or bool(_as_dict(_pick(obs, "usage", "usage_details", "usageDetails")))
+        or _pick(obs, "totalTokens", "total_tokens") is not None
+    )
+
+
 def _declared_observation_type(obs: dict[str, Any]) -> str:
     raw = _both(obs, "type", "observationType")
     if raw is None:
@@ -452,12 +448,7 @@ def _resolve_observation_type(obs: dict[str, Any]) -> str:
     declared = _declared_observation_type(obs)
     if declared:
         return declared
-    if (
-        _pick(obs, "model", "modelId") is not None
-        or "usage" in obs
-        or obs.get("totalTokens") is not None
-        or obs.get("total_tokens") is not None
-    ):
+    if _looks_like_generation(obs):
         return "GENERATION"
     name = _observation_name(obs) or ""
     return observation_type_for(name).upper()
@@ -487,9 +478,18 @@ def _generation_from_obs(
     latency: Optional[float],
     obs_type: str,
 ) -> Generation:
-    usage_in, usage_out = _usage_tokens(obs.get("usage"))[1:]
-    total = _usage_tokens(obs.get("usage"))[0]
+    usage = _pick(obs, "usage", "usage_details", "usageDetails")
+    total, usage_in, usage_out = _usage_tokens(usage)
     meta = _as_dict(obs.get("metadata"))
+    cost = _cost_details(_both(obs, "cost_details", "costDetails"))
+    if not cost:
+        cost = _float(_pick(
+            obs, "totalCost", "total_cost", "totalPrice",
+            "calculatedTotalCost", "calculated_total_cost",
+        )) or 0.0
+    prompt_name = _clean(_both(obs, "prompt_name", "promptName"))
+    prompt_ver = _clean(_both(obs, "prompt_version", "promptVersion"))
+    top_prompt = f"{prompt_name}@{prompt_ver}" if prompt_name and prompt_ver else prompt_name
     return Generation(
         name=_observation_name(obs),
         agent=_clean(meta.get("agent")),
@@ -498,14 +498,16 @@ def _generation_from_obs(
         latency=latency,
         input=obs.get("input"),
         output=obs.get("output"),
-        usage_total_tokens=total or _int(obs.get("totalTokens")),
-        usage_input_tokens=usage_in or _int(obs.get("inputTokens")),
-        usage_output_tokens=usage_out or _int(obs.get("outputTokens")),
-        cost_usd=_cost_details(_both(obs, "cost_details", "costDetails"))
-        or _float(_pick(obs, "totalCost", "totalPrice", "total_cost")),
+        usage_total_tokens=total if total is not None
+        else _int(_pick(obs, "totalTokens", "total_tokens")),
+        usage_input_tokens=usage_in if usage_in is not None
+        else _int(_pick(obs, "inputTokens", "input_tokens", "promptTokens", "prompt_tokens")),
+        usage_output_tokens=usage_out if usage_out is not None
+        else _int(_pick(obs, "outputTokens", "output_tokens", "completionTokens", "completion_tokens")),
+        cost_usd=cost,
         prompt_version=_clean(
             _pick(meta, "langfuse_prompt", "prompt_id", "prompt_version")
-        ),
+        ) or top_prompt,
         start_time=start,
         end_time=end,
     )
@@ -528,40 +530,54 @@ def _node_span_from_obs(
         latency=latency,
         status="ERROR" if is_error else "SUCCESS",
         error_message=_span_error_message(obs),
-        input=_as_dict(obs.get("input")) or None,
-        output=_as_dict(obs.get("output")) or None,
+        input=_as_dict(_jsonish(obs.get("input"))) or None,
+        output=_as_dict(_jsonish(obs.get("output"))) or None,
         observation_type=obs_type or "SPAN",
         is_root=_is_root_observation(obs, name=name, obs_type=obs_type),
     )
 
 
 # Pilot/attempt re-runs reuse the deterministic trace id, so a trace can carry
-# several full runs of the same document. Observations are clustered by time
-# gaps (> RUN_GAP_S between consecutive observations starts a new cluster) and
-# only the latest cluster is displayed — one envelope per trace, latest run.
+# several full runs of the same document. Only the latest run is displayed —
+# one envelope per trace. The cut point is the start of the latest
+# `document-pipeline` root CHAIN when the trace carries one; otherwise a new
+# run starts when an observation begins more than RUN_GAP_S after EVERY
+# earlier observation has ended (measuring from the previous *start* split a
+# single run at any LLM call slower than RUN_GAP_S). Spans, generations and
+# scores share the one cut, so an older attempt's generations or judge score
+# never leak onto the latest run.
 RUN_GAP_S = 60.0
+# Clock skew between the root CHAIN and its children (separate SDK clocks).
+_CUT_TOLERANCE_S = 1.0
 
 
-def _latest_cluster(items: list[Any], *, get_start) -> list[Any]:
-    """Keep only the trailing cluster of a chronological sequence."""
+def _latest_run_cut(spans: list[NodeSpan], generations: list[Generation]) -> Optional[datetime]:
+    """Start of the latest run in a trace, or None when it holds one run."""
+    from datetime import timedelta
+
+    roots = sorted(s.start_time for s in spans if s.is_root and s.start_time is not None)
+    if len(roots) >= 2:
+        return roots[-1] - timedelta(seconds=_CUT_TOLERANCE_S)
+    items = [
+        (item.start_time, item.end_time or item.start_time)
+        for item in (*spans, *generations)
+        if item.start_time is not None
+    ]
     if len(items) < 2:
-        return items
-    ordered = sorted(items, key=lambda i: get_start(i) or datetime.min)
-    start_times = [get_start(i) for i in ordered]
-    gap_at: Optional[int] = None
-    prev: Optional[datetime] = None
-    for idx, t in enumerate(start_times):
-        if t is not None and prev is not None:
-            try:
-                if (t - prev).total_seconds() > RUN_GAP_S:
-                    gap_at = idx
-            except TypeError:
-                pass
-        if t is not None:
-            prev = t
-    if gap_at is None:
-        return items
-    return ordered[gap_at:]
+        return None
+    items.sort(key=lambda pair: pair[0])
+    cut: Optional[datetime] = None
+    horizon = items[0][1]
+    for start, end in items[1:]:
+        if (start - horizon).total_seconds() > RUN_GAP_S:
+            cut = start - timedelta(seconds=_CUT_TOLERANCE_S)
+        if end > horizon:
+            horizon = end
+    return cut
+
+
+def _after_cut(start: Optional[datetime], cut: Optional[datetime]) -> bool:
+    return cut is None or (start is not None and start >= cut)
 
 
 def _resolve_failure_class(
@@ -603,25 +619,22 @@ def interpret_trace(
     trace = _as_dict(trace)
     observations = observations or []
     scores = scores or []
+    # The trace LIST endpoint embeds observations/scores as bare id strings;
+    # only full objects are usable (ids became fake "observation" spans).
     embedded_obs = trace.get("observations")
     if not observations and isinstance(embedded_obs, list):
-        observations = [_as_dict(o) for o in embedded_obs]
+        observations = [d for d in (_as_dict(o) for o in embedded_obs) if d]
     embedded_scores = trace.get("scores")
     if not scores and isinstance(embedded_scores, list):
-        scores = [_as_dict(s) for s in embedded_scores]
-    t_input = _as_dict(trace.get("input"))
-    t_output = _as_dict(trace.get("output"))
-    metadata = _as_dict(trace.get("metadata"))
+        scores = [d for d in (_as_dict(s) for s in embedded_scores) if d]
+    t_input = _as_dict(_jsonish(trace.get("input")))
+    t_output = _as_dict(_jsonish(trace.get("output")))
+    metadata = _as_dict(_jsonish(trace.get("metadata")))
     tags = [str(t) for t in (trace.get("tags") or []) if t]
     environment = _clean(trace.get("environment"))
 
     created = parse_dt(_pick(trace, "timestamp", "created_at", "createdAt"))
-    latency = trace.get("latency")
-    if latency is not None:
-        try:
-            latency = float(latency)
-        except (TypeError, ValueError):
-            latency = None
+    latency = _float(trace.get("latency"))
 
     spans: list[NodeSpan] = []
     generations: list[Generation] = []
@@ -630,11 +643,7 @@ def interpret_trace(
         obs_type = _resolve_observation_type(obs)
         start = parse_dt(_both(obs, "start_time", "startTime"))
         end = parse_dt(_both(obs, "end_time", "endTime"))
-        obs_latency = obs.get("latency")
-        try:
-            obs_latency = float(obs_latency) if obs_latency is not None else None
-        except (TypeError, ValueError):
-            obs_latency = None
+        obs_latency = _float(obs.get("latency"))
         is_error = str(obs.get("level") or "").upper() in ("ERROR", "WARNING") or bool(
             obs.get("error") or _as_dict(obs.get("output")).get("error")
         )
@@ -652,11 +661,7 @@ def interpret_trace(
             # `OBSERVATION` type or no type at all: the pipeline's auto-traced
             # generations arrive as OBSERVATION + model; classify by
             # model/usage presence. v4 SPANs (zeroed `usage`) never get here.
-            if (
-                _pick(obs, "model", "modelId") is not None
-                or "usage" in obs
-                or obs.get("totalTokens") is not None
-            ):
+            if _looks_like_generation(obs):
                 generations.append(_generation_from_obs(obs, **gen_kwargs))
             else:
                 spans.append(
@@ -666,12 +671,14 @@ def interpret_trace(
                     )
                 )
 
-    spans.sort(key=lambda s: s.start_time or datetime.min)
-    generations.sort(key=lambda g: g.start_time or datetime.min)
+    spans.sort(key=lambda s: s.start_time or EPOCH)
+    generations.sort(key=lambda g: g.start_time or EPOCH)
     # A trace may carry several runs (deterministic trace ids are reused by
-    # pilot/attempt re-runs). Keep only the latest run's observations.
-    spans = _latest_cluster(spans, get_start=lambda s: s.start_time)
-    generations = _latest_cluster(generations, get_start=lambda g: g.start_time)
+    # pilot/attempt re-runs). Keep only the latest run's observations/scores.
+    cut = _latest_run_cut(spans, generations)
+    if cut is not None:
+        spans = [sp for sp in spans if _after_cut(sp.start_time, cut)]
+        generations = [g for g in generations if _after_cut(g.start_time, cut)]
 
     score_map: dict[str, Any] = {}
     score_stamps: dict[str, datetime | None] = {}
@@ -682,7 +689,11 @@ def interpret_trace(
         if not name:
             continue
         stamp = parse_dt(_pick(s, "timestamp", "created_at", "createdAt"))
+        if cut is not None and stamp is not None and stamp < cut:
+            continue  # written by an earlier run on the same trace id
         value = s.get("value")
+        if value is None:
+            value = _pick(s, "string_value", "stringValue")
         data_type = _clean(_both(s, "data_type", "dataType"))
         score_objects.append(
             Score(
@@ -698,13 +709,15 @@ def interpret_trace(
         cfg = (score_configs or {}).get(name)
         if cfg and data_type == "CATEGORICAL" and isinstance(value, (int, float)):
             for cat in cfg.get("categories") or []:
-                if float(cat.get("value")) == float(value):
-                    value = cat.get("label")
+                cat_value = _float(_as_dict(cat).get("value"))
+                if cat_value is not None and cat_value == float(value):
+                    value = _as_dict(cat).get("label")
                     break
         if name in score_map:
             previous = score_stamps.get(name)
             # Langfuse returns scores newest-first. Timestamps make this
-            # explicit; timestamp-less duplicate fixtures retain first-wins.
+            # explicit; a stamped score beats a stamp-less one, and
+            # timestamp-less duplicates retain first-wins.
             if stamp is None or (previous is not None and stamp <= previous):
                 continue
         score_map[name] = value
@@ -726,7 +739,7 @@ def interpret_trace(
                 or _clean(t_input.get("doc_type")))
     doc_subclass, contract_subtype = _lift_subclass(t_output, spans, generations)
     expected_hf_class, expected_subclass = _lift_ground_truth(t_input, t_output, metadata)
-    intake = _lift_intake(spans, t_output)
+    intake = _lift_intake(spans)
     attempt = _pick(t_input, "attempt", "run_attempt")
     if attempt is None:
         attempt = metadata.get("attempt")
@@ -757,10 +770,7 @@ def interpret_trace(
     for name in JUDGE_QUALITY_SCORES:
         v = score_map.get(name)
         if v is not None:
-            try:
-                quality = float(v)
-            except (TypeError, ValueError):
-                quality = None
+            quality = _float(v)
             break
 
     scored_tokens = _int(score_map.get("total_tokens"))
@@ -773,6 +783,10 @@ def interpret_trace(
     )
     scored_cost = _float(score_map.get("estimated_cost_usd"))
     generated_cost = sum(g.cost_usd or 0 for g in generations)
+    if scored_cost is None and not generations:
+        # Light runs (trace list only) still carry Langfuse's aggregated
+        # trace-level cost — use it instead of showing $0.
+        scored_cost = _float(_both(trace, "total_cost", "totalCost"))
     cost = (
         scored_cost
         if scored_cost is not None
@@ -798,7 +812,7 @@ def interpret_trace(
         user_id=user_id,
         release=release,
         tags=tags,
-        attempt=int(attempt) if attempt is not None else None,
+        attempt=_int(attempt),
         created_at=created,
         updated_at=parse_dt(_both(trace, "updated_at", "updatedAt")) or created,
         latency=latency,
@@ -813,12 +827,16 @@ def interpret_trace(
         intake_changed=intake["intake_changed"],
         intake_method=intake["intake_method"],
         intake_chars=intake["intake_chars"],
-        intake_bert=intake["intake_bert"],
-        classification_confidence=_float(score_map.get("classification_confidence"))
-        or _float(t_output.get("classification_confidence"))
-        or _float(sorter_out.get("confidence")),
-        extraction_confidence=_float(score_map.get("extraction_confidence"))
-        or _float(t_output.get("extraction_confidence")),
+        # _first_float, not `or`: a real 0.0 confidence must not fall through.
+        classification_confidence=_first_float(
+            score_map.get("classification_confidence"),
+            t_output.get("classification_confidence"),
+            sorter_out.get("confidence"),
+        ),
+        extraction_confidence=_first_float(
+            score_map.get("extraction_confidence"),
+            t_output.get("extraction_confidence"),
+        ),
         review_decision=_clean(t_output.get("review_decision")),
         escalation_reason=_clean(t_output.get("escalation_reason")),
         review_causes=[],
@@ -844,6 +862,7 @@ def interpret_trace(
         expected_subclass=run.expected_subclass,
         scores=score_map,
         verdict=run.verdict,
+        schema=schema,
     )
     if not run.escalation_reason and run.review_causes:
         run.escalation_reason = format_causes(run.review_causes)
@@ -851,9 +870,19 @@ def interpret_trace(
 
 
 def _float(value: Any) -> Optional[float]:
-    if value is None:
+    """Finite float or None. NaN/inf would 500 every JSON response."""
+    if value is None or isinstance(value, bool):
         return None
     try:
-        return float(value)
+        f = float(value)
     except (TypeError, ValueError):
         return None
+    return f if math.isfinite(f) else None
+
+
+def _first_float(*values: Any) -> Optional[float]:
+    for value in values:
+        f = _float(value)
+        if f is not None:
+            return f
+    return None

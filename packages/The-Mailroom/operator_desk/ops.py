@@ -7,13 +7,22 @@ required and is never invented when missing.
 
 from __future__ import annotations
 
+import json
+
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from .auth import UserProfile, get_current_user, get_current_user_or_ingest
+from mailroom_ui.models import Stage
+
+from .auth import UserProfile, get_current_user, require_role
+
+# Finished runs (terminal or in the last catalog/archive step).
+_DONE_STAGES = frozenset({
+    Stage.ARCHIVED.value, Stage.ARCHIVE.value, Stage.CATALOG.value, Stage.FAILED.value,
+})
 from .websocket import manager, publish_event, publish_matter_event
 
 router = APIRouter(prefix="/v1/ops", tags=["operator-ops"])
@@ -94,12 +103,13 @@ def compute_ops_status(runs: Optional[list] = None) -> OpsStatus:
     for run in rows:
         data = _as_dict(run)
         stage = _stage_token(data.get("stage"))
-        if data.get("needs_human") or stage in ("review", "processing", "inbox", "intake", "classify"):
+        # Everything not finished is queued work — derived from the Stage
+        # enum, so extract / judge_verify / arbiter / report no longer drop
+        # out of the depth ("processing" isn't even a Stage).
+        if data.get("needs_human") or stage not in _DONE_STAGES:
             queue_depth += 1
         stamp = _run_ts(run)
-        if stamp is not None and stamp >= hour_ago and stage in (
-            "archived", "archive", "catalog", "failed",
-        ):
+        if stamp is not None and stamp >= hour_ago and stage in _DONE_STAGES:
             done_hour += 1
         verdict = data.get("verdict")
         if verdict in verdicts:
@@ -156,7 +166,7 @@ async def get_throughput(user: UserProfile = Depends(get_current_user)):
             if stamp is None or stamp <= start or stamp > end:
                 continue
             stage = _stage_token(getattr(run, "stage", None) if not isinstance(run, dict) else run.get("stage"))
-            if stage in ("archived", "archive", "catalog", "failed"):
+            if stage in _DONE_STAGES:
                 count += 1
         history.append({"time": end.strftime("%H:%M"), "count": count})
     return {"history": history, "source": "langfuse"}
@@ -174,16 +184,29 @@ async def get_distribution(user: UserProfile = Depends(get_current_user)):
     }
 
 
+# Event types mailroom-observer emits. Anything else is rejected rather than
+# rebroadcast verbatim to every /ws/pipeline client.
+INGEST_EVENT_TYPES = frozenset({"stage_change", "new_document", "archived", "event"})
+_MAX_EVENT_BYTES = 16 * 1024
+
+
 @router.post("/events")
 async def ingest_event(
     payload: dict[str, Any],
-    user: UserProfile = Depends(get_current_user_or_ingest),
+    user: UserProfile = Depends(require_role("reviewer")),
 ):
     """In-process observer uses ``publish_event`` directly; the standalone
-    ``mailroom-observer`` daemon POSTs here so the API process owns the WS bus."""
+    ``mailroom-observer`` daemon POSTs here so the API process owns the WS bus.
+
+    Requires the ingest token or a reviewer+ JWT (viewers could inject fake
+    operator events into every desk)."""
     if not isinstance(payload, dict):
         return {"ok": False, "error": "expected JSON object"}
     event_type = str(payload.get("type") or "event")
+    if event_type not in INGEST_EVENT_TYPES:
+        raise HTTPException(status_code=422, detail=f"unknown event type {event_type!r}")
+    if len(json.dumps(payload, default=str)) > _MAX_EVENT_BYTES:
+        raise HTTPException(status_code=413, detail="event too large")
     await publish_event(event_type, payload)
     document = payload.get("document") if isinstance(payload.get("document"), dict) else {}
     matter_id = document.get("matter_id") or payload.get("matter_id")

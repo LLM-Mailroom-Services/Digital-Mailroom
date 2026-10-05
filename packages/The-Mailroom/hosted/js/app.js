@@ -303,8 +303,14 @@ const App = (() => {
   }
 
   function bindCards(root) {
+    // Review forms carry data-trace too; binding them made every click into
+    // a notes field or select open the inspector modal over the tray.
     for (const btn of root.querySelectorAll("[data-trace]")) {
-      btn.addEventListener("click", () => openInspect(btn.dataset.trace));
+      if (btn.matches("form, form *")) continue;
+      btn.addEventListener("click", (ev) => {
+        if (ev.target && ev.target.closest && ev.target.closest("form")) return;
+        openInspect(btn.dataset.trace);
+      });
     }
   }
 
@@ -322,24 +328,9 @@ const App = (() => {
     return next;
   }
 
-  // #111: BERT lane panels — reductions over the same live run list the
-  // trays render. The module is DOM-free and optional: if bert_panels.js
-  // failed to load the section says so instead of guessing numbers.
-  function renderBertPanels(list) {
-    const el = need("bert-panels-body");
-    if (!el) return;
-    const P = window.BERTPanels;
-    if (!P || typeof P.render !== "function") {
-      el.innerHTML = `<p class="empty">BERT lane panels unavailable — bert_panels.js did not load.</p>`;
-      return;
-    }
-    el.innerHTML = P.render(Array.isArray(list) ? list : []);
-  }
-
   function applyRuns(next) {
     runs = overlayReplay(Array.isArray(next) ? next : []);
     renderBoard();
-    renderBertPanels(runs);
   }
 
   function table(caption, headers, rows) {
@@ -356,7 +347,6 @@ const App = (() => {
       contract: "Contract / Agreement",
       corporate_record: "Corporate Record",
       correspondence: "Correspondence",
-      compliance_filing: "Compliance Filing",
       insurance_claim: "Insurance Claim",
       merger_agreement: "Merger Agreement",
       unknown: "Unknown",
@@ -464,7 +454,8 @@ const App = (() => {
         if (open) open.hidden = true;
         return;
       }
-      if (!src.readable || !src.text) {
+      // `readable` is optional on producer payloads — real text counts.
+      if (src.readable === false || !src.text) {
         pane.textContent = src.error || "(empty document text)";
         if (open) open.hidden = true;
         return;
@@ -565,7 +556,7 @@ const App = (() => {
         <td>${Obs.esc((r.doc_type || "—").replaceAll("_", " "))}${r.doc_subclass || r.contract_subtype ? ` / ${Obs.esc(r.doc_subclass || r.contract_subtype)}` : ""}</td>
         <td>${Obs.esc(r.failure_class ? String(r.failure_class).replaceAll("_", " ") : (r.escalation_reason || r.review_decision || "—"))}${
           Array.isArray(r.review_causes) && r.review_causes.length
-            ? ` (${r.review_causes.join(", ")})`
+            ? ` (${Obs.esc(r.review_causes.join(", "))})`
             : ""
         }</td>
         <td>${r.verdict ? `<span class="badge ${verdictClass(r.verdict)}">${Obs.esc(r.verdict)}</span>` : "—"}</td>
@@ -1056,11 +1047,12 @@ const App = (() => {
         }
         return true;
       }
-      socketLive = false;
+      // Health is about the trace SOURCE; the WebSocket's own open/close
+      // events own `socketLive` (flipping it here started duplicate polling
+      // next to a still-streaming socket until reload).
       setSource("down", "Trace source reported offline");
       return false;
     } catch (err) {
-      socketLive = false;
       dbg("error", { where: "health", message: err.message });
       setSource("down", `No live connection — ${err.message}`);
       if (!runs.length) {
@@ -1183,7 +1175,8 @@ const App = (() => {
       a.href = URL.createObjectURL(blob);
       a.download = "mailroom-snapshot.json";
       a.click();
-      URL.revokeObjectURL(a.href);
+      // Revoking synchronously can cancel the download (Firefox).
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
       announce("Snapshot exported");
     } catch (err) {
       showAlert(`Snapshot export failed — ${err.message}`);
@@ -1306,8 +1299,12 @@ const App = (() => {
       : (location.hash.replace("#", "") || "pipeline");
     switchView(initial);
 
-    checkHealth().then((ok) => {
-      if (!ok) return;
+    // Go live the first time health is ok — including when the FIRST probe
+    // failed (the page used to stay empty until a manual reload).
+    let liveStarted = false;
+    const probe = () => checkHealth().then((ok) => {
+      if (!ok || liveStarted) return;
+      liveStarted = true;
       applyPollInterval(meta && meta.poll_interval_s);
       refreshTraces();
       Obs.connectWS(onMessage);
@@ -1315,7 +1312,8 @@ const App = (() => {
         if (!socketLive) startFallbackPolling();
       }, 8000);
     });
-    setInterval(checkHealth, 10000);
+    probe();
+    setInterval(probe, 10000);
   }
 
   document.addEventListener("DOMContentLoaded", boot);

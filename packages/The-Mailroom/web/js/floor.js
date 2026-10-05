@@ -32,6 +32,7 @@ const Floor = (() => {
   // trace_id -> last updated_at seen; a genuinely NEW run on the same
   // deterministic trace id (pilot re-run) clears the tombstone.
   const gone = new Map();
+  const MAX_TOMBSTONES = 2000;
   let hoveredId = null;
   let sourceState = "gold";
 
@@ -168,6 +169,13 @@ const Floor = (() => {
   }
 
   function update(runs) {
+    // A live snapshot must not yank a replay in progress (it reset the
+    // replayed envelope's target and resurrected every envelope the replay
+    // had cleared). Hold the latest snapshot and apply it afterwards.
+    if (replayState && Date.now() < replayState.until) {
+      pendingRuns = runs;
+      return;
+    }
     const seen = new Set();
     for (const run of runs) {
       if (!run || !run.trace_id) continue;
@@ -200,6 +208,7 @@ const Floor = (() => {
       e.ty = t.y;
       e.remove = !!t.remove;
       e.tint = tintFor(run);
+      if (e.dying) e.alpha = 1; // revived mid-fade: fully visible/clickable again
       e.dying = false;
       kickLoop(); // V-17: ensure the animation loop runs when envelopes exist
     }
@@ -209,6 +218,9 @@ const Floor = (() => {
   }
 
   function reset() {
+    clearReplayTimers();
+    replayState = null;
+    pendingRuns = null;
     envs.clear();
     gone.clear();
   }
@@ -337,7 +349,10 @@ const Floor = (() => {
           // V-9: record the tombstone when an archived/failed envelope is
           // fully gone so the next snapshot can't respawn it.
           if (e.remove && e.run && e.run.trace_id) {
+            gone.delete(e.run.trace_id); // re-insert = newest (Map order)
             gone.set(e.run.trace_id, e.run.updated_at);
+            // Bound the tombstones: a long-lived tab saw every run ever.
+            while (gone.size > MAX_TOMBSTONES) gone.delete(gone.keys().next().value);
           }
           envs.delete(e.id);
           if (hoveredId === e.id) hoveredId = null;
@@ -390,6 +405,7 @@ const Floor = (() => {
 
   let replayTimers = [];
   let replayState = null;
+  let pendingRuns = null;
 
   function clearReplayTimers() {
     for (const t of replayTimers) clearTimeout(t);
@@ -417,6 +433,24 @@ const Floor = (() => {
     // 600/700 ms.
     const spanToStage = {
       "intake-document": "ingest",
+      "normalize-intake": "ingest",
+      "intake-ml-triage": "ingest",
+      "transcribe-pdf": "ingest",
+      "extract-image-text": "ingest",
+      // LangGraph node ids (traces recorded from the graph, not traced_node)
+      intake: "ingest",
+      classify: "classify",
+      retry_classify: "classify",
+      review_classify: "classify",
+      extract: "extract",
+      retry_extract: "extract",
+      judge_verify: "judge_verify",
+      arbiter: "arbiter",
+      boss_escalation: "boss",
+      human_review: "review",
+      compile_report: "report",
+      catalog_write: "catalog",
+      archive: "archive",
       "classify-document": "classify",
       "judge-verify": "judge_verify",
       "arbitrate-verdict": "arbiter",
@@ -546,6 +580,16 @@ const Floor = (() => {
       ConsoleView.banner(`REPLAY COMPLETE — ${runData.filename || replayId}`);
     }, cumulativeDelay + 800);
     replayTimers.push(endTimer);
+    // Hold live updates until the envelope has slid off, then catch up.
+    replayState.until = Date.now() + cumulativeDelay + 3000;
+    replayTimers.push(setTimeout(() => {
+      replayState = null;
+      if (pendingRuns) {
+        const runs = pendingRuns;
+        pendingRuns = null;
+        update(runs);
+      }
+    }, cumulativeDelay + 3100));
   }
 
   return { update, reset, setSource, onSelect, onHover, replay };

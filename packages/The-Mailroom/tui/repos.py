@@ -16,6 +16,8 @@ import urllib.request
 import webbrowser
 from typing import Any, Optional
 
+from mailroom_ui.env import env_float
+
 GITHUB_ORG = "Exios66"
 # Name -> (role, dist, bundled blurb, homepage).
 CONSTELLATION: dict[str, dict[str, str]] = {
@@ -145,7 +147,7 @@ CONSTELLATION: dict[str, dict[str, str]] = {
 }
 
 GH_API = "https://api.github.com/repos"
-CACHE_TTL = float(os.environ.get("MAILROOM_REPOS_TTL", "3600"))
+CACHE_TTL = env_float("MAILROOM_REPOS_TTL", 3600.0, minimum=0.0)
 
 
 def repo_url(name: str) -> str:
@@ -167,10 +169,18 @@ def _fetch_gh(name: str) -> Optional[dict[str, Any]]:
     req = urllib.request.Request(
         url, headers={"Accept": "application/vnd.github+json", "User-Agent": "mailroom-tui"}
     )
+    global _NET_DOWN_UNTIL
+    if time.monotonic() < _NET_DOWN_UNTIL:
+        return None  # GitHub unreachable a moment ago: don't queue 16 timeouts
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:
             return json.loads(resp.read().decode())
-    except (urllib.error.HTTPError, urllib.error.URLError, OSError):
+    except urllib.error.HTTPError as exc:
+        if exc.code in (403, 429):  # unauthenticated rate limit: back off
+            _NET_DOWN_UNTIL = time.monotonic() + FAIL_TTL
+        return None
+    except (urllib.error.URLError, OSError, ValueError):
+        _NET_DOWN_UNTIL = time.monotonic() + 30.0
         return None
 
 
@@ -178,6 +188,11 @@ def _fetch_gh(name: str) -> Optional[dict[str, Any]]:
 # (60 req/h); every call is cached for CACHE_TTL so a browsing session never
 # burns the budget.
 _CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+# {name: failed_at}. Failures were never cached, so offline (or 403
+# rate-limited) every `repos ls` made 16 sequential 10 s calls again.
+_FAILED: dict[str, float] = {}
+FAIL_TTL = 300.0
+_NET_DOWN_UNTIL = 0.0
 
 
 def live_meta(name: str, force: bool = False) -> Optional[dict[str, Any]]:
@@ -186,11 +201,16 @@ def live_meta(name: str, force: bool = False) -> Optional[dict[str, Any]]:
     hit = _CACHE.get(name)
     if hit and not force and now - hit[0] < CACHE_TTL:
         return hit[1]
+    failed_at = _FAILED.get(name)
+    if failed_at is not None and not force and now - failed_at < FAIL_TTL:
+        return hit[1] if hit else None
     payload = _fetch_gh(name)
     if payload is None:
+        _FAILED[name] = now
         if hit:
             return hit[1]
         return None
+    _FAILED.pop(name, None)
     slim = {
         "description": payload.get("description") or "",
         "stars": payload.get("stargazers_count"),

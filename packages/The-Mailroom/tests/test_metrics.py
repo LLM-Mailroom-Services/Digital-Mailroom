@@ -76,7 +76,8 @@ def test_verdict_mix_counts():
 def test_metrics_empty():
     m = compute_metrics([])
     assert m.total_docs == 0
-    assert m.p95_generation_latency_s == 0.0
+    assert m.p95_generation_latency_s is None
+    assert m.avg_latency_s is None
     assert m.avg_quality is None
     assert m.verdict_counts == {}
 
@@ -216,3 +217,24 @@ class TestGroundedScoreMining:
 
         m = compute_metrics([self._run({"extraction_field_score": "oops"})])
         assert m.avg_extraction_field_score is None
+
+
+def test_p95_is_nearest_rank():
+    from mailroom_ui.metrics import _p95
+
+    assert _p95([float(i) for i in range(1, 31)]) == 29.0  # ceil(0.95*30)=29th
+    assert _p95([]) is None
+
+
+def test_non_finite_scores_do_not_poison_metrics():
+    base = datetime(2026, 1, 1, 12, 0, 0)
+    t = make_trace("t-nan", stage="archived", base_time=base)
+    run = interpret_trace(t, t["observations"], t["scores"])
+    run.scores["extraction_field_score"] = float("nan")
+    run.quality = float("inf")
+    m = compute_metrics([run])
+    assert m.avg_extraction_field_score is None
+    assert m.avg_quality is None
+    import json
+
+    json.dumps(m.model_dump(), allow_nan=False)  # would raise on NaN

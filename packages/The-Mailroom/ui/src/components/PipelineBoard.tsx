@@ -16,7 +16,7 @@ const BINS = [
 ]
 
 export default function PipelineBoard() {
-  const { queue, mergePolledQueue } = usePipelineStore()
+  const { queue, setQueue } = usePipelineStore()
   const { data, isLoading } = useQuery({
     queryKey: ['queue'],
     queryFn: documentsApi.getQueue,
@@ -24,8 +24,8 @@ export default function PipelineBoard() {
   })
 
   useEffect(() => {
-    if (data) mergePolledQueue(data)
-  }, [data, mergePolledQueue])
+    if (data) setQueue(data)
+  }, [data, setQueue])
 
   return (
     <div className="space-y-6">

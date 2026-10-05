@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import statistics
 from datetime import datetime
 from typing import Iterable, Optional
@@ -14,11 +15,26 @@ from .pipeline_schema import (
 )
 
 
-def _p95(values: list[float]) -> float:
+def _finite(value) -> Optional[float]:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) else None
+
+
+def _p95(values: list[float]) -> Optional[float]:
+    """Nearest-rank p95 (ceil(0.95·n)-th value). None when there is no data.
+
+    ``round()`` rounds half to even, which picked the wrong rank (n=30 → 27th
+    value instead of the 29th); 0.0 for "no data" read as a real latency.
+    """
     if not values:
-        return 0.0
+        return None
     values = sorted(values)
-    idx = min(len(values) - 1, int(round(0.95 * len(values))) - 1)
+    idx = min(len(values) - 1, max(0, math.ceil(0.95 * len(values)) - 1))
     return round(values[idx], 3)
 
 
@@ -56,10 +72,7 @@ def compute_metrics(runs: Iterable[PipelineRun], since: Optional[datetime] = Non
             canon = canonical_score_name(name)
             if canon != name:
                 value = run.scores.get(canon)
-        try:
-            return float(value) if value is not None else None
-        except (TypeError, ValueError):
-            return None
+        return _finite(value)
 
     # V-6/V-7: normalize the window to tz-aware UTC (CONVERT, never relabel —
     # the old replace(tzinfo=...) shifted metric windows by the full UTC
@@ -93,18 +106,21 @@ def compute_metrics(runs: Iterable[PipelineRun], since: Optional[datetime] = Non
             m.failed += 1
         else:
             m.in_flight += 1
-        m.total_cost_usd += run.cost_usd
-        m.total_tokens += run.total_tokens
-        m.llm_calls += run.llm_call_count
-        if run.latency is not None:
-            all_latencies.append(run.latency)
+        m.total_cost_usd += _finite(run.cost_usd) or 0.0
+        m.total_tokens += run.total_tokens or 0
+        m.llm_calls += run.llm_call_count or 0
+        latency = _finite(run.latency)
+        if latency is not None:
+            all_latencies.append(latency)
         for g in run.generations:
-            if g.latency is not None:
-                gen_latencies.append(g.latency)
+            g_latency = _finite(g.latency)
+            if g_latency is not None:
+                gen_latencies.append(g_latency)
         if run.verdict:
             m.verdict_counts[run.verdict] = m.verdict_counts.get(run.verdict, 0) + 1
-        if run.quality is not None:
-            qualities.append(run.quality)
+        quality = _finite(run.quality)
+        if quality is not None:
+            qualities.append(quality)
         if run.doc_type:
             m.per_doc_type[run.doc_type] = m.per_doc_type.get(run.doc_type, 0) + 1
         if run.doc_subclass:

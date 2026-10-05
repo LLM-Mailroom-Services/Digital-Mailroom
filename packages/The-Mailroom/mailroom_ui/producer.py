@@ -7,8 +7,11 @@ checkout is available:
 
     pip install -e ".[pipeline]"
 
-Pin: ``git+https://github.com/Exios66/llm-mailroom.git@2a212e76a62b`` (package
-version 0.7.1 — tag ``v0.7.1``, corpus re-pin to the GT-closure revision).
+Pin: ``git+https://github.com/Exios66/llm-mailroom.git@959bb0bce152`` (main
+after tag ``v0.7.1``; package version still 0.7.1 — dedicated
+merger_agreement_specialist, ModernBERT intake-ml-triage span,
+llm-dojo-scoring v0.16.0, mailroom-dataset tag v9.1). The review_resolve /
+schemas.manifest contract is unchanged since v0.7.1.
 Bump
 ``MAILROOM_GIT_SHA`` and the extra together.
 
@@ -31,8 +34,8 @@ import sys
 from pathlib import Path
 from typing import Any, Optional
 
-# v0.7.1 tag 2a212e76a62b — "corpus re-pin to GT-closure revision 46a4d3c2"
-MAILROOM_GIT_SHA = "2a212e76a62b"
+# main 959bb0bce152 (post-v0.7.1) — "Pin mailroom-dataset to Hub tag v9.1 (#66)"
+MAILROOM_GIT_SHA = "959bb0bce152"
 MAILROOM_GIT_URL = "https://github.com/Exios66/llm-mailroom.git"
 MAILROOM_DIST_NAME = "mailroom"
 MAILROOM_DIST_VERSION = "0.7.1"

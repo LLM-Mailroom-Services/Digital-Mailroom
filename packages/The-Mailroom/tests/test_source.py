@@ -365,19 +365,32 @@ class TestRateLimitBackoff:
     """V-5: HTTP 429 gets exponential backoff instead of compounding."""
 
     def test_429_backs_off_exponentially_and_raises(self):
+        """A 429 opens a cool-down window (0.5 * 2^n, capped at 10 s) instead
+        of sleeping inside the poll thread; calls in the window fail fast."""
         src = _source([make_trace("t1")], cache_ttl=-1, poll_cache_ttl=-1)
-        sleeps = []
+        calls = []
 
         def boom():
+            calls.append(1)
             err = RuntimeError("rate limit")
             err.status = 429
             raise err
 
-        with patch("time.sleep", side_effect=lambda s: sleeps.append(s)):
-            with pytest.raises(LangfuseUnavailable):
-                src._guarded("x", boom)
-            with pytest.raises(LangfuseUnavailable):
-                src._guarded("x", boom)
-            with pytest.raises(LangfuseUnavailable):
-                src._guarded("x", boom)
-        assert sleeps == [0.5, 1.0, 2.0]  # 0.5 * 2^n, capped at 10 s
+        clock = [1000.0]
+        windows = []
+        with patch("mailroom_ui.langfuse_source.time.monotonic", side_effect=lambda: clock[0]), \
+                patch("time.sleep", side_effect=AssertionError("must not sleep")):
+            for _ in range(3):
+                with pytest.raises(LangfuseUnavailable):
+                    src._guarded("x", boom)
+                windows.append(src._backoff_until - clock[0])
+                # Inside the window: no API call at all.
+                with pytest.raises(LangfuseUnavailable, match="cooling down"):
+                    src._guarded("x", boom)
+                clock[0] += 60
+        assert windows == [0.5, 1.0, 2.0]
+        assert len(calls) == 3
+        # Success resets the ladder.
+        with patch("mailroom_ui.langfuse_source.time.monotonic", side_effect=lambda: clock[0]):
+            assert src._guarded("x", lambda: "ok") == "ok"
+        assert src._rate_hits == 0

@@ -37,23 +37,23 @@ from langfuse.api.ingestion.types import (
     TraceBody,
 )
 
-# Models mirror llm-mailroom config/taxonomy.yaml `agents:` mapping:
-# qwen/qwen3.7-flash everywhere except the offline judge (deepseek-v4-flash).
+# Models mirror llm-mailroom config/taxonomy.yaml `agents:` mapping @959bb0b:
+# qwen/qwen3.7-flash for every pipeline agent — the judge included.
+# (gmail_triage runs openrouter/free; it is not part of the document graph.)
 GEN_MODELS = {
     "classify": ("qwen/qwen3.7-flash", 1100, 220),
     "review_classify": ("qwen/qwen3.7-flash", 1300, 260),
     "extract": ("qwen/qwen3.7-flash", 2400, 620),
     "adjudicate": ("qwen/qwen3.7-flash", 1500, 480),
     "route": ("qwen/qwen3.7-flash", 900, 300),
-    "report": ("qwen/qwen3.7-flash", 2100, 760),
-    "catalog": ("qwen/qwen3.7-flash", 350, 500),
-    # KANBAN-063 quality gate: judge is deepseek-v4-flash, arbiter is qwen.
-    "judge": ("deepseek/deepseek-v4-flash", 1800, 240),
+    # KANBAN-063 quality gate: judge and arbiter both run qwen3.7-flash.
+    "judge": ("qwen/qwen3.7-flash", 1800, 240),
     "arbiter": ("qwen/qwen3.7-flash", 2600, 380),
 }
 
 SPAN_MS = {
     "intake-document": 3200,
+    "intake-ml-triage": 40,
     "classify-document": 7200,
     "judge-verify": 6400,
     "arbitrate-verdict": 7700,
@@ -65,10 +65,13 @@ SPAN_MS = {
     "archive-document": 1500,
 }
 
-# Prices mirror taxonomy.yaml cost_models (USD per 1M tokens).
+# Prices mirror taxonomy.yaml cost_models @959bb0b (USD per 1M tokens).
 MODEL_RATES = {
+    "openrouter/free": (0.0, 0.0),
+    "z-ai/glm-5.2:free": (0.0, 0.0),
     "qwen/qwen3.7-flash": (0.03, 0.13),
     "deepseek/deepseek-v4-flash": (0.05, 0.25),
+    "deepseek/deepseek-v4-pro": (0.435, 0.87),
 }
 
 
@@ -210,6 +213,11 @@ def build_run(spec, start):
     )
     cursor = t1
     cursor = add_node(run, cursor, "intake-document")
+    # llm-mailroom #85 M6a: always-emitted ModernBERT triage span (fail-open;
+    # the demo shows the flag-off handoff).
+    cursor = add_node(run, cursor, "intake-ml-triage",
+                      output={"available": False, "reason": "flag_off", "route": None,
+                              "triage_class": None, "confidence": None})
     cursor = add_node(run, cursor, "classify-document", gen="classify", agent="sorter")
     if spec.get("retry_classify"):
         cursor = add_node(run, cursor, "classify-document", gen="classify", agent="sorter")
@@ -237,8 +245,10 @@ def build_run(spec, start):
     if spec.get("boss"):
         cursor = add_node(run, cursor, "adjudicate-conflict", gen="adjudicate", agent="boss",
                           output={"decision": "override", "conflict": True})
-    cursor = add_node(run, cursor, "compile-report", gen="report", agent="reporter")
-    cursor = add_node(run, cursor, "write-catalog", gen="catalog", agent="archivist")
+    # compile_report is procedural (no LLM) and write-catalog is a SPAN in
+    # llm-mailroom — no generations for either (there is no archivist agent).
+    cursor = add_node(run, cursor, "compile-report")
+    cursor = add_node(run, cursor, "write-catalog")
     add_node(run, cursor, "archive-document")
     for name, value in spec.get("extra_scores", {}).items():
         run.scores.append(_score(run.tid, name, value))
@@ -280,7 +290,7 @@ SPECS = [
     {"slug": "merger-review", "run": 4,
      "filename": "maud_merger_agreement_all_stock_42.pdf", "doc_type": "merger_agreement",
      "subclass": "all_stock", "matter": "demo-matter-northwind",
-     "specialist": "contracts_specialist",
+     "specialist": "merger_agreement_specialist",
      "verdict": "PARTIAL", "quality": 0.44, "conf_cls": 0.93, "conf_ext": 0.61,
      "review": True, "escalation": "low extraction confidence (0.61) on indemnification clause",
      "grounded": {"field": 0.48, "overall": 0.52, "list_p": 0.55, "list_r": 0.44, "halluc": 0.12},
@@ -536,8 +546,10 @@ def cleanup_stale_traces(client, keep_tids: set[str], settle_s=5):
             for t in batch:
                 tid = getattr(t, "id", None)
                 tags = getattr(t, "tags", None) or []
+                # Only traces THIS script seeded (source-seed_demo tag): a
+                # pipeline-created demo-* trace must never be deleted.
                 if tid and tid.startswith("demo-") and "mailroom" in tags \
-                        and tid not in keep_tids:
+                        and "source-seed_demo" in tags and tid not in keep_tids:
                     stale.append(tid)
             if len(batch) < 100 or page >= 20:
                 break
@@ -935,6 +947,9 @@ def run_check_logs(logs_dir: str, specs) -> None:
     return fails
 
 
+PROTECTED_ENVS = frozenset({"prod", "production", "live"})
+
+
 def main():
     parser = argparse.ArgumentParser(description="Seed demo traces into Langfuse (env demo).")
     parser.add_argument("--list-scenarios", action="store_true", help="list available demo scenarios")
@@ -955,6 +970,8 @@ def main():
                              "(dir from llm-mailroom scripts/sync_langfuse_logs.py)")
     parser.add_argument("--keep", action="store_true",
                         help="do not delete previously seeded demo traces first")
+    parser.add_argument("--force", action="store_true",
+                        help="allow seeding into a production-like environment tag")
     args = parser.parse_args()
 
     load_dotenv()
@@ -965,6 +982,10 @@ def main():
             stage = spec["trace_output"].get("stage", "(in flight)")
             print(f"{spec['slug']:24} {spec['filename']:48} {stage:12} {flags}")
         return
+
+    if args.env.strip().lower() in PROTECTED_ENVS and not args.force:
+        sys.exit(f"refusing to seed demo traces into env '{args.env}' "
+                 "(production-like); pass --force if you really mean it")
 
     specs = [dict(s) for s in SPECS]
     if args.scenario:
@@ -979,7 +1000,8 @@ def main():
     client = make_langfuse_client()
     judge_config_id = ensure_score_configs(client)
     keep = {f"demo-{spec['slug']}" for spec in specs}
-    if not args.keep:
+    # A single --scenario must not wipe every other seeded scenario.
+    if not args.keep and not args.scenario:
         cleanup_stale_traces(client, keep)
     start_base = datetime.now(timezone.utc) - timedelta(minutes=1)
     print(f"seeding {len(specs)} demo run(s) into Langfuse (env={args.env}) ...")

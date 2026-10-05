@@ -287,3 +287,43 @@ def test_pipeline_ops_unconfigured_without_url(monkeypatch):
     monkeypatch.delenv("MAILROOM_PIPELINE_API", raising=False)
     ops = fetch_pipeline_ops()
     assert ops["configured"] is False
+
+
+def test_inflight_mode_enriches_parked_runs_once_within_budget(monkeypatch):
+    """Runs already parked/finished at startup used to stay LIGHT forever
+    ($0 cost, no verdict) in the default inflight mode."""
+    monkeypatch.setenv("MAILROOM_POLL_ENRICH", "inflight")
+    monkeypatch.setenv("MAILROOM_POLL_ENRICH_BUDGET", "2")
+    now = datetime.now(timezone.utc) - timedelta(minutes=5)
+    traces = [make_trace(f"t-old-{i}", stage="archived", base_time=now - timedelta(minutes=i))
+              for i in range(3)]
+    src = LangfuseSource(client=FakeClient(traces), cache_ttl=60, poll_cache_ttl=60)
+    calls: list[str] = []
+    real = src.get_run
+
+    def counting(trace_id, **kw):
+        calls.append(trace_id)
+        return real(trace_id, **kw)
+
+    src.get_run = counting
+    hub = PollHub(src, interval=3, window=3600, limit=10)
+    hub._fetch()
+    assert len(calls) == 2          # budget
+    hub._fetch()
+    assert len(calls) == 3          # the remaining run
+    hub._fetch()
+    assert len(calls) == 3          # enrich-once: nothing changed
+    assert set(hub._enriched_fp) == {t["id"] for t in traces}
+
+
+def test_trace_detail_prefers_live_langfuse_over_disk_cache():
+    """The disk snapshot used to win whenever it had spans, hiding late scores."""
+    from mailroom_ui.trace_cache import persist_run
+
+    now = datetime.now(timezone.utc) - timedelta(minutes=5)
+    tr = make_trace("t-late", stage="archived", base_time=now, verdict="CORRECT")
+    persist_run("t-late", {"trace_id": "t-late", "verdict": "MISS", "spans": [], "generations": []})
+    src = LangfuseSource(client=FakeClient([tr]))
+    with TestClient(create_app(src)) as c:
+        body = c.get("/api/traces/t-late").json()
+    assert body["verdict"] == "CORRECT"

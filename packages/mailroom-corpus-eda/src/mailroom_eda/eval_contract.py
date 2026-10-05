@@ -11,8 +11,8 @@ Fields (§45/§58/§59/§31/§43):
 
 - ``expected_specialist`` (§59) — from the canonical class × specialist
   mapping read out of llm-mailroom's ``taxonomy.yaml`` (the same registry the
-  parity gate validates); ``merger_agreement`` is a distinct class with its
-  own ``merger_agreement_specialist`` (DMR-078, Digital-Mailroom#100).
+  parity gate validates); ``merger_agreement`` stays a distinct class that
+  routes to ``contracts_specialist`` (§6/§81).
 - ``expected_stage`` (§57–58) — pipeline terminal expectation. The live
   pipeline's terminal stages are ``archived`` / ``review`` / ``failed``
   (``pipeline.bins.TERMINAL_MANIFEST_STAGES``); every canonical GT row is a
@@ -48,14 +48,13 @@ SPECIALISTS = (
     "corporate_records_specialist",
     "correspondence_specialist",
     "insurance_claims_specialist",
-    "merger_agreement_specialist",
 )
 
 #: Canonical class → specialist (§59). Read from taxonomy.yaml when available;
 #: this constant is the verified fallback and the docclass-arm truth.
 SPECIALIST_BY_CLASS: dict[str, str] = {
     "contract": "contracts_specialist",
-    "merger_agreement": "merger_agreement_specialist",  # dedicated since DMR-078
+    "merger_agreement": "contracts_specialist",  # distinct class, shared specialist (§6)
     "corporate_record": "corporate_records_specialist",
     "correspondence": "correspondence_specialist",
     "insurance_claim": "insurance_claims_specialist",

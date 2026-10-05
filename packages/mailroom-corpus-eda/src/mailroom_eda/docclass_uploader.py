@@ -1,11 +1,4 @@
-"""LEGACY (frozen v8 baseline) — DocClass publishing for the v7-schema
-``Lucius-Morningstar/mailroom-corpus`` repo only. Do NOT use for v9 rows:
-publishing the live corpus goes through ``scripts/build/build_v9.py`` →
-``mailroom_eda.v9_build.build_all`` → ``hf_interface`` (v9 ships the
-``ground_truth_hardened.jsonl`` sidecar and the ``default``/``ground_truth``
-parquet configs, not the legacy v6 ``docclass_merged.jsonl`` pipeline).
-``publish_docclass()`` below still targets ``V8_REPO_ID`` — running it would
-push v7-schema rows onto the frozen v8 repo."""
+"""DocClass-specific HF publishing with surgical card rendering."""
 from __future__ import annotations
 
 import json
@@ -39,6 +32,12 @@ GT_SCALAR_KEYS = [
     "cuad_clause_labels", "maud_clause_labels",
     "intent", "subject_matter", "keywords",
     "intent_source", "intent_confidence", "intent_status",
+    # v9.1 quality revision (mailroom-issues#196 Phase B), live on the Hub as
+    # of tip ed7576b6: weak-indirect signals moved out of blind metadata
+    # (B1) + row-level presence codes and token/context bands (B2/B4) — see
+    # mailroom_eda.gt_presence / mailroom_eda.v9_1_revision.
+    "clause_count", "maud_label_count", "gt_presence",
+    "token_estimate", "context_window_band",
 ]
 
 PURPOSE_GT_KEYS = ("intent", "subject_matter", "keywords")
@@ -343,9 +342,7 @@ def publish_docclass(
     publish: bool = False,
     intent_stats: dict | None = None,
 ) -> dict:
-    """LEGACY — v7-schema docclass publish for the frozen v8
-    ``mailroom-corpus`` baseline (issue #5 intent hydration). v9 rows must
-    publish via ``scripts/build/build_v9.py`` → ``v9_build.build_all``."""
+    """Full docclass v7 publish pipeline (issue #5 intent hydration)."""
     if stage_dir.exists():
         shutil.rmtree(stage_dir)
     stage_dir.mkdir(parents=True)

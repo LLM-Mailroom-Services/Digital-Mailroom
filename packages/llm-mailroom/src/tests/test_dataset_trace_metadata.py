@@ -9,13 +9,13 @@ def test_dataset_trace_metadata_full_identity():
     meta = dataset_trace_metadata(
         {
             "name": "Lucius-Morningstar/mailroom-dataset",
-            "revision": "ed7576b676343e0b402ec5412cded301e629bdee",
+            "revision": "v9.1",
             "taxonomy_version": "v9",
         }
     )
     assert meta == {
         "dataset_name": "Lucius-Morningstar/mailroom-dataset",
-        "dataset_revision": "ed7576b676343e0b402ec5412cded301e629bdee",
+        "dataset_revision": "v9.1",
         "taxonomy_version": "v9",
     }
 

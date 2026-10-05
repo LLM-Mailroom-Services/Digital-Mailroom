@@ -312,7 +312,7 @@ PYTHONPATH=src python src/scripts/bump_dojo_scoring.py --apply --tag v0.14.0
   — companion graphify map of the sister experiment loop's codebase.
 - **Hugging Face — [`Lucius-Morningstar`](https://huggingface.co/Lucius-Morningstar)** —
    the family's published dataset surface. **`mailroom-dataset` schema v9**
-  (3,302 docs, pinned `ed7576b6…`; the v9 successor of the frozen v8
+  (3,302 docs, pinned Hub tag `v9.1` / `ed7576b6…`; the v9 successor of the frozen v8
   baseline `mailroom-corpus` — v8 = HUB-028 insurance LOB expansion
   (GNOTHEIA property + BDR auto) with full GT conformance and HUB-032's §84
   hardened ground_truth columns: identity, evaluation contract, matter/group;
@@ -328,12 +328,7 @@ PYTHONPATH=src python src/scripts/bump_dojo_scoring.py --apply --tag v0.14.0
   for the whole family (`md5(filename) % 10 == 0 → test`), owned by
   entity-extraction's publisher scripts. Local committed PDFs under
   `docs/examples/samples/` remain PDF-ingest fixtures — they are not the
-  class catalog. **Offline parquet bins** for the loader
-  (`MAILROOM_HF_CACHE_DIR` → `pipeline.hf_corpus_loader`) live in
-  [`mailroom-issues`](https://github.com/LLM-Mailroom-Services/mailroom-issues)
-  `data/hf_cache/corpus` (sparse-checkout; v9.1 SHA
-  `ed7576b676343e0b402ec5412cded301e629bdee`) — hub wiki
-  `docs/wiki/HF-Corpus.md` § Offline hub cache; not vendored here.
+  class catalog.
 
 ## Governance notes
 

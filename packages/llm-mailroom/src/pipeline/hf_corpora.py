@@ -41,12 +41,11 @@ FULL_CORPUS_SCHEMA = "v9"
 # (historical traces carry the immutable `source-docclass-merged` tag;
 # slug/aliases are plumbing, not identity).
 FULL_CORPUS_ID = f"{ORG}/mailroom-dataset"
-# v9.1 quality revision ed7576b6 (mailroom-issues#196 Phase B; revises v9 GT-
-# closure tip 46a4d3c2 with zero row/identity/content drift — B1/B2/B4 schema
-# hygiene on the same 3,302 rows; configs default / ground_truth / bundles /
-# streams / fixtures unchanged).
+# Hub tag v9.1 → ed7576b6 (2026-09-27: successor pin after GT-closure tip
+# 46a4d3c2; 3,302 rows, schema unchanged; configs default / ground_truth /
+# bundles / streams / fixtures).
 # Pinned per the corpus plan §44 — never evaluate against unpinned main.
-FULL_CORPUS_REVISION = "ed7576b676343e0b402ec5412cded301e629bdee"
+FULL_CORPUS_REVISION = "v9.1"
 EXAMPLES_ID = f"{ORG}/docclass-pilot"
 
 # Hub HF classes present in mailroom-dataset (v9) — identical to the canonical

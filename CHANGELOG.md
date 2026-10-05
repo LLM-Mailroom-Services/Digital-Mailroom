@@ -1,822 +1,918 @@
-# Changelog
+# Changelog — Digital-Mailroom
 
-All notable changes to `llm-dojo-scoring` are documented here.
-Format based on Keep a Changelog; versioning is SemVer.
+All notable changes to the **Digital-Mailroom monorepo itself** (workspace wiring,
+cross-package governance, sync tooling, corpus governance, hub infrastructure)
+are documented in this file.
 
-## [0.19.1] - 2026-10-05
+Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) ·
+Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — while
+the hub is `0.x` (pre-1.0), a **MINOR** bump may carry breaking workspace
+changes; **PATCH** is fixes-only. Every hub release is an annotated git tag
+`vX.Y.Z` (`mailroom-hub vX.Y.Z` message) mirrored as a GitHub Release; the
+`[Unreleased]` section accumulates between releases.
 
+Scope note: the hub chain versions the **monorepo as a whole**. Package-level
+releases (llm-mailroom, llm-dojo-scoring, …) are cut in their standalone
+repositories per the release train (HUB-005) — see each package's own
+`CHANGELOG.md`; the standalone repos remain the release vehicles for deployed
+surfaces. The pre-import history in this repository (before 2026-08-30)
+belongs to the standalone mailroom lineage that became `packages/llm-mailroom`
+and is recorded there, not here.
+
+## [Unreleased]
+### Removed
+
+- **`.github/workflows/ci.yml`:** dropped the hub#176 per-package pytest matrix on
+  GitHub Actions — it was manually disabled yet still registered as a required
+  check, and recent runs failed on unrelated suite drift (entity-extraction
+  scorer label test, sandbox vendor/fixture gaps). Local/PR verification stays
+  per `docs/TESTING.md`; governance gates remain in `board-governance.yml`.
+
+### Changed
+
+- **Hub governance + docs truth (post-v0.7.0 sweep):** DMR-074 sync/release law in
+  `AGENTS.md` + specialist tails (`0135382a`/`bbcfdce1`); board-site +
+  `scripts/board_state.py` fixes (`dc4e685b`); Served-Board POST lane contract +
+  serve harness (`4369e1c2`); HF dataset card/pin drift re-pin to `46a4d3c2`
+  (`238795a6`); wiki roster/hub version truth (`e16e9b1c`); root `.gitignore`
+  package gaps (`c8828cc4`); uv workspace/lock regen (`243d10f0`, `0cafccd7`).
+- **Subclass taxonomies re-pinned to the current dataset pin (DMR-071):** the
+  HUB-041 canonical `expected_subclass` vocabularies now pin to
+  **mailroom-dataset v9** (`Lucius-Morningstar/mailroom-dataset`, tip
+  `46a4d3c2`, 3,302 rows, GT-closure 2026-09-13) instead of the frozen v8
+  baseline — the human adjudication (2026-09-16): the dataset pin is the
+  source of truth. Three concrete alignments: (1) **`voicemail` removed from
+  every correspondence catalog** — it is NOT in the v9 GT vocabulary (28
+  docclass-arm prompt strings in The-Mailroom `docclass_prompts.py`, the
+  entity sorter catalog + 2 prompt strings, dojo `DOC_TYPE_SUBCLASSES` +
+  observed-GT surfaces, both test pins, the HF-Corpus wiki table); it now
+  normalizes to the sanctioned `other` fallback. (2) **`corporate_record`
+  re-pinned to the 10-token v9 observed set** (5 v8-era tokens + 5 record
+  types the v9 corpus added: `board_resolution`, `charter_amendment`,
+  `indenture`, `officer_certificate`, `subsidiary_list`) across the parity
+  gate, dojo observed-GT surfaces + `HUB_SUBCLASS_INVENTORIES`, and
+  The-Mailroom `DOC_SUBCLASS_BY_CLASS`; `certificate_of_formation` becomes
+  the sole documented scoring-enum extra (EDGAR EX-3.1 convention, not in
+  v9 GT). (3) Correspondence observed-GT surfaces exact-pin to the 8
+  communication-form tokens. `scripts/taxonomy_parity.py` exits 0 for the
+  first time since the drift surfaced; suites: llm-dojo-scoring 371p/5s,
+  llm-entity-extraction 774p/28s, The-Mailroom 336p, llm-mailroom 1053p/36s.
+  The Enron eval-environment labeler keeps its `voicemail` key locally (its
+  text-only corpus makes it 0% by construction) — a documented intentional
+  divergence, not drift.
+- **llm-mailroom synthetic sample-gate residue reconciled (DMR-072):** the
+  retired compliance agent's stand-in sample ids left the pilot surface
+  entirely — `test_real_sample_gate.py` no longer expects `compliance_01/02`
+  in the synthetic set (8 synthetic: 5 live-class stand-ins + 3 insurance
+  contrast letters; mock-live-manifest count 25 → 23; the retired ids keep a
+  negative guard so a stale manifest could never process them in `--real`
+  mode), and the stale roster/count prose is corrected everywhere it cited
+  them (README "25-sample" → 23; AGENTS.md `--mock` line, the pilot-samples
+  paragraph roster "compliance/corporate/correspondence/…" → 8 samples, the
+  Langfuse dataset summary 13 → 11 original samples). Expectations proven
+  against the live `is_real_sample` / `filter_real_samples` logic with a
+  reconstructed 23-row manifest; full llm-mailroom suite 1053p/36s.
+- **sync_packages.py: the silent no-op push class is killed (DMR-073).** The
+  DMR-071 propagation audit caught the patch-push success line reporting
+  `propagated N file(s) (tip X)` with the PRE-push tip and no landing proof —
+  two real deltas (llm-dojo-scoring 9 files, llm-entity-extraction 4 files)
+  silently never reached upstream while the session and the cursors read
+  success. Hardened: every patch push now proves its landing with a post-push
+  `ls-remote` probe that must equal the pushed worktree commit — unchanged tip
+  refuses as exit 5 `verify` ("SILENT NO-OP GUARD"), an unreachable remote
+  refuses as exit 1, a foreign tip (concurrent push) refuses as exit 5; the
+  success message names the POST-push tip and the pushed commit. The empty
+  delta path no longer trusts its own claim: a staged diff of zero files is
+  cross-checked against the tree-level comparison `status` uses
+  (`local_ahead_paths`) and an "empty diff while the monorepo is ahead"
+  contradiction refuses as exit 5 `extraction mismatch`. The subtree push leg
+  reports the true post-push tip and says plainly when the remote did not
+  move (git-verified already-contained). Cursors re-baseline only after a
+  verified landing; success records carry `pushed_commit`/`landed_tip`.
+  Hermetic pins: 9 new unit tests (all guard branches, both push legs);
+  scripts/tests 44/44 green.
+
+## [0.7.0] - 2026-09-16
 ### Added
 
-- **Frozen `production_prompts` v1 lineage** — the five eval-environment
-  frozen specialist stems (`mailroom-dataset-v1`, frozen
-  2026-09-26T05:09:29+00:00) are now importable from the dojo prompt catalog
-  as `get_prompt(<agent>, family="production_prompts")`, sha256-pinned per
-  record (`PromptRecord.sha256`; three byte-identical to the sandbox
-  `config/prompts/<stem>.txt` freeze). Stored separately from the `docclass`
-  family. `tests/test_production_prompts.py` recomputes every digest from the
-  imported text.
-- **Dojo re-freeze of two `production_prompts` v1 records** — CodeRabbit
-  PR #27 follow-up, applied in-repo only (upstream mirrors untouched):
-  `correspondence_specialist` no longer emits the unregistered
-  `communication_type` token `other` (fallback is null per the registered
-  8-token vocabulary); `corporate_records_specialist` keeps `filing_number`
-  null for subsidiary schedules whose only number is a parent-agreement
-  exhibit ID. Provenance comments, catalog pins, docs, and tests updated to
-  the corrected bytes.
+- **Sync tooling: post-import verification seams (DMR-070):** new exit code
+  **5 verification refused**; `push --patch` REFUSES deletion-bearing
+  packages (the monorepo removed tracked upstream paths) with `deleted_paths`
+  in the record and directs to the full subtree-push leg — a content push
+  would silently resurrect the deleted files upstream (the v0.6.0
+  compliance-removal trap). `pull --open-pr` blob-compares every
+  ladder-resolved conflict path against BOTH merge sides and reports
+  resolution-introduced content loudly (stderr + `resolution_divergences`
+  record field + PR-body section) — the v0.6 `corpus.py` else-branch
+  mangling class. New `--verify-suite` flag on `pull`/`push --patch` runs
+  the touched package's pytest suite (`SYNC_VERIFY_CMD` overrides) before
+  any push or cursor advance; a red suite refuses with the failure tail in
+  `verify_detail_tail`. Hermetic suite: 35 tests
+  (`python3 -m unittest discover scripts/tests`), including deletion-guard,
+  verify-gate, resolution-classifier, and divergence-mapping pins.
 
-### Notes
+- **Vendor snapshot refresh tooling (DMR-057/DMR-070):** new
+  `scripts/sync_vendor.py` mirrors the workspace packages onto
+  `packages/local-mailroom-sandbox/vendor/` carrying BOTH content AND
+  deletions (a copy-only refresh is how the docclass-era compliance files
+  survived their upstream removal), with `--check` as a CI-friendly drift
+  gate. `sandbox fetch-deps` now prefers the same workspace mirror when the
+  monorepo layout is detected (offline, deletion-carrying) and falls back to
+  a loud tag-based refresh for standalone clones — a tag-based re-snapshot
+  of llm-mailroom from the monorepo would resurrect the deleted docclass-era
+  files (the v0.7.1 tag predates 59c47401).
 
-- Connected-repo follow-ups for the frozen prompt mirrors (eval-environment
-  re-freeze scripts, sandbox lineage mirror, downstream imports) are tracked
-  in [`docs/TODOS.md`](docs/TODOS.md).
+### Changed
 
-## [0.19.0] - 2026-10-04
+- **Vendor snapshots track the workspace packages (hub#62 doctrine, both
+  trees):** `vendor/llm-mailroom/VENDOR.md` + `vendor/llm-dojo-scoring/
+  VENDOR.md` document the workspace-snapshot pin; `test_vendor.py` asserts
+  the doctrine strings. The vendored llm-mailroom snapshot was refreshed to
+  the post-removal workspace: 26 files updated, the 5 docclass-era files
+  deleted (`agents/compliance_specialist.py`, `pipeline/docclass_mode.py`,
+  `langchain_agents/prompts_docclass.py`,
+  `langchain_agents/skills/compliance_specialist/*`) — closing the
+  DMR-057 vendor-drift set DMR-066 flagged (`test_vendor` pin mismatch +
+  `test_vendor_drift` `[llm-mailroom]` compliance residue).
 
-Align scoring contracts with
-[mailroom-issues #236](https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/236),
-[#237](https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/237),
-and [#238](https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/238),
-and close remaining honesty gaps in
-[llm-dojo-scoring #19](https://github.com/Exios66/llm-dojo-scoring/issues/19),
-[#20](https://github.com/Exios66/llm-dojo-scoring/issues/20), and
-[#21](https://github.com/Exios66/llm-dojo-scoring/issues/21), with the
-v0.19.0 release-completion patch: hash-chain parity with llm-mailroom,
-per-document suite emission for all five live classes, metric identity
-completion, and specialist grid reports.
+- **Compliance-specialist retirement completed across the sandbox surface:**
+  removed from the eval registry (`SPECIALIST_CLASS`/`LIVE_CLASS_MAP`, added
+  to `RETIRED_AGENTS`), the prompt roster (`STATIC_AGENTS`), the component
+  gates (`config/components.yaml` → `retired_agents`), the taxonomy overlay,
+  and the sandbox base taxonomy (`compliance_filing` doc class + specialist
+  model block); `test_agents.py` roster updated. The stale specialist-roster
+  prose in `packages/llm-mailroom/src/agents/README.md` was corrected in the
+  workspace and mirrored into the vendored snapshot.
 
 ### Fixed
 
-- **Hash-chain parity with llm-mailroom** — `archive.canonical_json` now
-  serializes byte-identically to llm-mailroom
-  `src/schemas/audit.py::compute_audit_hash`
-  (`json.dumps(sort_keys=True, default=str)`, `datetime` → `isoformat()`).
-  The previous compact-separator form produced a different `entry_hash`
-  for the same row, so a dojo-formatted `archived` row failed
-  `verify_chain` in llm-mailroom. `tests/test_archive_scoring.py` carries
-  the inline mailroom oracle plus a verification round-trip.
-- **Hash fixture** — `test_issue_236_example_payload_hash_is_stable` now
-  pins the llm-mailroom digest. The digest printed in mailroom-issues
-  #236 is not reproducible from the payload as shown (noted in
-  `docs/ARCHIVE_SCORING.md`).
-- **Plain extraction paths carry format scores** — batch `score([...])`
-  always emits `schema_valid` / `parse_ok` / `schema_adherence`;
-  `score_document()` returns the full per-document payload (flattened
-  `overall_score`, field-micro P/R/F1/F2, class extras, `metric_id`,
-  provenance). Single-doc `score(dict)` keeps the historical
-  `ExtractionScoreResult` unless `detailed=True` (#18 alignment).
-- **Insurance single-document extras** — `determination_consistency`,
-  `amount_exactness`, and `schema_promotion_gate` now run on
-  `score_document()` for one claim, not only in batch.
-- **Content-only GT no longer suppressed** — correspondence with only
-  `content_topic` / `sentiment_label` and merger with only
-  `maud_clause_labels` score their content metric; triage-only contract
-  rows stay `unscorable` (#16 unchanged), and a document with no nonempty
-  expected field keeps `overall_score = None`.
-- **Metric identity completed for all five live classes** —
-  `_CLASS_METRIC_IDS` covers contract, merger_agreement, corporate_record,
-  correspondence, and insurance_claim; F2 is allowed for each; Enron
-  topic/sentiment ids are mapped; `metric_id_allowed()` added (#17).
-- **`resolve_cost_basis`** — reject a table that mixes labeled and
-  unlabeled `cost_basis` / `usd_basis` rows. Wholly unlabeled inputs
-  still stamp the default (`busy_window`).
-- **Retired-class drift** — `config.RETIRED_DOC_CLASS_KEYS` now includes
-  `compliance_filing` (retired; llm-mailroom `taxonomy.yaml` has no such
-  class). The merger agreement specialist remains its own class/suite —
-  never an alias of contract — and the compliance specialist is never on
-  the live roster.
-- **Hub `gt_fields` metadata is parsed and scoped per document type** —
-  stringified `"[]"` / `"{}"` values are empty (no phantom FN), `gt_presence`
-  `not_applicable` / `schema_documented_absence` fields are never required
-  events, and annotation stats / other classes' fields never reach extraction
-  scoring. `N/A` date placeholders are empty, and CUAD label spans with no
-  alphanumeric content (`[*]`, `____`, `.`) are omitted from presence
-  expectations. `pending_annotation` (label backfill not yet run) is treated
-  as absent, so stale values on pending fields are never scored. A mis-passed
-  class-label string fails closed (`gt_wrong_schema`) instead of crashing.
-  Perfect-prediction replay over the
-  **full corpus** (both splits, 3,302 rows, 19,924 extraction events):
-  **0 FN / 0 FP / 0 spurious fills / 0 F1 or presence misses**; 91
-  triage-only contract rows stay `unscorable`.
+- **Board invariant repair:** removed the byte-identical duplicate DMR-064
+  archive entry that failed `board_state.py check` (duplicate-card-id) —
+  `board check` is green again (12 open cards, 0 errors/warnings).
+
+- **Docs truth:** `AGENTS.md` Sub-package sync section + the
+  `Sub-Package-Sync` wiki page now carry the DMR-070 push-leg decision tree
+  (content-only vs deletion-bearing deltas), the exit-code 5 taxonomy, the
+  post-import divergence audit, and the vendor-snapshot workspace doctrine
+  with the tag-refresh resurrection warning — the doom-loop instructions
+  that let removed files repopulate are corrected at the contract level.
+
+## [0.6.0] - 2026-09-16
+### Fixed
+
+- **Modal+vLLM CLI three-mode readiness (DMR-056, 2026-09-10):** the sandbox
+  CLI is verified end-to-end in all three modes — mock smoke (fixture + live-
+  data mock runs reach `state=done` with honest `mock:` labels), live data
+  (`datasets pull` now performs a LIVE pinned-revision Hub pull through the
+  corpus loader with sha256 verification, deterministic subsetting, and exit
+  1 on any failure — the old `except Exception -> README marker -> exit 0`
+  silent no-op is gone; whole-run job tasks `pipeline`/`extract`/`chained`/
+  `isolated`/any agent name now score the run spec's LOCKED dataset rows
+  instead of always scoring the fixture manifest), and production config
+  (boot-valid defaults, live-or-loud guards, profile validation, `health`
+  probe honesty). The job worker's Modal `Dict.put` calls are now two-arg
+  (`put(run_id, payload)`) — the one-arg form TypeErrors on modal 1.5.5,
+  which silently killed the progress mirror, failure state dict, and volume
+  commit cadence in a REAL deploy (regression-pinned by a static test);
+  `SANDBOX_DEBUG` now travels through the deploy Secret (was unreachable in
+  the container); `download_model` counts the snapshot directory instead of
+  the dead `isinstance(paths, list)` branch (huggingface_hub 1.x returns a
+  str); the inert `huggingface_hub[hf_transfer]` extra is dropped from both
+  image builds. **Eval-task extension point:** registering one `AgentSpec`
+  in `eval/agents.py` is the one-file change — the new task automatically
+  passes spec-level task validation (`known_tasks`), becomes a `sandbox eval`
+  choice, a whole-run job task, and a matrix cell; the `_cmd_eval` fall-through
+  to LegalBench is now an explicit raise; `prompts show` validates agent names
+  (exit 2) and surfaces the registry version_key (sorter_v14/v33). **vLLM
+  matrix boot validity:** `MODAL_VLLM_MAX_MODEL_LEN` defaults to 16384 (L4-
+  bf16 8B-class rows cannot hold 32768 — v0.28.0 raises at the KV admission
+  check, it does not shrink-and-warn); the models.yaml rows are corrected
+  (Qwen3-8B/DS-8B/Llama-3.1-8B capped at 16384; the FP8 rows point at the
+  PUBLISHED `-FP8` checkpoints with auto-detected quantization; the 70B row
+  is the real ungated `RedHatAI/Llama-3.3-70B-Instruct-FP8-dynamic` at TP2);
+  htcondor health probe gets `--max-time 5` + bearer forwarding, `TP_SIZE`
+  joins the diagnostics export, `QUANTIZATION`/`REVISION` knobs added to both
+  scripts, and the `.sub` 70B example uses the real checkpoint. llm-mailroom's
+  Modal app gains cost tags + the `--check` probe for full parity. Docs:
+  `docs/evals.md` "Adding a new eval task", `docs/jobs.md`/`SANDBOX-GUIDE.md`/
+  `deploy/README.md`/htcondor README + wiki pages updated to match; suite
+  207 passed / 1 skipped.
 
 ### Added
 
-- **`llm_dojo_scoring.gt_metadata`** + **`docs/GT_METADATA.md`** —
-  `parse_gt_fields`, `scoring_gt_fields`, `derive_presence_from_gt`,
-  `is_empty_value`, `parse_json_container`; CUAD label spans become presence
-  expectations (placeholder spans skipped); raw clause items are presence
-  candidates (multi-sentence quotes are not lost to disaggregation). Tests:
-  `tests/test_gt_metadata.py`.
+- **Sync tooling hardening — error handling, merge-conflict handling, and PR-based merge flow (DMR-064, 2026-09-16):** `scripts/sync_packages.py` no longer leaves half-merged trees and dead refusals when a subtree import conflicts (the llm-mailroom pull conflict during the v0.6 sync session was the trigger: exit 1, no diagnosis, no abort, every later run blocked by "worktree is dirty"). Exit-code taxonomy: 0 ok / 1 network / 2 dirty-at-entry (or conflicts left in place via `--keep-conflicts`/`--allow-dirty`) / 3 merge conflict aborted cleanly / 4 other git/internal failure. A conflicted `pull` is DETECTED (MERGE_HEAD probe + `diff --diff-filter=U` + `ls-files -u` classification: both-modified/add/add/modify-delete) and the worktree is **aborted back to its pre-pull state by default** with a structured, per-path remediation summary (auto-abort disabled when `--allow-dirty` was passed; `--keep-conflicts` leaves the tree for manual resolution). New `pull --open-pr [--resolve ours|theirs]`: abort, branch `sync/<package>/import-<sha>`, manual fetch + `merge -s recursive -X subtree=... -X ours|theirs` (git-subtree has no `-X` passthrough), leftover-resolution via `checkout --ours/--theirs`/`git rm`, push, and a `gh` PR against `main` naming package/upstream tip/conflicted paths/resolution — main stays untouched and the sync cursor never advances from an unmerged PR. Entry-guard recovery turns a leftover `MERGE_HEAD` into a diagnosable hint instead of a dead refusal. `--json` parity on pull/push/snapshot (JSON Lines: command, package, ok, exit_code, error_class, conflicted_paths, remediation, cursor_updated, branch, pr_url). `patch_push` leak hardening (mkdtemp inside try, worktree remove checked + prune, push failures classified network vs git), atomic manifest writes (temp + `os.replace`; corrupt-manifest repair hint), per-package cursor saves after each successful push, and new global `--manifest`/`--repo-root` overrides. New hermetic stdlib test harness `scripts/tests/test_sync_packages.py` (11 tests: conflict-abort exit 3, keep-conflicts exit 2, fast path, network class, patch_push cleanup, corrupt-manifest + atomic write, entry-guard recovery, full `--open-pr` branch+gh flow with a fake gh shim, gh-missing manual-command fallback) — first-ever tests for this script. Docs: AGENTS.md "Sub-package sync" section rewritten with the failure-handling contract.
 
-- **`llm_dojo_scoring.grid`** — L4-style specialist grid reports
-  (`build_grid_report`, `grid_scorecard`, `GridDocument`,
-  `GridExperiment`): quality / `ok / n` / p50 latency / `$` per ok
-  document, pooled serving efficiency (error rate, docs/min, tokens/s/GPU,
-  GPU `$`/doc), and busy-window vs metered session cost. Missing metered
-  input renders `n/a`; one row never mixes `metric_id`s.
-- **`format_audit_entry` / `prepare_archivist_handoff`** — calculate and
-  format the hash-chained `archived` audit row (hash version 2) that is
-  passed to the archivist. The templated row is always handed through;
-  `archivist_sign_off` files it as final only when the hash matches and
-  the pipeline steps for that document need no revision (report → judge
-  → archive; happy-path nodes on a successful job).
-- **`docs/GRID_REPORTS.md`** and **`docs/ISSUE_ALIGNMENT.md`**.
-- **Taxonomy authority fixture** — `tests/fixtures/taxonomy_field_types.json`
-  + `tests/test_live_roster_parity.py`: the five live field maps pinned to
-  llm-mailroom `taxonomy.yaml` blob
-  `ca297bd8e55e62b79ee452b02b65926b5032bdf1`, with roster / merger /
-  retirement guards and per-document payload tests.
+- **Sandbox self-containment (DMR-057, 2026-09-10):** `packages/local-mailroom-sandbox`
+  no longer imports the family at runtime from pip git pins or a network
+  `fetch-deps` step — the code it needs ships as **tracked snapshots under
+  `vendor/`**: llm-mailroom `v0.6.0` (`src/` minus tests; pipeline/graph/
+  agents/llm/legalbench/observability/scripts) and llm-dojo-scoring `v0.12.2`.
+  `mailroom_sandbox/__init__` puts both trees on `sys.path` at import;
+  `agent_prompt_names()` merges the vendored `llm.prompts` template keys with
+  the sandbox static roster (fixes the v0.6.0-surface gap for relations/
+  gmail_triage/intake); the Modal worker bundles `vendor/` instead of
+  `pip install mailroom@git...`/`llm-dojo-scoring@git...`; the CHTC batch
+  script's eval-stack installs collapse to the sandbox package; the
+  `[pipeline]`/`[evals]` extras and `[tool.uv.sources]` redirects are gone;
+  `sandbox fetch-deps` is now an optional refresh of the pinned snapshots.
+  Regression-pinned by `tests/test_vendor.py` (+16 tests). Suite:
+  **223 passed / 1 skipped** in both the monorepo venv and a bare env with no
+  `mailroom` installed — self-containment verified.
 
-- **`llm_dojo_scoring.archive`** — `score_archive_block` returns the
-  archivist `detail.scoring` payload (method, field map SHA, overall
-  score, schema validity, per-field scores, and field-micro P/R/F1/F2
-  with TP/FP/FN). `upsert_archive_scoring` replaces the block for a
-  `doc_id` and never appends a second row. `archive_entry_hash` is hash
-  version 2 (SHA-256 of canonical JSON).
-- **`docs/ARCHIVE_SCORING.md`** — example archive row and scoring block;
-  sample numbers are not a measured run.
-- **`merger_agreement_specialist`** profile / suite bound to
-  `MergerAgreementExtraction`.
-- **`docs/SCORECARD_HONESTY.md`** — MAUD collapsed GT (#19), format vs
-  extraction and empty-field credit (#20), completion / ITT / `cost_basis`
-  / honest `serving_kind` (#21).
-- **`score_empty_field_contract`** — correctly-empty fields score 1.0
-  without entering archive `overall_score`; spurious fill is a penalty.
-- **`canonical_error_class` / `resolve_cost_basis`** — LengthFinish and
-  context-overflow histogram buckets; refuse mixed `cost_basis` in one
-  table.
-- **`llm_dojo_scoring.trace_knobs`** — capture `confidence` / `reasoning`
-  as experimental knobs (`TraceKnobSettings`: `confidence_min`,
-  `confidence_band`, `reasoning_routes_presence`,
-  `compute_calibration_error`). Filed on `ExtractionScoreResult.trace`
-  and archive `detail.scoring.trace`; never mixed into `overall_score`.
-- **MAUD answer-class catalogs — no guessing on merger-agreement labels**
-  (`llm_dojo_scoring/maud.py`, `docs/MAUD_LABELS.md`). The 152 published
-  merger rows (17 test + 135 train) each carry per-question
-  `valid_classes`; the scorer previously dropped them and treated any
-  non-empty answer as valid on 21 of 22 questions. Now:
-  - `parse_maud_labels` preserves each record's `valid_classes`; repeated
-    Hub keys union their class surfaces instead of last-wins;
-  - `is_valid_maud_answer` / `normalize_maud_answer` accept the record's
-    own classes first, fall back to the corpus union, and fail closed for
-    unknown questions;
-  - `maud_question_catalog(doc_type)` returns the fully populated
-    22-question catalog for `merger_agreement` and `contract` (specialist
-    aliases accepted; unknown doc types raise `KeyError`);
-  - `maud_valid_class_rate` is emitted by the contract / merger suites and
-    by `score_maud_extraction`.
-- `scripts/gen_maud_catalog.py` — deterministic catalog generator plus
-  `--check` verification against the pinned dataset revision.
-- `scripts/verify_gt_penalties.py` — portable perfect-prediction replay
-  over the real Hub GT (both splits) asserting zero FN/FP/spurious and
-  MAUD parity / class membership on all merger rows.
-- `tests/test_maud_catalog.py` — pins catalog completeness, per-doc-type
-  dicts, fixture consistency, canonicalization, component-wise validity,
-  and fail-closed behavior.
-- `catalog` optional extra (`pyarrow`, `huggingface_hub`) for the
-  reproducibility scripts.
-
-### Changed
-
-- **Live extract roster** — `contract`, `merger_agreement`,
-  `corporate_record`, `correspondence`, `insurance_claim`.
-  `EXTRACT_CLASS_ALIASES` is empty; merger is not scored as a contract.
-  `compliance_filing` is retired from the live extract roster (suites
-  remain for historical traces).
-- **`DEFAULT_FIELD_TYPES["merger_agreement"]`** — dedicated 10-field map
-  (`effective_time`, `intent`, `subject_matter`, `keywords`; no
-  `cuad_family` / `cuad_clauses`).
-- **`score_extraction`** — never scores `confidence` / `reasoning`;
-  skips empty lists and retired prompt-catalog keys that are not on the
-  live field map.
-- **Aligned classification** — `merger_agreement` ≠ `contract`.
-- **`score_maud_extraction`** — distinct sub-question keys score
-  normally; collapsed multi-answer GT (list, slash-string, or repeated
-  Hub spans) is `gt_ambiguous` / unscorable per item; micro-accuracy
-  over clean keys only; `n_ambiguous` always surfaced (#19).
-- **`score_format_layer` vs field-micro** — prose-wrapped JSON is
-  `parse_ok=0` and does not zero extraction on a structured payload
-  (#20).
-- **`summarize_run_completion`** — LengthFinish histogram; ITT quality
-  ≠ completed-only (#21). `classify_serving_kind` keeps Modal as
-  `modal` (not in `LOCAL_PROVIDERS`).
-- `tests/fixtures/maud_valid_classes.json` now records the pinned dataset
-  revision and per-question answered-row / distinct-set counts.
-- Package version **0.19.0**; tests: **645 passed, 5 skipped** (the release
-  commit ran 521; CodeRabbit regression tests and the MAUD catalogs were
-  added before the tag).
-
-## [0.18.0] - 2026-09-29
-
-Live-run calibration from hub release gate
-[LLM-Mailroom-Services/mailroom-issues#233](https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/233)
-and Exios66/llm-dojo-scoring #16–#22.
-
-### Added
-
-- **`llm_dojo_scoring.scorecard_honesty`** — fail-closed unscorable GT (#16),
-  distinct `metric_id`s + incomparable comparisons (#17), format layer
-  (`parse_ok` / `schema_valid` / `schema_adherence`) (#18–#20), MAUD
-  `gt_ambiguous` / `n_ambiguous` (#19), run completion + ITT aggregates (#21),
-  provenance stamps + export refusal (#22).
-- **`docs/METRIC_IDS.md`** — doc class → allowed `metric_id` map (#17).
-- **`tests/test_v018_scorecard_honesty.py`** — fixtures locking each failure mode.
+- **CHTC batch-eval live-or-loud path (DMR-044, 2026-09-10):**
+  `deploy/htcondor/run_batch_eval.sh` installs the real eval stack
+  (`mailroom@v0.6.0` + `llm-dojo-scoring@v0.12.2` + the sandbox — never
+  `llm-entity-extraction`, whose `agents/` lacks `sorter.py` and shadowed
+  mailroom's), proves the agent stack importable BEFORE starting vLLM,
+  serves with compose/Modal parity flags (`--max-model-len 32768`,
+  `--gpu-memory-utilization 0.90`, `--max-num-seqs 256`, optional `TP_SIZE`,
+  `--no-enable-log-requests`), hard-fails on server death or a 20-minute
+  health timeout, runs the evals with `--model "$MODEL"` and
+  `OPENROUTER_BASE_URL` pointed at the in-container engine, and closes with a
+  live-or-loud guard that fails the job when any experiment-log record shows
+  `offline_fallback > 0`. The results dir is anchored at submission time (was
+  transferred empty). Silent-mock root causes fixed in the sandbox eval
+  surface (`_doc_text` NameError, prepared-row `subdir` KeyError, live-error
+  re-raise, provider-aware LegalBench serve target).
+- **Modal job worker live-eval surface (DMR-047, 2026-09-10):** the
+  `sandbox-job` image bundles `config/` + `data/fixtures/` under
+  `SANDBOX_ROOT=/root` plus `mailroom@v0.6.0` (per-item evals used to mock,
+  whole-run tasks crashed), `DEFAULT_PROVIDER` joins the deploy Secret, the
+  worker verifies `dataset.jsonl` sha256 against the lock, commits the
+  `sandbox-runs` Volume every 25 progress events, copies experiment records
+  into the run dir, and the CLI pulls items/checkpoints/records back and
+  appends them locally; resume re-fires the same `run_id`.
+- **CLI live-or-loud wiring (DMR-048, 2026-09-10):** `sandbox health` follows
+  the profile's `base_url_env` override (`VLLM_BASE_URL`) and loads `.env`
+  first; `pull-models` branches by serving family (vLLM/Modal prints the
+  `download_model` pre-warm guidance, never `ollama pull` of an HF id);
+  `pilot`/`hf-pilot`/`legalbench`/`eval`/`matrix` warn when a vLLM profile
+  would run an implicit mock; `run start --job-mode modal` probes
+  `/v1/models` before firing (skips mock/`--offline`); `matrix --providers`
+  validates real profile names.
+- **Sandbox vLLM model catalog + tensor-parallel knob (DMR-045,
+  2026-09-10):** `config/models.yaml` gains the `modal_models:` deploy matrix
+  (13 models × per-GPU rows, quantization, `max_model_len`, `tp_size`, the
+  14B-bf16 "trap", gated-repo and 70B TP2 notes); `deploy/modal_vllm.py`
+  gains `MODAL_VLLM_TP_SIZE` (default derived from the GPU `:N` suffix,
+  travels via the deploy Secret) → `--tensor-parallel-size`.
+- **Pipeline provider seam & prompt/corpus pins (DMR-052, 2026-09-10):**
+  `taxonomy.yaml: vllm_model_map` rewrites OpenRouter champion ids to served
+  HF ids (a standalone vLLM run 404'd before); `DEFAULT_PROVIDER=vllm`
+  without `VLLM_BASE_URL` logs a live-or-loud warning at resolution; the
+  free-only guardrail now exempts self-hosted providers
+  (`vllm`/`ollama`/`generic`) — it bounds OpenRouter spend; Modal 503s use a
+  long bounded cold-start backoff (90s base / 240s cap); `_bound_prompt_versions`
+  matches the shipped `contracts_specialist_v33`; `hf_corpus_loader.load_corpus`
+  defaults to the pinned `FULL_CORPUS_REVISION` instead of the Hub tip; the
+  sandbox prompt registry locks code-default for a floating Langfuse label
+  without credentials (a pinned version still refuses).
+- **vLLM+Modal script hardening (DMR-053, 2026-09-10):**
+  `run_batch_eval.sh` gains `SANDBOX_DEBUG=1` → `set -x`, a timestamped
+  `log()` to stderr + `results/run.log`, a once-only `fail()` diagnostics
+  dump (python/package versions, masked engine env, dataset counts, vLLM log
+  tail), health-wait progress, and an EXIT trap writing run status + killing
+  the server; `serve_vllm.sh` echoes effective knobs + argv (auth on/off,
+  never the key); both `modal_vllm.py` apps print a masked boot config,
+  verify `download_model` results with gated-repo hints, and `_smoke_check`
+  errors carry response bodies + a 401 bearer hint + a served-model mismatch
+  note, with `main --debug` printing the resolved config; `modal_job.py`
+  wraps failures into a terminal state dict with error/traceback
+  tail/runtime diagnostics, honors `SANDBOX_DEBUG`, and `main --debug` prints
+  the app config; `job/remote.py` volume failures name `modal token new` /
+  `modal volume ls`; the CLI watch prints the worker traceback + a diagnose
+  hint. Whole-run records now carry the lock's LOCAL prompt variant as
+  `prompt_version` (was always `mailroom-default`) and are stamped with
+  `spec_hash`, `dataset_fingerprint`, `run_id`.
+- **Serving & container parity (DMR-051, 2026-09-10):** the llm-mailroom
+  Modal app ports `MODAL_VLLM_TP_SIZE` (derived from the GPU `:N` suffix),
+  `MODAL_VLLM_SCALEDOWN_SECONDS`, `MODAL_VLLM_STARTUP_TIMEOUT_SECONDS`, the
+  `download_model` pre-warm + slim image, and fixes the malformed guidance
+  URL; the producer compose forwards `VLLM_BASE_URL`/`VLLM_API_KEY` (a
+  `DEFAULT_PROVIDER=vllm` producer used to resolve in-container localhost);
+  the sandbox compose gains `VLLM_TP_SIZE` substitution and the jupyter
+  service gets `VLLM_API_KEY`; the Dockerfile gains the `[hf]` extra;
+  `config/models.yaml` corrects the L4-bf16 KV-pool caps, adds verified
+  `-FP8` checkpoint rows, and notes A100 FP8 emulation.
 
 ### Changed
 
-- **Contracts triage-only Hub GT** → `status: unscorable` (never quality 0.0);
-  aggregates expose `n_scored` / `n_unscorable`; exporters label **unproven**.
-- **`compare_serving`** — sets `incomparable` when local/API `metric_id` differs.
-- **`classify_serving_kind`** — honest **`modal`** kind (removed `modal-vllm` → `local` remap).
-- **`score_maud_extraction`** — skips ambiguous collapsed keys; micro accuracy over clean keys only.
-- **`extraction_binary_metrics`** — spurious fill on empty GT counts as FP (configurable).
-- **`classify_extraction_failure`** — format vs capability taxonomy (#20).
-- **`cost.estimate_for_record` / `tokens_summary`** — stamp `cost_basis`.
-- Registry: **`schema_valid`**, **`parse_ok`**, **`schema_adherence`** computed via
-  `scorecard_honesty.score_format_layer` (T1); insurance schema promotion gate default 0.90.
-- Package version **0.18.0**.
-
-
-### Added
-
-- **BERT fast-path registry surface (#106 / mailroom-ml intake gate)** — five
-  emitter-only metrics registered for llm-mailroom `SCORE_CONFIGS`:
-  `bert_pass`, `bert_sorter_agreement`, `bert_fail_soft`, `bert_elapsed_ms`,
-  `fast_path_est_cost_usd` (with `metric_meta` citations). Covered by
-  `tests/test_consumer_compat.py` and registry preservation tests.
-
-### Changed
-
-- **Classification alignment with live mailroom taxonomy** — doc-class regex
-  order prefers `merger_agreement` over `contract`; retired classes
-  (`court_opinion`, `due_diligence`) drop out of default normalization;
-  `accuracy` / macro helpers skip `ERROR:` rows like sibling eval loops;
-  `confusion_matrix` extends explicit label lists with observed classes;
-  `macro_prf(..., normalize=False)` no longer zeroes when labels are raw.
-- **Corpus prose** — mailroom-dataset v9 GT-closure pin (`46a4d3c2`, 3,302
-  rows) and Enron sentiment population counts.
-- **Prompt catalog** — docclass family versions renamed to
-  `*_mailroom_prompts_v0` / `sorter_mailroom_v0` (templates synced from the
-  Digital-Mailroom constellation monorepo).
-- Package version **0.16.0**. Consumer pin:
-
-  ```
-  llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.16.0
-  ```
-
-## [0.15.0] - 2026-09-14
-
-### Added
-
-- **`configure_from_taxonomy(taxonomy)` — the single taxonomy→settings wiring
-  path** (hub #62). Consuming projects (llm-mailroom, llm-entity-extraction,
-  agent-mailroom) load their own `taxonomy.yaml` and pass the parsed dict
-  here; the package applies the `field_scoring:` block (including the new
-  `type_bands` overrides and `factuality_verification`), equivalence sets,
-  cost models, doc-class field-type maps, and display labels in ONE place.
-  Honors the `LLM_DOJO_SCORING_CONFIG` env-file escape hatch (external file
-  wins wholesale). Before, each consumer re-implemented the coercion
-  (`_apply_taxonomy_settings` / `apply_taxonomy_settings` in three copies).
-- **Mailroom glue promoted into the package** — `get_type_bands()`,
-  `field_is_ambiguous(field_type, score)`, and `warm_embedding_model()`
-  (off-document-path embedding preload, O-10) now live in
-  `llm_dojo_scoring.field_scoring` instead of per-package shims.
-- **`get_field_types(doc_class)` auto-resolves** from the taxonomy wired via
-  `configure_from_taxonomy()` (captured in `Settings.doc_class_field_types`)
-  — no need to pass the taxonomy on every call.
-- **`FieldScoringSettings.type_bands`** — per-field-type ambiguous-band
-  overrides (`"always"` / `"never"` / `(low, high)`), populated by
-  `configure_from_taxonomy()`.
-- New top-level re-exports so dependants can `from llm_dojo_scoring import
-  ...` instead of deep submodule imports: `get_type_bands`,
-  `field_is_ambiguous`, `warm_embedding_model`, `configure_from_taxonomy`,
-  `get_field_types`, `normalize_text`, `parse_date`, `parse_money`,
-  `score_category_presence`, `peel_non_extraction_fields`, `get_jaccard`,
-  `INTAKE_SPAN_KEYS`.
-
-### Changed
-
-- Package version **0.15.0**. Consumers upgrade their pin to
-  `llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.15.0`
-  and can drop their local field-scoring shims.
-
-## [0.14.0] - 2026-09-13
-
-### Changed
-
-- **Corpus identity migrated to `Lucius-Morningstar/mailroom-dataset`**
-  (v1, canonically **v9** of the mailroom corpus family, 3,302 rows; issue
-  hub #18). `CORPUS_ID` in `llm_dojo_scoring/corpus.py` now points at
-  `mailroom-dataset` — the old `docclass-merged` repo is deleted, and the
-  frozen v8 `mailroom-corpus` remains only as lineage baseline. Module
-  titles/docstrings aligned (`mailroom-dataset corpus alignment`).
-- **v9 GT surface:** `doc_bundles.py` headline grounding count updated to
-  3,302 GT rows; `suites.py` docclass-family prose aligned; insurance
-  subclass vocabulary notes the v8/v9 synthetic LOB lines (`property` /
-  `auto`, HUB-028/HUB-041) alongside the CMS DE-SynPUF source tokens.
-- **Docs sweep:** README/SCORING/tests module docstrings updated to the
-  `mailroom-dataset` identity (historical `docclass-merged` prompt-family
-  identifiers retained as product names).
-- Package version **0.14.0**. Consumer pin:
-
-  ```
-  llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.14.0
-  ```
-
-## [0.13.0] - 2026-08-30
-
-### Changed
-
-- **Pared extraction field maps** aligned to llm-mailroom **v0.6.0**
-  (`EXTRACTION_SCHEMAS` / `taxonomy.yaml` field_types):
-  - **Retired from live `DEFAULT_FIELD_TYPES`:** open-ended
-    `key_obligations`, `termination_clauses`, `key_provisions`, long
-    `key_points`, `referenced_communications`.
-  - **Contracts / mergers:** key entities + `cuad_clauses` / `maud_clauses`
-    checklists (11 fields).
-  - **Corporate / correspondence / insurance:** semantic trio
-    (`intent` / `subject_matter` / `keywords`); insurance also has
-    `claim_checklist`.
-  - Default `partial_gt_fields` / `containment_fields` match mailroom
-    (checklists + `subject_matter`; no obligation dumps).
-  - Diagnostics `list_*` headlines prefer `cuad_clauses` →
-    `claim_checklist` → legacy `key_obligations`.
-  - `score_category_presence` default field is `cuad_clauses`.
-- Package version **0.13.0**. Consumer pin:
-
-  ```
-  llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.13.0
-  ```
-
-  Typed-field scoring formulas are unchanged; only which fields enter the
-  soft overall mean / field-micro board changed.
-
-### Added
-
-- `LEGACY_FULL_EXTRACTION_FIELD_TYPES` — pre-v0.6.0 maps that still score
-  free-text obligation dumps (historical rescoring only).
-- `suite.score(..., presence_expectations=...)` wires
-  `extraction_category_presence` the same way Enron/MAUD extras are peeled.
-- `tests/test_pared_extraction.py` + `docs/MIGRATION.md` §3i.
-- `docs/SCORING.md` field-map tables updated to the pared schema.
-
-## [0.12.2] - 2026-08-30
-
-### Changed
-
-- **Core dependency alignment with consumer packages** (`llm-mailroom`,
-  `llm-entity-extraction`, `local-mailroom-sandbox`):
-  - **`jellyfish>=1.0` is now a core dependency** (was optional-only).
-    Mailroom already requires it for Jaro–Winkler name scoring; shipping it
-    in dojo core stops silent `difflib` fallback when consumers install dojo
-    alone.
-  - **`embeddings` extra** now also includes `openai>=1.30` (alongside
-    `sentence-transformers`) so the OpenAI embedding rescue path matches
-    consumer `openai` pins.
-  - New **`tracing` extra**: `langfuse`, `arize-phoenix`, `python-dotenv`,
-    `opentelemetry-sdk`, `opentelemetry-exporter-otlp-proto-http` — mirrors
-    mailroom / entity optional tracing stacks.
-  - New **`all` extra**: `embeddings` + `tracing` + `dev`.
-  - The standalone `jellyfish` extra remains as a no-op alias for older
-    install lines.
-- Package version **0.12.2**. Consumer pin:
-
-  ```
-  llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.12.2
-  ```
-
-  Recommended extras: `llm-dojo-scoring[tracing]` (mailroom) /
-  `llm-dojo-scoring[embeddings,tracing]` (entity-extraction).
-
-Scoring formulas from v0.12.1 / v0.12.0 / v0.11.0 / v0.10.0 are unchanged.
-
-### Added
-
-- `tests/test_consumer_compat.py` — network-free contract tests that pin the
-  mailroom / entity / sandbox import surface, SCORE_CONFIGS names, and
-  serving table/scorecard fields against this package.
-- `docs/MIGRATION.md` §3h — consumer pin matrix and recommended extras.
-
-## [0.12.1] - 2026-08-28
-
-### Added
-
-- **Serving scoring table + scorecard.** `compare_serving` / `get_suite("local_vs_api").score`
-  now return `table` (every T0/T1 serving metric, including missing elements as
-  `None`), `scorecard` (T0 headlines, T0+T1 dashboard, identity, cost
-  calculations, `missing` list), `cost` (token × OpenRouter price-table
-  breakdown per side), and `markdown`.
-- **`serving_table_rows` / `serving_table_markdown` / `serving_scorecard` /
-  `serving_cost_card` / `serving_card_markdown` / `emit_serving_scorecard`.**
-  Emitter writes local and API values as separate runs (`run_id:local` /
-  `run_id:api`) so `get_scorecard("local_vs_api")` does not average the two sides.
-- Remaining serving T1 names documented in [`docs/SCORING.md`](docs/SCORING.md).
-
-Honesty: missing metrics stay `None` (status `missing` / `local_only`);
-local Ollama cost stays `None` without a price table.
-
-### Changed
-
-- Package version **0.12.1**. Consumer pin:
-
-  ```
-  llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.12.1
-  ```
-
-Scoring formulas from v0.12.0 / v0.11.0 / v0.10.0 are unchanged.
-
-## [0.12.0] - 2026-08-28
-
-### Added
-
-- **`local_vs_api` serving suite** — 26th profile, 11th bundle (`serving`).
-  Compare a local run (Ollama / vLLM / llama.cpp / LM Studio) against an
-  API-key run (OpenRouter / OpenAI / …) on the metrics both sides can
-  actually record: TTFT, TPOT, e2e latency + p50/p95, decode and prefill
-  throughput, requests/docs per second, queue time, error rate, token
-  counts, and cost when a price table exists.
-- **`llm_dojo_scoring.serving`** — `compare_serving`, `score_serving_run`,
-  `split_local_api`, `pair_comparable_runs`, plus identity tags (model,
-  quantization, dtype, GPU, max_model_len, provider, profile).
-  `get_suite("local_vs_api").score(local_records, api_records)` is the
-  importable entry point for dependents (including
-  `local-mailroom-sandbox`).
-- Registry T0 `ttft_seconds` / `tokens_per_second` and T1 serving names
-  are **SERVING-only** — sorter headlines stay `accuracy` + `f1_macro`.
-
-Honesty (do not invent KPIs):
-
-- TTFT is `None` unless a first-token timestamp or explicit `ttft_seconds`
-  is recorded. Never inferred from e2e / n_tokens.
-- GPU / KV-cache / VRAM are local-only and stripped on API-key records.
-- Local Ollama tags without an OpenRouter price table leave
-  `estimated_cost_usd` `None` (no fabricated electricity).
-
-### Changed
-
-- Package version **0.12.0**. Consumer pin:
-
-  ```
-  llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.12.0
-  ```
-
-Scoring formulas and T0 names from v0.10.0 / v0.11.0 are unchanged.
-
-## [0.11.0] - 2026-08-27
-
-### Added
-
-- **`docs/SCORING.md`** — canonical scoring reference: per-agent T0/T1 from
-  `headline_metrics` / `dashboard_metrics`, `DEFAULT_FIELD_TYPES` field maps,
-  full `_HONEST_GAPS` prose, extraction confusion model, and every T0/T1
-  metric with citation, inclusion, and ground-truth label.
-- **Registry metadata** on `MetricDef`: `citation`, `inclusion`,
-  `ground_truth` (`required` | `optional` | `structural` | `none`). Filled
-  for all T0/T1 names. Emitter-only mailroom aliases keep `source: null` and
-  `ground_truth: none`. `field_presence` documents that `score_extraction`
-  does not emit it (honesty gap, not a new scorer).
-- **`llm_dojo_scoring.prompts`** — importable catalog of production + latest
-  docclass-merged templates (`get_prompt`, `list_prompts`, `PromptRecord`).
-  Covers all 25 `DEFAULT_PROFILES` plus judge completeness / classification /
-  correctness variants. Intake is `kind=deterministic`, archivist
-  `procedural`, remaining `*_auditor` roles `proposed` with empty `text`.
-  Metric bundle / field map stay in catalog metadata; snake_case T0/T1
-  registry ids are forbidden in LLM bodies. Live colloquial “precision” /
-  “completeness” and judge JSON keys that collide with registry names are
-  flagged on `priming`, not rewritten.
-- **`docs/PROMPTS.md`** — import API, production vs `family="docclass"`,
-  non-LLM roles, anti-priming rule.
-
-### Changed
-
-- Package version **0.11.0**. Consumer pin:
-
-  ```
-  llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.11.0
-  ```
-
-Scoring formulas and T0 names from v0.10.0 are unchanged.
-
-## [0.10.0] - 2026-08-26
-
-### Added
-
-- **Field-micro extraction P/R/F1/F2** (`extraction_metrics.extraction_binary_metrics`)
-  over (field, value) events. TP requires typed score `>= 1.0`; partial list
-  matches stay in the soft `extraction_overall_score` mean. F2 uses van
-  Rijsbergen β=2 (`5PR/(4P+R)`). Registered as `extraction_precision` /
-  `extraction_recall` / `extraction_f1` (T0) / `extraction_f2` (T0) plus
-  `entity_list_f1` (existing diagnostics `entity_list_raw_f1`).
-- **Classification macro-PRF** (`classification.fbeta`, `macro_prf`).
-  `binary_metrics` now returns `f2`. `per_class_stats` gains precision /
-  recall / f1 / f2. `score_task("docclass")` and `score_task("pipeline")`
-  attach `f1_macro` / `precision_macro` / `recall_macro` / `f2_macro` on
-  doc_type and `subclass_*` macros when subclasses are present. Registry
-  T1 names `precision` / `recall` / `f2` are filled with the macros.
-- **Insurance claims extras** (`claims_consistency`): `determination_consistency`
-  (approved ⇒ empty denial reasons; denied/partial ⇒ non-empty) and
-  `amount_exactness` (money-field exact after the existing one-cent
-  normalize). CMS GT homogeneity (all-approved) is pinned, not hidden.
-- Correspondence **`content_topic_f1_macro` promoted to T0** and wired onto
-  the extraction bundle override so `headline_metrics("correspondence_specialist")`
-  includes it.
-
-### Changed
-
-- Sorter T0 `f1_macro` is actually computed (`classification.macro_prf`);
-  registry `source:` for `f1_macro` no longer points at `binary_metrics`.
-- Insurance honest-gap text shrinks from “scorer pending” to GT homogeneity.
-- Corporate-records honest gap keeps “no *external* extraction benchmark”
-  (39-row GT is enough for field-micro; do not claim CUAD/MAUD-grade coverage).
-- Package version **0.15.0**. Consumer pin:
-
-  ```
-  llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.15.0
-  ```
-
-Single-doc `get_suite(<specialist>).score(dict, dict)` still returns
-`ExtractionScoreResult`. Batch extraction returns a dict with run-level
-`extraction_*` keys when those are present.
-
-## [0.9.0] - 2026-08-26
-
-### Added
-
-- **`llm_dojo_scoring.mailroom`** — live LLM-Mailroom / The-Mailroom
-  pipeline contract (PRs #21–#29 / The-Mailroom #10). Live five-class
-  roster, `unknown` routing token, `merger_agreement` → `contract`
-  extract alias, Hub subclass inventories, Langfuse observation-type
-  map, score transport aliases, `user_id` / `release` identity, and
-  exact vs aligned HF classification (`merger_agreement` ≡ `contract`).
-- **25th agent profile: `intake`** — pre-sorter intake clerk (span
-  `normalize-intake`). Tasks `prepare`/`normalize`; dedicated `intake`
-  bundle. Deterministic clerk gold (NFC, newline unify, NBSP, zero-width,
-  C0, hyphen unwrap, blank-run collapse, horizontal-space collapse,
-  trim) with LLM intake scored against the same gold. Handoff is
-  `classify-document` (sorter). Computable — not emit-only.
-- **CUAD / MAUD inventory fields** on the contracts / merger extraction
-  maps: `cuad_family`, `merger_consideration`, `cuad_clauses`,
-  `maud_clauses` (mailroom Hub specialist hardening).
-- **Hub SEC form-body inventory** as the `compliance_filing` subclass
-  catalog (zero corpus rows still; inventory is live extract enum).
-- Registry: `extraction_verified_precision` (35-char Langfuse wire
-  alias of `extraction_overall_verified_precision`),
-  `mailroom-pipeline-judge`, `mailroom-pipeline-quality`,
-  `exact_accuracy`, `aligned_accuracy`, `subclass_accuracy`.
-  Family token `LIVE_SPECIALISTS`.
-- Langfuse sync understands `document-pipeline` traces (filename,
-  `expected_hf_class`, exact/aligned, `user_id`, `release`,
-  `environment`, `normalize-intake` span stats). Config reads
-  `LANGFUSE_RELEASE`, `MAILROOM_TRACE_USER_ID`, `LANGFUSE_FLUSH_AT` /
-  `LANGFUSE_FLUSH_INTERVAL`, `OBSERVABILITY_ENVIRONMENT`.
-- `LangfuseSink` emits the short transport alias on the wire.
-- `list_suites(live_only=True)` hides retired specialists.
-- `score_task("pipeline" | "document-pipeline")` for HF eval.
-- **Enron content scorers** (`content_scoring.score_content_topic` /
-  `score_sentiment`) — 11-topic + 3-class sentiment accuracy / macro-F1
-  over correspondence GT differentiators (`content_topic`,
-  `sentiment_label`). Wired as extras on `correspondence_specialist`.
-- **MAUD per-question extraction** (`score_maud_extraction` /
-  `score_task("maud_extraction")`) — exact / valid-class / presence /
-  category over the 22 Hub `maud_clause_labels` keys (or specialist
-  `'<Question>: <Answer>'` spans). Distinct from the legacy
-  `maud_question` consideration-type classifier. Rebound onto
-  `get_suite("merger_agreement")`.
-- **WER/CER** (`asr.word_error_rate` / `character_error_rate`) —
-  word- and character-level Levenshtein over reference length, plus
-  `word_accuracy = max(0, 1 - WER)`. `pdf_transcriber` /
-  `image_extractor` `score()` now returns these alongside token-F1.
-
-### Changed
-
-- **Retired live specialists** `court_opinions_specialist` and
-  `due_diligence_specialist` (and their auditors) are flagged
-  `ScoringSuite.retired=True`. Suites remain for historical traces and
-  LegalBench; the sorter emits `unknown` instead of extracting.
-- Insurance `claim_type` enum includes CMS source-table tokens
-  (`pde`/`inpatient`/`outpatient`/`carrier`) plus legacy FNOL lines.
-  `adjuster` null matches empty (CMS rows).
-- Package version **0.9.0**. Consumer pin:
-
-  ```
-  llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.16.0
-  ```
-
-Honesty mandate unchanged for remaining gaps: insurance
-determination-consistency, retired court/DD, zero-row compliance, and
-corporate_record (no external extraction benchmark). Enron topic/
-sentiment, MAUD per-question extraction, and WER/CER now ship as real
-scorers.
-
-Suite: 294 passed / 5 skipped.
-
-## [0.8.1] - 2026-08-25
-
-### Added
-
-- **`llm_dojo_scoring.corpus`** — single source mapping each mailroom
-  class to the published
-  [`Lucius-Morningstar/docclass-merged`](https://huggingface.co/datasets/Lucius-Morningstar/docclass-merged)
-  schema (1,210 GT rows: 1,081 train / 129 test). Exports subclass
-  catalogs, extraction-field sets, type-specific GT differentiators,
-  CUAD (41) / MAUD (22 questions, 7 categories) clause surfaces,
-  correspondence topics, and `normalize_corpus_subclass` /
-  `suite_schema`.
-- **Per-type subclass catalogs on every specialist suite**
-  (`ScoringSuite.subclasses` / `differentiators` / `in_corpus`):
-  CUAD 25-family (contract), MAUD consideration (merger_agreement),
-  CMS DE-SynPUF source table `carrier|inpatient|outpatient|pde`
-  (insurance_claim — orthogonal to specialist `claim_type`), Enron
-  form (correspondence), record type (corporate_record). Native
-  classes with zero rows (`due_diligence`, `compliance_filing`,
-  `court_opinion`) stay honest: empty subclass catalog + gap note.
+- **Eval data & metrics integrity (DMR-049, 2026-09-10):** LegalBench job
+  runs read `expected` from the `answer` field (every prediction scored
+  wrong before), loud missing-fixture failures, seeded task/suite selection,
+  honest `mock/mock-legalbench` labelling, and a suite bridge with
+  `fetch_full_cuad.py` guidance; `dataset.jsonl` sha256 is verified at
+  worker start and resume with drift refusal (`--force` archives the old
+  lock generation); the lock records `revision_resolved` + `prompt_text_sha`
+  and refuses prompt-text drift; one canonical `dataset_fingerprint` is
+  shared by eval and job records; Modal records are stamped
+  `serving_kind=modal` with ok-only latency and a champion cost table
+  (`Qwen/Qwen3-8B` was uncosted), ok-only scoring with `error_count`;
+  GT-shard-absent rows are refused rather than scored unlabeled;
+  `expected_stage`/`question`/`answer` survive `normalize_rows`.
+- **MRV2 wording correction (DMR-051):** the pinned models already run Model
+  Runner V2 under v0.28.0 — the deploy docs no longer claim the version bump
+  is required for MRV2 (v0.29.0 completes the rollout).
 
 ### Fixed
 
-- **Hierarchical `docclass` scoring no longer forces every subclass
-  through the MAUD consideration normalizer.** CUAD folder labels,
-  CMS source tables, and Enron forms were collapsing to `"other"`.
-  `score_task("docclass")` now scopes normalization to the *expected*
-  parent class.
-- **`get_suite("merger_agreement")` rebinds the MAUD catalog** instead
-  of silently inheriting the contracts specialist's CUAD families.
-  Shared `ContractExtraction` field map (incl. `document_name`) is
-  unchanged; `suite.doc_type` / subclasses / differentiators match
-  the requested class.
-- Sorter default task is hierarchical `docclass` (not label-only
-  `doc_class`). `normalize_subclass` without a parent type returns
-  `"other"` so CUAD prefixes cannot rewrite unlabeled CMS / Enron
-  values; pass `doc_type=` once the parent class is known.
-- `DOC_CLASS_KEYS` includes `insurance_claim`. Subtype alias lookup
-  strips non-alphanumerics so CUAD folder labels
-  (`License_Agreements`, `Joint Venture _ Filing`) resolve.
+- **`sync_packages.py` patch push (DMR-054, 2026-09-10):** the first patch
+  push since DMR-028 crashed twice — `ls-tree -z` output was unpacked into
+  four names (paths may contain tabs; the metadata/rel split now happens
+  first) and `git cat-file blob` returned text-mode str that `write_bytes`
+  rejected (`run()`/`git()` gained a `binary` flag). Verified by propagating
+  the 43-file DMR-044..053 delta to `Exios66/local-mailroom-sandbox` (remote
+  head `8edbe4a9`, cursor re-baselined).
 
-### Changed
-
-- Package version **0.8.1**.
-- Honest-gap notes record corpus-absent types and the insurance
-  CMS-table vs `claim_type` split (`adjuster` / `denial_reasons`
-  are on the schema but empty in the current GT; all
-  `coverage_determination=approved`).
-
-Suite: 244 passed / 5 skipped (was 229/5).
-
-## [0.8.0] - 2026-08-25
+## [0.5.0] - 2026-09-10
 
 ### Added
 
-- **Dedicated per-agent scoring suites:** new module
-  `llm_dojo_scoring.suites` — one importable `ScoringSuite` per pipeline
-  agent so llm-mailroom / llm-entity-extraction call
-  `get_suite("sorter").score(...)` / `get_suite("insurance_claim").score(...)`
-  instead of assembling a profile + bundle + field-type map. Suites
-  embed the mailroom taxonomy field-type maps, materialize an
-  `agent:<name>` bundle, route `score()` to existing package functions
-  (`score_task`, `score_extraction`, audit disagreement as
-  `1 - overall_score`, transcription token-F1), and document honest
-  gaps where type-specific scorers are still pending. Doc-type aliases
-  cover all eight processed classes (incl. `merger_agreement` →
-  contracts specialist).
-- **24th agent profile: `insurance_claims_auditor`** — companion auditor
-  for the seventh specialist, matching the KANBAN-062/063 per-specialist
-  auditor pattern.
-- **Registry family tokens** (`SPECIALISTS`, `AUDITORS`, `CLASSIFIERS`,
-  `TRANSCRIBERS`) so a newly added specialist cannot be omitted from
-  extraction `applicable_agents` (the v0.7.0 `insurance_claims_specialist`
-  gap). `insurance_claims_specialist` is now on every extraction metric
-  that the other specialists already had.
-- **Diagnostic metrics registered:** `date_mae_days`, `money_mae_usd`
-  (T1) and `duration_mae_days` (T2) — existing
-  `diagnostics.extraction_diagnostics` surface, now emit-able from
-  every specialist suite.
-- **Per-specialist extraction extras** on the task and doc-type
-  bundles (date/money diagnostics + hallucination) so every specialist
-  has a dedicated extras set, not just contracts and court opinions.
-- Sorter / reviewer / judge classification extras; audit metrics now
-  apply to every named auditor + arbiter. `insurance_claim` added to
-  the default classification label table.
+- **Modal deploy hardening — vLLM cache volume, revision knob, SDK pin
+  (DMR-029/DMR-030, 2026-09-10):** both `llm-mailroom/deploy/modal_vllm.py`
+  and `llm-entity-extraction/deploy/modal_vllm.py` now match the
+  `local-mailroom-sandbox` reference implementation: `Secret.from_dict`
+  (SDK 1.5.5 removal of `Secret.from_local`), pinned image tag `v0.28.0`
+  (was `latest`), `--no-enable-log-requests` (v0.28.0 rename of
+  `--disable-log-requests`), vLLM cache Volume (`/root/.cache/vllm` —
+  JIT/CUDA-graph compile artifacts cut cold-start recompilation from minutes
+  to seconds), revision knob (`MODAL_VLLM_REVISION` env var + `--revision`
+  flag — pins Hub model weights for reproducibility), GPU memory utilization
+  (`MODAL_VLLM_GPU_MEMORY_UTILIZATION`, default 0.90), max-num-seqs
+  (`MODAL_VLLM_MAX_NUM_SEQS`, default 256). Both `pyproject.toml` deploy
+  extras pinned to `modal==1.5.5` (was `modal>=0.73`). htcondor templates
+  bumped from `v0.8.5` → `v0.28.0`; `serve_vllm.sh` log flag updated.
+- **vLLM specialist version policy refresh (DMR-031, 2026-09-10):**
+  `.opencode/agents/vllm-specialist.md` updated to current stable v0.29.0
+  (family pin v0.28.0), documents the `--disable-log-requests` →
+  `--enable-log-requests` opt-in rename and Model Runner V2 default change.
 
-### Changed
-
-- Specialist profiles now bind their native `doc_bundle` (contract,
-  corporate_record, …) so `resolve_doc_bundle()` no longer falls back
-  to the task bundle for those seven agents. Agents without a native
-  doc type (sorter, judge, …) still return `used_fallback=True`.
-- YAML profile overlays persist `doc_bundle`. Bundle validation now
-  checks `agent_overrides` extras against the registry (previously
-  looked up the wrong key).
-- Package version **0.8.0** (`pyproject.toml` + `__init__.__version__`).
-- Langfuse env-file loader: stdlib KEY=VALUE fallback when
-  `python-dotenv` is not installed (the previous silent no-op left
-  explicit `langfuse.env` files unread).
-
-Suite: 229 passed / 5 skipped (was 209/5).
-
-## [0.7.0] - 2026-08-21
-
-### Added
-
-- **Document-type-aware metric bundles (KANBAN-067):** new module
-  `llm_dojo_scoring.doc_bundles` with `DOC_TYPE_BUNDLES` — one bundle per
-  processed document class (`contract`, `corporate_record`, `due_diligence`,
-  `correspondence`, `compliance_filing`, `court_opinion`, `insurance_claim`,
-  `merger_agreement`). Same `Bundle` shape and registry validation as task
-  bundles, but a SEPARATE namespace (names prefixed `doc:`) so the task-bundle
-  surface is untouched. Where real scoring logic exists today, type-specific
-  metrics ship: contracts get laziness/hallucination overrides,
-  court_opinions get LegalBench metrics. Where they don't, the bundle
-  description says so in plain language (HONEST GAP: MAUD-derived merger
-  scorers, Enron-derived demand-letter/email scorers, DE-SynPUF-grounded
-  claims scorers all PENDING) instead of inventing numbers — the honest-gap
-  mandate from issue #32. New scorers land by adding to the matching key;
-  the registry is the modular extension point.
-- **`AgentProfile.doc_bundle` + explicit-fallback resolver:** optional
-  per-profile doc-type bundle field, plus
-  `AgentProfile.resolve_doc_bundle(doc_type=None, *, fallback=True) ->
-  tuple[Bundle, bool]`. Resolution order: explicit doc_type → profile's
-  `doc_bundle` → task bundle with `used_fallback=True` (an EXPLICIT honesty
-  marker for callers/dashboards — never a silent default); `fallback=False`
-  raises rather than pretending. Additive-only: every v0.6.0 profile keeps
-  its exact tasks/bundle/fallback/ground_truth (pinned by a regression test).
-- **23rd agent profile: `insurance_claims_specialist`** (tasks extract,
-  bundle extraction) — companion to llm-mailroom's insurance_claim document
-  class shipped in Phase 1 of this card (mailroom commit `99536d8`).
-  `test_bundles.py::test_default_profiles` re-pinned deliberately; the full
-  doc-type surface + preexisting-profiles-unchanged regression live in
-  `tests/test_doc_bundles.py` (16 new network-free pins).
-
-Suite: 209 passed / 5 skipped (was 193/5).
-
-## [0.6.0] - 2026-08-21
-
-### Added
-
-- Review/audit profile registry for the pipeline architecture alignment
-  (KANBAN-062/063) — eight new agent profiles in `profiles.py`:
-  - `sorter_reviewer` — Classification Review (tasks classify/review, bundle
-    `classification`): the Lane A second-opinion reviewer after the sorter.
-  - `contract_auditor`, `corporate_records_auditor`,
-    `due_diligence_auditor`, `correspondence_auditor`,
-    `compliance_auditor`, `court_opinions_auditor` — one named companion
-    auditor per specialist (tasks verify/review, bundle `audit`, fallback
-    `extraction`, ground-truth-free): dispatch targets for the audit-manager
-    pattern.
-  - `arbiter` — Judgment Arbitration (tasks verify/review, bundle `audit`,
-    ground-truth-free): escalation lane when an in-pipeline judge verdict
-    fails.
-  Audit profiles never require ground truth (they verify specialist output,
-  not GT fields). All bundles resolve eagerly; existing 14 profiles unchanged.
-
-## [0.5.1] - 2026-08-21
-
-### Added
-
-- Registry completeness for the llm-mailroom SCORE_CONFIGS schema: all 12
-  remaining mailroom score names are now registered, so `load_registry()`
-  covers 100% of both consumers' emission surfaces (KANBAN-061):
-  - T1 (score): `class_correct`, `stage_correct`, `extraction_correctness`,
-    `extraction_needs_judge_review`, `expected_field_presence` (alias of
-    `field_presence`), `extraction_overall_verified_precision` (alias of
-    `verified_precision`), `extraction_hallucination_rate`
-  - T2 (aggregate): `extraction_field_score`, `extraction_category_presence`,
-    `completeness_label`, `extraction_correctness_label`
-  - T3 (log): `classification_quality`
+- **Specialist subagent roster + dedicated vLLM/Modal subagents (DMR-008,
+  2026-09-09):** `AGENTS.md` now documents the full specialist roster —
+  `athena-database-agent`, `lucius`, `prompt-engineer`, `atom`,
+  `hazel-ui-software-master`, `jarvis-systems-maximizer`, the new
+  `vllm-specialist` and `modal-specialist`, plus `explore`/`general` — with
+  when-to-call guidance, one-specialist-per-concern, brief-like-a-card, and
+  caller-owns-the-work rules. New project agents
+  `.opencode/agents/vllm-specialist.md` and
+  `.opencode/agents/modal-specialist.md` require verifying the current
+  upstream docs/version before writing configuration and are grounded in the
+  repo's wiring: vLLM stable v0.24.0 (docs.vllm.ai), Modal Python SDK 1.5.5
+  (`@app.server`, `modal endpoint`, named Images, version-pinned lookups,
+  Sandbox v2), `deploy/modal_vllm.py` apps, `llm/providers.py` vLLM seam,
+  and `test_vllm_modal_capability.py`. Restart opencode to load the new
+  agents into the Task tool.
+- **Org-migration reference audit + CI gate (DMR-006, 2026-09-09):** the
+  hub-identity migration from `Exios66/mailroom-dev` to
+  `LLM-Mailroom-Services/Digital-Mailroom` is now audited and enforced.
+  New `docs/reports/audits/org_migration_audit.md` + `.json` inventory every
+  reference across three tiers — migrate (hub), intentional package-mirror
+  (`Exios66/*` standalone repos), and historical (HUB-era) — and new
+  `scripts/audit_references.py` fails CI (wired into
+  `.github/workflows/board-governance.yml`) on any non-allowlisted stale hub
+  reference. Sweep applied to the issue-template config links, the changelog
+  scope line + compare/release footer, the wiki pages (Home, _Sidebar,
+  Getting-Started, FAQ incl. the stale Root-Directory note, Board-Governance,
+  Releases, Architecture), the README family, `docs/docclass-merged-plan.md`,
+  `.opencode/agents/prompt-engineer.md`, `LICENSE`, the README footer
+  (LLM-Mailroom-Services · Exios66 · grantmooslin), and `sync_packages.py`'s
+  propagation message. Package mirrors, upstream pins, and HUB-era history are
+  deliberately unchanged (allowlisted).
+- **Standalone board restart + served dispatch board (DMR-001/DMR-002/DMR-003,
+  2026-09-09):** the Digital-Mailroom clone now runs its own task board and
+  served site. **DMR-001** restarts `governance/TASKS.md` in a fresh `DMR-`
+  namespace (predecessor `HUB-*` cards stay canonical in `Exios66/mailroom-dev`;
+  lineage recorded in the board header) and re-points every board tool at
+  `LLM-Mailroom-Services/Digital-Mailroom`: `scripts/board_state.py`
+  (`DEFAULT_REPO`, card/archive/lane/issue regexes, project title),
+  `scripts/github_labels.py`, `.github/labels.json`, `scripts/release_chain.py`,
+  `scripts/release_notes.py`, and the `.github/ISSUE_TEMPLATE/hub_card.yml`
+  template; the 32-label kanban taxonomy was seeded in the new repo. **DMR-002**
+  stands up the new Vercel project `digital-mailroom` (Root Directory
+  `board-site`, Vercel Authentication off, `GITHUB_TOKEN` production secret)
+  serving the issue-backed board at
+  **<https://digital-mailroom-theta.vercel.app>** — `board-site/lib/gh.js`,
+  `board-site/api/board/[id].js` and `board-site/index.html` now read/write the
+  new repo under the `DMR-` prefix with the new CORS origins, and a repo-root
+  `.vercelignore` keeps CLI deploys limited to `board-site/`. **DMR-003**
+  verified the predecessor board stays modifiable (`PATCH /api/board/HUB-064`
+  through the original proxy) and disabled Vercel Authentication on project
+  `mailroom-dev` so raw deployment URLs (e.g.
+  `mailroom-4sc2d0sxd-lucius-projects-54efe0bb.vercel.app`) serve publicly.
+  Docs currency: `AGENTS.md` board/served-board sections, `README.md` hub +
+  governance pointers, `docs/wiki/Served-Board.md` and `docs/wiki/sync-wiki.sh`.
+- **Release-notes generator + template (`.github/RELEASE_TEMPLATE.md` +
+  `scripts/release_notes.py`):** all hub GitHub Releases now render their body
+  with `python scripts/release_notes.py X.Y.Z` — it compiles the freshly-cut
+  `## [X.Y.Z]` changelog section (the detailed change summary) with the merged
+  pull requests in the release window (`gh`-resolved, offline git fallback)
+  and the key HUB-card commits into a single `--notes-file` body that always
+  carries: a summary + epoch title, highlights (one line per landed card), the
+  full changelog section, the related PRs, the critical commits, and
+  changelog + `v<prev>...v<ver>` compare references. Options: `--title`
+  (epoch suffix), `--out` (write the notes file), `--no-net`, `--json`.
+  Template placeholders mirror the generated sections — edit the template to
+  change what every release carries, never hand-type a body. Docs: wiki
+  Releases.md "Release-notes template" section + AGENTS.md command index.
+- **Served Kanban board deployed live (HUB-055, 2026-09-06):** the HUB-055
+  dispatch board is now served in production at
+  **<https://mailroom-dev.vercel.app>** (Vercel project `mailroom-dev`, deploy
+  root `board-site/`). Read path (`GET /api/board` → live kanban cards from
+  the `kanban`-labeled issues) and write-back (`PATCH /api/board/HUB-0NN`)
+  verified end-to-end in production against `Exios66/mailroom-dev` via the
+  zero-dependency token proxy; `GITHUB_TOKEN` stored as a Vercel production
+  secret.
+- **Served-board docs + governance integration (HUB-058, 2026-09-06):** new
+  wiki page `docs/wiki/Served-Board.md` documents the live dispatch board
+  end to end (layout, read/write API contract, config/env secrets, redeploy
+  workflow, `pull-issues` reconciliation) and is cross-linked from the wiki +
+  AGENTS.md; stale wiki pages refreshed (Home facts → corpus v8/2,000 rows +
+  6-built/4-virtual + hub v0.4.0 + served-board row; Architecture surfaces +
+  layout; Releases deploy surfaces + actual `--notes-file` cut practice; FAQ
+  canonical-dataset + served-board Q&A; Getting-Started live-board pointer;
+  Sub-Package-Sync sweep one-liner + HUB-044 caveat). Governance law
+  reconciled in TASKS.md §"Issues vs board": the board-only carve-out is
+  retired for the card↔issue law — every board card carries a `kanban`
+  synced issue (or it won't appear on the served board) + the post-site-edit
+  `pull-issues` obligation.
 
 ### Fixed
 
-- `classification_quality` registered as numeric (it was briefly annotated
-  as free-text); it is a NUMERIC Langfuse config in mailroom.
+- **Stale Modal SDK pin across deploy extras (DMR-029/DMR-030):**
+  `modal>=0.73` → `modal==1.5.5` in both `llm-mailroom` and
+  `llm-entity-extraction` `pyproject.toml` deploy extras — the old pin
+  allowed SDK versions that removed `Secret.from_local` and broke deploys.
+- **Missing vLLM cache volume in sibling deploy apps (DMR-029/DMR-030):**
+  `llm-mailroom` and `llm-entity-extraction` Modal deploys lacked the
+  `VLLM_CACHE_VOLUME` that `local-mailroom-sandbox` already had — every
+  cold boot burned GPU time recompiling JIT/CUDA-graph kernels.
+- **Stale vLLM image tag `latest` in Modal deploys (DMR-029/DMR-030):**
+  both sibling deploys defaulted to `latest` image tag instead of the
+  pinned `v0.28.0` — non-reproducible, vulnerable to breaking upstream
+  changes.
+- **Stale htcondor vLLM pins (DMR-032):** `vllm_serve.sub` and
+  `vllm_batch_eval.sub` pinned `v0.8.5` (11+ months stale);
+  `serve_vllm.sh` used the pre-v0.28.0 `--disable-log-requests` flag.
 
-## [0.5.0] - 2026-08-21
+## [0.4.0] - 2026-09-05
 
-### Added — unified scoring layer (KANBAN-061, entity-extraction issue #27)
+### Added
 
-- **`registry`** — YAML-backed metric definitions registry: every metric name
-  mapped to a tier (`T0 HEADLINE` / `T1 CORE` / `T2 DEEP` / `T3 LOG`), units,
-  aggregation, applicable agents, and the existing package function that
-  computes it. Built-in default embeds the full current surface including all
-  37 flat llm-mailroom `SCORE_CONFIGS` names as preserved aliases/notes.
-  Override via `LLM_DOJO_SCORING_REGISTRY` env var or explicit path.
-- **`bundles`** — nine pre-built metric bundles (classification, extraction,
-  extraction_open, cost, factuality, laziness_detection, audit, reporter,
-  transcription) with fail-fast validation against the registry and optional
-  per-agent overrides.
-- **`profiles`** — agent profile system: 14 default profiles (sorter, six
-  specialists, judge, boss, pdf_transcriber, image_extractor, archivist,
-  audit_agent) with task-derived bundle resolution, fallback bundles, and
-  YAML overlay via `LLM_DOJO_SCORING_PROFILES`.
-- **`emitter`** — unified score emitter: `ScoreRecord`, network-free
-  `LocalManifestSink` (JSONL), credential-checked inert-unless-configured
-  `LangfuseSink`; `emit_score` / `get_scorecard(min_tier=...)` /
-  `compare_headlines`.
-- **`pruning`** — tier-based dashboard filtering: `prune_metrics`,
-  `dashboard_metrics(agent)` (profile-bundle ∩ tier cap),
-  `headline_metrics(agent)` (strictly T0), `prune_records`.
-- New exports in `__init__`; 37 new network-free tests
-  (`tests/test_registry.py`, `tests/test_bundles.py`,
-  `tests/test_emitter.py`). Full suite: 187 passed, 5 skipped.
+- **Terminal-stylized TUI + terminal GH Pages site for The-Mailroom
+  (HUB-054, 2026-09-04):** the The-Mailroom package's TUI was rebuilt as a
+  full typed-command REPL over a rich Live frame — `mailroom@floor:~$` prompt,
+  status header + scrollback + prompt, raw-key line editor (backspace/arrows/
+  Tab completion/Ctrl+L/Ctrl+C), background floor poller pushing AgentLab
+  banners, split into `tui/commands.py` (registry + man pages) / `views.py`
+  (renderers) / `corpus.py` (Hub corpus client over `mailroom_ui/hf_corpus.py`)
+  / `repos.py` (constellation manifest + fail-soft GitHub enrichment). Command
+  set: help/man/clear/history/date/echo/uname/neofetch/floor/review/sessions/
+  metrics/inspect/debug/filter + `corpus ls|show|search|stats` + `repos ls|
+  open` + `open <name>`. `mailroom_console.py` re-exports every legacy
+  renderer (existing 24 TUI tests pass unchanged; extended to 37). New CLI
+  flags `--view corpus|repos`, `--corpus …`, `--repos …`. A new terminal
+  GH Pages site (`terminal/` — owlcot-family: CRT overlay, amber/green/cyan
+  themes, ghost-text Tab completion, history + prefs in localStorage, boot
+  sequence, animated man pages) is staged to `gh-pages:/docs/terminal/` by
+  `publish_pages.sh` (pixel console stays the root); commands cover the
+  snapshot traces + LIVE corpus browsing via datasets-server (CORS verified)
+  - the constellation repo browser. `scripts/export_corpus_catalog.py` writes
+  the slim `site/data/corpus.json` catalog (filename/class/subclass/sha/split
+  - row-index offsets; `--check` verifies counts + sha integrity; 2,000 rows
+  live-verified). `hf_corpus.fetch_rows` gains offset/page_sleep/429 backoff.
+  The-Mailroom release 0.3.0 → 0.4.0 (its own package cut). Pipeline
+  architecture diagrams updated for the v0.4.0 agent roster.
+- **Served Kanban Dispatch Board — live, issue-backed web site (HUB-055,
+  2026-09-05):** the composed `mailroom-dispatch-board.html` enhanced board is
+  wired into a served path on Vercel with automatic site updates + editability.
+  Every board card is now a synced GitHub issue (seeded #23–#30 + relabeled
+  #22 as HUB-055's mirror; one card = one issue with `kanban`/`stage/*`/
+  `priority/*`/`domain/*` labels). Serve path is `board-site/` (Vercel Root
+  Directory): `api/board.js` GETs live cards from `labels=kanban` issues and
+  POSTs new ones; `api/board/[id].js` PATCHes lane/priority/body/assignees
+  (lane moves swap the `stage/*` label + post a dated "Board lane move"
+  comment; archive = close, restore = reopen); `index.html` is the adapted
+  dispatch board fetching `/api/board` with a LIVE/OFFLINE badge and
+  write-through on every move/save. Tokenized proxy is zero-dependency
+  (`fetch` only). `board_state.py pull-issues` reversed the sync (issues →
+  TASKS.md lanes + a dated Evidence note, never auto-creates cards) so the
+  board stays canonical after site edits; `sync-issues` remains the
+  board → labels leg. Docs: AGENTS.md "Served Kanban board" section.
 
-### Unchanged
+### Fixed
 
-- All calculation modules and their APIs — this release is purely additive
-  organization on top of the engine (Hungarian matching, embedding rescue,
-  bootstrap CI, CUAD equivalences untouched).
+- `board_state.py` parse_board now splits open-table rows on unescaped pipes
+  only and unescapes `\|` — board rows embedding literal pipes inside code
+  spans (e.g. HUB-054's `corpus ls|show|search|stats`) previously mangled
+  the Owner cell and hid the issue link (HUB-055).
+- **Stray `v0.4.0` hub tag retargeted (removal, HUB-056, 2026-09-05):** the
+  annotated `v0.4.0` tag (pointing at The-Mailroom's package-release commit
+  `fc55be3`) was cut on the hub by mistake during the HUB-054 session — the
+  hub `pyproject.toml` stayed `0.2.0` and no `## [0.4.0]` CHANGELOG section
+  ever existed. It broke the release chain (`release_chain.py check`: tag
+  with no section + version-skew errors). Per human directive the stray tag
+  was retargeted out of the chain (deleted locally + remotely) and this
+  release cuts the real official `## [0.4.0]` hub section + annotated
+  `mailroom-hub v0.4.0` tag in its place. Upstream package releases
+  (llm-mailroom `v0.6.0`, The-Mailroom `v0.4.0`) were never implicated.
+
+## [0.3.0] - 2026-09-05
+
+### Added
+
+- **Relations agent — semantic linking + auditable relations ledger + knowledge
+  graphs** (HUB-040, 2026-09-03): the mailroom pipeline learns document
+  relationships across the archive. Storage: new `relation_edges`/`log`/
+  `embeddings`/`scan_state` SQLite tables with an independent hash-chained
+  ledger (own SHA-256 chain, monotonic-timestamp fix for `verify_chain`
+  compat). Signals: deterministic scanner — same-matter, keyword-Jaccard,
+  party-overlap, and embedding-cosine (per-type best edges, compute-once
+  embedding cache, watermark-incremental sweeps). Judgment: the `RelationsAgent`
+  closed-vocabulary LLM pass narrows ambiguous near-misses (mailroom-relations
+  prompt, taxonomy `relations` block, `llm:false` pilot default, config-gated)
+  and refuses to propose unvetted pairs. Delivery: post-archive dispatch x3 +
+  handoff-context RELATED block + echo RELATED section + watcher-embedded
+  sweeper; knowledge graphs (matter/global/ego projections; stdlib
+  GraphJSON+GraphML, optional Plotly HTML+PNG; ledger render events); 13-test
+  hermetic suite (ledger integrity/tamper, upsert novelty, signals,
+  compute-once cache, kill-switches, incremental sweep, context block, LLM
+  validator, KG projections/renderers); hermetic + hang-proof embedding path
+  (env kill-switch + 90s bounded model load — a dojo model download never
+  stalls a scan) and the relations background dispatch killed in tests to fix
+  a failed `tmpdir` teardown race in the Gmail triage suite.
+- **Insurance-claim subclass alignment with the v8 synthetic LOB claims**
+  (HUB-041, 2026-09-03): the mailroom-corpus v8 GT (`eafe1ab4`) carries SIX
+  insurance subclasses (carrier/inpatient/outpatient/pde + property 200
+  GNOTHEIA + auto 150 BDR; 50 strata) but several surfaces still taught or
+  accepted only the four CMS tokens. Landed: dojo `corpus.py`
+  `DOC_TYPE_SUBCLASSES`/`CORPUS_SUBCLASS_SURFACES` + `mailroom.py`
+  `HUB_SUBCLASS_INVENTORIES` gain property/auto (v8 counts pinned in tests);
+  entity `sorter_agent.py` `INSURANCE_CLAIM_SUBCLASSES` (flows into the
+  DOCCLASS/PILOT `doc_subclass` enums — property/auto rows are now scoreable);
+  The-Mailroom `pipeline_schema.DOC_SUBCLASS_BY_CLASS`; llm-mailroom
+  `doc_inventories` fallback catalog + `taxonomy.yaml`/sorter insurance
+  descriptions; sandbox fixture gains property/auto rows. **New prompt
+  versions under the mailroom naming convention** (human directive; existing
+  `*_docclass_*` keys are frozen experiment identity):
+  `sorter_mailroom_v0` (extended arm, off v7) and `sorter_mailroom_pilot_v0`
+  (pilot arm, off pilot v3) extend rule 40 with the two LOB tokens — defaults
+  unchanged until a same-surface A/B; The-Mailroom
+  `mailroom_ui/docclass_prompts.py` mirrors the pilot key byte-identical
+  (32 keys). **Subclass-parity layer in `scripts/taxonomy_parity.py`** (all
+  classes): the Hub GT vocabulary (pinned per class from `eafe1ab4`) must be
+  covered by every subclass catalog surface (dojo catalogs + observed-GT
+  table, entity taxonomy `subclasses:` blocks + sorter lists, The-Mailroom
+  schema mirror, llm-mailroom doc_inventories fallback + extract claim_type
+  inventory) with extras tolerated only from documented rosters; CI path
+  triggers extended to the new surface files; verified pre-fix drift is
+  detected (mutation checks).
+- **Gmail triage free-swarm failover** (HUB-039, 2026-09-04): the single-doc
+  pilot hit OpenRouter's shared free-pool saturation (all 5 retry attempts on
+  the SAME `z-ai/glm-5.2:free` → review park). Fix: ordered free-model
+  failover in the retry ladder — `taxonomy.yaml: free_model_swarm`
+  (glm-5.2 → ling-3.0-flash-fin → nemotron-3.5-lightning → inkling →
+  inkling-small → dots-3-note → laguna-s → laguna-xs → lfm-2.5), rotation on
+  `RateLimitError` AND model-capability 400s (`_is_model_capability_error` —
+  generic 400s never rotate), paid models NEVER rotate, a request parks only
+  when the whole swarm is limited; full triage I/O debug capture
+  (`data/debug/triage/<UTC>_<file>/`, `triage_llm_io`/`parse_failed`/
+  `llm_call_failed` events) + robust JSON recovery (markdown fences /
+  prose-wrapped). `llm/client.py:is_free_model` extracted as the shared
+  predicate; the vendored ChatOpenAI chokepoint enforces the free-only pilot
+  guardrail; `llm_free_failover`/`llm_free_swarm` events. Live chain proof:
+  glm-5.2 429 → ling capability-400 → nemotron served the read
+  (`insurance_claim`, 0.95).
+- **Gmail echo depth expansion** (2026-09-04): HTML multipart report +
+  processing timeline + WHAT HAPPENED narrative + `friendly_reason`;
+  reviewer escalation now carries the exception text; station-signoff;
+  multipart support in smoke/tests; `gmail_intake` state file written via
+  atomic `tmp`+`replace` (crash-safe persistence).
+- **intake-provenance-aware already-processed dedup** (HUB-043, 2026-09-04):
+  the watcher's filename-only rule silently dropped legitimate re-sent
+  documents forever — a new email (new Message-ID) carrying an
+  already-processed filename was refused every sweep. A file's `/upload`
+  sidecar (`message_id`/`upload_id`) must now MATCH the terminal manifest's
+  intake provenance to count as processed; mismatch = a NEW document that
+  MUST claim. The triage lane also dispatches the relations scan on terminal
+  manifests (`relations_sweeper`).
+- **Watcher status channel** (HUB-050, 2026-09-04): 🔴 down alerts + 🟢
+  relaunch confirmations to the operator email (`pipeline/status_notify.py`,
+  (exactly three kinds — running/down/still_down) — HTML+text, fail-soft,
+  kill-switch `MAILROOM_WATCHER_STATUS`); EXTERNAL watchdog
+  (`python -m pipeline.watchdog`) — pid-dead/missing-heartbeat →
+  immediate 🔴, pid-alive-but-stale → 2 consecutive stale checks, 🟠 reminders
+  only while an outage is active; enriched atomic heartbeat
+  (`touch_watcher_heartbeat(extra)` — pid/host/started_at/git-sha). Live drill
+ 2026-09-04: kill → down in 30s, relaunch → running; anti-spam posture
+  (no periodic healthy-status digests). Watchdog alert-retry hardened in
+  the same audit pass.
+- **Relations clerk production-readiness** (HUB-051, 2026-09-04): the
+  research/review clerk was archived code-complete but a NO-OP on live
+  (triage lane never wrote the `documents` catalog row → scanner skipped
+  everything; the LLM judgment pass was dead code; the documented
+  `relations_scan` CLI crashed; embedding cosine never worked outside tests).
+  Landed: `pipeline/relations_scan.py` CLI, triage catalog upserts on BOTH
+  triage terminal paths (+ `file_sha256` persistence), wired `_llm_judgment_
+  edges` (top-K on the ambiguous band, `llm_confidence_gate` 0.55,
+  `llm_asserted` edges, re-validation), `_embed` driven by the dojo's shared
+  `_EmbeddingMatcher` singleton (local ST + remote fallback, 90s-bounded,
+  fail-soft), 7 stale `processing` catalog rows reconciled, judgment
+  I/O debug capture (`recover_processing.py --catalog`). Live proof: 4 docs
+  → 7 edges (6 same_matter + 1 party_overlap), ledger chain OK (189 entries),
+  real LLM judgment ran through the free-swarm failover and was correctly
+  refused by the gate.
+- **Relations clerk mode toggle** (HUB-052, 2026-09-04):
+  `pipeline/relations_mode.py` — `python -m pipeline.relations_mode
+  status|pilot|live [--model] [--restart-watcher]`: `status` prints the
+  effective posture + every knob; `pilot`/`live` edit taxonomy.yaml SURGICALLY
+  (section-tracked line rewrite, comments byte-preserved, atomic
+  temp+replace), remove a stale `MAILROOM_RELATIONS_LLM` kill-switch, clear
+  in-process config caches so the current thread honors the flip immediately;
+  model validation (cost_models / `:free`), paid-under-free-only refused.
+  The smoother path: authenticated `GET/POST /api/relations/mode` on the
+  FastAPI — POST applies + clears caches, embedded watcher honors it with NO
+  restart.
+- **claims-data-eda: real insurance-claim corpus PDF samples** (HUB-046,
+  2026-09-04): 8 real corpus documents from `Lucius-Morningstar/mailroom-corpus`
+  (`ground_truth_hardened.jsonl`, 950 insurance_claim rows; sampled
+  carrier/inpatient/outpatient/pde ×2, seed 42) rendered as byte-faithful A4
+  PDFs of the verbatim `doc_text` via deterministic zero-dep
+  `scripts/render_samples.py` into `docs/examples/` with `manifest.json`
+  (provenance + sha256) + README; guard tests, managed PDF writer (Courier/
+  WinAnsi, xref-valid, multi-page). Prune-doctrine exception recorded
+  (like HUB-008).
+- **Enron-Evaluation-Environment: cleanly formatted Markdown samples of the
+  Enron email correspondence** (HUB-047, 2026-09-04): regenerable
+  `scripts/build_samples.py` walks the maildir via the index walker and
+  renders a taxonomy-stratified, seeded, bounded selection into `samples/`
+  (16 samples + generated README index; 2 per subclass key; reservoir 120
+  per stratum; walk cap 517,401 = full corpus; body cap 6000; seed 20150507
+  = the tarball date). Clean formatting law: H1 subject, header metadata
+  table, maildir provenance, subclass label + labeler evidence, attachments;
+  body `>`-quoted replies as Markdown blockquotes, forwarded content split
+  via the shared `_strip_forwarded`. `voicemail`/`other` strata empty (the
+  documented text-only labeler limitation).
+- **Gmail triage key/concise entity extraction for ALL document types via
+  the EXISTING EXTRACTION_SCHEMAS** (HUB-048, 2026-09-04): `triage()` now
+  returns BOTH the classification read AND a per-class `extraction` object
+  driven by `schemas.documents.EXTRACTION_SCHEMAS` (the same Pydantic models
+  the paid specialists use): `extraction_schema_for()` derives the field map
+  per class (normalizing `float|None`/`anyOf` to real JSON `number`), short-
+  document emphasis in the prompt, `_clamp_extraction` drops cross-class
+  fields/caps lists(10)/strings(200). Rides `intake_meta["triage"]
+  ["extraction"]` → manifest → echo "EXTRACTED KEY ENTITIES (triage)".
+  Advisory + fail-soft preserved.
+- **Gmail triage lane: unknown-class extraction fallback + confidence gate +
+  transient-LLM review parking** (HUB-049, 2026-09-04): `unknown` primary
+  class no longer yields empty extraction — `_unknown_class_extraction()`
+  merges model correspondence keys with `_deterministic_header_extraction()`
+  (regex `From:/To:/Date:/Subject:` + Enron markdown-table forms; grounded
+  values only); `validate_triage` routes unknown → fallback. Watcher
+  confidence gate: `unknown` class or confidence < taxonomy `low` (0.88)
+  parks the doc in REVIEW (`triage_unknown_class`/`triage_low_confidence`,
+  `triage_reviewed` audit, ⏸ echo) instead of archiving an untrusted read.
+  Transient LLM failures park with `triage_llm_unavailable: <type>: <msg>`.
+- **Repo-wide mailroom-corpus HF dataset loader + corpus-sourced Gmail pilot
+  notebook** (HUB-053, 2026-09-04): `pipeline/hf_corpus_loader.py` — the
+  canonical loading path for the mailroom-corpus family (labels from the
+  `ground_truth` config joined with `doc_text` from the blind `default`
+  config on `filename`): /parquet ladder + on-disk cache + load-time
+  integrity proof (`content_sha256` == sha256(`doc_text`), verified
+  1792/1792 live), `/rows` pagination fallback, literal-slash sha
+  provenance, `datasets` optional (never a dependency).
+  `notebooks/gmail_pilot_lab.py` + `14_gmail_pilot.ipynb` — the expert
+  pilot loop: config → preflight (heartbeat/channel/allowlist/corpus) →
+  corpus pick (integrity-verified snapshot offline / live Hub behind
+  `NB-OPT-IN-NETWORK`) → FIRE interlock (mock inbox drop w/ the poller's
+  exact sidecar | real SMTP w/ fail-fast allowlist guard) → watch →
+  evidence (catalog row, audit hash-chain, relations edges, echo) → corpus
+  GT comparison → `data/pilot_runs/<stamp>_<token>/report.{json,md}`.
+  LIVE: record 65s/30s real+post-fix fires, 9 relations edges, verdict FAIL
+  7/10 (honest GT surface).
+- **Propagation sweep — all 10 feeder repositories in line with the monorepo
+  (third sweep)** (HUB-005, 2026-09-04): llm-mailroom, The-Mailroom,
+  agent-mailroom, llm-dojo-scoring, local-mailroom-sandbox pushed upstream;
+  cursors re-baselined; the sanctioned all-packages one-liner
+  (`push --all --patch`) verified; the ingest/intake consolidation tail —
+  every remaining package mention consolidated; git `commit-message` doctrine
+  - reword session note (human directive 2026-09-04).
+
+### Changed
+
+- The sorter's live doc-class surface now comes from `get_all_doc_types()` —
+  `status: retired` entries are filtered, so the sorter schema/classifier/
+  gmail triage prompts reflect only the 5 primary doc classes + `unknown`
+  (2026-09-04).
+- `compliance_filing` retired from live docs + the visualizer schema (HUB-054
+  #15) — the 5-class + `unknown` set is the live roster.
+
+### Fixed
+
+- `release_chain.py cut` no longer requires `## [Unreleased]` to be the file's
+  first line — the section header is located anywhere in the CHANGELOG and
+  the preamble (title + scope note) is preserved when stamping a release
+  section (discovered while cutting v0.2.0).
+
+## [0.2.0] - 2026-09-03
+
+### Added
+
+- **Gmail intake channel + single-document free-triage lane** (HUB-037,
+  2026-09-03): the agent mailbox (`llmmailroom@gmail.com`) is a second intake
+  route in `packages/llm-mailroom` — stdlib IMAP-SSL poller embedded in the
+  watcher (the lock holder stays the single intake authority), `/upload`
+  sidecar routing, `[M:<id>]` subject matters, `\Seen` + Message-ID dedup,
+  sender allowlist, ✅ check reaction at claim time (both routes, with a
+  terminal-stage retry + `reactions_failed` counter), on-thread completion
+  echoes, intake awareness on every terminal manifest, and the FREE-model
+  single-document triage lane (`agents/gmail_triage.py`, `z-ai/glm-5.2:free` —
+  free models kept deliberately): core pipeline steps without the paid agents
+  (deterministic prep → triage classification → auditable-hash archive → echo)
+  with its own `triage_*` audit section, a deterministic capability pre-check
+  that honestly hands off oversized/vision-only/scanned documents to the full
+  paid pipeline (`intake.triage_handoff`), and all five canonical doc types
+  validated through the lane. Multi-document emails run the full paid
+  pipeline (triage never dispatched).
+- **Intake agent v2 — triage + clean + prepare** (HUB-038, 2026-09-03): the
+  pipeline's first node is now a SINGLE `intake` node — the intake agent IS
+  the ingest specialist (human directive: the ingest/intake split was an
+  unintentional naming mistake; unified constellation-wide). The
+  LLM-assisted pass (one fused call per window) TRIAGES (advisory read —
+  same vocabulary-clamped shape as the free triage team, fed to the sorter as
+  a labeled prior), CLEANS (gated structural repair, re-normalized through
+  the deterministic dojo clerk so `prep_invariants` hold), and PREPARES
+  (validated section map). **No-truncation doctrine (human directive):**
+  documents are NEVER truncated — anything past an input budget is processed
+  in overlapping sliding windows (`sliding_windows`, paragraph-boundary, 15%
+  overlap) so every character is read; the sorter classifies window-by-window
+  and merges deterministically (plurality vote, mean confidence of agreeing
+  windows), the retry path no longer slices text, and partial-window cleaning
+  is never spliced. Cost + efficiency: the LLM pass fires only for
+  messy/over-budget documents on the cheapest paid model (`qwen3.7-flash`);
+  `MAILROOM_LLM_INTAKE=0` disables; failures fail soft. Prompt registry
+  15 → 17 (`mailroom-gmail_triage`, `mailroom-intake`); model registry gains
+  the free `z-ai/glm-5.2:free` tier.
+- **Ingest/intake unification rename sweep** (HUB-038 follow-up,
+  2026-09-03): graph node `ingest` → `intake` (span `intake-document`; the
+  `ingested` audit event stays — compliance vocabulary) across the whole
+  constellation: llm-mailroom (`entry_route`, `intake_node`, tracing
+  registry), The-Mailroom (`Stage.INTAKE` enum, `pipeline_schema.py`
+  mirrors, `trace_interpreter.py`, TUI labels, web/hosted JS stage maps,
+  tests, demo scripts), agent-mailroom (`pipeline/ingest.py` →
+  `intake.py`), local-mailroom-sandbox and llm-dojo-scoring span mirrors,
+  and the pipeline lab notebook.
+- **Gmail free-triage production-pilot readiness** (HUB-039, 2026-09-03):
+  sender-allowlist pilot roster documented in `packages/llm-mailroom`
+  `.env.example` (production pilot roster; empty = accept all).
+- **Propagation sweep — all 10 feeder repositories in line with the
+  monorepo** (HUB-005 reopened, 2026-09-03): HUB-038/039 payload propagated
+  upstream via `sync_packages.py` — llm-mailroom (16 files), The-Mailroom
+  (22), agent-mailroom (7 + the `ingest.py`→`intake.py` renames carried by a
+  real subtree pull + full-history subtree push after the HUB-021 patch path
+  refused the cursor gap), llm-dojo-scoring (1), local-mailroom-sandbox (1);
+  cursors re-baselined per package in `scripts/packages_sync.json`.
+
+- **mailroom-corpus v8 — insurance LOB expansion + full GT conformance**
+  (HUB-028, 2026-09-02): the corpus grows 1,650 → **2,000 rows** (strata
+  48 → 50) with (a) +200 `property` rows from
+  `gratex/GNOTHEIA-synthetic-insurance-dataset` (Apache-2.0 — FNOL bundles
+  stratified by loss event, determination `pending`), (b) +150 `auto` rows
+  from `bdr-ai-org/insurance-motor-claims-decision-v1` (MIT — decision
+  letters stratified by accident type × APPROVE/REVIEW/REJECT with all
+  reject rows, feature-grounded denial reasons, adjuster pseudonyms), and
+  (c) full GT conformance: intent/subject_matter/keywords + intent
+  provenance populated on ALL 950 insurance rows (600 CMS backfilled via
+  deterministic template derivation — was 246/600 subject/keywords, 600/600
+  intent; 200 property + 150 auto authored at build), claimed_amount
+  recovered from doc text on 10 v7 gap rows, metadata union
+  (source_dataset/source_revision/source_row_id/lob/peril/license) on every
+  entry, and **test-split nullification** (96 test insurance rows carry
+  zero empty class-relevant keys). Published via the centralized
+  corpus-eda helpers with sha256 local==hub verification; card v8 +
+  §84 hardening sections; datasets-server conversion green. XpertSystems
+  samples (ins001/007/hlt015) excluded for CC-BY-NC-4.0 license conflict;
+  INSURBIAS (CC-BY-4.0) deferred to v9. Builder: `v8_build.py` +
+  `scripts/build_v8.py` (7 new tests; corpus-eda suite 73 passed).
+- **§84 hardened release rebuilt on the v8 base** (HUB-032, 2026-09-02):
+  the interleaved HUB-028/HUB-022 publishes left the Hub mixed (blind
+  `default` 2,000 rows vs `ground_truth` 1,650×60) — the rebuild applies
+  the identity → eval_contract → §14A hardening chain to ALL 2,000 rows and
+  republishes `ground_truth` (60 cols) + `bundles` + `fixtures` via
+  `scripts/publish_hardened.py`. Published v7 `document_id`s unchanged
+  (0 drift over 1,474 train rows); the v8 LOB rows (200 GNOTHEIA + 150 BDR)
+  carry their own `source_corpus`/`annotation_source` (via
+  `metadata.source_dataset`) and pinned upstream `source_revision` instead
+  of collapsing into the CMS class map; annotation provenance counts now
+  950 synthetic (600 DE-SynPUF + 200 GNOTHEIA + 150 BDR);
+  thread reconstruction unchanged (19 rows in 7 threads — all
+  correspondence; insurance rows carry no custodian). Bundles re-derived
+  over the v8 base (anchor sets shift — insurance family now spans
+  carrier + auto anchors); fixtures byte-identical. Card §84 section
+  refreshed; sha256 local==hub (10/10); all §91 release gates green;
+  corpus-eda suite 73 passed.
+- **§84 v0.3 STREAM eval tier** (2026-09-02): NEW `streams` config (§27–§29/
+  §48) — `RUN-SIM-001` interleaves the 10 bundle matters round-robin
+  (A1 B1 A2 C1 B2 … — §28 never matter-contiguous) with 12 no-matter
+  `distractor` rows on a 4-position cadence (§29); every row carries
+  `simulation_run_id` + `sequence_position` (strictly reproducible, §27).
+  62 rows / 39 cols; published + sha256-verified (13/13). Stream builder
+  `mailroom_eda.bundles.build_streams` with 3 new tests.
+
+### Changed
+
+- The-Mailroom stage enum + TUI/web/hosted labels: `ingest` → `intake`
+  (visualizer mirrors the unified pipeline topology).
+- `agents/sorter.py` bypasses the vendored HEAD+TAIL truncation — over-budget
+  documents classify in sliding windows with a deterministic merge; the
+  advisory intake prior + retry preamble reach every window.
+
+### Fixed
+
+- Gmail smoke mock hermetics: `run_mock` now forces the mock sender +
+  allowlist — the HUB-039 `.env` pilot roster had started rejecting the mock
+  sender (smoke is hermetic against the real `.env`).
+- Sync-cursor/content handling for renamed package paths: a real subtree
+  pull + full-history subtree push is now the documented path when a
+  monorepo-side rename leaves the upstream tip uncontained (patch push
+  cannot carry deletions).
+
+## [0.1.0] - 2026-09-02
+
+First hub release: the monorepo as development source of truth for the
+LLM-Mailroom constellation — 10 workspace packages, the governance stack, the
+sync driver, and the hardened mailroom-corpus lineage (renamed from
+docclass-merged). Package versions at this tag: llm-mailroom v0.6.0,
+llm-dojo-scoring v0.13.0, llm-entity-extraction v0.21.0, The-Mailroom v0.3.0,
+agent-mailroom v0.2.0, local-mailroom-sandbox v0.1.0.
+
+### Added
+
+- **Monorepo + uv workspace** (HUB-001): 9 family repos imported via git
+  subtree (mailroom-corpus-eda followed as the 10th, HUB-007); one uv
+  workspace, one lockfile, one virtualenv; member dependencies resolve via
+  `[tool.uv.sources]` workspace redirects while published git pins stay
+  intact; monorepo-aware test repairs (import-shadow markers, pruned-asset
+  skip guards, UTC/CWD anchoring).
+- **Sub-package sync driver** (HUB-002, HUB-021): `scripts/sync_packages.py`
+  (status / pull / push / snapshot over git subtree) with the HUB-021
+  hardening — blob-tree containment oracle (gitignore-aware; pruned heavy
+  assets are doctrine, not drift), cursor-gap refusal on `snapshot` unless
+  `--force`, re-baseline guard that kills the pull re-import loop, scripted
+  `push --patch` for non-fast-forward cursors, and per-package monorepo-ahead
+  payload surfaced in `status`.
+- **GitHub governance tooling** (HUB-014): `scripts/board_state.py`
+  (status/card/check/sync-issues/project-init/project-sync over
+  `governance/TASKS.md`), declarative label taxonomy (`.github/labels.json`)
+  - `scripts/github_labels.py` audit, YAML issue/PR templates, blocking CI
+  gate (`.github/workflows/board-governance.yml`), optional Projects v2
+  mirror.
+- **Document-class taxonomy-parity gate** (HUB-019 §65A):
+  `scripts/taxonomy_parity.py` — strict AST-level equality across taxonomy
+  sources (mailroom sorter vocab, specialist registry, dojo corpus types,
+  entity pilot universe, v7 taxonomy doc, sandbox fixtures), wired blocking
+  into CI.
+- **Corpus governance, docclass-merged → mailroom-corpus** (HUB-019/022/023):
+  baseline freeze `docclass-merged-v0.1-working` at the true tip with audit
+  manifest (`scripts/baseline_audit.py`), canonical dataset contract
+  (`docs/DOCCLASS_CONTRACT.md`), identity/provenance/hash schema
+  (`document_id` from source identity, content hashes), contract test suite
+  (15 passed), P1 eval hardening (`eval_contract`, class×subclass×source×field
+  coverage matrix, §14A matter/group backfill decision); the HF dataset was
+  renamed `Lucius-Morningstar/docclass-merged` → `Lucius-Morningstar/
+  mailroom-corpus` (Hub move preserves history; 57 monorepo files updated
+  with prompt-version keys and trace tags immutable).
+- **Version-controlled GitHub wiki** (HUB-017): `docs/wiki/` (10 pages) +
+  `sync-wiki.sh` (`--check` drift mode).
+- **Corpus EDA deliverables tracked in full** (HUB-008 exception): figures,
+  interactive HTMLs, tables, and summary reports are canonical in the
+  monorepo — never pruned.
+
+### Changed
+
+- Root docs reworked for the monorepo (README architecture map, AGENTS.md
+  governance + workspace rules, task board) — HUB-003; docs-currency sweeps
+  after every surface-touching card (HUB-010, HUB-016, HUB-018).
+- Heavy-asset doctrine: docs demos/screenshots, sample PDFs, and report
+  archives are pruned from the hub (HUB-003/004) — with the corpus-EDA
+  deliverables exception above.
+
+### Fixed
+
+- `run_all.py` subset runs / `--no-interactive` no longer clobber
+  `reports/SUMMARY_REPORT.*` (HUB-009); P3 figure counter corrected 27 → 30
+  to disk truth (HUB-012).
+- Sync-cursor incident mechanics structurally guarded after the HUB-012/013/
+  018 reconciliations (containment oracle + gap refusal + re-baseline, HUB-021).
+- Upstream drift reconciled across all packages; `sync status` 10/10 in sync
+  (HUB-004, HUB-018); stale pins/counts swept (HUB-010/016/018).
+
+[Unreleased]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.7.0...HEAD
+[0.6.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.6.0...v0.7.0
+[0.5.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.5.0...v0.6.0
+[0.4.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.4.0...v0.5.0
+[0.3.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.3.0...v0.4.0
+[0.2.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.2.0...v0.3.0
+[0.1.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.1.0...v0.2.0
+[0.5.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.5.0
+[0.6.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.6.0
+[0.7.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.7.0

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from mailroom_sandbox.overlay import load_profile, list_profiles
 
 
-KNOWN_PROFILES = ("ollama", "vllm-local", "modal-vllm", "llamacpp", "lmstudio", "openrouter")
+KNOWN_PROFILES = ("ollama", "vllm-local", "vllm-remote", "modal-vllm", "llamacpp", "lmstudio", "openrouter")
 
 MAILROOM_PROVIDER_KEYS = ("openrouter", "ollama", "vllm", "generic")
 

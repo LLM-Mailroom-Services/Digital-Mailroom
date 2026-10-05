@@ -12,4 +12,4 @@
 #   sandbox up --compose-profile jupyter
 #   open http://127.0.0.1:8888/lab
 #
-# See docs/docker-offline.md and deploy/README.md.
+# See docs/setting-up/docker-offline.md and deploy/README.md.

@@ -15,20 +15,34 @@ config/.env
 
 # Runtime / operator data (fixtures are tracked)
 data/runtime/
-data/cache/
+data/cache/**
+!data/cache/README.md
 data/traces/
 data/pipeline/
+data/manifests/
+data/watcher.lock
+data/watcher_heartbeat
 data/mailroom.db
 data/checkpoints.db
 data/samples/
 data/*.log
 vendor/*
 !vendor/README.md
+# DMR-057: vendored family snapshots are TRACKED (self-contained); only the
+# refresh workspace and stray VCS metadata stay ignored.
+!vendor/llm-mailroom/
+!vendor/llm-mailroom/**
+!vendor/llm-dojo-scoring/
+!vendor/llm-dojo-scoring/**
+vendor/**/.git/
+vendor/.refresh/
+vendor/**/__pycache__/
 
 # Reports generated at runtime (keep README)
 reports/scores/
 reports/experiment_log.jsonl
 reports/experiment_log.md
+api-evals/reports/
 
 # IDE / OS
 .vscode/
@@ -40,9 +54,66 @@ reports/experiment_log.md
 
 # Test
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 *.log
+.ipynb_checkpoints/
 
 # Docker
 docker/volumes/
+
+# Runtime agent memory churn (DMR-063 hygiene)
+data/memory/
+
+
+# Python egg and metadata
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# System files
+Thumbs.db
+Desktop.ini
+
+# macOS system files
+.DS_Store
+
+# Logs and core dumps
+*.log
+*.out
+*.pid
+*.bak
+*.old
+*.orig
+*.core
+
+# Coverage, test, and profiling
+.coverage
+.tox/
+.nose2/
+/cache/
+*.prof
+
+# Editor-specific
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+# local Cursor or replay files
+cursor-record/
+.replay/
+/replay/
+.cache/
+# Possible others (customize for direct project needs)
+logs/
+tmp/
+temp/
+data/mailroom.db-shm
+data/mailroom.db-wal

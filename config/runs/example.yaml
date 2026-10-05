@@ -1,0 +1,76 @@
+# sandbox job run spec — DMR-027 (see docs/jobs.md for the full schema)
+#
+# A locked, resumable job: prompt version(s) + dataset subset + engine spec
+# + trace sink. Preflight resolves/validates everything, prepares the subset,
+# and writes an immutable spec.lock.json; the job then runs per-item with
+# checkpoints and resumes after pause/failure.
+#
+# Paths in this file are resolved relative to the process CWD. The offline
+# dataset example below points at the package's small HF fixture (no network).
+
+schema: sandbox.run/v1
+run_id: fixture-sorter-smoke
+task: sorter
+profile: vllm-local            # ollama | vllm-local | vllm-remote | modal-vllm | openrouter
+
+prompt:
+  # default resolution for every agent not overridden below.
+  default: {source: code-default}
+  agents:
+    sorter_reviewer: {source: local, file: sorter_reviewer_local_v0}
+    judge: {source: local, file: judge_local_v0}
+
+dataset:
+  provider: file
+  # CWD-relative (run from the repo/package root): this package's small HF
+  # fixture. The monorepo layout keeps the same tree under
+  # packages/local-mailroom-sandbox/.
+  local_path: data/fixtures/hf/docclass_mini.jsonl
+  limit: 8
+  sample_seed: 1
+
+engine:
+  kind: vllm-local
+  model: Qwen/Qwen3-8B
+  vllm:
+    max_model_len: 16384      # DMR-056: boot-valid cap for L4-bf16 8B rows (v0.29.0 raises at 32768)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
+  modal: null
+
+job:
+  mode: endpoint
+  mock: true
+  max_retries: 2
+  fail_fast: false
+  # Throughput (Modal vllm_throughput exemplar): default JobSpec.concurrency
+  # is 4 (efficient conservative vs a vLLM endpoint). Set 1 explicitly for
+  # CPU Ollama or per-item latency-sensitive runs; 4-16 fills continuous
+  # batching (docs/jobs.md).
+  concurrency: 4
+
+trace:
+  sink: none                 # none | langfuse | phoenix | otlp
+  otlp: true
+  environment: pilot
+  tags: [sandbox, job]
+
+# Full mailroom corpus or a subset instead of the fixture:
+#   dataset:
+#     provider: huggingface
+#     repo: Lucius-Morningstar/mailroom-dataset
+#     config: ground_truth          # labels + doc_text joined on filename
+#     split: all                    # train+test; required for 40/100-per-class
+#     revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (MAILROOM_HF_REVISION)
+#     strata:
+#       buckets:
+#         - {doc_class: merger_agreement, count: 40}   # max 152 at the family pin
+#     sample_seed: 42
+#
+# Live Langfuse sink (needs LANGFUSE_PUBLIC_KEY/SECRET_KEY/HOST in .env):
+#   trace:
+#     sink: langfuse
+#     otlp: true
+#     environment: pilot

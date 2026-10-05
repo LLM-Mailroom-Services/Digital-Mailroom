@@ -22,7 +22,7 @@ def test_deep_merge_nested():
 
 def test_profiles_exist():
     names = list_profiles()
-    for required in ("ollama", "vllm-local", "modal-vllm", "llamacpp", "lmstudio", "openrouter"):
+    for required in ("ollama", "vllm-local", "vllm-remote", "modal-vllm", "llamacpp", "lmstudio", "openrouter"):
         assert required in names
 
 
@@ -61,6 +61,15 @@ def test_model_override():
     taxonomy = build_merged_taxonomy(profile, model_override="llama3.1:8b")
     assert taxonomy["agents"]["sorter"]["model"] == "llama3.1:8b"
     assert taxonomy["agents"]["contracts_specialist"]["model"] == "llama3.1:8b"
+
+
+def test_awq_override_pins_vllm_agents_and_champion_remap():
+    profile = load_profile("modal-vllm")
+    taxonomy = build_merged_taxonomy(profile, model_override="Qwen/Qwen3-8B-AWQ")
+    assert taxonomy["agents"]["merger_agreement_specialist"]["model"] == "Qwen/Qwen3-8B-AWQ"
+    assert taxonomy["agents"]["sorter"]["model"] == "Qwen/Qwen3-8B-AWQ"
+    assert taxonomy["vllm_model_map"]["Qwen/Qwen3-8B"] == "Qwen/Qwen3-8B-AWQ"
+    assert taxonomy["vllm_model_map"]["qwen/qwen3.7-flash"] == "Qwen/Qwen3-8B-AWQ"
 
 
 def test_agent_model_surgical_override():
@@ -108,3 +117,87 @@ def test_endpoints_urls():
 
     lm = load_endpoints("lmstudio")
     assert ":1234" in lm.base_url
+
+
+def test_live_extract_classes_map_one_to_one_specialists():
+    """sandbox#9: merger_agreement has its own specialist, not contracts."""
+    taxonomy = build_merged_taxonomy(load_profile("ollama"))
+    expected = {
+        "contract": "contracts_specialist",
+        "merger_agreement": "merger_agreement_specialist",
+        "corporate_record": "corporate_records_specialist",
+        "correspondence": "correspondence_specialist",
+        "insurance_claim": "insurance_claims_specialist",
+    }
+    classes = {row["key"]: row["specialist"] for row in taxonomy["doc_classes"]}
+    for key, specialist in expected.items():
+        assert classes[key] == specialist, key
+    assert "merger_agreement_specialist" in taxonomy["agents"]
+    assert taxonomy["agents"]["merger_agreement_specialist"]["model"] == "qwen3:8b"
+
+
+def test_taxonomy_yaml_agent_keys_are_unique():
+    """PyYAML last-key-wins; a merge leftover duplicate would silently
+    regress DMR-078 L4 budgets (8192/100k over 4096/36008)."""
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    for rel in (
+        "config/mailroom.taxonomy.base.yaml",
+        "config/taxonomy.overlay.yaml",
+    ):
+        text = (root / rel).read_text(encoding="utf-8")
+        in_agents = False
+        seen: dict[str, int] = {}
+        for i, line in enumerate(text.splitlines(), 1):
+            if re.match(r"^agents:\s*$", line):
+                in_agents = True
+                seen = {}
+                continue
+            if not in_agents:
+                continue
+            if line and not line[0].isspace():
+                in_agents = False
+                continue
+            match = re.match(r"^  ([A-Za-z0-9_]+):\s*$", line)
+            if match:
+                key = match.group(1)
+                assert key not in seen, (
+                    f"duplicate agents.{key} in {rel}:{seen[key]} and {i}"
+                )
+                seen[key] = i
+        assert "merger_agreement_specialist" in seen, rel
+
+
+def test_modal_profile_merge_sorter_vllm_and_timeout_600():
+    """DMR-072/078: the modal-vllm profile rewrite must point the sorter at the
+    vLLM endpoint AND the merged run_limits must carry the 600s per-call
+    timeout (the vendored 120s default cannot hold an L4 generation)."""
+    from mailroom_sandbox.overlay import build_merged_taxonomy, load_profile
+
+    t = build_merged_taxonomy(load_profile("modal-vllm"))
+    assert t["agents"]["sorter"]["provider"] == "vllm"
+    assert t["agents"]["sorter"]["model"] == "Qwen/Qwen3-8B"
+    assert t["run_limits"]["llm_call_timeout_seconds"] == 600
+    # DMR-078 / SAND-018: specialist budgets fit Qwen L4 16k; contracts keeps a
+    # 4096 decode and a real-chars/token input cap so it cannot 400 the window.
+    assert t["agents"]["contracts_specialist"]["max_tokens"] == 4096
+    assert t["agents"]["contracts_specialist"]["max_input_chars"] == 18000
+    assert t["agents"]["merger_agreement_specialist"]["max_tokens"] == 4096
+    assert t["agents"]["correspondence_specialist"]["max_tokens"] == 2048
+
+
+def test_run_scoped_agent_knobs_override_global_overlay():
+    """SAND-019: a run-scoped knob (AWQ 32768 contracts needs 8192 decode) wins
+    over the global overlay while the default stays bf16-16k-safe at 4096."""
+    from mailroom_sandbox.overlay import build_merged_taxonomy, load_profile
+
+    knobs = {"contracts_specialist": {"max_tokens": 8192, "max_input_chars": 24000}}
+    t = build_merged_taxonomy(load_profile("modal-vllm"), agent_knobs=knobs)
+    assert t["agents"]["contracts_specialist"]["max_tokens"] == 8192
+    assert t["agents"]["contracts_specialist"]["max_input_chars"] == 24000
+    # Default (no knobs) is untouched.
+    d = build_merged_taxonomy(load_profile("modal-vllm"))
+    assert d["agents"]["contracts_specialist"]["max_tokens"] == 4096
+    assert d["agents"]["contracts_specialist"]["max_input_chars"] == 18000

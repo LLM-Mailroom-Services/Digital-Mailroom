@@ -18,6 +18,7 @@ Read this skill **first** when the task touches providers, tracing, datasets, Do
 | Hosted eval / experiment logs (opt-in) | Braintrust | [braintrust](../braintrust/SKILL.md) | Braintrust as the default offline sink |
 | Hub datasets / model cards / HF cache | Hugging Face Hub + `sandbox datasets pull` | [huggingface](../huggingface/SKILL.md) | Live Hub pulls in default pytest |
 | Offline fixture prep | `sandbox datasets prepare` + notebooks | (prep helpers; no cloud) | Hub network in CI |
+| Sandbox-isolated tasks / governance | Local **`SAND-*`** board (`governance/TASKS.md`) | (this router + `governance/PREFIX.md`) | Family **`DMR-*`** MESSAGE_BOARD (cross-repo only) |
 
 ## Observability precedence (`OBSERVABILITY_PROVIDER`)
 
@@ -37,7 +38,7 @@ Sandbox evals implement the Langfuse v4 `document-pipeline` contract in `mailroo
 1. **`--mock` / offline prep** — no live LLM  
 2. **Ollama** — default local path (`sandbox up`, `sandbox pull-models`)  
 3. **vLLM local** — NVIDIA host + compose profile `vllm`  
-4. **Modal vLLM** — remote GPU; `pip install -e ".[deploy]"` + `modal deploy`  
+4. **Modal vLLM** — remote GPU; `pip install -e ".[deploy]"` + pre-warm + `modal deploy` (see [modal](../modal/SKILL.md))
 5. **llama.cpp / LM Studio** — generic OpenAI base URL profiles  
 6. **OpenRouter** — opt-in only (`OPENROUTER_API_KEY`); never the sandbox default  
 
@@ -52,8 +53,8 @@ Always `mailroom_sandbox.runtime.activate(profile)` before importing mailroom gr
 | Compose + Dockerfile | `deploy/docker-compose.yml`, `deploy/Dockerfile` |
 | Modal app | `deploy/modal_vllm.py` |
 | Tracing | `docs/tracing.md`, `src/mailroom_sandbox/eval/tracing.py` |
-| Providers | `docs/providers.md` |
-| Offline Docker + notebooks | `docs/docker-offline.md` |
+| Providers | `docs/setting-up/providers.md` |
+| Offline Docker + notebooks | `docs/setting-up/docker-offline.md` |
 | Project skills (this tree) | `.cursor/skills/*/SKILL.md` |
 
 ## Quick commands

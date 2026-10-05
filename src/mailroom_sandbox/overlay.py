@@ -8,6 +8,8 @@ provider/model for the active profile, writes the result under
 
 from __future__ import annotations
 
+import logging
+import os
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -15,6 +17,45 @@ from typing import Any
 import yaml
 
 from mailroom_sandbox.paths import config_dir, profiles_dir, runtime_dir
+
+_log = logging.getLogger("mailroom_sandbox.overlay")
+
+_MAP_WARNED: set[str] = set()
+
+_DENSE_QWEN3_8B = "Qwen/Qwen3-8B"
+
+
+def resolve_served_vllm_model(explicit: str | None = None) -> str | None:
+    """OpenAI ``model`` id the live vLLM process actually serves.
+
+    Prefer an explicit run/CLI pin, then ``VLLM_MODEL`` / ``MODAL_VLLM_MODEL``.
+    An AWQ (or other) deploy 404s if the client still posts the profile
+    default dense id ``Qwen/Qwen3-8B``.
+    """
+    for cand in (explicit, os.environ.get("VLLM_MODEL"), os.environ.get("MODAL_VLLM_MODEL")):
+        if cand and str(cand).strip():
+            return str(cand).strip()
+    return None
+
+
+def pin_served_vllm_ids(taxonomy: dict, served: str | None) -> dict:
+    """Force every vLLM agent + champion remap onto the served HF id."""
+    if not served:
+        return taxonomy
+    served = str(served).strip()
+    if not served:
+        return taxonomy
+    agents = taxonomy.get("agents") or {}
+    for agent in agents.values():
+        if isinstance(agent, dict) and str(agent.get("provider") or "") == "vllm":
+            agent["model"] = served
+    mapping = taxonomy.setdefault("vllm_model_map", {})
+    if isinstance(mapping, dict) and served != _DENSE_QWEN3_8B:
+        for key, val in list(mapping.items()):
+            if val == _DENSE_QWEN3_8B:
+                mapping[key] = served
+        mapping[_DENSE_QWEN3_8B] = served
+    return taxonomy
 
 
 def deep_merge(base: Any, overlay: Any) -> Any:
@@ -66,14 +107,19 @@ def mailroom_taxonomy_path() -> Path:
         packaged = Path(cfg.CONFIG_PATH)
         if packaged.is_file():
             return packaged
-    except Exception:
-        pass
+    except Exception as exc:
+        _log.warning(
+            "installed mailroom pipeline.config could not be read — falling back "
+            "to the vendored base taxonomy (an install-broken family import would "
+            "otherwise silently change what this run uses)",
+            exc_info=exc,
+        )
     vendored = config_dir() / "mailroom.taxonomy.base.yaml"
     if vendored.is_file():
         return vendored
     raise FileNotFoundError(
         "Could not locate mailroom taxonomy.yaml. Run `sandbox fetch-deps` "
-        "or pip-install mailroom @ v0.5.0."
+        "to refresh the tracked vendor snapshot."
     )
 
 
@@ -86,13 +132,23 @@ def map_model(openrouter_id: str, serving: str, model_map: dict | None = None) -
     defaults = model_map.get("defaults") or {}
     if serving in defaults:
         return str(defaults[serving])
+    key = f"{openrouter_id}/{serving}"
+    if key not in _MAP_WARNED:
+        _MAP_WARNED.add(key)
+        _log.warning(
+            "model id %r has no models.yaml map entry for serving family %r — "
+            "passing the id through unchanged; a foreign id will 404 at the "
+            "provider (add a row to config/models.yaml)",
+            openrouter_id,
+            serving,
+        )
     return openrouter_id
 
 
 def serving_family(profile: dict) -> str:
     """Which column of models.yaml this profile uses (ollama/vllm/llamacpp/...)."""
     name = str(profile.get("name") or profile.get("provider") or "ollama")
-    if name in {"vllm-local", "modal-vllm", "vllm"}:
+    if name in {"vllm-local", "modal-vllm", "vllm-remote", "vllm"}:
         return "vllm"
     if name in {"llamacpp"}:
         return "llamacpp"
@@ -188,6 +244,7 @@ def build_merged_taxonomy(
     model_override: str | None = None,
     extra_overlay: dict | None = None,
     agent_models: dict[str, str] | None = None,
+    agent_knobs: dict | None = None,
 ) -> dict:
     from mailroom_sandbox.components import load_components, routing_overlay
 
@@ -200,8 +257,16 @@ def build_merged_taxonomy(
     merged = rewrite_agents(merged, profile, model_override=model_override)
     # Overlay agent knobs (temp / tokens / optional model) win after rewrite.
     merged = apply_agent_overrides(merged, overlay.get("agents") or {})
+    # SAND-019: run-scoped generation-budget knobs (e.g. a 32768-window AWQ run
+    # that needs more decode tokens than the bf16-safe 16384 overlay allows) win
+    # last, after the profile's global overlay. Keeps the default overlay
+    # context-fit for 16384 while letting one run widen its own budget.
+    merged = apply_agent_overrides(merged, agent_knobs)
     # CLI --agent-model is surgical and always wins last.
     merged = apply_agent_models(merged, agent_models)
+    served = resolve_served_vllm_model(model_override)
+    if served and serving_family(profile) == "vllm":
+        pin_served_vllm_ids(merged, served)
     return merged
 
 
@@ -217,7 +282,14 @@ def patch_mailroom_config(taxonomy_path: Path) -> bool:
     """Point mailroom's cached config loader at the sandbox runtime YAML."""
     try:
         import pipeline.config as cfg  # type: ignore
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "mailroom pipeline.config could not be imported — the runtime "
+            "taxonomy at %s will NOT be patched; mailroom may run its own "
+            "hardcoded taxonomy. This is a vendoring/install defect.",
+            taxonomy_path,
+            exc_info=exc,
+        )
         return False
     cfg.CONFIG_PATH = Path(taxonomy_path)
     cache_clear = getattr(cfg.load_config, "cache_clear", None)

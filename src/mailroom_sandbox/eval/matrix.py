@@ -23,10 +23,22 @@ def plan_matrix(
     sample: int = 10,
     seed: int = 42,
 ) -> list[dict[str, Any]]:
+    from mailroom_sandbox.overlay import list_profiles
+
+    # --providers takes PROFILE names, not serving families (DMR-048 G34):
+    # 'vllm' is a family, 'vllm-local'/'modal-vllm' are profiles. A silent
+    # family name used to plan cells that crashed at activate().
+    known = set(list_profiles())
+    unknown = [p for p in providers if p not in known]
+    if unknown:
+        raise ValueError(
+            f"unknown provider profile(s) {unknown}; have {sorted(known)} — "
+            "--providers takes profile names (e.g. vllm-local, modal-vllm), not families"
+        )
     cells = []
     for provider in providers:
-        profile = load_profile(provider) if provider in _profile_aliases(provider) else None
-        family = serving_family(profile) if profile else provider
+        profile = load_profile(provider)
+        family = serving_family(profile)
         for model in models:
             mapped = map_model(model, family) if "/" in model else model
             for prompt in prompts:
@@ -44,12 +56,6 @@ def plan_matrix(
     return cells
 
 
-def _profile_aliases(name: str) -> set[str]:
-    from mailroom_sandbox.overlay import list_profiles
-
-    return set(list_profiles()) | {name}
-
-
 def run_matrix(
     *,
     task: str = "sorter",
@@ -60,6 +66,7 @@ def run_matrix(
     seed: int = 42,
     mock: bool = True,
     dry_run: bool = False,
+    console: Any = None,
 ) -> dict[str, Any]:
     cells = plan_matrix(
         task=task,
@@ -90,7 +97,10 @@ def run_matrix(
             raise ValueError(f"Unknown matrix task {task!r}")
 
     results = []
-    for cell in cells:
+    for idx, cell in enumerate(cells, start=1):
+        if console is not None:
+            detail = f"{idx}/{len(cells)} · {cell['provider']} · {cell['model']}"
+            console.phase("EVAL", detail)
         kwargs: dict[str, Any] = {
             "mock": mock,
             "sample": sample,
@@ -101,6 +111,11 @@ def run_matrix(
         if task != "legalbench":
             kwargs["prompt_version"] = cell["prompt"]
         results.append(runner(**kwargs))
+        if console is not None and not dry_run:
+            rec = results[-1].get("record") if isinstance(results[-1], dict) else None
+            acc = (rec or {}).get("accuracy") if isinstance(rec, dict) else None
+            state = f"acc {acc}" if acc is not None else cell["experiment_name"][-24:]
+            console.progress(idx, len(cells), label="cells", state=state)
     payload: dict[str, Any] = {
         "task": task,
         "cells": cells,

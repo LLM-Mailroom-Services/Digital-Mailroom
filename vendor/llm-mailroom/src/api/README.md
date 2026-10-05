@@ -1,0 +1,53 @@
+# `api/` — The web server (FastAPI)
+
+## What this folder is (plain English)
+
+This is the **front door** to Mailroom. It's a small web server (FastAPI) that lets you interact with the pipeline over HTTP, without touching files or the database directly. It runs on `http://localhost:8000`.
+
+You use it to:
+
+- Upload a document (`POST /upload`) — drops it in the inbox for the watcher to process. The upload carries a tracking `upload_id` and honors the submitted `matter_id` via a `<file>.meta` sidecar the watcher reads.
+- See the live inbox → processing queue (`GET /queue`) — queued uploads (with their metadata), in-flight worker claims, and recent documents.
+- Check where a document is in the pipeline (`GET /status/{doc_id}`).
+- Approve/reject/record/requeue/complete documents on human review (`POST /review/{doc_id}/resolve`, dispositions from The-Mailroom PR #18/#20 — `doc_type` / `doc_subclass` class correction); list the tray (`GET /review/queue`), look up by trace/filename (`GET /lookup`), and read the parked file (`GET /documents/{doc_id}/source`, `?download=1` for original bytes).
+- See the tamper-proof audit trail (`GET /audit/{doc_id}`) or summarize the whole local audit DB (`GET /audit`).
+- List everything in a matter (`GET /matters/{matter_id}`).
+- See pipeline health/metrics (`GET /ops/status`, `GET /health` — `/health` reports `checks.watcher` live/stale/missing plus how recently the watcher heartbeat was touched, i.e. whether uploads are actually being drained). `/ops/status` includes `first_pass` / `first_pass_rate`: documents that archived in one hop with no reroute, scored without ground truth.
+
+## Getting started
+
+```bash
+python api/main.py        # serves on http://localhost:8000
+# reachable producer for The-Mailroom Observatory (PR #30):
+#   docker compose -f deploy/docker-compose.producer.yml --env-file .env up -d --build
+# then MAILROOM_PIPELINE_URL=http://127.0.0.1:8000
+#      MAILROOM_PIPELINE_TOKEN=$MAILROOM_API_TOKEN
+#      MAILROOM_PIPELINE_API_PREFIX=/v1
+# Space pair: deploy/space/PAIRING.md (Inbox Queue → POST /v1/upload)
+```
+
+Then open `http://localhost:8000/docs` for an interactive test page (Swagger UI)
+with Try-it-out buttons for every route. Day-to-day Inbox **Queue a document**
+and REVIEW actions (Approve / Reject / Requeue, class correction, Open original)
+should go through The-Mailroom's Observatory when `MAILROOM_PIPELINE_URL` +
+`MAILROOM_PIPELINE_TOKEN` + `MAILROOM_PIPELINE_API_PREFIX=/v1` point here — no
+typed endpoints required.
+## Technical reference
+
+- Single module: `main.py` defines `app = FastAPI(...)`. `python -m api.main`
+  binds via `listen_host()` / `listen_port()` — platform `PORT` wins over
+  `MAILROOM_API_PORT` (Railway/Fly/Render). Equivalent:
+  `uvicorn api.main:app --port 8000`.
+- `lifespan` calls `_ensure_dirs()` on startup and, unless `MAILROOM_EMBED_WATCHER=0`, starts the inbox watcher in-process (`watcher.lock` so a dedicated `python -m pipeline.watcher` cannot double-drain).
+- `POST /upload` writes bytes straight into the inbox bin — it does NOT run the pipeline itself. Processing happens asynchronously in the (embedded or standalone) watcher. Response is `202 Accepted`, with an `upload_id` and the accepted `matter_id`. It also writes a `<file>.meta` sidecar (matter_id, upload_id, uploaded_at, size) that the watcher reads to file the document under the submitted matter.
+- `GET /queue` lists queued inbox files (with sidecar metadata), in-flight `processing/<worker>/` claims, and recent catalog documents.
+- `GET /status` and `GET /matters` read from the Postgres/SQLite catalog via `storage/catalog.py`, falling back to the JSON manifest on DB failure.
+- `GET /audit/{doc_id}` returns the hash chain from `storage/audit_log.py` plus a `chain_valid` bool from `schemas/audit.py:verify_chain`.
+- `POST /ops/resume` — clear the ingestion-pause flag (there is no `/ops/pause` endpoint; the pause flag is written by the ops monitor / operator); `GET /ops/status` reports `paused_ingestion` and pipeline-wide metrics.
+- Full endpoint docs (request/response shapes): `docs/api.md`.
+- Railway: root `railway.json` + [docs/deployment.md](../../docs/deployment.md) § Railway.
+
+### Wiring notes
+
+- The API shares `storage/` and `pipeline/bins.py` with the rest of the app, so the DB file and bins are the same ones the watcher uses.
+- Auth: all endpoints except `GET /health` and `GET /matters/{matter_id}` require the `MAILROOM_API_TOKEN` bearer token when one is configured (loopback-only dev works without; off-loopback / Railway / Spaces **require** a token or the process exits — see root README → Security).

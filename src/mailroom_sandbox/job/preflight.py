@@ -1,0 +1,480 @@
+"""Preflight: confirm, prepare, and lock a job run (DMR-027).
+
+Writes ``spec.lock.json`` (immutable) LAST — it is the commit point. Resume
+refuses on spec drift unless ``--force`` (which archives the old generation,
+re-preps, and re-locks). Live engine/sink probes are opt-in (``live=True``)
+so the default is network-free and CI-safe.
+"""
+
+from __future__ import annotations
+
+import os
+import time
+from pathlib import Path
+from typing import Any
+
+import llm_dojo_scoring
+from llm_dojo_scoring.experiment import git_snapshot
+
+from mailroom_sandbox import __version__ as sandbox_version
+from mailroom_sandbox.corpus import prepare_subset
+from mailroom_sandbox.job import checkpoint
+from mailroom_sandbox.job.checkpoint import RunStore
+from mailroom_sandbox.job.otel import resolve_sink
+from mailroom_sandbox.job.spec import (
+    RunSpec,
+    engine_base_url,
+    resolve_run_id,
+    run_dir,
+    spec_core,
+    spec_hash,
+)
+from mailroom_sandbox.prompt_registry import prompt_lock_block
+
+
+def _versions() -> dict[str, Any]:
+    out: dict[str, str] = {
+        "mailroom_sandbox": sandbox_version,
+        "llm_dojo_scoring": getattr(llm_dojo_scoring, "__version__", "?"),
+    }
+    try:
+        import opentelemetry  # type: ignore
+
+        out["opentelemetry"] = getattr(opentelemetry, "__version__", "?")
+    except Exception:
+        pass
+    return out
+
+
+def _engine_errors(spec: RunSpec) -> list[str]:
+    errs: list[str] = []
+    vllm = spec.engine.vllm
+    if vllm.max_model_len < 1:
+        errs.append("max_model_len must be >= 1")
+    if not 0.0 < vllm.gpu_memory_utilization <= 1.0:
+        errs.append("gpu_memory_utilization must be in (0, 1]")
+    if vllm.max_num_seqs < 1:
+        errs.append("max_num_seqs must be >= 1")
+    if spec.engine.modal:
+        if spec.engine.modal.image_tag == "latest":
+            errs.append("modal image_tag must be pinned (never 'latest')")
+        if spec.engine.modal.max_containers < 1:
+            errs.append("modal max_containers must be >= 1 (cost guard)")
+    return errs
+
+
+def _engine_summary(spec: RunSpec) -> str:
+    v = spec.engine.vllm
+    modal = spec.engine.modal
+    parts = [
+        f"kind={spec.engine.kind} model={spec.engine.model}",
+        f"max_model_len={v.max_model_len} gpu_util={v.gpu_memory_utilization} "
+        f"max_num_seqs={v.max_num_seqs} "
+        f"prefix_caching={'on' if v.enable_prefix_caching else 'off'} "
+        f"enforce_eager={'on' if v.enforce_eager else 'off'}",
+    ]
+    if v.quantization:
+        parts[1] += f" quantization={v.quantization}"
+    if modal:
+        modal_part = f"modal app={modal.app} gpu={modal.gpu} image={modal.image_tag} max_containers={modal.max_containers}"
+        parts.append(modal_part)
+    return ", ".join(parts)
+
+
+def _probe_timeout_seconds(spec: RunSpec) -> float:
+    """Timeout for the live engine probe.
+
+    A scale-to-zero Modal app accepts the request and holds it open until the
+    container is up (minutes), so the old hard 10 s would misreport a *booting*
+    app as unreachable and fail the preflight (SAND-018). Modal probes get the
+    boot budget; every other profile keeps the short CI-safe default. Override
+    with ``SANDBOX_ENGINE_PROBE_TIMEOUT_SECONDS``.
+    """
+    env = os.environ.get("SANDBOX_ENGINE_PROBE_TIMEOUT_SECONDS", "").strip()
+    if env:
+        return float(env)
+    if spec.engine.kind == "modal-vllm":
+        return float(os.environ.get("MODAL_VLLM_STARTUP_TIMEOUT_SECONDS", "1200"))
+    return 10.0
+
+
+def _probe_engine(spec: RunSpec) -> dict[str, Any]:
+    base = engine_base_url(spec)
+    api_key = os.environ.get("VLLM_API_KEY", "").strip()
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    detail: dict[str, Any] = {"base_url": base}
+    import httpx
+
+    timeout = _probe_timeout_seconds(spec)
+    detail["probe_timeout_seconds"] = timeout
+    # URL-seam normalization: VLLM_BASE_URL / profile base_url carry the
+    # OpenAI-style "/v1" suffix (deploy README + .env.example contract) —
+    # appending "/v1/models" to an already-seamed base yields
+    # ".../v1/v1/models" and a 404 from vLLM. Only add the seam when the
+    # base does not already end with it.
+    base = base.rstrip("/")
+    models_path = f"{base}/models" if base.endswith("/v1") else f"{base}/v1/models"
+
+    started = time.perf_counter()
+    deadline = started + timeout
+    last_reason = "no response from /v1/models"
+    while True:
+        attempt_timeout = max(1.0, deadline - time.perf_counter())
+        try:
+            resp = httpx.get(models_path, headers=headers, timeout=attempt_timeout)
+        except httpx.ConnectError as exc:
+            # Connection refused = wrong / dead endpoint (e.g. the localhost
+            # fallback when VLLM_BASE_URL is unset) — fail fast, never retry.
+            return {
+                "ok": False,
+                "reason": f"unreachable: {type(exc).__name__}: {exc}",
+                "cold_boot_seconds": round(time.perf_counter() - started, 3),
+                **detail,
+            }
+        except Exception as exc:  # noqa: BLE001 — boot can drop the held request
+            last_reason = f"unreachable: {type(exc).__name__}: {exc}"
+        else:
+            if resp.status_code == 401:
+                return {
+                    "ok": False,
+                    "reason": "401 — set VLLM_API_KEY to the deployed token",
+                    "cold_boot_seconds": round(time.perf_counter() - started, 3),
+                    **detail,
+                }
+            if resp.status_code >= 400:
+                return {
+                    "ok": False,
+                    "reason": f"HTTP {resp.status_code} from /v1/models",
+                    "cold_boot_seconds": round(time.perf_counter() - started, 3),
+                    **detail,
+                }
+            try:
+                ids = [
+                    str(m.get("id"))
+                    for m in (resp.json().get("data") or [])
+                    if isinstance(m, dict)
+                ]
+            except Exception as exc:  # noqa: BLE001
+                # A booting Modal web_server can answer 2xx with an empty body
+                # before vLLM is ready — retry until the boot budget elapses
+                # (SAND-018: this is what misreported a boot as "wrong API").
+                last_reason = (
+                    f"/v1/models returned unparseable JSON (not a models payload): "
+                    f"{type(exc).__name__}: {str(resp.text)[:160]!r} — the endpoint may be "
+                    f"answering the wrong API"
+                )
+            else:
+                detail["served_models"] = ids
+                if spec.engine.model not in ids:
+                    return {
+                        "ok": False,
+                        "reason": f"served {sorted(ids)} lacks spec.model={spec.engine.model}",
+                        "cold_boot_seconds": round(time.perf_counter() - started, 3),
+                        **detail,
+                    }
+                detail["cold_boot_seconds"] = round(time.perf_counter() - started, 3)
+                return {"ok": True, **detail}
+        if time.perf_counter() >= deadline:
+            detail["cold_boot_seconds"] = round(time.perf_counter() - started, 3)
+            return {"ok": False, "reason": last_reason, **detail}
+        time.sleep(1.0)
+
+
+def probe_engine(spec: RunSpec) -> dict[str, Any]:
+    """Live engine probe: /v1/models at the resolved base URL vs the spec model.
+
+    Public wrapper around the preflight live check so ``run start --job-mode
+    modal`` can verify the endpoint BEFORE firing (DMR-048) without re-running
+    the whole preflight.
+    """
+    return _probe_engine(spec)
+
+
+def _modal_check(spec: RunSpec) -> bool:
+    modal = spec.engine.modal
+    if modal is None:
+        return True
+    return modal.image_tag != "latest" and modal.max_containers >= 1
+
+
+def _prompt_summary(block: dict[str, Any]) -> str:
+    agents = block.get("agents") or {}
+    bits = [f"default={block.get('default', {}).get('source')}"]
+    for agent, r in agents.items():
+        bits.append(f"{agent}={r.get('source')}")
+    return "; ".join(bits) if bits else "code-default"
+
+
+def _dataset_lock(prov: dict[str, Any], spec: RunSpec) -> dict[str, Any]:
+    return {
+        "repo": (spec.dataset.local_file().name if spec.dataset.local_file() else spec.dataset.repo),
+        "config": spec.dataset.config,
+        "split": spec.dataset.split,
+        "revision": prov.get("revision_requested") or spec.effective_revision(),
+        # DMR-049: the resolved 40-hex sha (branch/tag revisions resolve via
+        # dataset_info; the default pin is already a full sha).
+        "revision_resolved": prov.get("revision_resolved"),
+        "limit": spec.dataset.limit,
+        "sample_seed": spec.dataset.sample_seed,
+        "strata": spec.dataset.strata,
+        # DMR-066: actual drawn (doc_class::subclass) distribution — the lock
+        # now proves the requested strata were really drawn (no silent
+        # single-class collapse), not just recorded as a spec.
+        "strata_actual": prov.get("strata_actual"),
+        "rows": prov.get("rows"),
+        "sha256": prov.get("sha256"),
+        "metadata": prov.get("metadata", {}),
+    }
+
+
+def _prompt_text_sha(block: dict[str, Any]) -> str:
+    """Hash of the RESOLVED prompt texts (local/langfuse), not just refs.
+
+    ``spec_hash`` covers prompt REFS; two identical refs whose file bodies
+    changed hash the same, so a resume would replay with different prompt
+    text. This sha lands in the lock and is checked on every preflight
+    (DMR-049).
+    """
+    import hashlib
+
+    agents = block.get("agents") or {}
+    parts = []
+    for agent in sorted(agents):
+        ref = agents[agent]
+        if not isinstance(ref, dict):
+            continue
+        parts.append(f"{agent}:{ref.get('sha256') or ''}:{ref.get('text') or ''}")
+    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
+
+
+def _resolve_report_group(
+    spec: RunSpec,
+    *,
+    run_id: str,
+    config_path: str | Path | None,
+) -> str | None:
+    """Resolve the report group; fail if an explicit runbook id is unknown."""
+    from mailroom_sandbox.report_paths import (
+        experiment_prefix,
+        report_group_for_config,
+        report_group_for_runbook,
+    )
+
+    if spec.runbook_id:
+        group = report_group_for_runbook(spec.runbook_id)
+        if group is None:
+            raise ValueError(
+                f"unknown runbook_id {spec.runbook_id!r}: no report-group catalog entry"
+            )
+        return group
+    return report_group_for_config(config_path) or experiment_prefix(run_id)
+
+
+def preflight(
+    spec: RunSpec,
+    *,
+    run_id: str = "",
+    config_path: str | Path | None = None,
+    offline: bool = False,
+    force: bool = False,
+    dry_run: bool = False,
+    live: bool = False,
+) -> dict[str, Any]:
+    """Confirm all spec domains, prepare artifacts, and write the lock.
+
+    Returns a report dict with status ``prepared | drift_refused | failed``.
+    ``dry_run`` validates without writing; ``force`` re-locks a drifted run.
+    """
+    run_id = run_id or resolve_run_id(spec)
+    store = RunStore(run_dir(run_id))
+
+    try:
+        existing = store.read_lock()
+    except RuntimeError as exc:
+        # hub#41: a corrupt spec.lock.json is a LOUD preflight failure —
+        # never a silent run with spec_hash: null.
+        return {
+            "status": "failed",
+            "run_id": run_id,
+            "checks": [{"name": "lock", "ok": False, "detail": str(exc)}],
+        }
+
+    report: dict[str, Any] = {"run_id": run_id, "status": "prepared", "checks": []}
+    if dry_run:
+        return report
+
+    # 1) prompt surface — resolves all agent overrides (fails fast on typos).
+    #    Resolved FIRST so the drift check can hash the prompt TEXTS: spec_hash
+    #    covers refs only, and two identical refs whose file bodies changed
+    #    would otherwise resume with different prompt text (DMR-049).
+    try:
+        prompt_block = prompt_lock_block(spec.prompt, offline=offline)
+    except KeyError as exc:
+        report["status"] = "failed"
+        report["checks"] = [{"name": "prompt", "ok": False, "detail": str(exc)}]
+        return report
+    prompt_text_sha = _prompt_text_sha(prompt_block)
+    report["checks"].append(
+        {"name": "prompt", "ok": True, "detail": _prompt_summary(prompt_block)}
+    )
+
+    try:
+        report_group = _resolve_report_group(spec, run_id=run_id, config_path=config_path)
+    except ValueError as exc:
+        report["status"] = "failed"
+        report["checks"].append({"name": "report_group", "ok": False, "detail": str(exc)})
+        return report
+
+    if existing and not force:
+        drifted = existing.get("spec_hash") != spec.spec_hash()
+        if not drifted and existing.get("prompt_text_sha") and existing.get("prompt_text_sha") != prompt_text_sha:
+            drifted = True
+        # Keys absent on pre-catalog locks: resume. Present keys still drift.
+        if (
+            not drifted
+            and "runbook_id" in existing
+            and existing.get("runbook_id") != (spec.runbook_id or None)
+        ):
+            drifted = True
+        if (
+            not drifted
+            and "report_group" in existing
+            and existing.get("report_group") != (report_group or None)
+        ):
+            drifted = True
+        if drifted:
+            return {
+                "status": "drift_refused",
+                "run_id": run_id,
+                "spec_hash": spec.spec_hash(),
+                "locked_spec_hash": existing.get("spec_hash"),
+                "detail": (
+                    "spec, resolved prompt text, runbook, or report group drifted "
+                    "since the lock; pass --force to re-lock"
+                ),
+            }
+
+    # write_lock refuses to overwrite in place, so a forced re-lock archives
+    # the old generation first — new dataset bytes must never sit under an old
+    # lock/checkpoint (DMR-049).
+    archived = store.archive_generation() if (existing and force) else None
+    if archived is not None:
+        report["archived"] = str(archived)
+
+    # 2) dataset — prepared subset (idempotent; network only for Hub specs).
+    try:
+        prov = prepare_subset(spec.dataset, store.dataset_path)
+        report["checks"].append(
+            {
+                "name": "dataset",
+                "ok": True,
+                "detail": (
+                    f"rows={prov['rows']} sha256={prov['sha256'][:12]} "
+                    f"revision={prov.get('revision_requested')}"
+                ),
+            }
+        )
+    except Exception as exc:  # noqa: BLE001
+        report["status"] = "failed"
+        report["checks"].append({"name": "dataset", "ok": False, "detail": str(exc)})
+        return report
+
+    # 3) engine spec validators (pydantic ranges + repo guards)
+    eng_errors = _engine_errors(spec)
+    if eng_errors:
+        report["status"] = "failed"
+        report["checks"].append({"name": "engine_spec", "ok": False, "detail": "; ".join(eng_errors)})
+        return report
+    report["checks"].append({"name": "engine_spec", "ok": True, "detail": _engine_summary(spec)})
+
+    # 4) optional live engine probe — also the cold-boot measurement (SAND-018)
+    if live:
+        probe = _probe_engine(spec)
+        report["checks"].append(
+            {
+                "name": "engine_probe",
+                "ok": probe["ok"],
+                "detail": probe.get("reason", probe.get("detail", "ok")),
+            }
+        )
+        if not probe["ok"]:
+            report["status"] = "failed"
+            report["checks"][-1]["detail"] = probe.get("reason", "probe failed")
+            return report
+        boot_seconds = probe.get("cold_boot_seconds")
+        if boot_seconds is not None:
+            measurement = {
+                "cold_boot_seconds": float(boot_seconds),
+                "base_url": probe.get("base_url"),
+                "served_models": probe.get("served_models"),
+                "probe_timeout_seconds": probe.get("probe_timeout_seconds"),
+                "measured_at": checkpoint.utc_now(),
+                "run_id": run_id,
+            }
+            store.write_cold_boot(measurement)
+            store.append_event("cold_boot", "info", **measurement)
+            report["cold_boot_seconds"] = float(boot_seconds)
+            report["cold_boot_path"] = str(store.cold_boot_path)
+            report["checks"][-1]["detail"] += (
+                f" | cold_boot={float(boot_seconds):.2f}s"
+            )
+
+    # 5) trace sink
+    try:
+        sink = resolve_sink(
+            sink=spec.trace.sink,
+            otlp=spec.trace.otlp,
+            endpoint=spec.trace.endpoint,
+            environment=spec.trace.environment,
+            service_name="sandbox-job",
+            run_id=run_id,
+            tags=spec.trace.tags,
+        )
+        if spec.trace.sink == "langfuse" and not offline and not sink.headers.get("Authorization"):
+            report["status"] = "failed"
+            report["checks"].append(
+                {"name": "trace_sink", "ok": False, "detail": "langfuse keys unset (LANGFUSE_PUBLIC_KEY/SECRET_KEY)"}
+            )
+            return report
+        report["checks"].append({"name": "trace_sink", "ok": True, "detail": f"{spec.trace.sink} -> {sink.endpoint or '(no exporter)'}"})
+    except Exception as exc:  # noqa: BLE001
+        report["status"] = "failed"
+        report["checks"].append({"name": "trace_sink", "ok": False, "detail": str(exc)})
+        return report
+
+    # 6) modal cost guards
+    report["checks"].append(
+        {"name": "modal_spec", "ok": _modal_check(spec), "detail": "modal guards ok" if _modal_check(spec) else "modal guard failed"}
+    )
+
+    # Commit point: prompt lock then spec lock then prepared checkpoint.
+    store.write_prompt_lock(prompt_block)
+    lock = {
+        "schema_version": 1,
+        "lock_kind": "spec.lock",
+        "run_id": run_id,
+        "created_at": checkpoint.utc_now(),
+        "spec_hash": spec.spec_hash(),
+        "prompt_text_sha": prompt_text_sha,
+        "task": spec.task,
+        "profile": spec.profile,
+        "prompt": prompt_block,
+        "engine": spec.engine.model_dump(),
+        "job": spec.job.model_dump(),
+        "trace": spec.trace.model_dump(),
+        "dataset": _dataset_lock(prov, spec),
+        "otel": {"sink": spec.trace.sink, "environment": spec.trace.environment},
+        "versions": _versions(),
+        "git": git_snapshot(),
+        "spec_core": spec_core(spec),
+    }
+    if spec.runbook_id:
+        lock["runbook_id"] = spec.runbook_id
+    if report_group:
+        lock["report_group"] = report_group
+    store.write_lock(lock)
+    total = len(store.dataset_rows())
+    store.write_checkpoint(state="prepared", cursor=0, total=total, remote=None)
+    store.append_event("preflight_ok", "info", spec_hash=spec.spec_hash())
+    report.update({"status": "prepared", "spec_hash": spec.spec_hash(), "lock_path": str(store.lock_path)})
+    return report

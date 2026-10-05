@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -19,6 +22,8 @@ from mailroom_sandbox.overlay import (
 from mailroom_sandbox.paths import repo_root, runtime_dir, vendor_dir
 from mailroom_sandbox.providers import endpoints_for
 
+_log = logging.getLogger("mailroom_sandbox.runtime")
+
 
 @dataclass
 class Activation:
@@ -29,6 +34,7 @@ class Activation:
     patched_prompts: bool = False
     mailroom_src: Path | None = None
     agent_models: dict[str, str] = field(default_factory=dict)
+    agent_knobs: dict[str, Any] = field(default_factory=dict)
 
 
 _ACTIVE: Activation | None = None
@@ -38,11 +44,23 @@ def active() -> Activation | None:
     return _ACTIVE
 
 
+def agent_knobs_for(agent: str) -> dict[str, Any]:
+    """Run-scoped knobs for one agent in the current activation ({} when none)."""
+    knobs = (_ACTIVE.agent_knobs if _ACTIVE else {}) or {}
+    value = knobs.get(agent)
+    return dict(value) if isinstance(value, dict) else {}
+
+
 def _load_dotenv() -> None:
     root = repo_root()
     for candidate in (root / ".env", root / "config" / ".env"):
         if candidate.is_file():
             load_dotenv(candidate, override=False)
+
+
+def load_env_file() -> None:
+    """Load the sandbox .env files (idempotent; never overrides real env)."""
+    _load_dotenv()
 
 
 def _prepend_sys_path(path: Path) -> None:
@@ -69,6 +87,24 @@ def resolve_mailroom_src() -> Path | None:
     return None
 
 
+def resolve_dojo_src() -> Path | None:
+    """llm-dojo-scoring import root (vendored snapshot first, DMR-057)."""
+    env = os.environ.get("DOJO_SRC")
+    candidates = []
+    if env:
+        candidates.append(Path(env))
+    candidates.extend(
+        [
+            vendor_dir() / "llm-dojo-scoring" / "src",
+            repo_root().parent / "llm-dojo-scoring" / "src",
+        ]
+    )
+    for cand in candidates:
+        if (cand / "llm_dojo_scoring" / "__init__.py").is_file():
+            return cand
+    return None
+
+
 def apply_profile_env(profile: dict, *, base_url_override: str | None = None) -> None:
     endpoints = endpoints_for(profile, base_url_override=base_url_override)
     os.environ["SANDBOX_PROFILE"] = str(profile.get("name") or "")
@@ -89,7 +125,14 @@ def apply_profile_env(profile: dict, *, base_url_override: str | None = None) ->
         os.environ.setdefault("OBSERVABILITY_PROVIDER", "langfuse")
     else:
         os.environ.setdefault("OBSERVABILITY_PROVIDER", "phoenix")
-    os.environ.setdefault("LANGFUSE_HOST", "http://localhost:3000")
+    # hub#62: honor LANGFUSE_BASE_URL as the cloud-alias — don't force LANGFUSE_HOST
+    # to localhost when an operator exported only LANGFUSE_BASE_URL (production).
+    # Every HOST-first consumer (health probe, export_traces, vendored llm-mailroom
+    # _resolve_host) would otherwise resolve to the wrong sink.
+    os.environ.setdefault(
+        "LANGFUSE_HOST",
+        os.environ.get("LANGFUSE_BASE_URL") or "http://localhost:3000",
+    )
     mode = (os.environ.get("SANDBOX_RUN_MODE") or "").lower()
     if mode == "mock":
         os.environ["OBSERVABILITY_ENVIRONMENT"] = "mock"
@@ -111,28 +154,107 @@ def activate(
     base_url: str | None = None,
     load_env_file: bool = True,
     agent_models: dict[str, str] | None = None,
+    agent_knobs: dict | None = None,
 ) -> Activation:
     """Load overlay, write runtime taxonomy, patch mailroom, set env.
 
     Safe to call more than once; last call wins.
+
+    ``agent_knobs`` (SAND-019) is a run-scoped generation-budget override —
+    ``{agent: {max_tokens, max_input_chars, temperature, ...}}`` — applied after
+    the global overlay so a run on a wider window (e.g. AWQ 32768) can raise its
+    own decode/input budget. When None, it is read from the
+    ``SANDBOX_AGENT_KNOBS`` env var (JSON), which is how ``sandbox run`` carries
+    it without threading a new field through every call site.
     """
     global _ACTIVE
     if load_env_file:
         _load_dotenv()
+    if agent_knobs is None:
+        raw = os.environ.get("SANDBOX_AGENT_KNOBS")
+        if raw:
+            try:
+                parsed = json.loads(raw)
+                agent_knobs = parsed if isinstance(parsed, dict) else None
+            except json.JSONDecodeError:
+                _log.warning(
+                    "SANDBOX_AGENT_KNOBS is not valid JSON — ignoring run-scoped "
+                    "generation-budget override"
+                )
+                agent_knobs = None
     name = profile_name or os.environ.get("SANDBOX_PROFILE") or "ollama"
     profile = load_profile(name)
     apply_profile_env(profile, base_url_override=base_url)
+    if not model and str(profile.get("provider") or "") == "vllm":
+        from mailroom_sandbox.overlay import resolve_served_vllm_model
+
+        model = resolve_served_vllm_model()
+    if model and str(profile.get("provider") or "") == "vllm":
+        os.environ["VLLM_MODEL"] = str(model)
 
     mailroom_src = resolve_mailroom_src()
     if mailroom_src is not None:
         _prepend_sys_path(mailroom_src)
+    else:
+        _log.warning(
+            "no mailroom source resolvable (vendored snapshot under %s, sibling "
+            "repo, or MAILROOM_SRC) — activation proceeds, but the first family "
+            "import will fail. Run `sandbox fetch-deps` to restore the vendored "
+            "snapshot.",
+            vendor_dir() / "llm-mailroom",
+        )
+    dojo_src = resolve_dojo_src()
+    if dojo_src is not None:
+        _prepend_sys_path(dojo_src)
+    else:
+        _log.warning(
+            "no llm-dojo-scoring source resolvable (vendored snapshot under %s, "
+            "sibling repo, or DOJO_SRC) — scoring will fail on import. Run "
+            "`sandbox fetch-deps` to restore the vendored snapshot.",
+            vendor_dir() / "llm-dojo-scoring",
+        )
 
     taxonomy = build_merged_taxonomy(
-        profile, model_override=model, agent_models=agent_models
+        profile,
+        model_override=model,
+        agent_models=agent_models,
+        agent_knobs=agent_knobs,
     )
     taxonomy_path = write_runtime_taxonomy(taxonomy)
     os.environ["MAILROOM_TAXONOMY"] = str(taxonomy_path)
     patched = patch_mailroom_config(taxonomy_path)
+
+    # SAND-018: the vendored LangChain agents hardcode timeout=120 (drift-
+    # guarded). Apply the taxonomy's run_limits pin so a long L4 generation does
+    # not ladder through the retry contract instead of completing.
+    try:
+        from mailroom_sandbox.llm_timeout import apply_llm_timeout
+
+        limits = taxonomy.get("run_limits") or {}
+        apply_llm_timeout(limits.get("llm_call_timeout_seconds"))
+    except Exception as exc:  # noqa: BLE001 — never block activation
+        _log.warning("llm timeout override failed — 120s vendor default stands: %s", exc)
+
+    # SAND-038: the vendored LangChain agents default api_key to
+    # OPENROUTER_API_KEY ahead of the resolved provider's key (drift-guarded),
+    # which 401s every contracts/merger row against Modal vLLM when .env holds
+    # an OpenRouter key. Defer to provider.api_key_env instead.
+    try:
+        from mailroom_sandbox.provider_credentials import apply_provider_credentials
+
+        apply_provider_credentials()
+    except Exception as exc:  # noqa: BLE001 — never block activation
+        _log.warning("provider credential fix failed — vendored key precedence stands: %s", exc)
+
+    # SAND-037: the vendored specialists pass temperature=0.1 as a call-site
+    # literal (drift-guarded), so a run-scoped temperature knob is applied by
+    # wrapping their _call_structured. No temperature knobs → no-op.
+    try:
+        from mailroom_sandbox.sampling import apply_sampling_overrides
+
+        apply_sampling_overrides(agent_knobs)
+    except Exception as exc:  # noqa: BLE001 — never block activation
+        _log.warning("temperature override failed — call-site temperatures stand: %s", exc)
 
     patched_prompts = False
     if prompt_variant:
@@ -148,6 +270,7 @@ def activate(
         patched_prompts=patched_prompts,
         mailroom_src=mailroom_src,
         agent_models=dict(agent_models or {}),
+        agent_knobs=dict(agent_knobs or {}),
     )
     _ACTIVE = activation
     runtime_dir()  # ensure exists

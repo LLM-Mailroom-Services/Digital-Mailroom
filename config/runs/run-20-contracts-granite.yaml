@@ -1,0 +1,96 @@
+# Granite sweep 1/5 — contracts_specialist on 20 CONTRACT docs (FP8, 1×L4).
+# Subclass quotas scaled 2/3 from run-30-contracts-specialist (6→4 / 3→2).
+# Engine/posture twins run-20-contracts-awq-c8 (HALT: concurrency 3, was 8), but on
+# ibm-granite/granite-4.2-8b-fp8 (compressed-tensors W8A8, 32768 window —
+# the L4 workhorse row in config/models.yaml; no AWQ exists for granite-4.2
+# and bf16 32k FAILS on 1×L4). MIN=MAX=1 pinned warm across the Granite
+# five-run chain (teardown after the fifth, not here).
+#
+# Deploy + run (Granite FP8 env — see `sandbox modal-matrix env ibm-granite/granite-4.2-8b-fp8`):
+#   modal profile activate hermes-agent-jjb
+#   eval "$(sandbox modal-matrix env ibm-granite/granite-4.2-8b-fp8)"
+#   # plus Granite parsers (runbook improved-granite-fp8):
+#   # (native `granite` parser — v0.29.0 has no `granite_thinking_parser`;
+#   #  no tool parser: the specialist extract path makes no tool calls)
+#   # export MODAL_VLLM_REASONING_PARSER=granite \
+#   #   MODAL_VLLM_MAX_CONTAINERS=1 MODAL_VLLM_MIN_CONTAINERS=1 \
+#   #   MODAL_VLLM_SCALEDOWN_SECONDS=120
+#   modal run deploy/modal_vllm.py::download_model
+#   modal deploy deploy/modal_vllm.py --strategy recreate
+#   sandbox run benchmark-check --config config/runs/run-20-contracts-granite.yaml
+#   sandbox run preflight --config config/runs/run-20-contracts-granite.yaml --live
+#   sandbox run start --config config/runs/run-20-contracts-granite.yaml --job-mode endpoint --watch
+#   # NO teardown here — runs 2-5 ride the same warm app; teardown after the fifth.
+#   # Cold boot is measured on THIS first run only; runs 2-5 note reuse.
+schema: sandbox.run/v1
+run_id: run-20-contracts-granite
+task: contracts_specialist
+profile: modal-vllm
+
+prompt:
+  # DMR-074 local pin (config/prompts/contracts_specialist_v33_simplified.txt) —
+  # same file as the Qwen AWQ comparator (run-20-contracts-awq-c8).
+  default: {source: code-default}
+  agents:
+    contracts_specialist:
+      source: local
+      file: contracts_specialist_v33_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  # split: test — 60 contract rows (pinned ed7576b6); N=20 fits without train
+  split: test
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      # contract (60 test rows): 9 largest subclasses → 20 (2/3 of run-30 quotas)
+      - doc_class: contract
+        sub_buckets:
+          - {subclass: service, count: 4}              # was 6 (avail 8)
+          - {subclass: supply, count: 2}               # was 3 (avail 5)
+          - {subclass: distributor, count: 2}          # was 3 (avail 5)
+          - {subclass: co_branding, count: 2}          # was 3 (avail 5)
+          - {subclass: ip, count: 2}                   # was 3 (avail 4)
+          - {subclass: development, count: 2}          # was 3 (avail 4)
+          - {subclass: maintenance, count: 2}          # was 3 (avail 4)
+          - {subclass: strategic_alliance, count: 2}   # was 3 (avail 4)
+          - {subclass: sponsorship, count: 2}          # was 3 (avail 3)
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: ibm-granite/granite-4.2-8b-fp8
+  vllm:
+    max_model_len: 32768      # FP8 L4 window (bf16 Granite 32k FAILS on 1×L4)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: compressed-tensors
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120    # attended cost-saver (DMR-076)
+    max_containers: 1         # 1×L4 cost guard — do not raise for Granite runs
+    min_containers: 1         # pinned warm across the five-run chain (no scale-to-zero)
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 3              # HALT revision: c=3 (KV math + DMR-072; was 8)
+  cost_cap_usd: 0.55          # same as run-20-contracts-awq-c8
+  max_wall_seconds: 3200      # same as run-20-contracts-awq-c8
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-20-contracts-granite
+  tags: [sandbox, job, specialist, contracts, granite-fp8, l4, benchmark, c8]

@@ -1,0 +1,101 @@
+# SAND-018 — Specialist extract: contracts_specialist on 20 CONTRACT docs drawn
+# as a seeded random sample from the FULL mailroom-dataset (split=all, 3,302
+# rows). Single-class variant of the runbook's 5×30 specialist suite
+# (docs/modal/benchmark-l4.md), scaled to one class at N=20.
+#
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║ SPEND POSTURE (DMR-076/077/078 + SAND-018)                               ║
+# ║  1. ONE warm sandbox-vllm app; do NOT tear down between runs.            ║
+# ║  2. Teardown ONLY after the last run: ./deploy/teardown_vllm.sh          ║
+# ║  3. scaledown_seconds: 120 (attended). Unattended/overnight → 600.       ║
+# ║  4. Default model: Qwen/Qwen3-8B bf16 on L4. AWQ is OPTIONAL (DMR-068).  ║
+# ║  5. Per-doc-type posture: concurrency=4, cost_cap=$0.55, wall=3200s      ║
+# ║     (specialist_posture.py — run-20-contracts-specialist).               ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+#
+# Dataset provenance: the 20 contract rows are a deterministic seeded draw
+# (sample_seed=42) from the full corpus at the pinned revision; preflight
+# writes them to dataset.jsonl and records sample_seed + sha256 in
+# spec.lock.json (the logged random sample). Offline mirror of the same draw:
+#   sandbox datasets pull
+#   sandbox datasets sample --per-class 20 --classes contract --seed 42
+#   # → data/cache/.../ground_truth_all_perclass20.jsonl
+# To run fully offline against that artifact instead, swap the dataset block
+# for: {provider: file, local_path: data/cache/.../ground_truth_all_perclass20.jsonl}
+#
+# Connect (once) then fire — see docs/modal/benchmark-l4.md:
+#   modal profile activate hermes-agent-jjb
+#   export SANDBOX_PROFILE=modal-vllm MODAL_VLLM_MODEL=Qwen/Qwen3-8B \
+#     MODAL_VLLM_GPU=L4 MODAL_VLLM_IMAGE_TAG=v0.29.0 \
+#     MODAL_VLLM_MAX_CONTAINERS=1 MODAL_VLLM_SCALEDOWN_SECONDS=120
+#   modal run deploy/modal_vllm.py::download_model && modal deploy deploy/modal_vllm.py
+#   sandbox cutover --profile modal-vllm && sandbox health --profile modal-vllm
+#   sandbox run benchmark-check --config config/runs/run-20-contracts-specialist.yaml
+#   sandbox run preflight --config config/runs/run-20-contracts-specialist.yaml --live
+#   sandbox run start --config config/runs/run-20-contracts-specialist.yaml --job-mode endpoint --watch
+#   ./deploy/teardown_vllm.sh
+schema: sandbox.run/v1
+run_id: run-20-contracts-specialist
+task: contracts_specialist
+profile: modal-vllm
+
+prompt:
+  # SAND-026 simplified pin (config/prompts/contracts_specialist_v33_simplified.txt) for
+  # reproducible Modal L4 Qwen runs — not Langfuse floating production. DMR-074/078.
+  default: {source: code-default}
+  agents:
+    contracts_specialist:
+      source: local
+      file: contracts_specialist_v33_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  # split: all — the FULL corpus (train+test, 3,302 rows). The 20-contract draw
+  # is a seeded random sample from the contract class (600 available at the pin).
+  split: all
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      - doc_class: contract
+        count: 20
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B
+  vllm:
+    max_model_len: 16384      # boot-valid cap for L4-bf16 8B (v0.29.0 raises above)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: ""
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    # Attended cost-saver (DMR-076). Unattended/overnight: restore 600 here
+    # and export MODAL_VLLM_SCALEDOWN_SECONDS=600 before redeploy.
+    scaledown_seconds: 120
+    max_containers: 1         # cost guard — do not raise for specialist runs
+    min_containers: 0         # scale-to-zero after idle
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 4              # DMR-078 per-doc-type (short↑ / long↓)
+  cost_cap_usd: 0.55        # abort if wall×L4 $/hr exceeds (20-doc posture)
+  max_wall_seconds: 3200    # hard wall abort (20-doc posture)
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-20
+  tags: [sandbox, job, specialist, contracts, qwen3-8b, l4, benchmark, sand-018]

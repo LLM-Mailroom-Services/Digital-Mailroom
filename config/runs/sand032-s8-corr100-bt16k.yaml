@@ -1,0 +1,76 @@
+# SAND-032 Stage 8 (C fleet): seqs32 + max_num_batched_tokens 16384 + gpu_mem 0.93 — compare with sand032-s7-corr100-seqs32.
+# SAND-032 Stage 7 (B fleet): max_num_seqs 32 + CUDA graphs to 32, c64 — compare with sand032-s2b-corr100-2rep.
+# SAND-032 Stage 2b — scale-out: frozen config, 2 replicas × 1 L4, c16, n=100 (same draw as 2a).
+# Spec: docs/superpowers/specs/2026-09-27-qwen3-l4-serving-ladder-design.md
+# Public HF mailroom-dataset only (no partner/proprietary data). Modal profile: exios66.
+# Frozen serving block = Stage-1 winner (assumed L5 until Stage 1 runs; Task 11 Step 5
+# rewrites this block if a rung is reverted — fp8 KV stays regardless).
+#
+#   modal profile activate exios66
+#   set -a; eval "$(sandbox run deploy-env --config config/runs/sand032-s8-corr100-bt16k.yaml)"; set +a
+#   sandbox run benchmark-check --config config/runs/sand032-s8-corr100-bt16k.yaml --modal-profile exios66
+#   sandbox run preflight --config config/runs/sand032-s8-corr100-bt16k.yaml --live
+#   sandbox run start --config config/runs/sand032-s8-corr100-bt16k.yaml --job-mode endpoint --watch
+schema: sandbox.run/v1
+run_id: sand032-s8-corr100-bt16k
+task: correspondence_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    correspondence_specialist:
+      source: local
+      file: correspondence_specialist_production
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all                  # test-only cannot back 100-row draws
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # FAMILY_HF_REVISION (v9.1)
+  strata:
+    buckets:
+      - {doc_class: correspondence, count: 100}   # single class bucket → nested 20 ⊂ 50 ⊂ 100
+  limit: 100
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.93
+    max_num_seqs: 32
+    enable_prefix_caching: true
+    enforce_eager: false
+    quantization: "awq_marlin"
+    revision: ""
+    kv_cache_dtype: "fp8"
+    max_num_batched_tokens: 16384
+    enable_thinking: false
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16, 32]
+    max_inputs: 64
+  modal:
+    app: sandbox-vllm-sand032
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 2
+    min_containers: 2
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 64               # admission ×2: saturates max_num_seqs=32 on each of 2 replicas
+  cost_cap_usd: 0.6
+  max_wall_seconds: 3600
+
+trace:
+  sink: none
+  otlp: false
+  environment: sand032
+  tags: [sandbox, sand032, qwen3-8b, l4, correspondence]

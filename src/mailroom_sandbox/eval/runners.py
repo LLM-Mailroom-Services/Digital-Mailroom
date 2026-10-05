@@ -3,27 +3,42 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
 from mailroom_sandbox.datasets import (
+    LEGALBENCH_TASKS,
     dataset_fingerprint,
     fixture_file,
-    load_hf_fixtures,
     load_legalbench_fixtures,
+    load_legalbench_suite_rows,
     load_manifest,
     parse_expected_fields,
 )
 from mailroom_sandbox.eval import experiment_log, scoring, tracing
+from mailroom_sandbox.eval.prompt_provenance import (
+    resolve_logged_prompt_version,
+    stamp_prompt_provenance,
+)
 from mailroom_sandbox.eval.scoring import emit
-from mailroom_sandbox.mock_llm import fake_client
+from mailroom_sandbox.mock_llm import fake_client, fake_structured_payload
 from mailroom_sandbox.runtime import activate, resolve_mailroom_src
+
+_log = logging.getLogger("mailroom_sandbox.eval.runners")
 
 try:
     from llm_dojo_scoring.emitter import ScoreRecord
-except Exception:  # pragma: no cover
+except Exception as exc:  # pragma: no cover
+    _log.warning(
+        "llm_dojo_scoring.emitter.ScoreRecord unavailable — every eval-run score "
+        "emission is SKIPPED (runs still record locally, but the dojo sink "
+        "never sees them). Defect in the vendored dojo snapshot.",
+        exc_info=exc,
+    )
     ScoreRecord = None  # type: ignore
 
 
@@ -44,15 +59,67 @@ def _classify_mock(row: dict[str, Any]) -> str:
     return str(row.get("expected_doc_class") or row.get("doc_type") or "unknown")
 
 
+def _run_rows_bounded(
+    rows: list[Any],
+    *,
+    workers: int,
+    run_one,
+    on_result,
+    guard,
+) -> None:
+    """Execute ``run_one(i, row)`` with at most ``workers`` in flight.
+
+    Guards *before every new submission*: a tripped wall/cost cap must stop
+    starting work immediately. An eager submit-all pool would keep burning GPU
+    on already-queued rows after the cap fired, so a concurrent run could
+    silently overshoot its budget (SAND-018 cost-guard accuracy).
+    """
+    from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+
+    n = len(rows)
+    if workers <= 1:
+        for index in range(n):
+            guard()
+            on_result(index, run_one(index, rows[index]))
+        return
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures: dict[Any, int] = {}
+        nxt = 0
+        try:
+            while nxt < n or futures:
+                guard()
+                while nxt < n and len(futures) < workers:
+                    futures[pool.submit(run_one, nxt, rows[nxt])] = nxt
+                    nxt += 1
+                if not futures:
+                    break
+                done, _ = wait(list(futures), return_when=FIRST_COMPLETED)
+                for fut in done:
+                    index = futures.pop(fut)
+                    on_result(index, fut.result())
+        except Exception:
+            for fut in futures:
+                fut.cancel()
+            raise
+
+
 def _predict_spec(spec, row: dict[str, Any], *, mock: bool) -> tuple[dict[str, Any], bool]:
+    """Predict one row; ``fell_back`` is True only when NO live fn exists.
+
+    Live-or-loud (DMR-044): a live-configured eval never degrades to the mock
+    predictor on error — the exception propagates and the caller records it as
+    an item error instead of silently scoring a mock prediction.
+    """
     if mock:
         return spec.mock_predict(row), False
     if spec.live_predict is None:
         return spec.mock_predict(row), True
-    try:
-        return spec.live_predict(row), False
-    except Exception:
-        return spec.mock_predict(row), True
+    return spec.live_predict(row), False
+
+
+def _logged_prompt(prompt_version: str | None, *, task: str) -> tuple[str, str | None]:
+    return resolve_logged_prompt_version(prompt_version, task=task)
 
 
 def run_isolated_eval(
@@ -67,12 +134,40 @@ def run_isolated_eval(
     model: str | None = None,
     agent_models: dict[str, str] | None = None,
     connected: bool = False,
+    rows: list[dict[str, Any]] | None = None,
+    cold_boot_seconds: float | None = None,
+    concurrency: int = 1,
+    max_wall_seconds: float | None = None,
+    cost_cap_usd: float | None = None,
+    gpu: str | None = None,
+    progress_cb: Any = None,
+    replicas: int = 1,
+    row_cb: Any = None,
+    score_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Run one live agent / node against fixtures, nested under document-pipeline."""
+    """Run one live agent / node against fixtures, nested under document-pipeline.
+
+    ``rows`` (DMR-056): when the caller passes the locked live dataset rows
+    (the ``sandbox run`` whole-run path), score THOSE rows; otherwise fall
+    back to the agent's committed fixture rows.
+    """
     from mailroom_sandbox.eval.agents import spec_for
 
+    import statistics
+    import time
+
+    from mailroom_sandbox.job.usage_capture import (
+        merge_item_metrics,
+        reset_usage,
+        usage_from_pipeline,
+    )
+
     spec = spec_for(task)
-    rows = spec.load_rows()
+    if prompt_version is None:
+        from mailroom_sandbox.eval_environment_lineage import default_prompt_variant
+
+        prompt_version = default_prompt_variant(task)
+    rows = spec.load_rows() if rows is None else rows
     if sample:
         rows = rows[: sample]
     plan = {
@@ -96,36 +191,138 @@ def run_isolated_eval(
     )
     session = tracing.session_id_for(task)
     matches: list[float] = []
-    per_row: list[dict[str, Any]] = []
+    per_row: list[dict[str, Any] | None] = [None] * len(rows)
     offline = 0
-    for row in rows:
+    errors = 0
+
+    def _run_one(index: int, row: dict[str, Any]) -> dict[str, Any]:
         seed = str(row.get("id") or row.get("filename") or task)
-        with tracing.document_pipeline_trace(
-            seed=seed,
-            session_id=session,
-            input={"filename": row.get("filename") or row.get("id"), "matter_id": f"SANDBOX-{row.get('id')}"},
-            metadata={"pipeline": "mailroom", "source": "sandbox-fixtures", "run_id": experiment_name, "attempt": 1},
-            tags=tracing.default_tags("source-fixtures", f"agent-{task}"),
-        ):
-            with tracing.child_observation(
-                spec.observation,
-                as_type=tracing.observation_type_for(spec.observation),
-                input=tracing.public_ground_truth(row),
+        started = time.perf_counter()
+        error: str | None = None
+        pred: dict[str, Any] = {}
+        scored: dict[str, Any] = {}
+        fell_back = False
+        usage: dict[str, Any] = {}
+        try:
+            # SAND-018: reset the thread's usage accumulator so this row's tokens
+            # are its own — without it, pooled rows sum into one inflated total.
+            reset_usage()
+            with tracing.document_pipeline_trace(
+                seed=seed,
+                session_id=session,
+                input={"filename": row.get("filename") or row.get("id"), "matter_id": f"SANDBOX-{row.get('id')}"},
+                metadata={"pipeline": "mailroom", "source": "sandbox-fixtures", "run_id": experiment_name, "attempt": 1},
+                tags=tracing.default_tags("source-fixtures", f"agent-{task}"),
             ):
-                pred, fell_back = _predict_spec(spec, row, mock=mock)
-            scored = spec.score_one(row, pred)
-        if fell_back:
+                with tracing.child_observation(
+                    spec.observation,
+                    as_type=tracing.observation_type_for(spec.observation),
+                    input=tracing.public_ground_truth(row),
+                ):
+                    pred, fell_back = _predict_spec(spec, row, mock=mock)
+                scored = spec.score_one(row, pred)
+            # SAND-018: per-item token capture — the isolated path used to drop
+            # usage entirely, so a specialist run had no tokens/latency to report.
+            usage = usage_from_pipeline()
+        except Exception as exc:  # noqa: BLE001 — recorded as an item error, never a silent mock
+            error = f"{type(exc).__name__}: {str(exc)[:300]}"
+        entry: dict[str, Any] = {
+            "id": row.get("id"),
+            "pred": pred,
+            "score": scored,
+            "offline_fallback": fell_back,
+            "error": error,
+        }
+        entry.update(
+            merge_item_metrics(
+                latency_ms=round((time.perf_counter() - started) * 1000.0, 3),
+                usage=usage,
+            )
+        )
+        return entry
+
+    def _absorb(entry: dict[str, Any]) -> None:
+        nonlocal offline, errors
+        if entry.get("offline_fallback"):
             offline += 1
+        if entry.get("error"):
+            errors += 1
+        scored = entry.get("score") or {}
         match = scored.get("match")
         if match is None and "overall_extraction_score" in scored:
             match = scored.get("overall_extraction_score") or 0.0
         if isinstance(match, (int, float)):
             matches.append(float(match))
-        per_row.append({"id": row.get("id"), "pred": pred, "score": scored, "offline_fallback": fell_back})
+
+    budget_started = time.perf_counter()
+
+    def _guard() -> None:
+        """Wall/cost abort so a whole-run task cannot silently overrun its caps.
+
+        The per-item loop already enforces these; isolated agent tasks had no
+        guard at all (SAND-018: a 20-doc run overspent its $0.55 cap).
+        """
+        wall = time.perf_counter() - budget_started
+        if max_wall_seconds is not None and wall >= float(max_wall_seconds):
+            raise RuntimeError(
+                f"isolated eval aborted: max_wall_seconds={max_wall_seconds} "
+                f"exceeded (wall={wall:.1f}s) — protecting spend"
+            )
+        if cost_cap_usd is not None:
+            from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
+
+            est = float(
+                estimate_gpu_cost_usd(wall, gpu=gpu or "L4", replicas=replicas) or 0.0
+            )
+            if est >= float(cost_cap_usd):
+                raise RuntimeError(
+                    f"isolated eval aborted: cost_cap_usd={cost_cap_usd} exceeded "
+                    f"(est_gpu_usd={est:.4f} at wall={wall:.1f}s) — protecting spend"
+                )
+
+    workers = max(1, min(int(concurrency), len(rows) or 1))
+
+    def _record(index: int, entry: dict[str, Any]) -> None:
+        per_row[index] = entry
+        _absorb(entry)
+        # SAND-032: stream each finished row to the caller (main thread) so a
+        # later cap abort / raise cannot drop rows whose GPU time was paid.
+        if row_cb is not None:
+            try:
+                row_cb(entry)
+            except Exception as exc:  # noqa: BLE001 — persistence must never break a run
+                _log.warning("row_cb raised — per-doc evidence may be incomplete: %s", exc)
+        # SAND-018: the isolated path used to be silent until the end — no
+        # running checkpoint, no events — so a live run looked stalled.
+        if progress_cb is not None:
+            done = sum(1 for e in per_row if e is not None)
+            try:
+                progress_cb(done, len(rows), done - errors, errors)
+            except Exception as exc:  # noqa: BLE001 — progress must never break a run
+                _log.warning("progress_cb raised — live progress may stall: %s", exc)
+
+    _run_rows_bounded(rows, workers=workers, run_one=_run_one, on_result=_record, guard=_guard)
+
+    if rows and errors == len(rows):
+        last_error = next((e for e in reversed(per_row) if e and e.get("error")), None)
+        raise RuntimeError(
+            f"live eval {task!r}: all {len(rows)} row(s) failed — the live path was not "
+            f"exercised (last error: {(last_error or {}).get('error')})"
+        )
     mean = scoring.mean_or_zero(matches)
-    scores = {"exact_match": mean, "n": len(rows), "offline_fallback": offline}
-    if per_row and "overall_extraction_score" in (per_row[0].get("score") or {}):
+    scores = {"exact_match": mean, "n": len(rows), "offline_fallback": offline, "error_count": errors}
+    # hub#56: decide overall_extraction_score presence from ANY row, not just
+    # per_row[0] — the old check silently dropped the aggregate when the first
+    # row lacked the key but later rows carried it.
+    if any("overall_extraction_score" in (r.get("score") or {}) for r in per_row):
         scores["overall_extraction_score"] = mean
+    schema_rows = [
+        r.get("score") or {}
+        for r in per_row
+        if r and "parse_error" in (r.get("score") or {})
+    ]
+    if schema_rows:
+        scores.update(scoring.aggregate_schema_adherence(schema_rows))
     tracing.emit_langfuse_score("class_correct" if spec.observation == "classify-document" else "stage_completed", mean)
     tracing.flush_traces()
     if ScoreRecord is not None:
@@ -135,15 +332,22 @@ def run_isolated_eval(
                 value=float(mean),
                 agent=task,
                 run_id=experiment_name,
+                metadata=dict(score_metadata or {}),
             )
         )
+    completed = [e for e in per_row if e is not None]
+    latencies = [float(e["latency_ms"]) for e in completed if e.get("latency_ms") is not None]
+    prompt_tokens = sum(int(e.get("prompt_tokens") or 0) for e in completed)
+    completion_tokens = sum(int(e.get("completion_tokens") or 0) for e in completed)
+    wall_seconds = round(time.perf_counter() - budget_started, 3)
+    logged_prompt, prompt_sha = _logged_prompt(prompt_version, task=task)
     record = experiment_log.new_record(
         experiment_name=experiment_name or f"sandbox_{task}",
         task=task,
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
         model=model or (activation.assignments[0][2] if activation.assignments else None),
-        prompt_version=prompt_version or "mailroom-default",
+        prompt_version=logged_prompt,
         mock=mock,
         dataset_fingerprint=plan["fingerprint"],
         n=len(rows),
@@ -153,8 +357,54 @@ def run_isolated_eval(
         session_id=session,
         trace_ids=tracing.last_trace_ids(),
     )
+    if prompt_sha:
+        record["prompt_sha256"] = prompt_sha
+    stamp_prompt_provenance(record, logged_prompt, prompt_sha)
+    # SAND-018: per-item serving metrics used to be absent on the isolated path.
+    if latencies:
+        record["e2e_latency_seconds"] = round(statistics.mean(latencies) / 1000.0, 6)
+        record["latency_p50_seconds"] = round(statistics.median(latencies) / 1000.0, 6)
+        record["latency_max_seconds"] = round(max(latencies) / 1000.0, 6)
+        from mailroom_sandbox.job.metrics import p95
+
+        record["latency_p95_seconds"] = round(p95(latencies) / 1000.0, 6)
+    if prompt_tokens:
+        record["prompt_tokens"] = prompt_tokens
+    if completion_tokens:
+        record["completion_tokens"] = completion_tokens
+    if prompt_tokens or completion_tokens:
+        record["total_tokens"] = prompt_tokens + completion_tokens
+    record["wall_seconds"] = wall_seconds
+    if int(concurrency) > 1:
+        record["concurrency"] = int(concurrency)
+    # SAND-018: carry the measured engine cold boot into the record so it lands
+    # in reports/experiment_log.jsonl (the whole-run path appends its own copy).
+    if cold_boot_seconds is not None:
+        record["cold_boot_seconds"] = float(cold_boot_seconds)
+    # SAND-018 cost accuracy: bill GPU-seconds over the whole warm interval
+    # (cold boot + run wall), not just the per-call busy time — the reported
+    # cost must match what Modal charges. Skipped for mock (no GPU spend).
+    if not mock:
+        from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
+
+        billed_seconds = wall_seconds + (
+            float(cold_boot_seconds) if cold_boot_seconds is not None else 0.0
+        )
+        gpu_cost = estimate_gpu_cost_usd(billed_seconds, gpu=gpu or "L4", replicas=replicas)
+        record["replicas"] = max(1, int(replicas))
+        if gpu_cost is not None:
+            record["gpu_seconds"] = round(billed_seconds, 3)
+            record["estimated_gpu_cost_usd"] = gpu_cost
+            if len(completed) > 0:
+                record["gpu_cost_per_document"] = round(gpu_cost / len(completed), 8)
     experiment_log.append(record)
-    return {**plan, "scores": scores, "record": record, "rows": per_row}
+    return {
+        **plan,
+        "scores": scores,
+        "record": record,
+        "rows": completed,
+        "wall_seconds": wall_seconds,
+    }
 
 
 def run_sorter_eval(
@@ -167,8 +417,9 @@ def run_sorter_eval(
     profile: str | None = None,
     model: str | None = None,
     agent_models: dict[str, str] | None = None,
+    rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    rows = load_manifest()
+    rows = load_manifest() if rows is None else rows
     if sample:
         rows = rows[: sample]
     plan = {
@@ -191,7 +442,15 @@ def run_sorter_eval(
         if mock:
             predicted.append(_classify_mock(row))
         else:
-            predicted.append(_run_pipeline_doc(row, mock=False).get("doc_type") or "unknown")
+            result = _run_pipeline_doc(row, mock=False)
+            doc_type = result.get("doc_type")
+            if not doc_type:
+                raise RuntimeError(
+                    f"live pipeline returned no doc_type for row "
+                    f"{row.get('id') or row.get('filename') or '?'} — refusing to "
+                    f"score a dead live path as 'unknown' (ok=True would lie)"
+                )
+            predicted.append(doc_type)
 
     scores = scoring.score_classification(expected, predicted)
     if ScoreRecord is not None:
@@ -213,13 +472,14 @@ def run_sorter_eval(
                     run_id=experiment_name,
                 )
             )
+    logged_prompt, prompt_sha = _logged_prompt(prompt_version, task="sorter")
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_sorter",
         task="sorter",
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
         model=model or (activation.assignments[0][2] if activation.assignments else None),
-        prompt_version=prompt_version or "mailroom-default",
+        prompt_version=logged_prompt,
         mock=mock,
         dataset_fingerprint=plan["fingerprint"],
         n=len(rows),
@@ -241,8 +501,9 @@ def run_extract_eval(
     model: str | None = None,
     prompt_version: str | None = None,
     agent_models: dict[str, str] | None = None,
+    rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    rows = [r for r in load_manifest() if parse_expected_fields(r)]
+    rows = [r for r in (load_manifest() if rows is None else rows) if parse_expected_fields(r)]
     if sample:
         rows = rows[: sample]
     plan = {"task": "extract", "n": len(rows), "mock": mock, "fingerprint": dataset_fingerprint(rows)}
@@ -250,6 +511,7 @@ def run_extract_eval(
         return plan
     activation = activate(profile, model=model, prompt_variant=prompt_version, agent_models=agent_models)
     overall: list[float] = []
+    schema_rows: list[dict[str, Any]] = []
     for row in rows:
         expected_fields = parse_expected_fields(row) or {}
         if mock:
@@ -260,20 +522,26 @@ def run_extract_eval(
             row["expected_doc_class"],
             predicted_fields,
             expected_fields,
-            doc_text=fixture_file(row).read_text(encoding="utf-8"),
+            # DMR-056: live corpus rows carry doc_text inline (no fixture file).
+            doc_text=row.get("doc_text")
+            or (fixture_file(row).read_text(encoding="utf-8") if fixture_file(row).is_file() else None),
         )
+        schema_rows.append(scored)
         value = scored.get("overall_extraction_score")
         if isinstance(value, (int, float)):
             overall.append(float(value))
     mean = sum(overall) / len(overall) if overall else 0.0
     scores = {"overall_extraction_score": mean, "n": len(rows)}
+    if schema_rows:
+        scores.update(scoring.aggregate_schema_adherence(schema_rows))
+    logged_prompt, prompt_sha = _logged_prompt(prompt_version, task="extract")
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_extract",
         task="extract",
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
         model=model,
-        prompt_version=prompt_version or "mailroom-default",
+        prompt_version=logged_prompt,
         mock=mock,
         dataset_fingerprint=plan["fingerprint"],
         scores=scores,
@@ -290,39 +558,115 @@ def run_chained_eval(**kwargs: Any) -> dict[str, Any]:
     sorter = run_sorter_eval(**kwargs)
     extract_kwargs = {k: v for k, v in kwargs.items() if k != "experiment_name"}
     extract = run_extract_eval(**extract_kwargs)
-    composite = 0.25 * float(sorter.get("scores", {}).get("exact_match") or 0) + 0.75 * float(
-        extract.get("scores", {}).get("overall_extraction_score") or 0
-    )
+    sorter_exact = sorter.get("scores", {}).get("exact_match")
+    extract_overall = extract.get("scores", {}).get("overall_extraction_score")
+    if sorter_exact is None or extract_overall is None:
+        raise RuntimeError(
+            "chained eval: composite score cannot be derived — sorter "
+            f"exact_match={sorter_exact!r}, extractor overall={extract_overall!r}; "
+            "a 0-sentinel composite would silently hide the failed half"
+        )
+    composite = 0.25 * float(sorter_exact) + 0.75 * float(extract_overall)
     scores = {
-        "sorter_exact": sorter.get("scores", {}).get("exact_match"),
-        "extractor_overall": extract.get("scores", {}).get("overall_extraction_score"),
+        "sorter_exact": sorter_exact,
+        "extractor_overall": extract_overall,
         "chained_composite": composite,
     }
     return {"task": "chained", "scores": scores, "sorter": sorter, "extract": extract}
+
+
+def _seeded_sample(rows: list[dict[str, Any]], sample: int, seed: int) -> list[dict[str, Any]]:
+    """Deterministic seeded sample over a canonical sort (never first-N)."""
+    import random
+
+    ordered = sorted(rows, key=lambda r: str(r.get("id") or r.get("filename") or ""))
+    if sample >= len(ordered):
+        return ordered
+    return random.Random(seed).sample(ordered, k=sample)
+
+
+def _mock_legalbench_answer(row: dict[str, Any]) -> str:
+    """Deterministic mock answer (md5 parity), shared by every mock path.
+
+    A mock must exercise the scoring machinery without being self-fulfilling:
+    predicting the expected answer would pin every mock run to 1.0 and mask
+    scoring defects (DMR-049 F8).
+    """
+    import hashlib
+
+    blob = str(row.get("doc_text") or row.get("text") or row.get("document_text") or "")
+    return "Yes" if int(hashlib.md5(blob.encode()).hexdigest()[:2], 16) % 2 else "No"
 
 
 def run_legalbench_eval(
     *,
     mock: bool = True,
     sample: int | None = None,
+    seed: int = 42,
+    task: str = "contract_qa",
+    suite: bool = False,
     dry_run: bool = False,
     experiment_name: str | None = None,
     profile: str | None = None,
     model: str | None = None,
     agent_models: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    rows = load_legalbench_fixtures()
-    if sample:
-        rows = rows[: sample]
-    plan = {"task": "legalbench", "n": len(rows), "mock": mock}
+    """Run the LegalBench harness (binary QA / family classification).
+
+    ``suite=True`` loads a seeded subset from the vendored llm-mailroom suite
+    (the real CUAD corpora — loud failure when unavailable); the default is
+    the committed offline fixture. ``sample`` is a seeded draw, never
+    first-N, and the seed lands in the plan/record (DMR-049 F5).
+    """
+    if task not in LEGALBENCH_TASKS:
+        raise ValueError(f"unknown legalbench task {task!r}; have {sorted(LEGALBENCH_TASKS)}")
+    if task == "family_classification":
+        raise ValueError(
+            "family_classification is not wired into the sandbox harness (no fixture and no "
+            "family prompt) — run it from llm-mailroom's legalbench CLI: "
+            "`PYTHONPATH=src python -m legalbench.cli --task family_classification`"
+        )
+    if suite:
+        if not sample:
+            raise ValueError("suite runs need an explicit --n/--sample (the full corpus is not a smoke run)")
+        rows = load_legalbench_suite_rows(task, sample=sample, seed=seed)
+    else:
+        rows = load_legalbench_fixtures(task=task)
+        if sample:
+            rows = _seeded_sample(rows, sample, seed)
+    if not rows:
+        raise ValueError(
+            f"legalbench task {task!r} produced no samples"
+            + ("" if suite else " from the committed fixture — try --suite for the real corpus")
+        )
+    plan = {
+        "task": "legalbench",
+        "legalbench_task": task,
+        "n": len(rows),
+        "mock": mock,
+        "seed": seed,
+        "suite": suite,
+    }
     if dry_run:
         return plan
     activation = activate(profile, model=model, agent_models=agent_models)
     expected = [str(r.get("answer") or r.get("expected") or "") for r in rows]
+    errors: list[dict[str, Any]] = []
     if mock:
-        predicted = list(expected)
+        predicted = [_mock_legalbench_answer(r) for r in rows]
     else:
-        predicted = [_live_legalbench_answer(r, model=model) for r in rows]
+        predicted = []
+        for row in rows:
+            try:
+                predicted.append(_live_legalbench_answer(row, model=model))
+            except Exception as exc:  # noqa: BLE001 — recorded per row, not fatal per row
+                predicted.append("")
+                errors.append({"id": row.get("id"), "error": f"{type(exc).__name__}: {str(exc)[:300]}"})
+        if len(errors) == len(rows):
+            raise RuntimeError(
+                f"legalbench task {task!r}: all {len(rows)} row(s) failed — the live path was "
+                f"not exercised (last error: {errors[-1]['error']})"
+            )
     session = tracing.session_id_for("legalbench")
     for row, pred in zip(rows, predicted):
         with tracing.document_pipeline_trace(
@@ -336,13 +680,17 @@ def run_legalbench_eval(
                 pass
     tracing.flush_traces()
     scores = scoring.score_legalbench(expected, predicted)
+    if errors:
+        scores["error_count"] = len(errors)
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_legalbench",
         task="legalbench",
+        legalbench_task=task,
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
-        model=model,
+        model="mock/mock-legalbench" if mock else model,
         mock=mock,
+        seed=seed,
         n=len(rows),
         scores=scores,
         tracing_backend=tracing.tracing_backend(),
@@ -364,6 +712,7 @@ def run_local_vs_api_eval(
     agent_models: dict[str, str] | None = None,
     from_log: bool = False,
     connected: bool = False,
+    score_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Compare local (Ollama/vLLM/…) vs API-key (OpenRouter) serving metrics.
 
@@ -441,7 +790,9 @@ def run_local_vs_api_eval(
     }
     if comparison:
         scoring.emit_local_vs_api_scorecard(
-            comparison, run_id=experiment_name or "sandbox_local_vs_api"
+            comparison,
+            run_id=experiment_name or "sandbox_local_vs_api",
+            metadata=score_metadata,
         )
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_local_vs_api",
@@ -449,7 +800,7 @@ def run_local_vs_api_eval(
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
         model=model,
-        prompt_version=prompt_version or "mailroom-default",
+        prompt_version=_logged_prompt(prompt_version, task="local_vs_api")[0],
         mock=mock,
         dataset_fingerprint=plan["fingerprint"],
         n=scores["n"],
@@ -465,6 +816,159 @@ def run_local_vs_api_eval(
     return {**plan, "scores": scores, "comparison": compared, "record": record}
 
 
+def run_sorter_vs_modernbert_eval(
+    *,
+    sample: int | None = None,
+    mock: bool = True,
+    dry_run: bool = False,
+    experiment_name: str | None = None,
+    profile: str | None = None,
+    model: str | None = None,
+    prompt_version: str | None = None,
+    agent_models: dict[str, str] | None = None,
+    from_log: bool = False,
+    connected: bool = False,
+    sorter_record: dict[str, Any] | None = None,
+    modernbert_record: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Compare LLM sorter vs trained ModernBERT on accuracy + cost/latency.
+
+    ``--mock`` uses committed fixtures (no mailroom-ml import, no GPU).
+    Live (``mock=False``) loads ModernBERT from the local mailroom-ml feeder
+    (``MAILROOM_ML_SRC`` / ``MODERNBERT_MODEL_PATH``) via ``eval_modernbert.py``
+    and pairs it with fixtures' sorter side unless ``sorter_record`` /
+    ``from_log`` supplies a measured sorter record.
+    """
+    del connected, agent_models  # parity with other eval kwargs
+    mb_sample = 50 if sample is None else int(sample)
+    from mailroom_sandbox.datasets import load_sorter_vs_modernbert_fixtures
+    from mailroom_sandbox.job.metrics import compare_sorter_vs_modernbert
+
+    plan = {
+        "task": "sorter_vs_modernbert",
+        "suite": "sorter_vs_modernbert",
+        "mock": mock,
+        "from_log": from_log,
+        "fingerprint": "fixture-sorter-vs-modernbert-v0",
+        "requires_api_key": False,
+        "requires_mailroom_ml": not mock,
+    }
+    if dry_run:
+        return plan
+
+    activation = activate(profile, model=model, prompt_variant=prompt_version)
+    source = "fixtures"
+    if sorter_record is not None and modernbert_record is not None:
+        left, right = sorter_record, modernbert_record
+        source = "records"
+    elif from_log:
+        left, right = _sorter_modernbert_from_log(experiment_log.load())
+        source = "experiment_log"
+        if left is None or right is None:
+            raise RuntimeError(
+                "experiment_log has no comparable sorter + modernbert records "
+                "(need one with classifier/serving_kind llm_sorter|sorter and "
+                "one with modernbert); use --mock fixtures or pass records"
+            )
+    elif mock:
+        fixtures = load_sorter_vs_modernbert_fixtures()
+        left = fixtures.get("sorter") or {}
+        right = fixtures.get("modernbert") or {}
+        if not left or not right:
+            raise RuntimeError(
+                "sorter_vs_modernbert fixtures missing both sides — "
+                "expected data/fixtures/serving/sorter_vs_modernbert.json"
+            )
+        os.environ.setdefault("SANDBOX_RUN_MODE", "mock")
+    else:
+        # Live ModernBERT via mailroom-ml feeder; sorter from fixture or log.
+        from mailroom_sandbox.modernbert import (
+            feeder_status,
+            run_modernbert_eval,
+            serving_record_from_eval,
+        )
+
+        status = feeder_status()
+        if not status.get("ok"):
+            raise RuntimeError(
+                "ModernBERT feeder incomplete — "
+                f"{status.get('hint')} (status={status})"
+            )
+        report = run_modernbert_eval(sample=mb_sample, seed=42)
+        right = serving_record_from_eval(report)
+        left = sorter_record
+        if left is None:
+            left, _ = _sorter_modernbert_from_log(experiment_log.load())
+        if left is None:
+            fixtures = load_sorter_vs_modernbert_fixtures()
+            left = fixtures.get("sorter") or {}
+            source = "modernbert-live+sorter-fixture"
+            _log.warning(
+                "no measured sorter record in experiment_log — pairing live "
+                "ModernBERT with fixture sorter side (accuracy delta is not "
+                "apples-to-apples until a live sorter run exists)"
+            )
+        else:
+            source = "modernbert-live+sorter-log"
+        plan["fingerprint"] = right.get("dataset_fingerprint") or plan["fingerprint"]
+        plan["modernbert_checkpoint"] = right.get("checkpoint")
+
+    compared = compare_sorter_vs_modernbert(left, right)
+    quality = compared.get("quality") or {}
+    cost = compared.get("cost") or {}
+    latency = compared.get("latency") or {}
+    scores = {
+        "accuracy_sorter": (quality.get("accuracy") or {}).get("sorter"),
+        "accuracy_modernbert": (quality.get("accuracy") or {}).get("modernbert"),
+        "f1_macro_sorter": (quality.get("f1_macro") or {}).get("sorter"),
+        "f1_macro_modernbert": (quality.get("f1_macro") or {}).get("modernbert"),
+        "e2e_sorter": latency.get("sorter_e2e_s"),
+        "e2e_modernbert": latency.get("modernbert_e2e_s"),
+        "cost_per_doc_sorter": cost.get("sorter_cost_per_document"),
+        "cost_per_doc_modernbert": cost.get("modernbert_cost_per_document"),
+        "honest_gaps": compared.get("honest_gaps") or [],
+        "n": int(left.get("n") or 0) + int(right.get("n") or 0),
+    }
+    logged_prompt, prompt_sha = _logged_prompt(prompt_version, task="sorter_vs_modernbert")
+    record = experiment_log.new_record(
+        experiment_name=experiment_name or "sandbox_sorter_vs_modernbert",
+        task="sorter_vs_modernbert",
+        profile=activation.profile_name,
+        provider=os.environ.get("DEFAULT_PROVIDER"),
+        model=model,
+        prompt_version=logged_prompt,
+        mock=mock,
+        dataset_fingerprint=plan["fingerprint"],
+        n=scores["n"],
+        scores=scores,
+        serving_kind="local",
+        tracing_backend=tracing.tracing_backend(),
+        tags=tracing.default_tags("source-serving", "sorter-vs-modernbert"),
+        sorter_vs_modernbert=compared,
+        serving_markdown=compared.get("markdown"),
+        source=source,
+    )
+    experiment_log.append(record)
+    return {**plan, "scores": scores, "comparison": compared, "record": record}
+
+
+def _sorter_modernbert_from_log(
+    records: list[dict[str, Any]],
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Pick the latest sorter + modernbert rows from an experiment log."""
+    sorter: dict[str, Any] | None = None
+    modernbert: dict[str, Any] | None = None
+    for rec in records:
+        kind = str(rec.get("classifier") or rec.get("serving_kind") or "").lower()
+        task = str(rec.get("task") or "").lower()
+        if kind in {"modernbert", "bert_intake", "onnx-cpu"} or "modernbert" in kind:
+            modernbert = rec
+        elif task == "sorter" or kind in {"llm_sorter", "modal", "local", "api"}:
+            if task in {"sorter", ""} or rec.get("scores"):
+                sorter = rec
+    return sorter, modernbert
+
+
 def run_pipeline_eval(
     *,
     mock: bool = True,
@@ -476,8 +980,11 @@ def run_pipeline_eval(
     prompt_version: str | None = None,
     agent_models: dict[str, str] | None = None,
     connected: bool = True,
+    rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    rows = load_manifest()
+    # DMR-056: rows=None keeps the fixture manifest default; the sandbox job
+    # whole-run path passes the LOCKED live dataset rows instead.
+    rows = load_manifest() if rows is None else rows
     if sample:
         rows = rows[: sample]
     plan = {
@@ -498,12 +1005,22 @@ def run_pipeline_eval(
     for row in rows:
         results.append(_run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name))
     expected = [r["expected_doc_class"] for r in rows]
-    predicted = [r.get("doc_type") or "unknown" for r in results]
+    predicted: list[str] = []
+    for row, result in zip(rows, results):
+        doc_type = result.get("doc_type")
+        if not mock and not doc_type:
+            raise RuntimeError(
+                f"live pipeline returned no doc_type for row "
+                f"{row.get('id') or row.get('filename') or '?'} — refusing to "
+                f"score a dead live path as 'unknown'"
+            )
+        predicted.append(doc_type or "unknown")
     class_scores = scoring.score_classification(expected, predicted)
     stage_expected = [str(r.get("expected_stage") or "archived") for r in rows]
     stage_predicted = [str(r.get("stage") or "unknown") for r in results]
     stage_scores = scoring.score_stage(stage_expected, stage_predicted)
     extract_vals: list[float] = []
+    schema_rows: list[dict[str, Any]] = []
     if connected:
         for row, result in zip(rows, results):
             expected_fields = parse_expected_fields(row) or {}
@@ -513,8 +1030,16 @@ def run_pipeline_eval(
                 row["expected_doc_class"],
                 result.get("extracted_data") or {},
                 expected_fields,
-                doc_text=fixture_file(row).read_text(encoding="utf-8") if fixture_file(row).is_file() else None,
+                # DMR-056: live corpus rows carry doc_text inline; fixture rows
+                # read from disk (subdir guard — live rows have no subdir key).
+                doc_text=row.get("doc_text")
+                or (
+                    fixture_file(row).read_text(encoding="utf-8")
+                    if "subdir" in row and fixture_file(row).is_file()
+                    else None
+                ),
             )
+            schema_rows.append(scored)
             value = scored.get("overall_extraction_score")
             if isinstance(value, (int, float)):
                 extract_vals.append(float(value))
@@ -529,18 +1054,21 @@ def run_pipeline_eval(
         "routing_accuracy": routing.get("exact_match"),
         "connected": connected,
     }
+    if schema_rows:
+        scores.update(scoring.aggregate_schema_adherence(schema_rows))
     tracing.emit_langfuse_score("class_correct", float(scores["class_correct"] or 0))
     tracing.emit_langfuse_score("stage_correct", float(scores["stage_correct"] or 0))
     if scores["extraction_overall"] is not None:
         tracing.emit_langfuse_score("extraction_overall_score", float(scores["extraction_overall"]))
     tracing.flush_traces()
+    logged_prompt, prompt_sha = _logged_prompt(prompt_version, task="pipeline")
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_pipeline",
         task="pipeline",
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
         model=model,
-        prompt_version=prompt_version or "mailroom-default",
+        prompt_version=logged_prompt,
         mock=mock,
         dataset_fingerprint=plan["fingerprint"],
         n=len(rows),
@@ -555,16 +1083,93 @@ def run_pipeline_eval(
     return {**plan, "scores": scores, "docs": results}
 
 
+def _langchain_mock_patches(expect: dict[str, Any]) -> list:
+    """Mock patches for mailroom's vendored LangChain agents.
+
+    The vendored agents build their own ``ChatOpenAI`` and bypass
+    ``llm.client.get_llm``, so — mirroring mailroom's own test suite — the
+    ``langchain_agents.base_agent.BaseAgent.llm`` property must be patched
+    with the canned ``FakeLangChainLLM`` shipped alongside. The sandbox
+    keeps its marker-driven payload table by overriding ``_run`` to answer
+    through ``fake_structured_payload``. Returns [] when mailroom v0.5.x
+    (no langchain_agents) is resolved instead.
+    """
+    try:
+        import langchain_agents.base_agent as lc_base
+        from langchain_agents.mock import FakeLangChainLLM, user_text_from_messages
+    except Exception as exc:
+        _log.warning(
+            "langchain_agents mock surface unavailable — a --mock run against the "
+            "vendored langchain stack may proceed WITHOUT its LLM patches (the "
+            "agent would attempt a real provider call)",
+            exc_info=exc,
+        )
+        return []
+
+    class _SandboxFakeLLM(FakeLangChainLLM):
+        def _run(self, messages):
+            self.calls += 1
+            text = user_text_from_messages(messages)
+            parsed = fake_structured_payload(text, expect)
+            return self._make_message(parsed)
+
+    fake = _SandboxFakeLLM()
+    return [patch.object(lc_base.BaseAgent, "llm", new=lambda self: fake)]
+
+
+_TEXT_SUFFIXES = (".txt", ".md", ".json", ".csv", ".eml", ".html", ".htm")
+
+
+def _doc_source_name(row: dict[str, Any]) -> str:
+    """Filename for a row's document in the inbox (fixture or prepared row)."""
+    filename = str(row.get("filename") or "").strip()
+    if filename:
+        return Path(filename).name
+    ident = str(row.get("id") or "doc").strip() or "doc"
+    return f"{ident}.txt"
+
+
+def _materialize_row(row: dict[str, Any], inbox: Path) -> Path:
+    """Place the row's document in the inbox and return the queued path.
+
+    Fixture rows resolve to their file on disk (copied in); prepared corpus
+    rows carry ``doc_text`` inline and are written as a text document. A row
+    with neither raises — a live run never scores a missing document.
+    """
+    import shutil
+
+    queued = inbox / _doc_source_name(row)
+    doc_text = row.get("doc_text") or row.get("text")
+    if doc_text:
+        if queued.suffix.lower() not in _TEXT_SUFFIXES:
+            queued = queued.with_suffix(".txt")
+        queued.write_text(str(doc_text), encoding="utf-8")
+        return queued
+    source = fixture_file(row)  # KeyError when subdir/filename are absent — live-or-loud
+    shutil.copyfile(source, queued)
+    return queued
+
+
 def _run_pipeline_doc(
     row: dict[str, Any],
     *,
     mock: bool,
     session_id: str | None = None,
     experiment_name: str | None = None,
+    run_id: str | None = None,
 ) -> dict[str, Any]:
-    """Run one fixture through mailroom ``run_pipeline`` when available."""
+    """Run one row through mailroom ``run_pipeline`` when available.
+
+    Rows may be fixture rows (file on disk) or prepared corpus rows
+    (``doc_text`` inline — the DMR-027 job path); both are materialized into
+    the inbox before the run. When the mailroom import fails a LIVE run
+    raises (live-or-loud, DMR-044) instead of returning a mock-shaped
+    fallback; mock runs keep the deterministic fallback. ``run_id`` rides
+    into ``run_pipeline`` so the catalog provenance is not NULL for
+    sandbox-driven runs (DMR-052).
+    """
     src = resolve_mailroom_src()
-    path = fixture_file(row)
+    name = _doc_source_name(row)
     expect = _expect_from_row(row)
     public_gt = tracing.public_ground_truth(row)
     fallback = {
@@ -577,11 +1182,16 @@ def _run_pipeline_doc(
     try:
         from graph.build_graph import run_pipeline  # type: ignore
         from pipeline.bins import inbox_dir  # type: ignore
-    except Exception:
+    except Exception as exc:
+        if not mock:
+            raise RuntimeError(
+                "mailroom pipeline is not importable (vendored llm-mailroom missing) — "
+                "a live run would silently mock; run `sandbox fetch-deps` or use --mock"
+            ) from exc
         with tracing.document_pipeline_trace(
-            seed=str(row.get("id") or path.name),
+            seed=str(row.get("id") or name),
             session_id=session_id or tracing.session_id_for("pipeline"),
-            input={"filename": path.name, "matter_id": f"SANDBOX-{row.get('id')}", **public_gt},
+            input={"filename": name, "matter_id": f"SANDBOX-{row.get('id')}", **public_gt},
             metadata={"pipeline": "mailroom", "source": "sandbox-fixtures", "run_id": experiment_name, "attempt": 1},
             tags=tracing.default_tags("source-fixtures"),
         ):
@@ -589,15 +1199,12 @@ def _run_pipeline_doc(
                 pass
         return fallback
 
-    import shutil
-
     inbox = inbox_dir()
     inbox.mkdir(parents=True, exist_ok=True)
-    queued = inbox / path.name
-    shutil.copyfile(path, queued)
+    queued = _materialize_row(row, inbox)
     matter_id = f"SANDBOX-{row.get('id')}"
     # Mailroom strips expected_fields before the trace; keep it for in-graph scoring.
-    gt = {**public_gt, "expected_doc_class": row["expected_doc_class"]}
+    gt = {**public_gt, "expected_doc_class": str(row.get("expected_doc_class") or "")}
     fields = parse_expected_fields(row)
     if fields:
         gt["expected_fields"] = fields
@@ -609,11 +1216,18 @@ def _run_pipeline_doc(
         "source": "sandbox-fixtures",
         "ground_truth": gt,
         "session_id": session_id or matter_id,
+        "run_id": run_id or experiment_name,
     }
     if mock:
-        with patch("llm.client.get_llm", side_effect=_mock_get_llm), patch(
-            "agents.base.get_llm", side_effect=_mock_get_llm
-        ):
+        with ExitStack() as stack:
+            stack.enter_context(
+                patch("llm.client.get_llm", side_effect=_mock_get_llm)
+            )
+            stack.enter_context(
+                patch("agents.base.get_llm", side_effect=_mock_get_llm)
+            )
+            for lc_patch in _langchain_mock_patches(expect):
+                stack.enter_context(lc_patch)
             result = run_pipeline(queued, matter_id, **kwargs)
     else:
         result = run_pipeline(queued, matter_id, **kwargs)
@@ -628,19 +1242,61 @@ def _run_pipeline_doc(
     }
 
 
+def _live_serve_target() -> tuple[str, str]:
+    """(base_url, model) for a direct live call, following the active provider.
+
+    ``DEFAULT_PROVIDER`` picks the family; the fallback model matches the
+    served vLLM id (``Qwen/Qwen3-8B-AWQ``) so a live client never 404s on the
+    dense ``Qwen/Qwen3-8B`` name while the replica is AWQ-only.
+    """
+    provider = (os.environ.get("DEFAULT_PROVIDER") or "").strip().lower()
+    if provider == "vllm":
+        from mailroom_sandbox.overlay import resolve_served_vllm_model
+
+        return (
+            os.environ.get("VLLM_BASE_URL") or "http://localhost:8000/v1",
+            resolve_served_vllm_model() or "Qwen/Qwen3-8B-AWQ",
+        )
+    if provider == "ollama":
+        return (
+            os.environ.get("OLLAMA_BASE_URL") or "http://localhost:11434/v1",
+            "qwen3:8b",
+        )
+    return (
+        os.environ.get("OLLAMA_BASE_URL")
+        or os.environ.get("VLLM_BASE_URL")
+        or "http://localhost:11434/v1",
+        "qwen3:8b",
+    )
+
+
 def _live_legalbench_answer(row: dict[str, Any], *, model: str | None) -> str:
+    answer, _usage = _live_legalbench_answer_with_usage(row, model=model)
+    return answer
+
+
+def _live_legalbench_answer_with_usage(
+    row: dict[str, Any], *, model: str | None
+) -> tuple[str, dict[str, int]]:
+    """Live LegalBench call returning ``(answer, usage_metrics)``."""
     try:
         from openai import OpenAI
-    except Exception:
-        return str(row.get("answer") or "")
-    base = os.environ.get("OLLAMA_BASE_URL") or os.environ.get("VLLM_BASE_URL") or "http://localhost:11434/v1"
+    except Exception as exc:
+        raise RuntimeError(
+            "openai is not installed — a live legalbench run would silently "
+            "score the expected answer; install the eval extras or use --mock"
+        ) from exc
+    from mailroom_sandbox.job.usage_capture import usage_from_openai_response
+
+    base, fallback_model = _live_serve_target()
     client = OpenAI(base_url=base, api_key=os.environ.get("VLLM_API_KEY") or "not-needed")
     prompt = (
         f"Answer Yes or No only. json required.\nQuestion: {row.get('question')}\n"
-        f"Passage: {row.get('text') or row.get('passage')}\n"
+        f"Passage: {row.get('doc_text') or row.get('text') or row.get('passage') or row.get('document_text')}\n"
     )
+    resolved_model = model or os.environ.get("SANDBOX_MODEL") or fallback_model
     resp = client.chat.completions.create(
-        model=model or os.environ.get("SANDBOX_MODEL") or "qwen3:8b",
+        model=resolved_model,
         messages=[
             {"role": "system", "content": "Return json {\"answer\": \"Yes\" or \"No\"}."},
             {"role": "user", "content": prompt},
@@ -649,24 +1305,10 @@ def _live_legalbench_answer(row: dict[str, Any], *, model: str | None) -> str:
         max_tokens=32,
         temperature=0,
     )
+    usage = usage_from_openai_response(resp)
     raw = resp.choices[0].message.content or "{}"
     try:
-        return str(json.loads(raw).get("answer") or raw).strip()
+        answer = str(json.loads(raw).get("answer") or raw).strip()
     except json.JSONDecodeError:
-        return raw.strip()
-
-
-def hf_rows_as_manifest() -> list[dict[str, str]]:
-    rows = []
-    for item in load_hf_fixtures():
-        rows.append(
-            {
-                "id": str(item.get("id") or item.get("filename") or item.get("doc_type")),
-                "subdir": "hf",
-                "filename": str(item.get("filename") or f"{item.get('doc_type')}.txt"),
-                "expected_doc_class": str(item.get("doc_type") or item.get("expected_hf_class") or "unknown"),
-                "expected_stage": "archived",
-                "text": str(item.get("text") or ""),
-            }
-        )
-    return rows
+        answer = raw.strip()
+    return answer, usage

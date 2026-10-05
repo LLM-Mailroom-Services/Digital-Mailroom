@@ -1,5 +1,10 @@
 # Modal + local compose + offline Dockerfile
 
+Remote-serving paths (Modal, SSH-tunneled vLLM, CHTC/HTCondor, conda env)
+have their own guides: [`conda/`](conda/) (environment spec),
+[`htcondor/`](htcondor/) (CHTC job templates), and
+[`../docs/setting-up/remote-serving.md`](../docs/setting-up/remote-serving.md) (the overview).
+
 ## Compose
 
 ```bash
@@ -20,8 +25,8 @@ vLLM needs an NVIDIA GPU on the host. Ollama runs on CPU for smoke models
 
 ## Offline Dockerfile + Jupyter notebooks
 
-[`Dockerfile`](Dockerfile) builds `mailroom-sandbox:offline` (Python 3.11 + sandbox +
-Jupyter Lab). Full walkthrough: [`docs/docker-offline.md`](../docs/docker-offline.md).
+[`Dockerfile`](Dockerfile) builds `mailroom-sandbox:offline` (Python 3.13 + sandbox +
+Jupyter Lab). Full walkthrough: [`docs/setting-up/docker-offline.md`](../docs/setting-up/docker-offline.md).
 
 ```bash
 # Image alone
@@ -39,26 +44,313 @@ Dedicated notebooks:
 2. `notebooks/02_load_clean_prepare_data.ipynb` — load/clean/write `data/runtime/prepared/`  
 3. `notebooks/03_offline_sandbox_smoke.ipynb` — mock sorter/pipeline smoke
 
-## Modal vLLM
+## Modal vLLM (remote GPU)
 
-Same knobs as llm-mailroom KANBAN-064 / entity-extraction KANBAN-096.
+Modal SDK **1.5.5** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**
+(`vllm/vllm-openai:v0.29.0`, matching the local compose pin). Same knob
+contract as llm-mailroom KANBAN-064 / entity-extraction KANBAN-096, plus
+sandbox-local cost/scale knobs.
+
+### Deploy
 
 ```bash
 pip install -e ".[deploy]"
 modal token new
-export MODAL_VLLM_MODEL=Qwen/Qwen3-8B
-export MODAL_VLLM_GPU=L4
-export MODAL_VLLM_API_TOKEN="$(openssl rand -hex 24)"
-cd deploy && modal deploy modal_vllm.py
+
+export MODAL_VLLM_MODEL=Qwen/Qwen3-8B                   # default
+export MODAL_VLLM_GPU=L4                                # 24 GB; justify bigger
+export MODAL_VLLM_API_TOKEN="$(openssl rand -hex 24)"   # shared endpoints
+# optional: export HF_TOKEN=...                         # gated weights
+
+# 1) pre-warm weights into the sandbox-hf-cache Volume (CPU-only, no GPU spend)
+modal run deploy/modal_vllm.py::download_model
+
+# 2) deploy (prints the URL)
+modal deploy deploy/modal_vllm.py
 ```
 
-Flip the sandbox:
+Endpoint: `https://<workspace>--sandbox-vllm-serve.modal.run`.
 
-```
-SANDBOX_PROFILE=modal-vllm
-DEFAULT_PROVIDER=vllm
-VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
-VLLM_API_KEY=<MODAL_VLLM_API_TOKEN>
+### Verify + point the sandbox at it
+
+```bash
+export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"
+sandbox health --profile modal-vllm
+
+# raw check — 401 without the bearer (vLLM enforces it in-container)
+curl -sS -H "Authorization: Bearer $VLLM_API_KEY" "$VLLM_BASE_URL/models"
+# or, with VLLM_BASE_URL/VLLM_API_KEY exported:
+modal run deploy/modal_vllm.py --check
 ```
 
-Tear down: `modal app stop sandbox-vllm`.
+For evals: `SANDBOX_PROFILE=modal-vllm` + `DEFAULT_PROVIDER=vllm` (see
+`config/.env.example`), then `sandbox pilot --local --profile modal-vllm`.
+
+### Knobs
+
+| Env | Default | Notes |
+| --- | --- | --- |
+| `MODAL_VLLM_MODEL` | `Qwen/Qwen3-8B` | HF repo id |
+| `MODAL_VLLM_GPU` | `L4` | 24 GB VRAM |
+| `MODAL_VLLM_MAX_MODEL_LEN` | `16384` | context cap (KV-cache budget). DMR-056: v0.29.0 RAISES at boot when the pool can't hold one request — L4-bf16 8B rows cap at 16384; AWQ/FP8 rows set 32768 |
+| `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | fraction of GPU memory; vLLM's default is `0.92` |
+| `MODAL_VLLM_MAX_NUM_SEQS` | `6` | L4 long-prompt admission cap (4–6). ~8 concurrent ~8k-prompt long-decode sequences exhaust KV (latency cliff). Short-doc scale-matrix cells override to `256` |
+| `MODAL_VLLM_ENABLE_PREFIX_CACHING` | `1` | APC — amortize shared ~9.7k-token prompt prefill (`--enable-prefix-caching`; set `0` for `--no-enable-prefix-caching`) |
+| `MODAL_VLLM_ENFORCE_EAGER` | `1` | skip CUDA-graph capture for faster cold boot (`--enforce-eager`; set `0` for graphs / higher steady-state tok/s) |
+| `MODAL_VLLM_ATTENTION_BACKEND` | empty | `flashinfer` for throughput runs (Modal vllm_throughput exemplar); empty = vLLM engine default (parity + reproducible posture) |
+| `MODAL_VLLM_ASYNC_SCHEDULING` | empty | `1`/`true` enables the async batch scheduler (exemplar throughput knob). Not every vLLM feature is supported under it — keep off when a run depends on structured outputs |
+| `MODAL_VLLM_QUANTIZATION` | empty | `awq` / `gptq` / … |
+| `MODAL_VLLM_TP_SIZE` | from GPU suffix | tensor-parallel size; default derived from `:N` in `MODAL_VLLM_GPU` (1 for single GPU). **Only** for models that won't fit one GPU (70B-class). For a second L4 on 8B, raise `MAX_CONTAINERS` instead |
+| `MODAL_VLLM_IMAGE_TAG` | `v0.29.0` | pin; tag or `@sha256:` digest |
+| `MODAL_VLLM_REVISION` | empty | HF revision (recommended for runs; travels via the deploy Secret) |
+| `MODAL_VLLM_API_TOKEN` | empty | maps to `VLLM_API_KEY` (bearer) |
+| `HF_TOKEN` | empty | gated/private weights |
+| `MODAL_VLLM_SCALEDOWN_SECONDS` | `120` | idle warm window (attended specialist default; set **600** for unattended/overnight) |
+| `MODAL_VLLM_MAX_CONTAINERS` | `1` | cost guard; raise to `2` for a second independent L4 replica (data parallel / Modal round-robin) |
+| `MODAL_VLLM_MIN_CONTAINERS` | `0` | scale-to-zero |
+| `MODAL_VLLM_STARTUP_TIMEOUT_SECONDS` | `1200` | first-boot budget |
+
+Image pin: **v0.29.0** everywhere (Modal app, local compose, HTCondor
+templates) — bumped together in DMR-062 after the **live parity pilot**
+(2026-09-16: 7/7 sorter rows F1=1.0 on `Qwen/Qwen3-8B` L4 via the deployed
+endpoint, `json_object` structured outputs verified). The v0.29.0 flag set
+was docs-verified by vllm-specialist (2026-09-16): same boot-valid pylons as
+v0.28.0 (`--max-model-len 16384`, `--gpu-memory-utilization 0.90`,
+`--no-enable-log-requests`); L4 long-prompt posture (SAND-030) pins
+`--max-num-seqs 6`, `--enable-prefix-caching`, `--enforce-eager`. Model Runner
+V2 is the v0.29.0 default and keeps the KV admission check (16384 still fits
+L4-bf16-8B; 32768 still RAISES at boot).
+
+### Model matrix (DMR-045)
+
+`config/models.yaml` carries the per-model deploy matrix
+(`modal_models:`): exact HF repo id, recommended GPU, quantization, context
+cap, and tensor-parallel size. Rules of thumb (verified against v0.29.0,
+2026-09-16):
+
+- **L4 24 GB** (default): 8B bf16 (16K context) or AWQ (32K) is the sweet
+  spot; 14B **AWQ** fits, 14B **bf16 does not** (~29 GB > ~21.6 GB usable —
+  the "14B trap").
+- **AWQ/GPTQ (4-bit)** runs on Ampere (A10/A100); **FP8** is native on
+  Hopper (H100) and Ada (L4), *weight-only Marlin* (slower) on A100 — the
+  FP8 matrix rows point at the PUBLISHED `-FP8` checkpoints (auto-detected;
+  no forced `--quantization`).
+- **Throughput rows** — `Qwen/Qwen3-8B-FP8` and `Qwen/Qwen3-14B-FP8` on
+  `MODAL_VLLM_GPU=H100` are the Modal `vllm_throughput` exemplar posture
+  (native W8A8, best tok/s per dollar for prefill-heavy batch evals; see the
+  Throughput runs section below).
+- **70B-class**: `MODAL_VLLM_GPU="A100-80GB:2"` +
+  `MODAL_VLLM_TP_SIZE=2` with the published `RedHatAI/
+  Llama-3.3-70B-Instruct-FP8-dynamic` checkpoint (~35 GB/GPU); forcing
+  online FP8 on the bf16 weights OOMs at load (~70.5 GB/GPU vs 72 GB
+  budget). The TP knob is load-bearing — without it vLLM uses 1 GPU and OOMs.
+- **Gated repos** (`meta-llama/*`): set `HF_TOKEN` in the deploy env.
+- `json_object` structured outputs work with xgrammar on v0.29.0 (no
+  `--guided-decoding-backend` needed — that flag is gone).
+- Swap models/GPUs via the **single control surface**
+  `config/models.yaml` `modal_models:` + `MODAL_VLLM_*` env (or
+  `eval "$(sandbox modal-matrix env <HF-id> [--gpu GPU])"`) then
+  `modal deploy deploy/modal_vllm.py --strategy recreate`. A rolling
+  redeploy keeps the old model warm for the scaledown window.
+  **Default specialist cost-eval path stays Qwen/Qwen3-8B @ L4**
+  (`sandbox runbook show l4-qwen3-8b`); do not edit `run-30-*-specialist.yaml` for
+  one-off swaps — copy the YAML if an alternate scorecard needs matching
+  `engine.model` / `engine.modal.gpu`.
+
+### Engine posture (v0.29.0, docs-verified 2026-09-16)
+
+The local compose service (`deploy/docker-compose.yml`) and this app send
+the same `vllm serve` argv:
+
+| Flag | Value | Why |
+| --- | --- | --- |
+| `--host` / `--port` | `0.0.0.0` / `8000` | reachable from the compose network / Modal proxy |
+| `--max-model-len` | `16384` (knob) | DMR-056: boot-valid default for L4-bf16 8B rows — v0.29.0 RAISES (not warns) when the KV pool can't hold one request at the cap; AWQ rows use 32768 |
+| `--gpu-memory-utilization` | `0.90` (knob) | vLLM's default is `0.92`; 0.90 keeps headroom on a 24 GB L4 and on shared local GPUs |
+| `--max-num-seqs` | `6` (knob) | L4 long-prompt: 4–6 active sequences; 8×~8k long-decode hits the KV latency cliff. Scale-matrix short-doc cells override to `256` |
+| `--enable-prefix-caching` | on (knob) | APC amortizes shared ~9.7k-token prompt prefill; set `MODAL_VLLM_ENABLE_PREFIX_CACHING=0` to pass `--no-enable-prefix-caching` |
+| `--enforce-eager` | on (knob) | skip CUDA-graph capture → faster cold boot (Modal FAST_BOOT); set `MODAL_VLLM_ENFORCE_EAGER=0` to restore graphs |
+| `--no-enable-log-requests` | on | v0.28.0 made request logging opt-in (`--enable-log-requests`); the pre-0.28 `--disable-log-requests` flag no longer exists |
+| `--attention-backend` | off (knob) | `flashinfer` for throughput runs — the Modal vllm_throughput exemplar's attention backend; empty = engine default |
+| `--async-scheduling` | off (knob) | exemplar's async batch scheduler, opt-in — see the caveats above |
+| `--tensor-parallel-size` | `N` when `MODAL_VLLM_TP_SIZE` ≠ 1 | multi-GPU **containers** only (70B-class on `A100-80GB:2`). For a second L4 on 8B use `MAX_CONTAINERS=2` (data parallel), not TP |
+| `--revision` / `--quantization` | optional | weight pin / quantized checkpoints (Modal knobs; compose overrides via a command override) |
+
+### Singular L4 vs second L4 (data parallel)
+
+| | 1×L4 | 2×L4 |
+| --- | --- | --- |
+| Deploy | `MAX_CONTAINERS=1` (default) | `MAX_CONTAINERS=2` |
+| vLLM instances | 1 | 2 (one per GPU / container) |
+| `max_num_seqs` | 4–6 (default **6**) | 4–6 **per replica** (8–12 total) |
+| `gpu_memory_utilization` / APC / eager | `0.90` / on / on | same per replica |
+| Router | n/a | Modal `@web_server` even distribution (round-robin style) |
+| Do **not** | — | `MODAL_VLLM_GPU=L4:2` + TP for 8B (PCIe all-reduce, no latency win) |
+
+APC is per-replica: highly repetitive prefixes are cached twice. The
+concurrency gain outweighs the duplicate cache for specialist workloads.
+HF weights stay on the `sandbox-hf-cache` Volume (pre-warm once).
+
+Deliberately **not** set beyond the knobs above — the v0.29.0 defaults
+already cover:
+
+- **Chunked prefill** — on by default (`SchedulerConfig.enable_chunked_prefill=True`).
+- **`--async-scheduling`** — OFF by default (opt-in via the knob above): the
+  exemplar reports a small throughput win, but a test sandbox values
+  reproducibility, and not every vLLM feature is supported under the async
+  scheduler (structured outputs among them).
+- **`--served-model-name`** — the default served id is the HF repo id, which
+  the profiles' `default_model` (and `sandbox health`) already expect.
+- **`--guided-decoding-backend`** — replaced by `--structured-outputs-config`
+  (backend default `auto`, xgrammar); `response_format={"type":
+  "json_object"}` works unflagged.
+- **`--swap-space`** — removed with the V1 engine; CPU swap is not a
+  v0.29.0 knob.
+
+### Throughput runs (Modal `vllm_throughput` exemplar, 2026-09)
+
+The exemplar is an offline batch workload (thousands of filings, no human
+waiting) — the same shape as a large `sandbox run` eval. Its recipe, mapped
+onto this app:
+
+| Exemplar practice | Where it lives here |
+| --- | --- |
+| vLLM, one GPU per replica (throughput per GPU = per dollar) | default `max_containers=1`; TP only for 70B-class |
+| FP8 checkpoint on H100 (native W8A8) | `Qwen/Qwen3-8B-FP8` / `Qwen/Qwen3-14B-FP8` rows in `config/models.yaml` (`MODAL_VLLM_GPU=H100`) |
+| `attention_backend=flashinfer` | `MODAL_VLLM_ATTENTION_BACKEND=flashinfer` |
+| `async_scheduling=True` | `MODAL_VLLM_ASYNC_SCHEDULING=1` |
+| `max_model_len` sized from the data / KV budget | `MODAL_VLLM_MAX_MODEL_LEN` (16384 default, 32768 on FP8/AWQ rows) |
+| HF + vLLM compile caches on Volumes; Xet transfers | `sandbox-hf-cache` / `sandbox-vllm-cache` + `HF_XET_HIGH_PERFORMANCE=1` (already on) |
+| batched/parallel inputs fill continuous batching | runner `concurrency` (`job:` block in the run spec; 4-16 vs a vLLM endpoint — `docs/jobs.md`) |
+
+Example throughput deploy::
+
+    export MODAL_VLLM_MODEL=Qwen/Qwen3-8B-FP8
+    export MODAL_VLLM_GPU=H100
+    export MODAL_VLLM_MAX_MODEL_LEN=32768
+    export MODAL_VLLM_ATTENTION_BACKEND=flashinfer
+    export MODAL_VLLM_ASYNC_SCHEDULING=1
+    export MODAL_VLLM_API_TOKEN="$(openssl rand -hex 24)"
+    modal deploy deploy/modal_vllm.py
+
+Caveat: the exemplar's offline `vllm.LLM` interface (no HTTP server, results
+only when the whole batch finishes) is not what the sandbox serves — evals
+drive the OpenAI-compatible `/v1` endpoint, so batching happens at the
+runner (concurrency) and the server (`--max-num-seqs`).
+
+### Cost (verified 2026-09-09, modal.com/pricing)
+
+| GPU | $/sec | ≈ $/hr |
+| --- | --- | --- |
+| L4 | 0.000222 | 0.80 |
+| A10 | 0.000306 | 1.10 |
+| A100 40 GB | 0.000583 | 2.10 |
+| A100 80 GB | 0.000694 | 2.50 |
+| H100 SXM5 | 0.001097 | 3.95 |
+| H200 SXM | 0.001261 | 4.54 |
+| B200 | 0.001736 | 6.25 |
+
+- Scale-to-zero: no GPU billing while idle; containers stay warm for
+  `MODAL_VLLM_SCALEDOWN_SECONDS` after the last request.
+- `max_containers=1` by default — load tests must raise it on purpose.
+- `download_model` runs CPU-only; Volumes are `$0.09/GiB/mo` (first 1 TiB
+  free) and persist weights + compile artifacts across deploys.
+- Spend check: `modal billing summary` / `modal billing rates` (SDK 1.5.3+).
+
+### Teardown + resource safeguards (DMR-063)
+
+```bash
+./deploy/teardown_vllm.sh              # stop + VERIFY zero containers + spend check
+modal app stop sandbox-vllm          # manual fallback (Volumes persist)
+modal volume ls sandbox-hf-cache     # weights survive
+modal volume ls sandbox-vllm-cache   # vLLM JIT/CUDA-graph cache
+```
+
+Guard matrix — nothing may run unchecked:
+
+| Guard | Knob / command | Default | Enforced by |
+| --- | --- | --- | --- |
+| Replica cap (cost guard) | `MODAL_VLLM_MAX_CONTAINERS` | `1` — raise deliberately (4 for the DMR-063 scale-out run) | deploy env; preflight `modal_spec` guard |
+| Scale-to-zero | `MODAL_VLLM_MIN_CONTAINERS` | `0` | deploy env |
+| Idle burn window | `MODAL_VLLM_SCALEDOWN_SECONDS` | `120` attended / `600` unattended | deploy env; `benchmark-check` |
+| Loud teardown after any run | `./deploy/teardown_vllm.sh` | run it after every completed/cancelled run | this script exits 1 if a deployment is still running after 30 polls |
+| Boot-time budget | `MODAL_VLLM_STARTUP_TIMEOUT_SECONDS` | `1200` | deploy env; fail-loud in `serve()` |
+| Spend visibility | `modal billing summary` / `modal billing rates` | — | teardown script step 4 (best-effort) |
+
+Deploy-time knobs for a scale-out run (multiple replicas, tight idle):
+
+```bash
+export MODAL_VLLM_MAX_CONTAINERS=4      # 4 × L4 replicas (documented raise)
+export MODAL_VLLM_SCALEDOWN_SECONDS=600 # unattended / overnight idle window
+modal deploy deploy/modal_vllm.py
+# Specialist 5×30 attended suite uses MODAL_VLLM_SCALEDOWN_SECONDS=120
+# (docs/modal/benchmark-l4.md); one warm app, teardown only after the fifth.
+```
+
+### Security model
+
+- Private endpoint: bearer enforced by vLLM inside the container
+  (`MODAL_VLLM_API_TOKEN` → `VLLM_API_KEY`). Never deploy a shared endpoint
+  without it.
+- The bearer covers the `/v1`, `/v2`, `/inference`, and `/cohere` path
+  prefixes; `/health` (and `/metrics`) stay unauthenticated by design. So
+  `sandbox health` proves the token on `/v1/models` — a 200 from `/health`
+  only means the process is up.
+- Secrets: the named Modal secret `huggingface-secret` (HF token, configured
+  in the Modal dashboard) is attached via `Secret.from_name`; deploy-time
+  `MODAL_VLLM_*` knobs travel via a `Secret.from_dict` fallback. Only
+  variable names appear in the repo. The app prints argv, never token values.
+- Do **not** set `requires_proxy_auth=True`: the OpenAI client seam speaks
+  `Authorization: Bearer`, not `Modal-Key`/`Modal-Secret` headers.
+
+### Cold starts, snapshots, modern decorator
+
+- Pre-warm (weights) + the `sandbox-vllm-cache` Volume (JIT/CUDA graphs) are
+  the cold-start mitigations.
+- Memory snapshots are intentionally **not** enabled: GPU snapshots are
+  alpha, vLLM needs the dedicated KV-cache-discarding pattern
+  (`modal.com/docs/examples/vllm_snapshot`), and weight loading is
+  storage-bound — snapshots would add overhead without speeding it up.
+- `@modal.web_server` is current and supported. `@app.server` (SDK 1.5.1+)
+  is Modal's newer low-latency primitive; migrating is a deliberate
+  follow-up — `@app.server` authenticates via proxy tokens by default, so
+  the bearer contract above would need `unauthenticated=True` + vLLM's own
+  bearer, and its 503-when-cold semantics need client handling.
+
+### Troubleshooting
+
+| Symptom | Cause / fix |
+| --- | --- |
+| `401` | `VLLM_API_KEY` must equal the deployed `MODAL_VLLM_API_TOKEN` |
+| first request slow | cold start; pre-warm and/or raise `MODAL_VLLM_SCALEDOWN_SECONDS` |
+| CUDA OOM at boot | lower `MODAL_VLLM_MAX_MODEL_LEN`, quantize, or pick a bigger GPU |
+| deploy import error on `from_local` | stale app revision — SDK 1.5.5 removed it; this file uses `from_dict` |
+
+## Remote job worker (`modal_job.py`)
+
+The DMR-027 job CLI's remote mode pushes a locked run dir to the
+`sandbox-runs` Volume and spawns `run_job`:
+
+```bash
+modal deploy modal_job.py        # once (installs sandbox pkg + otel; vendored family bundled, DMR-057)
+sandbox run start --job-mode modal --config <run.yaml> --watch
+```
+
+Long attended runs: **`sandbox watch --web`** (or terminal `sandbox watch`) tails the
+vLLM **serve** app while showing spend and checkpoints — operator guide:
+[`docs/pretty-logging/mailroom-themed-logging.md`](../docs/pretty-logging/mailroom-themed-logging.md).
+
+Deploy-time env (export before `modal deploy`): `LANGFUSE_*`,
+`OTEL_EXPORTER_OTLP_ENDPOINT`, `VLLM_BASE_URL`, `VLLM_API_KEY`, `HF_TOKEN`,
+`SANDBOX_DEBUG` (DMR-056: it now travels through the deploy Secret — export
+it BEFORE `modal deploy` or the worker never sees it). See `docs/jobs.md`.
+
+Failures surface in the state dict with `error`/`traceback_tail`/`diagnostics`;
+`SANDBOX_DEBUG=1` enables DEBUG logging; `modal run modal_job.py --debug`
+prints the app config (DMR-053).
+
+| Symptom | Cause / fix |
+| --- | --- |
+| `unrecognized arguments: --disable-log-requests` | pre-0.28 flag — v0.28.0 renamed it to the opt-in `--enable-log-requests`; the app/compose pin it off with `--no-enable-log-requests` |
+| changed a `MODAL_VLLM_*` knob, redeployed, no effect | deploy-time knobs travel through the Secret; export the new value and re-run `modal deploy` |

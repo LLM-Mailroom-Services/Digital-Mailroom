@@ -1,0 +1,14 @@
+{
+ "figures": {
+  "viz/modal-performance/cost-by-specialist-hardware.png": "e826e42e4e62bb7549e0ce21e3e50193b7abd600ec4d569cae3071c7db78bd2e",
+  "viz/modal-performance/cost-doc-breakdown.png": "1c238e803a7e1563cd16a8997f6af905ed9aaa0638767712f87718177127ed95",
+  "viz/modal-performance/cost-vs-quality-scatter.png": "fd1d73637e31ca24167375ed1538e6ec10de88e67f0f41d55768d4018665d132",
+  "viz/modal-performance/modal-api-qwen8b-cost.png": "13e0bd7dec901aa36e495b01139f1a39c709f5dba3d5f26ef94cb01cc72be486",
+  "viz/modal-performance/modal-api-qwen8b-table.png": "b2193a9eda53f3ad8efdc4c9d15968fb8284f838cde6f8db4fa00de7fcce2dff",
+  "viz/modal-performance/prefix-cache-over-time.png": "3e23ff5ed8b843bde95c1c5e79772b22bb97145f8c0dbce0229b3b97f91c3f72",
+  "viz/modal-performance/score-by-specialist-hardware.png": "4db1e6d3e52942cb628bb8189229912052cc2c2a4b5da532722f4c44ec407062",
+  "viz/modal-performance/score-heatmap.png": "ac5f1680269c3ae9dcf6233de9f199f371a6edec12b62f84142089ead867f677",
+  "viz/modal-performance/throughput-vs-concurrency.png": "ec930f191dffa91f987c41210371161369acde34f28126701026432e81652b44"
+ },
+ "scale": 2
+}

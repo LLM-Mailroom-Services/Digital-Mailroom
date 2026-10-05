@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 720 400" width="720" height="400" role="img" aria-label="Cost per document breakdown — five-class sweep">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --good:#0ca30c; --critical:#d03b3b; }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+
+<style>
+  .viz .grp { fill: var(--ink); font-size: 12px; font-weight: 600; }
+  .viz .axt { fill: var(--ink2); font-size: 11px; }
+  .viz .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .viz .lndeemph { stroke: var(--deemph); }
+  .viz .lead { stroke: var(--ink2); stroke-width: 1; }
+  .viz .hit { fill: transparent; }
+</style>
+
+<rect class="bg" width="720" height="400" rx="8"/>
+<text class="title" x="16" y="24">Cost per document breakdown — five-class sweep</text>
+<text class="sub" x="16" y="42">Stacked busy GPU, idle-slot, and cold-boot $/doc from serving exports (2×L4 c32 sweep + MAUD merger)</text>
+<rect class="s1" x="16" y="53" width="10" height="10" rx="2"/><text class="lbl" x="31" y="62">GPU busy (wall)</text>
+<rect class="s3" x="136.04" y="53" width="10" height="10" rx="2"/><text class="lbl" x="151.04" y="62">Idle slots</text>
+<rect class="s2" x="222.84" y="53" width="10" height="10" rx="2"/><text class="lbl" x="237.84" y="62">Cold boot (amortized)</text>
+<line class="grid" x1="56" y1="350.0" x2="696" y2="350.0"/>
+<text class="tick" x="50" y="354.0" text-anchor="end">0.0000$</text>
+<line class="grid" x1="56" y1="285.0" x2="696" y2="285.0"/>
+<text class="tick" x="50" y="289.0" text-anchor="end">0.0020$</text>
+<line class="grid" x1="56" y1="220.0" x2="696" y2="220.0"/>
+<text class="tick" x="50" y="224.0" text-anchor="end">0.0040$</text>
+<line class="grid" x1="56" y1="155.0" x2="696" y2="155.0"/>
+<text class="tick" x="50" y="159.0" text-anchor="end">0.0060$</text>
+<line class="grid" x1="56" y1="90.0" x2="696" y2="90.0"/>
+<text class="tick" x="50" y="94.0" text-anchor="end">0.0080$</text>
+<line class="axis" x1="56" y1="350" x2="696" y2="350"/>
+<line class="axis" x1="56" y1="90" x2="56" y2="350"/>
+<rect class="s1" x="64.0" y="345.4" width="112.0" height="4.6" rx="2"><title>Correspondence · GPU busy (wall): 0.0001$</title></rect>
+<rect class="s3" x="64.0" y="348.7" width="112.0" height="-3.3" rx="2"><title>Correspondence · Idle slots: 0.0000$</title></rect>
+<rect class="s2" x="64.0" y="349.9" width="112.0" height="-1.3" rx="2"><title>Correspondence · Cold boot (amortized): 0.0000$</title></rect>
+<text class="tick" x="120.0" y="366" text-anchor="middle">Correspondence</text>
+<text class="val" x="120.0" y="340.0" text-anchor="middle">0.0002</text>
+<rect class="s1" x="192.0" y="332.5" width="112.0" height="17.5" rx="2"><title>Insurance claims · GPU busy (wall): 0.0005$</title></rect>
+<rect class="s3" x="192.0" y="342.2" width="112.0" height="-9.7" rx="2"><title>Insurance claims · Idle slots: 0.0002$</title></rect>
+<rect class="s2" x="192.0" y="350.0" width="112.0" height="-7.8" rx="2"><title>Insurance claims · Cold boot (amortized): 0.0000$</title></rect>
+<text class="tick" x="248.0" y="366" text-anchor="middle">Insurance claims</text>
+<text class="val" x="248.0" y="320.6" text-anchor="middle">0.0008</text>
+<rect class="s1" x="320.0" y="333.7" width="112.0" height="16.3" rx="2"><title>Corporate records · GPU busy (wall): 0.0005$</title></rect>
+<rect class="s3" x="320.0" y="346.8" width="112.0" height="-13.1" rx="2"><title>Corporate records · Idle slots: 0.0001$</title></rect>
+<rect class="s2" x="320.0" y="349.9" width="112.0" height="-3.1" rx="2"><title>Corporate records · Cold boot (amortized): 0.0000$</title></rect>
+<text class="tick" x="376.0" y="366" text-anchor="middle">Corporate records</text>
+<text class="val" x="376.0" y="326.5" text-anchor="middle">0.0006</text>
+<rect class="s1" x="448.0" y="282.3" width="112.0" height="67.7" rx="2"><title>Contracts · GPU busy (wall): 0.0021$</title></rect>
+<rect class="s3" x="448.0" y="322.1" width="112.0" height="-39.8" rx="2"><title>Contracts · Idle slots: 0.0009$</title></rect>
+<rect class="s2" x="448.0" y="349.9" width="112.0" height="-27.8" rx="2"><title>Contracts · Cold boot (amortized): 0.0000$</title></rect>
+<text class="tick" x="504.0" y="366" text-anchor="middle">Contracts</text>
+<text class="val" x="504.0" y="250.4" text-anchor="middle">0.0029</text>
+<rect class="s1" x="576.0" y="222.2" width="112.0" height="127.8" rx="2"><title>Merger agreements · GPU busy (wall): 0.0039$</title></rect>
+<rect class="s3" x="576.0" y="296.8" width="112.0" height="-74.6" rx="2"><title>Merger agreements · Idle slots: 0.0016$</title></rect>
+<rect class="s2" x="576.0" y="314.5" width="112.0" height="-17.7" rx="2"><title>Merger agreements · Cold boot (amortized): 0.0011$</title></rect>
+<text class="tick" x="632.0" y="366" text-anchor="middle">Merger agreements</text>
+<text class="val" x="632.0" y="129.5" text-anchor="middle">0.0067</text>
+</svg>

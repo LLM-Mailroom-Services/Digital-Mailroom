@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 720 260" width="720" height="260" role="img" aria-label="Mean overall extraction score by subclass · sand032-s3-corr50">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --good:#0ca30c; --critical:#d03b3b; }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+<rect class="bg" width="720" height="260" rx="8"/>
+<text class="title" x="16" y="24">Mean overall extraction score by subclass · sand032-s3-corr50</text>
+<text class="sub" x="16" y="42">Overall mean 0.3004 across 50 docs (0–1, higher is better)</text>
+<line class="grid" x1="190.0" y1="54" x2="190.0" y2="226"/>
+<text class="tick" x="190.0" y="242" text-anchor="middle">0</text>
+<line class="grid" x1="343.3" y1="54" x2="343.3" y2="226"/>
+<text class="tick" x="343.3" y="242" text-anchor="middle">0.2</text>
+<line class="grid" x1="496.7" y1="54" x2="496.7" y2="226"/>
+<text class="tick" x="496.7" y="242" text-anchor="middle">0.4</text>
+<line class="grid" x1="650.0" y1="54" x2="650.0" y2="226"/>
+<text class="tick" x="650.0" y="242" text-anchor="middle">0.6</text>
+<line class="axis" x1="190" y1="54" x2="190" y2="226"/>
+<text class="lbl" x="182" y="74.0" text-anchor="end">meeting_request (n=1)</text>
+<path class="s1" d="M190.0,63.0 H596.9 Q600.9,63.0 600.9,67.0 V73.0 Q600.9,77.0 596.9,77.0 H190.0 Z"><title>meeting_request (n=1): 0.536</title></path>
+<text class="val" x="606.9" y="74.0">0.536</text>
+<text class="lbl" x="182" y="98.0" text-anchor="end">demand (n=2)</text>
+<path class="s1" d="M190.0,87.0 H541.0 Q545.0,87.0 545.0,91.0 V97.0 Q545.0,101.0 541.0,101.0 H190.0 Z"><title>demand (n=2): 0.463</title></path>
+<text class="val" x="551.0" y="98.0">0.463</text>
+<text class="lbl" x="182" y="122.0" text-anchor="end">notice (n=4)</text>
+<path class="s1" d="M190.0,111.0 H486.5 Q490.5,111.0 490.5,115.0 V121.0 Q490.5,125.0 486.5,125.0 H190.0 Z"><title>notice (n=4): 0.392</title></path>
+<text class="val" x="496.5" y="122.0">0.392</text>
+<text class="lbl" x="182" y="146.0" text-anchor="end">memo (n=9)</text>
+<path class="s1" d="M190.0,135.0 H421.4 Q425.4,135.0 425.4,139.0 V145.0 Q425.4,149.0 421.4,149.0 H190.0 Z"><title>memo (n=9): 0.307</title></path>
+<text class="val" x="431.4" y="146.0">0.307</text>
+<text class="lbl" x="182" y="170.0" text-anchor="end">press_release (n=3)</text>
+<path class="s1" d="M190.0,159.0 H399.9 Q403.9,159.0 403.9,163.0 V169.0 Q403.9,173.0 399.9,173.0 H190.0 Z"><title>press_release (n=3): 0.279</title></path>
+<text class="val" x="409.9" y="170.0">0.279</text>
+<text class="lbl" x="182" y="194.0" text-anchor="end">email (n=28)</text>
+<path class="s1" d="M190.0,183.0 H396.8 Q400.8,183.0 400.8,187.0 V193.0 Q400.8,197.0 396.8,197.0 H190.0 Z"><title>email (n=28): 0.275</title></path>
+<text class="val" x="406.8" y="194.0">0.275</text>
+<text class="lbl" x="182" y="218.0" text-anchor="end">letter (n=3)</text>
+<path class="s1" d="M190.0,207.0 H358.5 Q362.5,207.0 362.5,211.0 V217.0 Q362.5,221.0 358.5,221.0 H190.0 Z"><title>letter (n=3): 0.225</title></path>
+<text class="val" x="368.5" y="218.0">0.225</text>
+</svg>

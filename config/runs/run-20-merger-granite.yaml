@@ -1,0 +1,82 @@
+# Granite sweep 2/5 — merger_agreement_specialist on 20 MERGER_AGREEMENT docs (FP8, 1×L4).
+# Subclass quotas scaled ~2/3 from run-30-merger-specialist (11→7 / 5→3 / 2→2 / 1→1).
+# Dedicated merger_agreement_specialist per the 1:1 live-class map (not
+# contracts_specialist) — the Qwen comparator is run-30-merger-specialist.
+# Engine/posture: ibm-granite/granite-4.2-8b-fp8, 32768 window, 1×L4,
+# concurrency 3 (HALT revision, was 8), scaledown 120, MIN=MAX=1 pinned warm (same app as run 1).
+#
+# Same warm app as run-20-contracts-granite — do NOT redeploy before this run:
+#   sandbox run benchmark-check --config config/runs/run-20-merger-granite.yaml
+#   sandbox run preflight --config config/runs/run-20-merger-granite.yaml --live
+#   sandbox run start --config config/runs/run-20-merger-granite.yaml --job-mode endpoint --watch
+#   # NO teardown here; cold boot measured on run 1 only (note reuse).
+schema: sandbox.run/v1
+run_id: run-20-merger-granite
+task: merger_agreement_specialist
+profile: modal-vllm
+
+prompt:
+  # DMR-074 local pin (config/prompts/merger_agreement_specialist_simplified.txt) —
+  # same file as the Qwen comparator (run-30-merger-specialist).
+  default: {source: code-default}
+  agents:
+    merger_agreement_specialist:
+      source: local
+      file: merger_agreement_specialist_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  # split: train — test has only ~17 merger_agreement rows; train has 135
+  # (all_cash 51, other 49, all_stock 22, mixed_cash_stock 12,
+  # mixed_cash_stock_election 1) at revision ed7576b6
+  split: train
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      # merger_agreement: all 5 consideration types → 20 (~2/3 of run-30 quotas)
+      - doc_class: merger_agreement
+        sub_buckets:
+          - {subclass: all_cash, count: 7}                   # was 11 (avail 51)
+          - {subclass: other, count: 7}                      # was 11 (avail 49)
+          - {subclass: all_stock, count: 3}                  # was 5 (avail 22)
+          - {subclass: mixed_cash_stock, count: 2}           # was 2 (avail 12)
+          - {subclass: mixed_cash_stock_election, count: 1}  # was 1 (avail 1)
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: ibm-granite/granite-4.2-8b-fp8
+  vllm:
+    max_model_len: 32768      # FP8 L4 window (bf16 Granite 32k FAILS on 1×L4)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: compressed-tensors
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120    # attended cost-saver (DMR-076)
+    max_containers: 1         # 1×L4 cost guard — do not raise for Granite runs
+    min_containers: 1         # pinned warm across the five-run chain (no scale-to-zero)
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 3              # HALT revision: c=3 (KV math + DMR-072; was 8)
+  cost_cap_usd: 1.20          # resized from probe-measured ~19 tok/s Granite decode (was 0.70)
+  max_wall_seconds: 6000      # resized for 16k-class decodes at c=3 (was 3600)
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-20-merger-granite
+  tags: [sandbox, job, specialist, merger, granite-fp8, l4, benchmark, c8]

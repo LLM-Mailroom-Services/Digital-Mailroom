@@ -1,0 +1,84 @@
+# vllm_batch_eval.sub — CHTC/HTCondor batch job: in-job vLLM + offline
+# sandbox evals (HUB-026). This is the pattern that works on CHTC's SHARED
+# GPU Lab, where `condor_ssh_to_job` is unavailable (policy since
+# 2026-04-22): the job hosts vLLM itself for its lifetime, runs the sandbox
+# evals against it, and transfers the reports back. No server, no tunnel.
+# Watch progress with `condor_tail <cluster>.<process>` instead of SSH.
+#
+# Adapt before submitting: CHTC_USERNAME, staging paths, and the tarball
+# names produced by the one-time setup in README.md §4.
+#
+#   condor_submit vllm_batch_eval.sub
+
+universe = vanilla
+batch_name = mailroom-sandbox-eval
+
+log = logs/eval_$(Cluster)_$(Process).log
+output = logs/eval_$(Cluster)_$(Process).out
+error = logs/eval_$(Cluster)_$(Process).err
+
+# DMR-061: HTCondor defaults to notification = Never — a held/failed job was
+# only visible by polling condor_q. Opt into error mail (delivered to the
+# submitting account's system mail; adapt the mail-forwarding hook per site —
+# without mail the .log still records the failure loudly).
+notification = Error
+
+executable = run_batch_eval.sh
+transfer_input_files = mailroom-sandbox.tar.gz, env-mailroom-sandbox.tar.gz
+# results/ carries the experiment log + scorecards back to the access point
+transfer_output_files = results
+should_transfer_files = YES
+when_to_transfer_output = ON_EXIT
+
+# vLLM container, pulled from Docker Hub by Apptainer on the execute node
+# (the container carries its own OS/CUDA — no host-OS coupling).
+# NOTE (2026-09-10): the default v0.29.0 tag is a CUDA 13.0 image; if the Lab
+# nodes' driver baseline rejects it, switch BOTH .sub files to
+# docker://vllm/vllm-openai:v0.29.0-cu129 (identical vLLM version, broadest
+# driver compatibility).
+# Alternative: build a .sif once in an interactive build job
+# (`condor_submit -i`) and stage it, adding the staging requirement:
+#   container_image = osdf:///chtc/staging/CHTC_USERNAME/vllm-openai.sif
+#   requirements = (HasCHTCStaging == true)
+container_image = docker://vllm/vllm-openai:v0.29.0
+
+# CHTC GPU Lab flags ("Use GPUs" guide). short = 12h cap, most parallel
+# capacity per user (2/3 of the Lab); a fixture eval run is well under 12h.
+# Omit +WantGPULab only if deliberately targeting non-Lab capacity (then
+# clear the job class too — the Lab policy no longer applies).
++WantGPULab = true
++GPUJobLength = "short"
+
+request_gpus = 1
+# Qwen3-8B bf16 (~16GB weights) + KV cache: exclude P100-16GB / 2080Ti-10GB.
+# Lower to 10000 for small smoke models; raise for 32B+.
+gpus_minimum_memory = 24000
+# Optional: Ampere+ keeps FlashAttention-era vLLM kernels happy
+# (A100=8.0, L40/L40S=8.9, H100/H200=9.0). Drop for P100/2080Ti smokes.
+# gpus_minimum_capability = 8.0
+request_cpus = 4
+request_memory = 32GB
+# must cover the container image + model weights + env tarball
+request_disk = 40GB
+
+# Engine posture (parity with deploy/docker-compose.yml + deploy/modal_vllm.py).
+# DMR-056: 16384 default — L4-class 24GB nodes cannot hold 32768 for bf16
+# 8B-class models (v0.29.0 raises at boot). The script's ${VAR:-default}
+# keeps every knob optional; edit this line to override per submission
+# (TP_SIZE only matters for multi-GPU/70B-class jobs).
+environment = "MODEL=Qwen/Qwen3-8B,MAX_MODEL_LEN=16384,GPU_MEMORY_UTILIZATION=0.90,MAX_NUM_SEQS=256"
+
+# 70B-class example (DMR-056 — the published UNGATED FP8 checkpoint,
+# auto-detected, ~35GB/GPU at TP2; no HF_TOKEN needed):
+#   environment = "MODEL=RedHatAI/Llama-3.3-70B-Instruct-FP8-dynamic,TP_SIZE=2,MAX_MODEL_LEN=32768"
+#   request_gpus = 2
+#   gpus_minimum_memory = 40000        # A100-80G/H100/H200 only for TP2
+#   gpus_minimum_capability = 8.0      # Ampere+ (FP8 weight-only on A100)
+#   request_memory = 96GB              # host RAM ≈ 1.3-1.5x weights
+#   request_disk = 140GB               # 70GB FP8 weights + image + env tarball
+#   +GPUJobLength = "medium"           # 24h: cold start + download + evals
+# Gated alternative (needs HF_TOKEN in the job env):
+#   environment = "MODEL=meta-llama/Llama-3.3-70B-Instruct,TP_SIZE=2,MAX_MODEL_LEN=16384"
+#   ...same resources; bf16 weights ~70.5GB/GPU leave no KV room — cap 16K.
+
+queue 1

@@ -1,0 +1,49 @@
+{
+  "note": "Synthetic fixture for sorter (LLM) vs trained ModernBERT classifier comparison. Not live measurements. ModernBERT $/doc uses the mailroom-ml ONNX-CPU floor (~1e-6) unless overridden. Sorter side mirrors a Modal+vLLM serving record with token-proxy + GPU attribution.",
+  "sorter": {
+    "serving_kind": "modal",
+    "provider": "vllm",
+    "profile": "modal-vllm",
+    "model": "Qwen/Qwen3-8B",
+    "gpu": "L4",
+    "task": "sorter",
+    "prompt_version": "mailroom-default",
+    "dataset_fingerprint": "fixture-sorter-vs-modernbert-v0",
+    "classifier": "llm_sorter",
+    "n": 50,
+    "e2e_latency_seconds": 2.8,
+    "ttft_seconds": 0.35,
+    "prompt_tokens": 180000,
+    "completion_tokens": 12000,
+    "estimated_cost_usd": 0.00696,
+    "cost_per_document": 0.0001392,
+    "gpu_seconds": 140.0,
+    "estimated_gpu_cost_usd": 0.031111,
+    "gpu_cost_per_document": 0.0006222,
+    "scores": {
+      "exact_match": 0.94,
+      "accuracy": 0.94,
+      "f1_macro": 0.93
+    }
+  },
+  "modernbert": {
+    "serving_kind": "modernbert",
+    "provider": "onnx-cpu",
+    "profile": "modernbert",
+    "model": "Lucius-Morningstar/mailroom-modernbert-classifier",
+    "task": "sorter",
+    "dataset_fingerprint": "fixture-sorter-vs-modernbert-v0",
+    "classifier": "modernbert",
+    "n": 50,
+    "e2e_latency_seconds": 0.075,
+    "cost_per_document": 0.000001,
+    "estimated_cost_usd": 0.00005,
+    "scores": {
+      "exact_match": 0.96,
+      "accuracy": 0.96,
+      "f1_macro": 0.95,
+      "doc_type_accuracy": 0.96,
+      "subclass_accuracy": 0.82
+    }
+  }
+}

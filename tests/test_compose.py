@@ -31,12 +31,56 @@ def test_compose_file_parses():
     assert "langfuse" in services["langfuse-web"]["profiles"]
     assert services["langfuse-web"]["image"].endswith(":3")
     assert services["langfuse-worker"]["image"].endswith("langfuse-worker:3")
+    # hub#55: every engine image is version-pinned — no mutable channel tags.
+    assert not services["llamacpp"]["image"].endswith(":server")
+    assert services["llamacpp"]["image"].startswith("ghcr.io/ggerganov/llama.cpp:full-")
     # Default ollama has no GPU reservation (CPU-capable smoke).
     assert "deploy" not in services["ollama"]
     # Healthchecks must not pass credentials as CLI flags (secret scanners).
     raw = compose_file().read_text(encoding="utf-8")
     assert "--password" not in raw
     assert "LANGFUSE_INIT_PROJECT_PUBLIC_KEY" in raw
+
+
+def test_compose_jupyter_build_and_mount_resolve_from_package_root():
+    """DMR-043: jupyter build context/volume must resolve against the package
+    root, not the compose file's own directory (deploy/)."""
+    from pathlib import Path
+
+    data = yaml.safe_load(compose_file().read_text(encoding="utf-8"))
+    jupyter = data["services"]["jupyter"]
+    ctx = jupyter["build"]["context"]
+    dockerfile = jupyter["build"]["dockerfile"]
+    assert ctx == "..", f"build context must be the package root, got {ctx!r}"
+    # The compose file lives in deploy/; context .. is the package root
+    # (deploy_dir().parent) and the dockerfile is context-relative.
+    resolved = (deploy_dir().parent / dockerfile).resolve()
+    assert resolved.is_file(), f"resolved dockerfile does not exist: {resolved}"
+    # The workspace mount must also be the package root.
+    assert "..:/workspace" in jupyter["volumes"], jupyter["volumes"]
+    # Compose project name so volumes are namespaced, not 'deploy_*'.
+    assert data.get("name") == "mailroom-sandbox"
+
+
+def test_compose_jupyter_binds_localhost_and_user():
+    """DMR-043 F11/F12: Lab must not publish to all interfaces, and the
+    container should run as the host user for writable bind mounts."""
+    data = yaml.safe_load(compose_file().read_text(encoding="utf-8"))
+    jupyter = data["services"]["jupyter"]
+    assert jupyter["ports"] == ["127.0.0.1:8888:8888"]
+    assert jupyter.get("user") == "${SANDBOX_UID:-1000}:${SANDBOX_GID:-1000}"
+
+
+def test_compose_vllm_has_gpu_reservation():
+    """DMR-043 F3: vLLM must request an NVIDIA GPU or it boots without CUDA."""
+    data = yaml.safe_load(compose_file().read_text(encoding="utf-8"))
+    vllm = data["services"]["vllm"]
+    deploy = vllm.get("deploy") or {}
+    reservations = (deploy.get("resources") or {}).get("reservations") or {}
+    devices = reservations.get("devices") or []
+    assert devices, "vllm service must carry a device reservation"
+    assert devices[0]["driver"] == "nvidia"
+    assert devices[0]["capabilities"] == ["gpu"]
 
 
 def test_compose_argv_profiles():
@@ -56,7 +100,10 @@ def test_default_profiles_ollama():
 
 def test_modal_vllm_app_is_sandbox_scoped():
     text = (deploy_dir() / "modal_vllm.py").read_text(encoding="utf-8")
-    assert 'APP_NAME = "sandbox-vllm"' in text
+    # SAND-032: env-overridable, but the default and every override stay
+    # sandbox-vllm-scoped (enforced at import; see test_modal_vllm).
+    assert 'or "sandbox-vllm"' in text
+    assert 'APP_NAME.startswith("sandbox-vllm")' in text
     assert "build_vllm_command" in text
     assert "MODAL_VLLM_MODEL" in text
     assert "sandbox-hf-cache" in text

@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 720 262" width="720" height="262" role="img" aria-label="Specialist × hardware extraction score matrix">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --good:#0ca30c; --critical:#d03b3b; }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+
+<style>
+  .viz .grp { fill: var(--ink); font-size: 12px; font-weight: 600; }
+  .viz .axt { fill: var(--ink2); font-size: 11px; }
+  .viz .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .viz .lndeemph { stroke: var(--deemph); }
+  .viz .lead { stroke: var(--ink2); stroke-width: 1; }
+  .viz .hit { fill: transparent; }
+</style>
+
+<rect class="bg" width="720" height="262" rx="8"/>
+<text class="title" x="16" y="24">Specialist × hardware extraction score matrix</text>
+<text class="sub" x="16" y="42">Cell color spans the observed score range; cell text is the raw overall extraction score from each run report</text>
+<text class="tick" x="173.0" y="52" text-anchor="middle">1×L4 c8</text>
+<text class="tick" x="245.0" y="52" text-anchor="middle">2×L4 c32</text>
+<text class="tick" x="317.0" y="52" text-anchor="middle">2×L4 c64</text>
+<text class="tick" x="389.0" y="52" text-anchor="middle">2×L…AUD</text>
+<text class="lbl" x="129" y="80" text-anchor="end">Correspondence</text>
+<rect class="deemph" x="139.0" y="60.0" width="68" height="28" rx="3"/><text class="tick" x="173.0" y="80" text-anchor="middle">—</text>
+<rect fill="rgb(38,80,117)" x="211.0" y="60.0" width="68" height="28" rx="3"><title>Correspondence · 2×L4 c32: 0.300</title></rect>
+<text class="val" x="245.0" y="80" text-anchor="middle">0.300</text>
+<rect class="deemph" x="283.0" y="60.0" width="68" height="28" rx="3"/><text class="tick" x="317.0" y="80" text-anchor="middle">—</text>
+<rect class="deemph" x="355.0" y="60.0" width="68" height="28" rx="3"/><text class="tick" x="389.0" y="80" text-anchor="middle">—</text>
+<text class="lbl" x="129" y="112" text-anchor="end">Insurance claims</text>
+<rect class="deemph" x="139.0" y="92.0" width="68" height="28" rx="3"/><text class="tick" x="173.0" y="112" text-anchor="middle">—</text>
+<rect fill="rgb(57,135,229)" x="211.0" y="92.0" width="68" height="28" rx="3"><title>Insurance claims · 2×L4 c32: 0.688</title></rect>
+<text class="val" x="245.0" y="112" text-anchor="middle">0.688</text>
+<rect class="deemph" x="283.0" y="92.0" width="68" height="28" rx="3"/><text class="tick" x="317.0" y="112" text-anchor="middle">—</text>
+<rect class="deemph" x="355.0" y="92.0" width="68" height="28" rx="3"/><text class="tick" x="389.0" y="112" text-anchor="middle">—</text>
+<text class="lbl" x="129" y="144" text-anchor="end">Corporate records</text>
+<rect class="deemph" x="139.0" y="124.0" width="68" height="28" rx="3"/><text class="tick" x="173.0" y="144" text-anchor="middle">—</text>
+<rect fill="rgb(46,102,162)" x="211.0" y="124.0" width="68" height="28" rx="3"><title>Corporate records · 2×L4 c32: 0.458</title></rect>
+<text class="val" x="245.0" y="144" text-anchor="middle">0.458</text>
+<rect class="deemph" x="283.0" y="124.0" width="68" height="28" rx="3"/><text class="tick" x="317.0" y="144" text-anchor="middle">—</text>
+<rect class="deemph" x="355.0" y="124.0" width="68" height="28" rx="3"/><text class="tick" x="389.0" y="144" text-anchor="middle">—</text>
+<text class="lbl" x="129" y="176" text-anchor="end">Contracts</text>
+<rect class="deemph" x="139.0" y="156.0" width="68" height="28" rx="3"/><text class="tick" x="173.0" y="176" text-anchor="middle">—</text>
+<rect fill="rgb(52,122,202)" x="211.0" y="156.0" width="68" height="28" rx="3"><title>Contracts · 2×L4 c32: 0.596</title></rect>
+<text class="val" x="245.0" y="176" text-anchor="middle">0.596</text>
+<rect class="deemph" x="283.0" y="156.0" width="68" height="28" rx="3"/><text class="tick" x="317.0" y="176" text-anchor="middle">—</text>
+<rect class="deemph" x="355.0" y="156.0" width="68" height="28" rx="3"/><text class="tick" x="389.0" y="176" text-anchor="middle">—</text>
+<text class="lbl" x="129" y="208" text-anchor="end">Merger agreements</text>
+<rect class="deemph" x="139.0" y="188.0" width="68" height="28" rx="3"/><text class="tick" x="173.0" y="208" text-anchor="middle">—</text>
+<rect fill="rgb(26,44,42)" x="211.0" y="188.0" width="68" height="28" rx="3"><title>Merger agreements · 2×L4 c32: 0.040</title></rect>
+<text class="val" x="245.0" y="208" text-anchor="middle">0.040</text>
+<rect class="deemph" x="283.0" y="188.0" width="68" height="28" rx="3"/><text class="tick" x="317.0" y="208" text-anchor="middle">—</text>
+<rect fill="rgb(28,50,54)" x="355.0" y="188.0" width="68" height="28" rx="3"><title>Merger agreements · 2×L4 c32 MAUD: 0.085</title></rect>
+<text class="val" x="389.0" y="208" text-anchor="middle">0.085</text>
+</svg>

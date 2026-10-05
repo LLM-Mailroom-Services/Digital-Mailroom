@@ -1,0 +1,83 @@
+# Granite sweep 3/5 — corporate_records_specialist on 20 CORPORATE_RECORD docs (FP8, 1×L4).
+# Subclass quotas scaled ~2/3 from run-30-corporate-records-specialist
+# (6→4 / 4→3 / 3→2 / 2→1 / bylaws stays 1 at avail=1).
+# Engine/posture: ibm-granite/granite-4.2-8b-fp8, 32768 window, 1×L4,
+# concurrency 3 (HALT revision, was 8), scaledown 120, MIN=MAX=1 pinned warm (same app as runs 1-2).
+#
+# Same warm app — do NOT redeploy before this run:
+#   sandbox run benchmark-check --config config/runs/run-20-corporate-records-granite.yaml
+#   sandbox run preflight --config config/runs/run-20-corporate-records-granite.yaml --live
+#   sandbox run start --config config/runs/run-20-corporate-records-granite.yaml --job-mode endpoint --watch
+#   # NO teardown here; cold boot measured on run 1 only (note reuse).
+schema: sandbox.run/v1
+run_id: run-20-corporate-records-granite
+task: corporate_records_specialist
+profile: modal-vllm
+
+prompt:
+  # DMR-074 local pin (config/prompts/corporate_records_specialist_simplified.txt) —
+  # same file as the Qwen comparator (run-30-corporate-records-specialist).
+  default: {source: code-default}
+  agents:
+    corporate_records_specialist:
+      source: local
+      file: corporate_records_specialist_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  # split: test — 47 corporate_record rows; N=20 fits (no train needed)
+  split: test
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      # corporate_record (47 test rows): proportional quotas → 20
+      - doc_class: corporate_record
+        sub_buckets:
+          - {subclass: subsidiary_list, count: 4}              # was 6 (avail 10)
+          - {subclass: charter_amendment, count: 4}            # was 6 (avail 9)
+          - {subclass: officer_certificate, count: 3}          # was 4 (avail 7)
+          - {subclass: board_resolution, count: 2}             # was 3 (avail 5)
+          - {subclass: articles_of_incorporation, count: 2}    # was 3 (avail 5)
+          - {subclass: indenture, count: 2}                    # was 3 (avail 4)
+          - {subclass: powers_of_attorney, count: 1}           # was 2 (avail 3)
+          - {subclass: rights_instrument, count: 1}            # was 2 (avail 3)
+          - {subclass: bylaws, count: 1}                       # was 1 (avail 1)
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: ibm-granite/granite-4.2-8b-fp8
+  vllm:
+    max_model_len: 32768      # FP8 L4 window (bf16 Granite 32k FAILS on 1×L4)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: compressed-tensors
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120    # attended cost-saver (DMR-076)
+    max_containers: 1         # 1×L4 cost guard — do not raise for Granite runs
+    min_containers: 1         # pinned warm across the five-run chain (no scale-to-zero)
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 3              # HALT revision: c=3 (KV math + DMR-072; was 8)
+  cost_cap_usd: 0.40          # ~2/3 of run-30 corporate $0.55
+  max_wall_seconds: 2400      # ~2/3 of run-30 corporate 3600s
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-20-corporate-granite
+  tags: [sandbox, job, specialist, corporate, granite-fp8, l4, benchmark, c8]

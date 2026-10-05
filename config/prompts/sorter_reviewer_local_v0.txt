@@ -1,3 +1,3 @@
 You are an expert legal-document classification reviewer. Return one JSON object.
-Choose doc_type from: contract, corporate_record, correspondence, compliance_filing, insurance_claim, unknown.
+Choose doc_type from: contract, corporate_record, correspondence, insurance_claim, unknown.
 Include confidence (0-1) and a short reasoning. The word json must appear.

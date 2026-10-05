@@ -5,13 +5,21 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 from mailroom_sandbox.paths import fixtures_dir, repo_root
 
+_log = logging.getLogger("mailroom_sandbox.datasets")
+
 MANIFEST_NAME = "manifest.csv"
-HF_DATASET = "Lucius-Morningstar/docclass-merged"
+HF_DATASET = "Lucius-Morningstar/mailroom-dataset"
+
+_log = logging.getLogger("mailroom_sandbox.datasets")
+
+MANIFEST_NAME = "manifest.csv"
+HF_DATASET = "Lucius-Morningstar/mailroom-dataset"
 
 
 def manifest_path() -> Path:
@@ -36,14 +44,36 @@ def parse_expected_fields(row: dict[str, str]) -> dict | None:
     if not raw:
         return None
     try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        return None
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        # Corrupt GT must never be scored as empty expectations (the `.or {}`
+        # callers would silently turn it into a 0-field match).
+        raise ValueError(
+            f"row {row.get('id') or row.get('filename') or '?'} has malformed "
+            f"expected_fields JSON: {raw[:120]!r} — refusing to score corrupt "
+            "ground truth as empty"
+        ) from exc
+    return parsed if isinstance(parsed, dict) else None
 
 
 def dataset_fingerprint(rows: list[dict[str, str]]) -> str:
+    """One canonical dataset fingerprint for records of the SAME rows.
+
+    Covers id/filename/class/subclass/expected_fields so two same-id datasets
+    with different GT content cannot collide; eval-run and job-run records
+    share this function so ``pair_comparable_runs`` can pair them (DMR-049).
+    """
     blob = json.dumps(
-        [(r.get("id"), r.get("filename"), r.get("expected_doc_class")) for r in rows],
+        [
+            (
+                r.get("id"),
+                r.get("filename"),
+                r.get("expected_doc_class"),
+                r.get("expected_subclass"),
+                json.dumps(r.get("expected_fields") or {}, sort_keys=True, default=str),
+            )
+            for r in rows
+        ],
         sort_keys=True,
     )
     return hashlib.md5(blob.encode()).hexdigest()[:12]
@@ -53,6 +83,12 @@ def load_hf_fixtures() -> list[dict[str, Any]]:
     path = fixtures_dir() / "hf" / "docclass_mini.jsonl"
     rows = []
     if not path.is_file():
+        _log.warning(
+            "HF fixture file missing: %s — eval rows will be EMPTY; the CLI "
+            "refuses empty pulls, but runner callers do not. Restore the file "
+            "or run with the corpus path.",
+            path,
+        )
         return rows
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.strip():
@@ -60,24 +96,95 @@ def load_hf_fixtures() -> list[dict[str, Any]]:
     return rows
 
 
-def load_legalbench_fixtures() -> list[dict[str, Any]]:
-    path = fixtures_dir() / "legalbench" / "contract_qa.jsonl"
-    rows = []
+LEGALBENCH_FIXTURE = "legalbench/contract_qa.jsonl"
+LEGALBENCH_TASKS = ("contract_qa", "family_classification")
+
+
+def load_legalbench_fixtures(task: str | None = None) -> list[dict[str, Any]]:
+    """Committed offline LegalBench fixture rows (the ``contract_qa`` smoke set).
+
+    Raises when the fixture is missing — an empty fixture must never be scored
+    as a 0-row eval (DMR-049 F2). ``task`` filters rows by their ``task`` key.
+    """
+    path = fixtures_dir() / LEGALBENCH_FIXTURE
     if not path.is_file():
-        return rows
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if line.strip():
-            rows.append(json.loads(line))
+        raise FileNotFoundError(f"legalbench fixture missing: {path}")
+    rows = [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    if task:
+        rows = [r for r in rows if str(r.get("task") or "contract_qa") == task]
     return rows
+
+
+def load_legalbench_suite_rows(task: str, *, sample: int, seed: int) -> list[dict[str, Any]]:
+    """Seeded subset from the vendored llm-mailroom LegalBench suite.
+
+    The real suite (``contract_qa``: 510 contracts x 41 categories = 20,910
+    QA pairs; ``family_classification``: 200 labeled contracts) lives in
+    llm-mailroom and needs its CUAD corpus on disk
+    (``python scripts/fetch_full_cuad.py``). Rows are normalized to the
+    sandbox keys (``question``/``document_text``/``answer``) so the runners
+    consume either source identically.
+
+    Raises ``FileNotFoundError`` when the suite is unavailable, and the
+    suite's own ``CorpusUnavailable`` (naming the fetch command) when the
+    corpus is missing — a live run never silently falls back to the toy
+    fixture (DMR-049 F2/F4).
+    """
+    import sys
+
+    from mailroom_sandbox.runtime import resolve_mailroom_src
+
+    src = resolve_mailroom_src()
+    if src is None:
+        raise FileNotFoundError(
+            "llm-mailroom source not found — run `sandbox fetch-deps` to vendor it"
+        )
+    if str(src) not in sys.path:
+        sys.path.insert(0, str(src))
+    try:
+        from legalbench.tasks import get_task  # type: ignore
+    except ModuleNotFoundError as exc:
+        # The suite rides the vendored langchain_agents stack, which the
+        # offline-first base install intentionally omits (DMR-058) — point
+        # at the extra instead of leaking the import traceback.
+        raise FileNotFoundError(
+            f"legalbench suite needs the pipeline deps (missing {exc.name}) — "
+            'pip install -e ".[pipeline]"'
+        ) from exc
+
+    task_obj = get_task(task)
+    rows = task_obj.loader(sample, seed)
+    normalized: list[dict[str, Any]] = []
+    for row in rows:
+        document = str(row.get("document_text") or row.get("text") or "")
+        normalized.append(
+            {
+                "id": str(row.get("qa_id") or row.get("row_id") or row.get("filename") or ""),
+                "filename": str(row.get("filename") or row.get("qa_id") or row.get("row_id") or ""),
+                "task": task,
+                "question": row.get("question"),
+                "document_text": document,
+                "text": document,
+                "answer": str(row.get("answer") or row.get("expected") or ""),
+                "category": row.get("category"),
+                "source_revision": f"legalbench:{task}:n={sample}:seed={seed}",
+            }
+        )
+    return normalized
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
     rows = []
     if not path.is_file():
         return rows
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if line.strip():
-            rows.append(json.loads(line))
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            if line.strip():
+                rows.append(json.loads(line))
     return rows
 
 
@@ -93,10 +200,50 @@ def serving_fixture_path() -> Path:
     return fixtures_dir() / "serving" / "local_vs_api.json"
 
 
+def cost_compare_fixture_path() -> Path:
+    return fixtures_dir() / "serving" / "cost_compare.json"
+
+
+def load_cost_compare_fixtures() -> dict[str, Any]:
+    """Grant-style local / Modal / API serving triple (no live GPU)."""
+    path = cost_compare_fixture_path()
+    if not path.is_file():
+        _log.warning(
+            "cost-compare fixture missing: %s — metrics compare --fixture "
+            "will have empty sides",
+            path,
+        )
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload if isinstance(payload, dict) else {}
+
+
 def load_serving_fixtures() -> dict[str, Any]:
     """Synthetic local vs API serving records (no live LLM, no API key)."""
     path = serving_fixture_path()
     if not path.is_file():
+        _log.warning(
+            "serving fixture missing: %s — local_vs_api will compare EMPTY "
+            "records and print a headline scorecard that means nothing",
+            path,
+        )
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload if isinstance(payload, dict) else {}
+
+
+def sorter_vs_modernbert_fixture_path() -> Path:
+    return fixtures_dir() / "serving" / "sorter_vs_modernbert.json"
+
+
+def load_sorter_vs_modernbert_fixtures() -> dict[str, Any]:
+    """Synthetic LLM-sorter vs ModernBERT records (no live model load)."""
+    path = sorter_vs_modernbert_fixture_path()
+    if not path.is_file():
+        _log.warning(
+            "sorter_vs_modernbert fixture missing: %s — comparison will be empty",
+            path,
+        )
         return {}
     payload = json.loads(path.read_text(encoding="utf-8"))
     return payload if isinstance(payload, dict) else {}
@@ -112,32 +259,262 @@ def cache_dir() -> Path:
     return path
 
 
-def pull_hf_dataset(dataset_id: str = HF_DATASET, split: str = "test", max_rows: int = 50) -> Path:
-    """Download a Hub dataset slice into data/cache (network)."""
-    try:
-        from huggingface_hub import hf_hub_download  # type: ignore
-    except ImportError as exc:
-        raise RuntimeError(
-            "huggingface_hub is required for Hub pulls. pip install huggingface_hub"
-        ) from exc
-    dest = cache_dir() / dataset_id.replace("/", "__")
-    dest.mkdir(parents=True, exist_ok=True)
-    # Best-effort: try a parquet/json in the repo; fall back to datasets lib.
-    try:
-        from datasets import load_dataset  # type: ignore
+def full_corpus_cache_path(
+    dataset_id: str = HF_DATASET,
+    revision: str = "",
+    config: str = "ground_truth",
+) -> Path:
+    """Canonical JSONL for the pinned full ground_truth corpus (train+test)."""
+    from mailroom_sandbox.job.spec import FAMILY_HF_REVISION
 
-        ds = load_dataset(dataset_id, split=split)
-        out = dest / f"{split}_head.jsonl"
-        with out.open("w", encoding="utf-8") as fh:
-            for i, row in enumerate(ds):
-                if i >= max_rows:
-                    break
-                fh.write(json.dumps(dict(row), default=str) + "\n")
-        return out
-    except Exception:
-        marker = dest / "README.md"
-        marker.write_text(
-            f"Could not stream {dataset_id}. Place a JSONL dump here for offline use.\n",
-            encoding="utf-8",
+    rev = revision or FAMILY_HF_REVISION
+    return (
+        cache_dir()
+        / f"{dataset_id.replace('/', '__')}__{rev[:12]}"
+        / f"{config or 'default'}_all.jsonl"
+    )
+
+
+def _count_jsonl(path: Path) -> int:
+    if not path.is_file():
+        return 0
+    n = 0
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            if line.strip():
+                n += 1
+    return n
+
+
+def _class_counts(path: Path) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    if not path.is_file():
+        return counts
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            key = str(row.get("expected_doc_class") or "")
+            counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def _format_class_counts(counts: dict[str, int]) -> str:
+    from mailroom_sandbox.job.spec import LIVE_DOC_CLASSES
+
+    parts = [f"{cls}={counts.get(cls, 0)}" for cls in LIVE_DOC_CLASSES]
+    extra = sorted(k for k in counts if k not in LIVE_DOC_CLASSES)
+    parts.extend(f"{k}={counts[k]}" for k in extra)
+    return " ".join(parts)
+
+
+def _subset_cache_path(
+    dataset_id: str,
+    revision: str,
+    config: str,
+    split: str,
+    *,
+    limit: int | None = None,
+    per_class: int | None = None,
+) -> Path:
+    from mailroom_sandbox.corpus import expand_hf_splits
+
+    splits = expand_hf_splits(split)
+    stem_split = "all" if splits == ("train", "test") else splits[0]
+    if per_class:
+        name = f"{config or 'default'}_{stem_split}_perclass{per_class}.jsonl"
+    elif limit:
+        name = f"{config or 'default'}_{stem_split}_n{limit}.jsonl"
+    else:
+        name = f"{config or 'default'}_{stem_split}.jsonl"
+    return (
+        cache_dir()
+        / f"{dataset_id.replace('/', '__')}__{revision[:12]}"
+        / name
+    )
+
+
+def _verify_full_pin(path: Path) -> None:
+    from mailroom_sandbox.job.spec import FAMILY_CLASS_COUNTS, FAMILY_CORPUS_SIZE
+
+    n = _count_jsonl(path)
+    if n != FAMILY_CORPUS_SIZE:
+        raise RuntimeError(
+            f"full corpus cache {path} has {n} rows, expected "
+            f"FAMILY_CORPUS_SIZE={FAMILY_CORPUS_SIZE} — refusing a partial pin"
         )
-        return marker
+    counts = _class_counts(path)
+    mismatches = {
+        cls: (counts.get(cls, 0), expect)
+        for cls, expect in FAMILY_CLASS_COUNTS.items()
+        if counts.get(cls, 0) != expect
+    }
+    if mismatches:
+        raise RuntimeError(
+            f"full corpus class counts mismatch at {path}: {mismatches}"
+        )
+
+
+def pull_hf_dataset(
+    dataset_id: str = HF_DATASET,
+    split: str = "all",
+    max_rows: int | None = 0,
+    revision: str = "",
+    config: str = "ground_truth",
+    per_class: int | None = None,
+    sample_seed: int = 42,
+) -> Path:
+    """LIVE-or-loud pinned Hub pull into data/cache (DMR-056).
+
+    Default (``max_rows=0``, ``split=all``) materializes the FULL 3,302-row
+    ``ground_truth`` train+test corpus at ``FAMILY_HF_REVISION``. That local
+    JSONL is what Modal 20/40/100-per-class draws sample from.
+
+    Routes through the SAME corpus loader the job preflight uses
+    (``corpus.prepare_subset``): pinned revision (default
+    ``FAMILY_HF_REVISION``), ``default``+``ground_truth`` merge on filename,
+    ``content_sha256`` verification, GT-shard-absent refusal, deterministic
+    subsetting (never first-N). ANY failure raises (the CLI maps it to exit
+    1) — the old ``except Exception -> README marker -> exit 0`` silent no-op
+    is gone, so a pull that fetched zero rows can never look successful.
+    """
+    from mailroom_sandbox.corpus import per_class_strata, prepare_subset
+    from mailroom_sandbox.job.spec import DatasetSpec, FAMILY_CORPUS_SIZE, FAMILY_HF_REVISION
+
+    rev = revision or FAMILY_HF_REVISION
+    limit: int | None = None if not max_rows or max_rows < 1 else int(max_rows)
+    strata = per_class_strata(per_class) if per_class else None
+    seed = int(sample_seed)
+
+    if per_class and not limit:
+        dest = _subset_cache_path(
+            dataset_id, rev, config, split, per_class=per_class
+        )
+        spec = DatasetSpec(
+            provider="huggingface",
+            repo=dataset_id,
+            config=config,
+            split=split,
+            revision=rev,
+            limit=None,
+            sample_seed=seed,
+            strata=strata,
+        )
+    elif limit:
+        dest = _subset_cache_path(dataset_id, rev, config, split, limit=limit)
+        spec = DatasetSpec(
+            provider="huggingface",
+            repo=dataset_id,
+            config=config,
+            split=split,
+            revision=rev,
+            limit=limit,
+            sample_seed=seed if strata else None,
+            strata=strata,
+        )
+    else:
+        dest = full_corpus_cache_path(dataset_id, rev, config)
+        spec = DatasetSpec(
+            provider="huggingface",
+            repo=dataset_id,
+            config=config,
+            split=split,
+            revision=rev,
+            limit=None,
+        )
+
+    result = prepare_subset(spec, dest)
+    if not result.get("rows"):
+        raise RuntimeError(
+            f"pull returned 0 rows for {dataset_id}@{rev} "
+            f"({config or 'default'}/{split}) — refusing to write an empty dataset"
+        )
+    if (
+        not limit
+        and not per_class
+        and expand_is_all(split)
+        and (config or "ground_truth") == "ground_truth"
+    ):
+        if result["rows"] != FAMILY_CORPUS_SIZE:
+            raise RuntimeError(
+                f"pull returned {result['rows']} rows, expected "
+                f"FAMILY_CORPUS_SIZE={FAMILY_CORPUS_SIZE}"
+            )
+        if _count_jsonl(dest) > 0:
+            _verify_full_pin(dest)
+    counts = _class_counts(dest)
+    print(
+        f"pulled {result['rows']} row(s) from {dataset_id}@"
+        f"{result.get('revision_resolved') or rev[:12]} ({config or 'default'}/{split}) "
+        f"sha256={result['sha256'][:12]} [{_format_class_counts(counts)}] -> {dest}"
+    )
+    return dest
+
+
+def expand_is_all(split: str) -> bool:
+    from mailroom_sandbox.corpus import expand_hf_splits
+
+    return expand_hf_splits(split) == ("train", "test")
+
+
+def sample_cached_corpus(
+    per_class: int,
+    *,
+    sample_seed: int = 42,
+    source: Path | None = None,
+    dest: Path | None = None,
+    classes: list[str] | None = None,
+) -> Path:
+    """Offline per-class draw from the cached full corpus (no Hub)."""
+    from mailroom_sandbox.corpus import prepare_subset
+    from mailroom_sandbox.job.spec import DatasetSpec, FAMILY_CLASS_COUNTS, LIVE_DOC_CLASSES
+
+    src = Path(source) if source is not None else full_corpus_cache_path()
+    if not src.is_file():
+        raise FileNotFoundError(
+            f"full corpus cache missing: {src} — run `sandbox datasets pull` "
+            "(default: split=all, no --max-rows) first"
+        )
+    if source is None:
+        _verify_full_pin(src)
+    wanted = list(classes) if classes else list(LIVE_DOC_CLASSES)
+    unknown = [c for c in wanted if c not in LIVE_DOC_CLASSES]
+    if unknown:
+        raise ValueError(
+            f"unknown live class(es) {unknown}; valid: {list(LIVE_DOC_CLASSES)}"
+        )
+    available = _class_counts(src)
+    for cls in wanted:
+        avail = available.get(cls, 0)
+        cap = FAMILY_CLASS_COUNTS.get(cls, avail)
+        if per_class > avail:
+            raise ValueError(
+                f"--per-class {per_class} exceeds {cls} availability {avail} "
+                f"in {src} (full-corpus cap at FAMILY_HF_REVISION is {cap}; "
+                f"merger_agreement max is {FAMILY_CLASS_COUNTS['merger_agreement']})"
+            )
+    out = Path(dest) if dest is not None else (
+        src.parent / f"ground_truth_all_perclass{per_class}.jsonl"
+    )
+    spec = DatasetSpec(
+        provider="file",
+        local_path=str(src),
+        sample_seed=sample_seed,
+        strata={
+            "buckets": [{"doc_class": cls, "count": per_class} for cls in wanted]
+        },
+    )
+    result = prepare_subset(spec, out)
+    expected = per_class * len(wanted)
+    if result["rows"] != expected:
+        raise RuntimeError(
+            f"per-class sample wrote {result['rows']} rows, expected {expected}"
+        )
+    counts = _class_counts(out)
+    print(
+        f"sampled {result['rows']} row(s) ({per_class}/class × {len(wanted)}) "
+        f"seed={sample_seed} sha256={result['sha256'][:12]} "
+        f"[{_format_class_counts(counts)}] -> {out}"
+    )
+    return out

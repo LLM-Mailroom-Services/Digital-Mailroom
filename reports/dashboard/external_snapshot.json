@@ -1,0 +1,4611 @@
+{
+ "api": {
+  "classification": [
+   {
+    "class_acc": 0.7,
+    "completion_tokens": 16132,
+    "cost": 0.149264,
+    "errors": 0,
+    "model": "qwen/qwen3-8b",
+    "n": 20,
+    "p95_ms": 133971.5,
+    "prompt_lineage": "frozen",
+    "prompt_tokens": 1213021,
+    "report": "api-comparisons/qwen3-8b/classification/RUN-20-FULL-QWEN3-8B-REPORT.md",
+    "revision": "46a4d3c2",
+    "run": "20260927T043145Z-eval-classification",
+    "split": "train",
+    "subclass_acc": 0.05,
+    "wall": 194.3
+   },
+   {
+    "class_acc": 0.9,
+    "completion_tokens": 33329,
+    "cost": 0.064367,
+    "errors": 0,
+    "model": "ibm-granite/granite-4.2-8b",
+    "n": 20,
+    "p95_ms": 111121.3,
+    "prompt_lineage": "frozen",
+    "prompt_tokens": 933912,
+    "report": "api-comparisons/granite-4.2-8b/classification/RUN-20-FULL-GRANITE-4.2-8B-REPORT.md",
+    "revision": "46a4d3c2",
+    "run": "20260927T070900Z-eval-classification",
+    "split": "train",
+    "subclass_acc": 0.6,
+    "wall": 184.3
+   },
+   {
+    "class_acc": 0.94,
+    "completion_tokens": 74141,
+    "cost": 0.150646,
+    "errors": 0,
+    "model": "ibm-granite/granite-4.2-8b",
+    "n": 100,
+    "p95_ms": 75382.4,
+    "prompt_lineage": "frozen",
+    "prompt_tokens": 2201847,
+    "report": "api-comparisons/granite-4.2-8b/classification/RUN-100-FULL-GRANITE-4.2-8B-REPORT.md",
+    "revision": "46a4d3c2",
+    "run": "20260927T100340Z-eval-classification",
+    "split": "train",
+    "subclass_acc": 0.49,
+    "wall": 294.8
+   },
+   {
+    "class_acc": 0.91,
+    "completion_tokens": 59141,
+    "cost": 0.08509,
+    "errors": 0,
+    "model": "qwen/qwen3.7-flash",
+    "n": 100,
+    "p95_ms": 126629.0,
+    "prompt_lineage": "frozen",
+    "prompt_tokens": 2580060,
+    "report": "api-comparisons/qwen3.7-flash/classification/RUN-100-FULL-QWEN3.7-FLASH-REPORT.md",
+    "revision": "46a4d3c2",
+    "run": "20260927T101020Z-eval-classification",
+    "split": "train",
+    "subclass_acc": 0.56,
+    "wall": 293.7
+   },
+   {
+    "class_acc": 0.95,
+    "completion_tokens": 51008,
+    "cost": 0.100115,
+    "errors": 0,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "n": 100,
+    "p95_ms": 31993.5,
+    "prompt_lineage": "frozen",
+    "prompt_tokens": 2437786,
+    "report": "api-comparisons/deepseek-v4.1-flash/classification/RUN-100-FULL-DEEPSEEK-V4.1-FLASH-REPORT.md",
+    "revision": "46a4d3c2",
+    "run": "20260927T101544Z-eval-classification",
+    "split": "train",
+    "subclass_acc": 0.64,
+    "wall": 4.8
+   }
+  ],
+  "granite_corr_final": "20260927T053647Z-eval-correspondence",
+  "route50": {
+   "contracts": {
+    "completion_tokens": 387157,
+    "cost": 0.073918,
+    "errors": 0,
+    "family": "Qwen3.7-Flash",
+    "model": "qwen/qwen3.7-flash",
+    "n": 50,
+    "p95_ms": 202765.2,
+    "prompt_lineage": "mutation",
+    "prompt_tokens": 786252,
+    "revision": "46a4d3c2",
+    "run": "20260928T063713Z-eval-contracts",
+    "score": 0.5462,
+    "split": "train",
+    "task": "contracts",
+    "wall": 690.2
+   },
+   "corporate records": {
+    "completion_tokens": 170711,
+    "cost": 0.039277,
+    "errors": 0,
+    "family": "Qwen3.7-Flash",
+    "model": "qwen/qwen3.7-flash",
+    "n": 50,
+    "p95_ms": 97541.5,
+    "prompt_lineage": "mutation",
+    "prompt_tokens": 569472,
+    "revision": "46a4d3c2",
+    "run": "20260928T083627Z-eval-corporate_records",
+    "score": 0.4178,
+    "split": "train",
+    "task": "corporate records",
+    "wall": 347.3
+   },
+   "correspondence": {
+    "completion_tokens": 146894,
+    "cost": 0.022468,
+    "errors": 0,
+    "family": "Qwen3.7-Flash",
+    "model": "qwen/qwen3.7-flash",
+    "n": 50,
+    "p95_ms": 44692.4,
+    "prompt_lineage": "mutation",
+    "prompt_tokens": 112385,
+    "revision": "46a4d3c2",
+    "run": "20260928T090253Z-eval-correspondence",
+    "score": 0.4931,
+    "split": "train",
+    "task": "correspondence",
+    "wall": 322.4
+   },
+   "insurance claims": {
+    "completion_tokens": 167942,
+    "cost": 0.025306,
+    "errors": 0,
+    "family": "Qwen3.7-Flash",
+    "model": "qwen/qwen3.7-flash",
+    "n": 50,
+    "p95_ms": 63022.3,
+    "prompt_lineage": "mutation",
+    "prompt_tokens": 115773,
+    "revision": "46a4d3c2",
+    "run": "20260928T070248Z-eval-insurance_claims",
+    "score": 0.7733,
+    "split": "train",
+    "task": "insurance claims",
+    "wall": 307.9
+   },
+   "merger agreements": {
+    "completion_tokens": 347846,
+    "cost": 0.161145,
+    "errors": 0,
+    "family": "Qwen3.7-Flash",
+    "model": "qwen/qwen3.7-flash",
+    "n": 50,
+    "p95_ms": 99717.0,
+    "prompt_lineage": "mutation",
+    "prompt_tokens": 3864179,
+    "revision": "46a4d3c2",
+    "run": "20260928T070803Z-eval-merger_agreement",
+    "score": 0.5213,
+    "split": "train",
+    "task": "merger agreements",
+    "wall": 488.0
+   }
+  },
+  "sorter": {
+   "deepseek/deepseek-v4.1-flash": {
+    "bins": [
+     {
+      "acc": 0.5556,
+      "conf": 0.6948,
+      "n": 9
+     },
+     {
+      "acc": 1.0,
+      "conf": 0.8573,
+      "n": 7
+     },
+     {
+      "acc": 1.0,
+      "conf": 0.9266,
+      "n": 16
+     },
+     {
+      "acc": 1.0,
+      "conf": 0.9591,
+      "n": 67
+     }
+    ],
+    "collapse": {
+     "contract": {
+      "correct": 9,
+      "n": 14,
+      "top_pred": [
+       "agency",
+       2
+      ],
+      "top_true": [
+       "Agency Agreements",
+       2
+      ]
+     },
+     "corporate_record": {
+      "correct": 6,
+      "n": 8,
+      "top_pred": [
+       "subsidiary_list",
+       2
+      ],
+      "top_true": [
+       "charter_amendment",
+       3
+      ]
+     },
+     "correspondence": {
+      "correct": 14,
+      "n": 35,
+      "top_pred": [
+       "email",
+       24
+      ],
+      "top_true": [
+       "email",
+       14
+      ]
+     },
+     "insurance_claim": {
+      "correct": 33,
+      "n": 33,
+      "top_pred": [
+       "inpatient",
+       13
+      ],
+      "top_true": [
+       "inpatient",
+       13
+      ]
+     },
+     "merger_agreement": {
+      "correct": 2,
+      "n": 5,
+      "top_pred": [
+       "mixed_cash_stock",
+       2
+      ],
+      "top_true": [
+       "all_stock",
+       2
+      ]
+     }
+    },
+    "confusion": {
+     "contract->contract": 14,
+     "corporate_record->contract": 4,
+     "corporate_record->corporate_record": 8,
+     "correspondence->correspondence": 35,
+     "correspondence->unknown": 1,
+     "insurance_claim->insurance_claim": 33,
+     "merger_agreement->merger_agreement": 5
+    },
+    "ece": 0.0623,
+    "n": 100,
+    "n_conf": 100,
+    "run": "20260927T101544Z-eval-classification"
+   },
+   "ibm-granite/granite-4.2-8b": {
+    "bins": [
+     {
+      "acc": 0.8182,
+      "conf": 0.9205,
+      "n": 11
+     },
+     {
+      "acc": 1.0,
+      "conf": 0.9723,
+      "n": 65
+     },
+     {
+      "acc": 1.0,
+      "conf": 0.99,
+      "n": 16
+     }
+    ],
+    "collapse": {
+     "contract": {
+      "correct": 9,
+      "n": 13,
+      "top_pred": [
+       "promotion",
+       2
+      ],
+      "top_true": [
+       "Promotion",
+       2
+      ]
+     },
+     "corporate_record": {
+      "correct": 6,
+      "n": 10,
+      "top_pred": [
+       "subsidiary_list",
+       2
+      ],
+      "top_true": [
+       "charter_amendment",
+       3
+      ]
+     },
+     "correspondence": {
+      "correct": 5,
+      "n": 35,
+      "top_pred": [
+       "other",
+       19
+      ],
+      "top_true": [
+       "email",
+       14
+      ]
+     },
+     "insurance_claim": {
+      "correct": 28,
+      "n": 33,
+      "top_pred": [
+       "carrier",
+       12
+      ],
+      "top_true": [
+       "inpatient",
+       13
+      ]
+     },
+     "merger_agreement": {
+      "correct": 1,
+      "n": 3,
+      "top_pred": [
+       "all_cash",
+       3
+      ],
+      "top_true": [
+       "all_stock",
+       2
+      ]
+     }
+    },
+    "confusion": {
+     "contract->contract": 13,
+     "contract->corporate_record": 1,
+     "corporate_record->contract": 2,
+     "corporate_record->corporate_record": 10,
+     "correspondence->correspondence": 35,
+     "correspondence->unknown": 1,
+     "insurance_claim->insurance_claim": 33,
+     "merger_agreement->merger_agreement": 3,
+     "merger_agreement->unknown": 2
+    },
+    "ece": 0.0335,
+    "n": 100,
+    "n_conf": 100,
+    "run": "20260927T100340Z-eval-classification"
+   },
+   "qwen/qwen3.7-flash": {
+    "bins": [
+     {
+      "acc": 0.9254,
+      "conf": 0.9524,
+      "n": 67
+     },
+     {
+      "acc": 1.0,
+      "conf": 1.0,
+      "n": 28
+     }
+    ],
+    "collapse": {
+     "contract": {
+      "correct": 9,
+      "n": 14,
+      "top_pred": [
+       "agency",
+       2
+      ],
+      "top_true": [
+       "Agency Agreements",
+       2
+      ]
+     },
+     "corporate_record": {
+      "correct": 3,
+      "n": 6,
+      "top_pred": [
+       "subsidiary_list",
+       2
+      ],
+      "top_true": [
+       "charter_amendment",
+       3
+      ]
+     },
+     "correspondence": {
+      "correct": 15,
+      "n": 33,
+      "top_pred": [
+       "email",
+       22
+      ],
+      "top_true": [
+       "email",
+       13
+      ]
+     },
+     "insurance_claim": {
+      "correct": 26,
+      "n": 33,
+      "top_pred": [
+       "inpatient",
+       13
+      ],
+      "top_true": [
+       "inpatient",
+       13
+      ]
+     },
+     "merger_agreement": {
+      "correct": 3,
+      "n": 5,
+      "top_pred": [
+       "mixed_cash_stock",
+       2
+      ],
+      "top_true": [
+       "all_cash",
+       2
+      ]
+     }
+    },
+    "confusion": {
+     "contract->contract": 14,
+     "corporate_record->contract": 6,
+     "corporate_record->corporate_record": 6,
+     "correspondence->correspondence": 33,
+     "correspondence->unknown": 3,
+     "insurance_claim->insurance_claim": 33,
+     "merger_agreement->merger_agreement": 5
+    },
+    "ece": 0.019,
+    "n": 100,
+    "n_conf": 100,
+    "run": "20260927T101020Z-eval-classification"
+   }
+  },
+  "tasks": {
+   "contracts": {
+    "deepseek-v4.1-flash": {
+     "completion_tokens": 132835,
+     "cost": 0.050234,
+     "errors": 0,
+     "family": "DeepSeek-V4.1-Flash",
+     "model": "deepseek/deepseek-v4.1-flash",
+     "n": 20,
+     "p95_ms": 268776.2,
+     "prompt_lineage": "frozen",
+     "prompt_tokens": 334616,
+     "revision": "46a4d3c2",
+     "run": "20260927T105549Z-eval-contracts",
+     "score": 0.5137,
+     "split": "train",
+     "task": "contracts",
+     "wall": 361.6
+    },
+    "granite-4.2-8b": {
+     "completion_tokens": 223089,
+     "cost": 0.073963,
+     "errors": 0,
+     "family": "Granite-4.2-8B",
+     "model": "ibm-granite/granite-4.2-8b",
+     "n": 20,
+     "p95_ms": 264084.4,
+     "prompt_lineage": "frozen",
+     "prompt_tokens": 303184,
+     "revision": "46a4d3c2",
+     "run": "20260927T054738Z-eval-contracts",
+     "score": 0.4769,
+     "split": "train",
+     "task": "contracts",
+     "wall": 665.5
+    },
+    "qwen3-8b": {
+     "completion_tokens": 110286,
+     "cost": 0.114086,
+     "errors": 0,
+     "family": "Qwen3-8B",
+     "model": "qwen/qwen3-8b",
+     "n": 20,
+     "p95_ms": 285038.9,
+     "prompt_lineage": "frozen",
+     "prompt_tokens": 546225,
+     "revision": "46a4d3c2",
+     "run": "20260927T035621Z-eval-contracts",
+     "score": 0.6169,
+     "split": "train",
+     "task": "contracts",
+     "wall": 1457.5
+    }
+   },
+   "corporate records": {
+    "deepseek-v4.1-flash": {
+     "completion_tokens": 45325,
+     "cost": 0.019674,
+     "errors": 0,
+     "family": "DeepSeek-V4.1-Flash",
+     "model": "deepseek/deepseek-v4.1-flash",
+     "n": 20,
+     "p95_ms": 16931.3,
+     "prompt_lineage": "frozen",
+     "prompt_tokens": 186564,
+     "revision": "46a4d3c2",
+     "run": "20260927T110828Z-eval-corporate_records",
+     "score": 0.4415,
+     "split": "train",
+     "task": "corporate records",
+     "wall": 91.6
+    },
+    "granite-4.2-8b": {
+     "completion_tokens": 127441,
+     "cost": 0.043638,
+     "errors": 0,
+     "family": "Granite-4.2-8B",
+     "model": "ibm-granite/granite-4.2-8b",
+     "n": 20,
+     "p95_ms": 205019.6,
+     "prompt_lineage": "frozen",
+     "prompt_tokens": 196299,
+     "revision": "46a4d3c2",
+     "run": "20260927T065622Z-eval-corporate_records",
+     "score": 0.4156,
+     "split": "train",
+     "task": "corporate records",
+     "wall": 508.6
+    },
+    "qwen3-8b": {
+     "completion_tokens": 54703,
+     "cost": 0.060215,
+     "errors": 0,
+     "family": "Qwen3-8B",
+     "model": "qwen/qwen3-8b",
+     "n": 20,
+     "p95_ms": 337727.3,
+     "prompt_lineage": "frozen",
+     "prompt_tokens": 301916,
+     "revision": "46a4d3c2",
+     "run": "20260927T042239Z-eval-corporate_records",
+     "score": 0.4004,
+     "split": "train",
+     "task": "corporate records",
+     "wall": 436.5
+    }
+   },
+   "correspondence": {
+    "deepseek-v4.1-flash": {
+     "completion_tokens": 35712,
+     "cost": 0.012063,
+     "errors": 0,
+     "family": "DeepSeek-V4.1-Flash",
+     "model": "deepseek/deepseek-v4.1-flash",
+     "n": 20,
+     "p95_ms": 14399.5,
+     "prompt_lineage": "frozen",
+     "prompt_tokens": 48744,
+     "revision": "46a4d3c2",
+     "run": "20260927T105317Z-eval-correspondence",
+     "score": 0.4419,
+     "split": "train",
+     "task": "correspondence",
+     "wall": 40.3
+    },
+    "granite-4.2-8b": {
+     "completion_tokens": 104315,
+     "cost": 0.029195,
+     "errors": 0,
+     "family": "Granite-4.2-8B",
+     "model": "ibm-granite/granite-4.2-8b",
+     "n": 20,
+     "p95_ms": 146506.5,
+     "prompt_lineage": "frozen",
+     "prompt_tokens": 51943,
+     "revision": "46a4d3c2",
+     "run": "20260927T053647Z-eval-correspondence",
+     "score": 0.4065,
+     "split": "train",
+     "task": "correspondence",
+     "wall": 272.3
+    },
+    "qwen3-8b": {
+     "completion_tokens": 110287,
+     "cost": 0.060362,
+     "errors": 0,
+     "family": "Qwen3-8B",
+     "model": "qwen/qwen3-8b",
+     "n": 20,
+     "p95_ms": 150933.7,
+     "prompt_lineage": "frozen",
+     "prompt_tokens": 87002,
+     "revision": "46a4d3c2",
+     "run": "20260927T033031Z-eval-correspondence",
+     "score": 0.513,
+     "split": "train",
+     "task": "correspondence",
+     "wall": 1230.1
+    }
+   },
+   "insurance claims": {
+    "deepseek-v4.1-flash": {
+     "completion_tokens": 41615,
+     "cost": 0.013491,
+     "errors": 0,
+     "family": "DeepSeek-V4.1-Flash",
+     "model": "deepseek/deepseek-v4.1-flash",
+     "n": 20,
+     "p95_ms": 79745.0,
+     "prompt_lineage": "frozen",
+     "prompt_tokens": 40636,
+     "revision": "46a4d3c2",
+     "run": "20260927T105400Z-eval-insurance_claims",
+     "score": 0.7974,
+     "split": "train",
+     "task": "insurance claims",
+     "wall": 107.3
+    },
+    "granite-4.2-8b": {
+     "completion_tokens": 88363,
+     "cost": 0.02471,
+     "errors": 0,
+     "family": "Granite-4.2-8B",
+     "model": "ibm-granite/granite-4.2-8b",
+     "n": 20,
+     "p95_ms": 121582.6,
+     "prompt_lineage": "frozen",
+     "prompt_tokens": 43656,
+     "revision": "46a4d3c2",
+     "run": "20260927T054211Z-eval-insurance_claims",
+     "score": 0.7135,
+     "split": "train",
+     "task": "insurance claims",
+     "wall": 208.1
+    },
+    "qwen3-8b": {
+     "completion_tokens": 50885,
+     "cost": 0.03204,
+     "errors": 0,
+     "family": "Qwen3-8B",
+     "model": "qwen/qwen3-8b",
+     "n": 20,
+     "p95_ms": 147490.1,
+     "prompt_lineage": "frozen",
+     "prompt_tokens": 75955,
+     "revision": "46a4d3c2",
+     "run": "20260927T035135Z-eval-insurance_claims",
+     "score": 0.7488,
+     "split": "train",
+     "task": "insurance claims",
+     "wall": 203.3
+    }
+   },
+   "merger agreements": {
+    "deepseek-v4.1-flash": {
+     "completion_tokens": 111149,
+     "cost": 0.075245,
+     "errors": 0,
+     "family": "DeepSeek-V4.1-Flash",
+     "model": "deepseek/deepseek-v4.1-flash",
+     "n": 20,
+     "p95_ms": 63886.6,
+     "prompt_lineage": "frozen",
+     "prompt_tokens": 1228920,
+     "revision": "46a4d3c2",
+     "run": "20260927T110153Z-eval-merger_agreement",
+     "score": 0.2423,
+     "split": "train",
+     "task": "merger agreements",
+     "wall": 392.7
+    },
+    "granite-4.2-8b": {
+     "completion_tokens": 306796,
+     "cost": 0.177433,
+     "errors": 0,
+     "family": "Granite-4.2-8B",
+     "model": "ibm-granite/granite-4.2-8b",
+     "n": 20,
+     "p95_ms": 580299.4,
+     "prompt_lineage": "frozen",
+     "prompt_tokens": 1678904,
+     "revision": "46a4d3c2",
+     "run": "20260927T082404Z-eval-merger_agreement",
+     "score": 0.4548,
+     "split": "train",
+     "task": "merger agreements",
+     "wall": 1228.0
+    },
+    "qwen3-8b": {
+     "completion_tokens": 114281,
+     "cost": 0.057522,
+     "errors": 0,
+     "family": "Qwen3-8B",
+     "model": "qwen/qwen3.7-flash",
+     "n": 20,
+     "p95_ms": 52445.4,
+     "prompt_lineage": "frozen",
+     "prompt_tokens": 1422210,
+     "revision": "46a4d3c2",
+     "run": "20260927T022750Z-eval-merger_agreement",
+     "score": 0.3748,
+     "split": "train",
+     "task": "merger agreements",
+     "wall": 142.0
+    }
+   }
+  }
+ },
+ "checks": 96,
+ "issues": [
+  {
+   "key": "api.qwen_merger_model",
+   "note": "eval-environment files the merger leg under Qwen3-8B, but the logged model is qwen/qwen3.7-flash. It is shown here as its own model."
+  },
+  {
+   "key": "api.deepseek_cls_wall",
+   "note": "The DeepSeek-V4.1-Flash n=100 classification run logs a 4.8 s wall time but a 32.0 s p95 call latency, which cannot both be true. Its runtime is not charted."
+  },
+  {
+   "key": "mb.armB.coverage_field",
+   "note": "mailroom-ml Arm B eval JSON: selective_risk.coverage is 0.3771, which is the last sweep row (threshold 0.99, coverage 0.3771), not the recommended 0.9 threshold (0.8688). The page reads the recommended row."
+  },
+  {
+   "key": "mb.run3.coverage_field",
+   "note": "mailroom-ml run-3 eval JSON has the same exporter defect: coverage 0.4325 is the 0.99 row; at the recommended 0.93 threshold coverage is 0.7321."
+  },
+  {
+   "key": "mb.plus_invalid",
+   "note": "The held-out-plus eval (1,323 docs, doc_type accuracy 0.0128) is invalid: on the 323 canonical test documents it contains, it gets 17 right where the same checkpoint's canonical run gets 307. Its slice table also assigns all docs to the canonical slice. It is excluded from the charts."
+  }
+ ],
+ "mb": {
+  "armA": {
+   "acc": 0.8638,
+   "cohorts": {
+    "multi-window": {
+     "acc": 0.8163,
+     "n": 49
+    },
+    "single-window": {
+     "acc": 0.8723,
+     "n": 274
+    }
+   },
+   "confusion": {
+    "contract->contract": 41,
+    "contract->corporate_record": 9,
+    "contract->correspondence": 1,
+    "contract->merger_agreement": 9,
+    "corporate_record->corporate_record": 38,
+    "corporate_record->correspondence": 9,
+    "correspondence->contract": 5,
+    "correspondence->corporate_record": 3,
+    "correspondence->correspondence": 75,
+    "correspondence->insurance_claim": 2,
+    "insurance_claim->correspondence": 6,
+    "insurance_claim->insurance_claim": 108,
+    "merger_agreement->merger_agreement": 17
+   },
+   "eda": {
+    "ale_windows": {
+     "ale": [
+      0.0508,
+      -0.0607,
+      -0.0745,
+      -0.0506,
+      0.0191,
+      0.0506,
+      0.0773,
+      0.0992,
+      0.117,
+      0.1312,
+      0.1425,
+      0.1515
+     ],
+     "feature": "lw",
+     "fit": {
+      "metric": "AUC",
+      "value": 0.447
+     },
+     "hi": [
+      0.1155,
+      -0.0087,
+      0.0123,
+      0.0363,
+      0.1043,
+      0.1314,
+      0.1577,
+      0.1919,
+      0.2096,
+      0.2202,
+      0.2249,
+      0.2271
+     ],
+     "kind": "logit",
+     "lo": [
+      -0.0041,
+      -0.1201,
+      -0.1791,
+      -0.1634,
+      -0.0765,
+      -0.0415,
+      -0.0122,
+      0.0048,
+      0.0151,
+      0.0248,
+      0.0339,
+      0.0424
+     ],
+     "n": 323,
+     "n_fit": 323,
+     "outcome": "y",
+     "range": 0.2261,
+     "rug": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.7,
+      1.0,
+      3.0
+     ],
+     "x": [
+      0.0,
+      1.0,
+      1.585,
+      2.0,
+      2.585,
+      2.8074,
+      3.0,
+      3.1699,
+      3.3219,
+      3.4594,
+      3.585,
+      3.7004
+     ]
+    },
+    "collapse": {
+     "contract": {
+      "correct": 1,
+      "n": 41,
+      "top_pred": [
+       "supply",
+       27
+      ],
+      "top_true": [
+       "service",
+       6
+      ]
+     },
+     "corporate_record": {
+      "correct": 4,
+      "n": 38,
+      "top_pred": [
+       "indenture",
+       38
+      ],
+      "top_true": [
+       "charter_amendment",
+       9
+      ]
+     },
+     "correspondence": {
+      "correct": 37,
+      "n": 75,
+      "top_pred": [
+       "email",
+       75
+      ],
+      "top_true": [
+       "email",
+       37
+      ]
+     },
+     "insurance_claim": {
+      "correct": 85,
+      "n": 108,
+      "top_pred": [
+       "inpatient",
+       32
+      ],
+      "top_true": [
+       "auto",
+       28
+      ]
+     },
+     "merger_agreement": {
+      "correct": 8,
+      "n": 17,
+      "top_pred": [
+       "other",
+       17
+      ],
+      "top_true": [
+       "other",
+       8
+      ]
+     }
+    },
+    "contract_n": 41,
+    "contract_pred": [
+     [
+      "supply",
+      27
+     ],
+     [
+      "collaboration",
+      12
+     ],
+     [
+      "consulting",
+      1
+     ],
+     [
+      "distributor",
+      1
+     ]
+    ],
+    "contract_true": [
+     [
+      "service",
+      6
+     ],
+     [
+      "co_branding",
+      5
+     ],
+     [
+      "distributor",
+      4
+     ],
+     [
+      "supply",
+      3
+     ],
+     [
+      "development",
+      3
+     ],
+     [
+      "strategic_alliance",
+      3
+     ],
+     [
+      "license",
+      2
+     ],
+     [
+      "hosting",
+      2
+     ]
+    ],
+    "fast": {
+     "correct": 12,
+     "n": 12
+    },
+    "in_dist": {
+     "correct": 261,
+     "n": 303
+    },
+    "ood": {
+     "correct": 18,
+     "n": 20
+    },
+    "slow": {
+     "correct": 267,
+     "n": 311
+    },
+    "subclass": {
+     "contract": {
+      "correct": 1,
+      "n": 41
+     },
+     "corporate_record": {
+      "correct": 4,
+      "n": 38
+     },
+     "correspondence": {
+      "correct": 37,
+      "n": 75
+     },
+     "insurance_claim": {
+      "correct": 85,
+      "n": 108
+     },
+     "merger_agreement": {
+      "correct": 8,
+      "n": 17
+     }
+    },
+    "windows": [
+     {
+      "correct": 239,
+      "label": "1 window",
+      "n": 274
+     },
+     {
+      "correct": 19,
+      "label": "2–3",
+      "n": 25
+     },
+     {
+      "correct": 6,
+      "label": "4–8",
+      "n": 9
+     },
+     {
+      "correct": 15,
+      "label": "9+",
+      "n": 15
+     }
+    ]
+   },
+   "fast_path": 0.0372,
+   "gates": {
+    "P0_doc_type": {
+     "actual": 0.8638,
+     "met": false,
+     "threshold": 0.95
+    },
+    "P0_subclass": {
+     "actual": 0.4839,
+     "met": false,
+     "threshold": 0.75
+    }
+   },
+   "macro_f1": {
+    "contract": 0.0039,
+    "corporate_record": 0.0212,
+    "correspondence": 0.0944,
+    "insurance_claim": 0.7552,
+    "merger_agreement": 0.16
+   },
+   "n": 323,
+   "ood": 0.0619,
+   "per_class": {
+    "contract": {
+     "correct": 41,
+     "n": 60
+    },
+    "corporate_record": {
+     "correct": 38,
+     "n": 47
+    },
+    "correspondence": {
+     "correct": 75,
+     "n": 85
+    },
+    "insurance_claim": {
+     "correct": 108,
+     "n": 114
+    },
+    "merger_agreement": {
+     "correct": 17,
+     "n": 17
+    }
+   },
+   "sha": "5ecea781599b",
+   "subclass": 0.4839,
+   "window_ece": 0.0397
+  },
+  "armB": {
+   "acc": 0.9505,
+   "cohorts": {
+    "multi-window": {
+     "acc": 0.9592,
+     "n": 49
+    },
+    "single-window": {
+     "acc": 0.9489,
+     "n": 274
+    }
+   },
+   "confusion": {
+    "contract->contract": 53,
+    "contract->corporate_record": 5,
+    "contract->correspondence": 1,
+    "contract->merger_agreement": 1,
+    "corporate_record->corporate_record": 42,
+    "corporate_record->correspondence": 5,
+    "correspondence->contract": 3,
+    "correspondence->corporate_record": 1,
+    "correspondence->correspondence": 81,
+    "insurance_claim->insurance_claim": 114,
+    "merger_agreement->merger_agreement": 17
+   },
+   "eda": {
+    "ale_windows": {
+     "ale": [
+      0.0011,
+      -0.0085,
+      0.0113,
+      0.0278,
+      0.0429,
+      0.0458,
+      0.0473,
+      0.0482,
+      0.0487,
+      0.049,
+      0.0492,
+      0.0493
+     ],
+     "feature": "lw",
+     "fit": {
+      "metric": "AUC",
+      "value": 0.418
+     },
+     "hi": [
+      0.0235,
+      0.0105,
+      0.0261,
+      0.0467,
+      0.0773,
+      0.0831,
+      0.086,
+      0.0874,
+      0.0881,
+      0.0884,
+      0.0886,
+      0.0886
+     ],
+     "kind": "logit",
+     "lo": [
+      -0.0159,
+      -0.0361,
+      -0.0077,
+      0.0125,
+      0.0213,
+      0.0226,
+      0.0235,
+      0.0236,
+      0.0239,
+      0.024,
+      0.0241,
+      0.0242
+     ],
+     "n": 323,
+     "n_fit": 323,
+     "outcome": "y",
+     "range": 0.0577,
+     "rug": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.7,
+      1.0,
+      3.0
+     ],
+     "x": [
+      0.0,
+      1.0,
+      1.585,
+      2.0,
+      2.585,
+      2.8074,
+      3.0,
+      3.1699,
+      3.3219,
+      3.4594,
+      3.585,
+      3.7004
+     ]
+    },
+    "collapse": {
+     "contract": {
+      "correct": 2,
+      "n": 53,
+      "top_pred": [
+       "collaboration",
+       30
+      ],
+      "top_true": [
+       "service",
+       7
+      ]
+     },
+     "corporate_record": {
+      "correct": 19,
+      "n": 42,
+      "top_pred": [
+       "charter_amendment",
+       16
+      ],
+      "top_true": [
+       "charter_amendment",
+       9
+      ]
+     },
+     "correspondence": {
+      "correct": 36,
+      "n": 81,
+      "top_pred": [
+       "email",
+       64
+      ],
+      "top_true": [
+       "email",
+       38
+      ]
+     },
+     "insurance_claim": {
+      "correct": 113,
+      "n": 114,
+      "top_pred": [
+       "auto",
+       34
+      ],
+      "top_true": [
+       "auto",
+       34
+      ]
+     },
+     "merger_agreement": {
+      "correct": 9,
+      "n": 17,
+      "top_pred": [
+       "other",
+       16
+      ],
+      "top_true": [
+       "other",
+       8
+      ]
+     }
+    },
+    "contract_n": 53,
+    "contract_pred": [
+     [
+      "collaboration",
+      30
+     ],
+     [
+      "license",
+      14
+     ],
+     [
+      "maintenance",
+      4
+     ],
+     [
+      "supply",
+      3
+     ],
+     [
+      "franchise",
+      1
+     ],
+     [
+      "consulting",
+      1
+     ]
+    ],
+    "contract_true": [
+     [
+      "service",
+      7
+     ],
+     [
+      "distributor",
+      5
+     ],
+     [
+      "co_branding",
+      5
+     ],
+     [
+      "supply",
+      4
+     ],
+     [
+      "development",
+      4
+     ],
+     [
+      "strategic_alliance",
+      4
+     ],
+     [
+      "sponsorship",
+      3
+     ],
+     [
+      "maintenance",
+      3
+     ]
+    ],
+    "fast": {
+     "correct": 98,
+     "n": 98
+    },
+    "in_dist": {
+     "correct": 279,
+     "n": 291
+    },
+    "ood": {
+     "correct": 28,
+     "n": 32
+    },
+    "slow": {
+     "correct": 209,
+     "n": 225
+    },
+    "subclass": {
+     "contract": {
+      "correct": 2,
+      "n": 53
+     },
+     "corporate_record": {
+      "correct": 19,
+      "n": 42
+     },
+     "correspondence": {
+      "correct": 36,
+      "n": 81
+     },
+     "insurance_claim": {
+      "correct": 113,
+      "n": 114
+     },
+     "merger_agreement": {
+      "correct": 9,
+      "n": 17
+     }
+    },
+    "windows": [
+     {
+      "correct": 260,
+      "label": "1 window",
+      "n": 274
+     },
+     {
+      "correct": 23,
+      "label": "2–3",
+      "n": 25
+     },
+     {
+      "correct": 9,
+      "label": "4–8",
+      "n": 9
+     },
+     {
+      "correct": 15,
+      "label": "9+",
+      "n": 15
+     }
+    ]
+   },
+   "fast_path": 0.3034,
+   "gates": {
+    "P0_doc_type": {
+     "actual": 0.9505,
+     "met": true,
+     "threshold": 0.95
+    },
+    "P0_subclass": {
+     "actual": 0.5831,
+     "met": false,
+     "threshold": 0.75
+    }
+   },
+   "head_ece": {
+    "contract": 0.0327,
+    "corporate_record": 0.071,
+    "correspondence": 0.1384,
+    "doc_type": 0.02,
+    "insurance_claim": 0.0025,
+    "merger_agreement": 0.1083
+   },
+   "macro_f1": {
+    "contract": 0.0195,
+    "corporate_record": 0.2485,
+    "correspondence": 0.1289,
+    "insurance_claim": 0.9889,
+    "merger_agreement": 0.2381
+   },
+   "n": 323,
+   "ood": 0.0991,
+   "per_class": {
+    "contract": {
+     "correct": 53,
+     "n": 60
+    },
+    "corporate_record": {
+     "correct": 42,
+     "n": 47
+    },
+    "correspondence": {
+     "correct": 81,
+     "n": 85
+    },
+    "insurance_claim": {
+     "correct": 114,
+     "n": 114
+    },
+    "merger_agreement": {
+     "correct": 17,
+     "n": 17
+    }
+   },
+   "pick": 0.9,
+   "pick_acc": 0.9936,
+   "pick_cov": 0.8687615526802218,
+   "risk": [
+    [
+     0.6,
+     0.9796672828096118,
+     0.9679,
+     530
+    ],
+    [
+     0.61,
+     0.9796672828096118,
+     0.9679,
+     530
+    ],
+    [
+     0.62,
+     0.977818853974122,
+     0.9698,
+     529
+    ],
+    [
+     0.63,
+     0.9759704251386322,
+     0.9697,
+     528
+    ],
+    [
+     0.64,
+     0.9722735674676525,
+     0.9715,
+     526
+    ],
+    [
+     0.65,
+     0.9722735674676525,
+     0.9715,
+     526
+    ],
+    [
+     0.66,
+     0.9722735674676525,
+     0.9715,
+     526
+    ],
+    [
+     0.67,
+     0.9704251386321626,
+     0.9733,
+     525
+    ],
+    [
+     0.68,
+     0.9704251386321626,
+     0.9733,
+     525
+    ],
+    [
+     0.69,
+     0.9630314232902033,
+     0.975,
+     521
+    ],
+    [
+     0.7,
+     0.9611829944547134,
+     0.975,
+     520
+    ],
+    [
+     0.71,
+     0.9611829944547134,
+     0.975,
+     520
+    ],
+    [
+     0.72,
+     0.9611829944547134,
+     0.975,
+     520
+    ],
+    [
+     0.73,
+     0.9574861367837338,
+     0.9768,
+     518
+    ],
+    [
+     0.74,
+     0.9574861367837338,
+     0.9768,
+     518
+    ],
+    [
+     0.75,
+     0.9574861367837338,
+     0.9768,
+     518
+    ],
+    [
+     0.76,
+     0.9574861367837338,
+     0.9768,
+     518
+    ],
+    [
+     0.77,
+     0.9537892791127541,
+     0.9787,
+     516
+    ],
+    [
+     0.78,
+     0.9500924214417745,
+     0.9786,
+     514
+    ],
+    [
+     0.79,
+     0.9500924214417745,
+     0.9786,
+     514
+    ],
+    [
+     0.8,
+     0.9500924214417745,
+     0.9786,
+     514
+    ],
+    [
+     0.81,
+     0.9463955637707948,
+     0.9785,
+     512
+    ],
+    [
+     0.82,
+     0.9408502772643254,
+     0.9804,
+     509
+    ],
+    [
+     0.83,
+     0.933456561922366,
+     0.9822,
+     505
+    ],
+    [
+     0.84,
+     0.9260628465804066,
+     0.988,
+     501
+    ],
+    [
+     0.85,
+     0.9149722735674677,
+     0.9919,
+     495
+    ],
+    [
+     0.86,
+     0.9057301293900185,
+     0.9918,
+     490
+    ],
+    [
+     0.87,
+     0.9001848428835489,
+     0.9918,
+     487
+    ],
+    [
+     0.88,
+     0.8964879852125693,
+     0.9918,
+     485
+    ],
+    [
+     0.89,
+     0.88909426987061,
+     0.9938,
+     481
+    ],
+    [
+     0.9,
+     0.8687615526802218,
+     0.9936,
+     470
+    ],
+    [
+     0.91,
+     0.8317929759704251,
+     0.9933,
+     450
+    ],
+    [
+     0.92,
+     0.7911275415896488,
+     0.993,
+     428
+    ],
+    [
+     0.93,
+     0.7615526802218114,
+     0.9951,
+     412
+    ],
+    [
+     0.94,
+     0.7282809611829945,
+     0.9949,
+     394
+    ],
+    [
+     0.95,
+     0.7024029574861368,
+     0.9947,
+     380
+    ],
+    [
+     0.96,
+     0.6321626617375231,
+     0.9942,
+     342
+    ],
+    [
+     0.97,
+     0.5526802218114603,
+     0.9967,
+     299
+    ],
+    [
+     0.98,
+     0.4953789279112754,
+     0.9963,
+     268
+    ],
+    [
+     0.99,
+     0.37707948243992606,
+     0.9951,
+     204
+    ]
+   ],
+   "sha": "faf97878b05a",
+   "subclass": 0.5831,
+   "window_ece": 0.0259,
+   "windows": 541
+  },
+  "plus": {
+   "acc": 0.0128,
+   "cohorts": {
+    "multi-window": {
+     "acc": 0.3148,
+     "n": 54
+    },
+    "single-window": {
+     "acc": 0.0,
+     "n": 1269
+    }
+   },
+   "confusion": {
+    "contract->merger_agreement": 60,
+    "corporate_record->correspondence": 1,
+    "corporate_record->merger_agreement": 46,
+    "correspondence->merger_agreement": 1085,
+    "insurance_claim->merger_agreement": 114,
+    "merger_agreement->merger_agreement": 17
+   },
+   "fast_path": 0.0,
+   "gates": {
+    "P0_doc_type": {
+     "actual": 0.0128,
+     "met": false,
+     "threshold": 0.95
+    },
+    "P0_subclass": {
+     "actual": 0.2353,
+     "met": false,
+     "threshold": 0.75
+    }
+   },
+   "macro_f1": {
+    "contract": null,
+    "corporate_record": null,
+    "correspondence": null,
+    "insurance_claim": null,
+    "merger_agreement": 0.1571
+   },
+   "n": 1323,
+   "ood": null,
+   "overlap_correct_base": 307,
+   "overlap_correct_plus": 17,
+   "overlap_n": 323,
+   "per_class": {
+    "contract": {
+     "correct": 0,
+     "n": 60
+    },
+    "corporate_record": {
+     "correct": 0,
+     "n": 47
+    },
+    "correspondence": {
+     "correct": 0,
+     "n": 1085
+    },
+    "insurance_claim": {
+     "correct": 0,
+     "n": 114
+    },
+    "merger_agreement": {
+     "correct": 17,
+     "n": 17
+    }
+   },
+   "sha": "10cfcd60a91f",
+   "subclass": 0.2353,
+   "window_ece": 0.1991
+  },
+  "run3": {
+   "acc": 0.8947,
+   "cohorts": {
+    "multi-window": {
+     "acc": 0.7959,
+     "n": 49
+    },
+    "single-window": {
+     "acc": 0.9124,
+     "n": 274
+    }
+   },
+   "confusion": {
+    "contract->contract": 50,
+    "contract->corporate_record": 7,
+    "contract->correspondence": 1,
+    "contract->llm_overflow": 1,
+    "contract->merger_agreement": 1,
+    "corporate_record->corporate_record": 27,
+    "corporate_record->correspondence": 12,
+    "corporate_record->llm_overflow": 8,
+    "correspondence->contract": 2,
+    "correspondence->corporate_record": 2,
+    "correspondence->correspondence": 81,
+    "insurance_claim->insurance_claim": 114,
+    "merger_agreement->merger_agreement": 17
+   },
+   "gates": {
+    "P0_doc_type": {
+     "actual": 0.8947,
+     "met": false,
+     "threshold": 0.95
+    },
+    "P0_subclass": {
+     "actual": 0.526,
+     "met": false,
+     "threshold": 0.75
+    }
+   },
+   "head_ece": {
+    "contract": 0.0443,
+    "corporate_record": 0.1346,
+    "correspondence": 0.0713,
+    "doc_type": 0.0228,
+    "insurance_claim": 0.067,
+    "merger_agreement": 0.0655
+   },
+   "n": 323,
+   "per_class": {
+    "contract": {
+     "correct": 50,
+     "n": 60
+    },
+    "corporate_record": {
+     "correct": 27,
+     "n": 47
+    },
+    "correspondence": {
+     "correct": 81,
+     "n": 85
+    },
+    "insurance_claim": {
+     "correct": 114,
+     "n": 114
+    },
+    "merger_agreement": {
+     "correct": 17,
+     "n": 17
+    }
+   },
+   "pick": 0.93,
+   "pick_acc": 0.9946,
+   "pick_cov": 0.7321428571428571,
+   "risk": [
+    [
+     0.6,
+     0.9464285714285714,
+     0.9602,
+     477
+    ],
+    [
+     0.61,
+     0.9464285714285714,
+     0.9602,
+     477
+    ],
+    [
+     0.62,
+     0.9444444444444444,
+     0.9601,
+     476
+    ],
+    [
+     0.63,
+     0.9404761904761905,
+     0.9599,
+     474
+    ],
+    [
+     0.64,
+     0.9345238095238095,
+     0.9618,
+     471
+    ],
+    [
+     0.65,
+     0.9345238095238095,
+     0.9618,
+     471
+    ],
+    [
+     0.66,
+     0.9285714285714286,
+     0.9615,
+     468
+    ],
+    [
+     0.67,
+     0.9226190476190477,
+     0.9656,
+     465
+    ],
+    [
+     0.68,
+     0.9226190476190477,
+     0.9656,
+     465
+    ],
+    [
+     0.69,
+     0.9206349206349206,
+     0.9655,
+     464
+    ],
+    [
+     0.7,
+     0.9186507936507936,
+     0.9676,
+     463
+    ],
+    [
+     0.71,
+     0.9166666666666666,
+     0.9675,
+     462
+    ],
+    [
+     0.72,
+     0.9107142857142857,
+     0.9717,
+     459
+    ],
+    [
+     0.73,
+     0.9087301587301587,
+     0.9716,
+     458
+    ],
+    [
+     0.74,
+     0.9007936507936508,
+     0.9758,
+     454
+    ],
+    [
+     0.75,
+     0.8908730158730159,
+     0.9777,
+     449
+    ],
+    [
+     0.76,
+     0.8908730158730159,
+     0.9777,
+     449
+    ],
+    [
+     0.77,
+     0.8908730158730159,
+     0.9777,
+     449
+    ],
+    [
+     0.78,
+     0.8849206349206349,
+     0.9798,
+     446
+    ],
+    [
+     0.79,
+     0.8849206349206349,
+     0.9798,
+     446
+    ],
+    [
+     0.8,
+     0.8849206349206349,
+     0.9798,
+     446
+    ],
+    [
+     0.81,
+     0.876984126984127,
+     0.9842,
+     442
+    ],
+    [
+     0.82,
+     0.8670634920634921,
+     0.9863,
+     437
+    ],
+    [
+     0.83,
+     0.8630952380952381,
+     0.9885,
+     435
+    ],
+    [
+     0.84,
+     0.8511904761904762,
+     0.9883,
+     429
+    ],
+    [
+     0.85,
+     0.8432539682539683,
+     0.9882,
+     425
+    ],
+    [
+     0.86,
+     0.8353174603174603,
+     0.9929,
+     421
+    ],
+    [
+     0.87,
+     0.8273809523809523,
+     0.9928,
+     417
+    ],
+    [
+     0.88,
+     0.8174603174603174,
+     0.9927,
+     412
+    ],
+    [
+     0.89,
+     0.8075396825396826,
+     0.9926,
+     407
+    ],
+    [
+     0.9,
+     0.7996031746031746,
+     0.9926,
+     403
+    ],
+    [
+     0.91,
+     0.7757936507936508,
+     0.9923,
+     391
+    ],
+    [
+     0.92,
+     0.75,
+     0.9921,
+     378
+    ],
+    [
+     0.93,
+     0.7321428571428571,
+     0.9946,
+     369
+    ],
+    [
+     0.94,
+     0.7003968253968254,
+     0.9943,
+     353
+    ],
+    [
+     0.95,
+     0.6706349206349206,
+     0.997,
+     338
+    ],
+    [
+     0.96,
+     0.626984126984127,
+     0.9968,
+     316
+    ],
+    [
+     0.97,
+     0.5734126984126984,
+     0.9965,
+     289
+    ],
+    [
+     0.98,
+     0.5119047619047619,
+     0.9961,
+     258
+    ],
+    [
+     0.99,
+     0.43253968253968256,
+     1.0,
+     218
+    ]
+   ],
+   "sha": "56a4e8919cc3",
+   "subclass": 0.526,
+   "window_ece": 0.0203,
+   "windows": 504
+  },
+  "run3_reeval": {
+   "acc": 0.9257,
+   "sha": "56a4e8919cc3",
+   "sorter": {
+    "mb_acc": 0.8947,
+    "mb_lat": 0.075,
+    "mb_usd": 1e-06,
+    "note": "same run, n=20 — not 323-doc paired",
+    "sorter_acc": 0.7,
+    "sorter_lat": 33.0565,
+    "sorter_usd": 0.0075
+   },
+   "subclass": 0.5117
+  }
+ },
+ "provenance": [
+  {
+   "key": "api.qwen3-8b.correspondence.run",
+   "quote": "| correspondence | `20260927T033031Z-eval-correspondence`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3-8b/README.md",
+   "value": "20260927T033031Z-eval-correspondence"
+  },
+  {
+   "key": "api.qwen3-8b.correspondence.score",
+   "quote": "| correspondence | `20260927T033031Z-eval-correspondence` | overall 0.5130 | 0 / 0 | 39 | $0.060362 | [report](correspondence/RUN-20-CORRESPONDENCE-QWEN3-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3-8b/README.md",
+   "value": 0.513
+  },
+  {
+   "key": "api.qwen3-8b.correspondence.readme_cost",
+   "quote": "| correspondence | `20260927T033031Z-eval-correspondence` | overall 0.5130 | 0 / 0 | 39 | $0.060362 | [report](correspondence/RUN-20-CORRESPONDENCE-QWEN3-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3-8b/README.md",
+   "value": 0.060362
+  },
+  {
+   "key": "api.qwen3-8b.correspondence.model",
+   "quote": "model = \"qwen/qwen3-8b\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "qwen/qwen3-8b"
+  },
+  {
+   "key": "api.qwen3-8b.correspondence.n",
+   "quote": "metrics.n = 20",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 20
+  },
+  {
+   "key": "api.qwen3-8b.correspondence.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "api.qwen3-8b.correspondence.wall",
+   "quote": "duration_s = 1230.1",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 1230.1
+  },
+  {
+   "key": "api.qwen3-8b.correspondence.p95",
+   "quote": "performance.latency_ms_p95 = 150933.7",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 150933.7
+  },
+  {
+   "key": "api.qwen3-8b.correspondence.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.060362",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.060362
+  },
+  {
+   "key": "api.qwen3-8b.correspondence.score_log",
+   "quote": "metrics.overall_score = 0.513",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.513
+  },
+  {
+   "key": "api.qwen3-8b.insurance claims.run",
+   "quote": "| insurance claims | `20260927T035135Z-eval-insurance_claims`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3-8b/README.md",
+   "value": "20260927T035135Z-eval-insurance_claims"
+  },
+  {
+   "key": "api.qwen3-8b.insurance claims.score",
+   "quote": "| insurance claims | `20260927T035135Z-eval-insurance_claims` | overall 0.7488 | 0 / 0 | 37 | $0.032040 | [report](insurance_claims/RUN-20-INSURANCE_CLAIM-QWEN3-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3-8b/README.md",
+   "value": 0.7488
+  },
+  {
+   "key": "api.qwen3-8b.insurance claims.readme_cost",
+   "quote": "| insurance claims | `20260927T035135Z-eval-insurance_claims` | overall 0.7488 | 0 / 0 | 37 | $0.032040 | [report](insurance_claims/RUN-20-INSURANCE_CLAIM-QWEN3-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3-8b/README.md",
+   "value": 0.03204
+  },
+  {
+   "key": "api.qwen3-8b.insurance claims.model",
+   "quote": "model = \"qwen/qwen3-8b\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "qwen/qwen3-8b"
+  },
+  {
+   "key": "api.qwen3-8b.insurance claims.n",
+   "quote": "metrics.n = 20",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 20
+  },
+  {
+   "key": "api.qwen3-8b.insurance claims.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "api.qwen3-8b.insurance claims.wall",
+   "quote": "duration_s = 203.3",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 203.3
+  },
+  {
+   "key": "api.qwen3-8b.insurance claims.p95",
+   "quote": "performance.latency_ms_p95 = 147490.1",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 147490.1
+  },
+  {
+   "key": "api.qwen3-8b.insurance claims.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.03204",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.03204
+  },
+  {
+   "key": "api.qwen3-8b.insurance claims.score_log",
+   "quote": "metrics.overall_score = 0.7488",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.7488
+  },
+  {
+   "key": "api.qwen3-8b.contracts.run",
+   "quote": "| contracts | `20260927T035621Z-eval-contracts`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3-8b/README.md",
+   "value": "20260927T035621Z-eval-contracts"
+  },
+  {
+   "key": "api.qwen3-8b.contracts.score",
+   "quote": "| contracts | `20260927T035621Z-eval-contracts` | overall 0.6169 | 0 / 0 | 44 | $0.114086 | [report](contracts/RUN-20-CONTRACT-QWEN3-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3-8b/README.md",
+   "value": 0.6169
+  },
+  {
+   "key": "api.qwen3-8b.contracts.readme_cost",
+   "quote": "| contracts | `20260927T035621Z-eval-contracts` | overall 0.6169 | 0 / 0 | 44 | $0.114086 | [report](contracts/RUN-20-CONTRACT-QWEN3-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3-8b/README.md",
+   "value": 0.114086
+  },
+  {
+   "key": "api.qwen3-8b.contracts.model",
+   "quote": "model = \"qwen/qwen3-8b\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "qwen/qwen3-8b"
+  },
+  {
+   "key": "api.qwen3-8b.contracts.n",
+   "quote": "metrics.n = 20",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 20
+  },
+  {
+   "key": "api.qwen3-8b.contracts.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "api.qwen3-8b.contracts.wall",
+   "quote": "duration_s = 1457.5",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 1457.5
+  },
+  {
+   "key": "api.qwen3-8b.contracts.p95",
+   "quote": "performance.latency_ms_p95 = 285038.9",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 285038.9
+  },
+  {
+   "key": "api.qwen3-8b.contracts.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.114086",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.114086
+  },
+  {
+   "key": "api.qwen3-8b.contracts.score_log",
+   "quote": "metrics.overall_score = 0.6169",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.6169
+  },
+  {
+   "key": "api.qwen3-8b.merger agreements.run",
+   "quote": "| merger agreements | `20260927T022750Z-eval-merger_agreement`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3-8b/README.md",
+   "value": "20260927T022750Z-eval-merger_agreement"
+  },
+  {
+   "key": "api.qwen3-8b.merger agreements.score",
+   "quote": "| merger agreements | `20260927T022750Z-eval-merger_agreement` | overall 0.3748 | 0 / 0 | 18 | $0.057522 | [report](merger_agreement/RUN-20-MERGER_AGREEMENT-QWEN3-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3-8b/README.md",
+   "value": 0.3748
+  },
+  {
+   "key": "api.qwen3-8b.merger agreements.readme_cost",
+   "quote": "| merger agreements | `20260927T022750Z-eval-merger_agreement` | overall 0.3748 | 0 / 0 | 18 | $0.057522 | [report](merger_agreement/RUN-20-MERGER_AGREEMENT-QWEN3-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3-8b/README.md",
+   "value": 0.057522
+  },
+  {
+   "key": "api.qwen3-8b.merger agreements.model",
+   "quote": "model = \"qwen/qwen3.7-flash\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "qwen/qwen3.7-flash"
+  },
+  {
+   "key": "api.qwen3-8b.merger agreements.n",
+   "quote": "metrics.n = 20",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 20
+  },
+  {
+   "key": "api.qwen3-8b.merger agreements.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "api.qwen3-8b.merger agreements.wall",
+   "quote": "duration_s = 142.0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 142.0
+  },
+  {
+   "key": "api.qwen3-8b.merger agreements.p95",
+   "quote": "performance.latency_ms_p95 = 52445.4",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 52445.4
+  },
+  {
+   "key": "api.qwen3-8b.merger agreements.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.057522",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.057522
+  },
+  {
+   "key": "api.qwen3-8b.merger agreements.score_log",
+   "quote": "metrics.overall_score = 0.3748",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.3748
+  },
+  {
+   "key": "api.qwen3-8b.corporate records.run",
+   "quote": "| corporate records | `20260927T042239Z-eval-corporate_records`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3-8b/README.md",
+   "value": "20260927T042239Z-eval-corporate_records"
+  },
+  {
+   "key": "api.qwen3-8b.corporate records.score",
+   "quote": "| corporate records | `20260927T042239Z-eval-corporate_records` | overall 0.4004 | 0 / 0 | 34 | $0.060215 | [report](corporate_records/RUN-20-CORPORATE_RECORD-QWEN3-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3-8b/README.md",
+   "value": 0.4004
+  },
+  {
+   "key": "api.qwen3-8b.corporate records.readme_cost",
+   "quote": "| corporate records | `20260927T042239Z-eval-corporate_records` | overall 0.4004 | 0 / 0 | 34 | $0.060215 | [report](corporate_records/RUN-20-CORPORATE_RECORD-QWEN3-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3-8b/README.md",
+   "value": 0.060215
+  },
+  {
+   "key": "api.qwen3-8b.corporate records.model",
+   "quote": "model = \"qwen/qwen3-8b\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "qwen/qwen3-8b"
+  },
+  {
+   "key": "api.qwen3-8b.corporate records.n",
+   "quote": "metrics.n = 20",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 20
+  },
+  {
+   "key": "api.qwen3-8b.corporate records.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "api.qwen3-8b.corporate records.wall",
+   "quote": "duration_s = 436.5",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 436.5
+  },
+  {
+   "key": "api.qwen3-8b.corporate records.p95",
+   "quote": "performance.latency_ms_p95 = 337727.3",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 337727.3
+  },
+  {
+   "key": "api.qwen3-8b.corporate records.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.060215",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.060215
+  },
+  {
+   "key": "api.qwen3-8b.corporate records.score_log",
+   "quote": "metrics.overall_score = 0.4004",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.4004
+  },
+  {
+   "key": "api.granite-4.2-8b.correspondence.run",
+   "quote": "| correspondence | `20260927T053647Z-eval-correspondence`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/granite-4.2-8b/README.md",
+   "value": "20260927T053647Z-eval-correspondence"
+  },
+  {
+   "key": "api.granite-4.2-8b.correspondence.score",
+   "quote": "| correspondence | `20260927T053647Z-eval-correspondence` | overall 0.4065 | 0 / 0 | 20 | $0.029194 | [report](correspondence/RUN-20-CORRESPONDENCE-GRANITE-4.2-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/granite-4.2-8b/README.md",
+   "value": 0.4065
+  },
+  {
+   "key": "api.granite-4.2-8b.correspondence.readme_cost",
+   "quote": "| correspondence | `20260927T053647Z-eval-correspondence` | overall 0.4065 | 0 / 0 | 20 | $0.029194 | [report](correspondence/RUN-20-CORRESPONDENCE-GRANITE-4.2-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/granite-4.2-8b/README.md",
+   "value": 0.029194
+  },
+  {
+   "key": "api.granite-4.2-8b.correspondence.model",
+   "quote": "model = \"ibm-granite/granite-4.2-8b\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "ibm-granite/granite-4.2-8b"
+  },
+  {
+   "key": "api.granite-4.2-8b.correspondence.n",
+   "quote": "metrics.n = 20",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 20
+  },
+  {
+   "key": "api.granite-4.2-8b.correspondence.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "api.granite-4.2-8b.correspondence.wall",
+   "quote": "duration_s = 272.3",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 272.3
+  },
+  {
+   "key": "api.granite-4.2-8b.correspondence.p95",
+   "quote": "performance.latency_ms_p95 = 146506.5",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 146506.5
+  },
+  {
+   "key": "api.granite-4.2-8b.correspondence.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.029195",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.029195
+  },
+  {
+   "key": "api.granite-4.2-8b.correspondence.score_log",
+   "quote": "metrics.overall_score = 0.4065",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.4065
+  },
+  {
+   "key": "api.granite-4.2-8b.insurance claims.run",
+   "quote": "| insurance claims | `20260927T054211Z-eval-insurance_claims`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/granite-4.2-8b/README.md",
+   "value": "20260927T054211Z-eval-insurance_claims"
+  },
+  {
+   "key": "api.granite-4.2-8b.insurance claims.score",
+   "quote": "| insurance claims | `20260927T054211Z-eval-insurance_claims` | overall 0.7135 | 0 / 0 | 20 | $0.024711 | [report](insurance_claims/RUN-20-INSURANCE_CLAIM-GRANITE-4.2-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/granite-4.2-8b/README.md",
+   "value": 0.7135
+  },
+  {
+   "key": "api.granite-4.2-8b.insurance claims.readme_cost",
+   "quote": "| insurance claims | `20260927T054211Z-eval-insurance_claims` | overall 0.7135 | 0 / 0 | 20 | $0.024711 | [report](insurance_claims/RUN-20-INSURANCE_CLAIM-GRANITE-4.2-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/granite-4.2-8b/README.md",
+   "value": 0.024711
+  },
+  {
+   "key": "api.granite-4.2-8b.insurance claims.model",
+   "quote": "model = \"ibm-granite/granite-4.2-8b\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "ibm-granite/granite-4.2-8b"
+  },
+  {
+   "key": "api.granite-4.2-8b.insurance claims.n",
+   "quote": "metrics.n = 20",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 20
+  },
+  {
+   "key": "api.granite-4.2-8b.insurance claims.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "api.granite-4.2-8b.insurance claims.wall",
+   "quote": "duration_s = 208.1",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 208.1
+  },
+  {
+   "key": "api.granite-4.2-8b.insurance claims.p95",
+   "quote": "performance.latency_ms_p95 = 121582.6",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 121582.6
+  },
+  {
+   "key": "api.granite-4.2-8b.insurance claims.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.02471",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.02471
+  },
+  {
+   "key": "api.granite-4.2-8b.insurance claims.score_log",
+   "quote": "metrics.overall_score = 0.7135",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.7135
+  },
+  {
+   "key": "api.granite-4.2-8b.contracts.run",
+   "quote": "| contracts | `20260927T054738Z-eval-contracts`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/granite-4.2-8b/README.md",
+   "value": "20260927T054738Z-eval-contracts"
+  },
+  {
+   "key": "api.granite-4.2-8b.contracts.score",
+   "quote": "| contracts | `20260927T054738Z-eval-contracts` | overall 0.4769 | 0 / 0 | 24 | $0.073964 | [report](contracts/RUN-20-CONTRACT-GRANITE-4.2-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/granite-4.2-8b/README.md",
+   "value": 0.4769
+  },
+  {
+   "key": "api.granite-4.2-8b.contracts.readme_cost",
+   "quote": "| contracts | `20260927T054738Z-eval-contracts` | overall 0.4769 | 0 / 0 | 24 | $0.073964 | [report](contracts/RUN-20-CONTRACT-GRANITE-4.2-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/granite-4.2-8b/README.md",
+   "value": 0.073964
+  },
+  {
+   "key": "api.granite-4.2-8b.contracts.model",
+   "quote": "model = \"ibm-granite/granite-4.2-8b\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "ibm-granite/granite-4.2-8b"
+  },
+  {
+   "key": "api.granite-4.2-8b.contracts.n",
+   "quote": "metrics.n = 20",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 20
+  },
+  {
+   "key": "api.granite-4.2-8b.contracts.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "api.granite-4.2-8b.contracts.wall",
+   "quote": "duration_s = 665.5",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 665.5
+  },
+  {
+   "key": "api.granite-4.2-8b.contracts.p95",
+   "quote": "performance.latency_ms_p95 = 264084.4",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 264084.4
+  },
+  {
+   "key": "api.granite-4.2-8b.contracts.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.073963",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.073963
+  },
+  {
+   "key": "api.granite-4.2-8b.contracts.score_log",
+   "quote": "metrics.overall_score = 0.4769",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.4769
+  },
+  {
+   "key": "api.granite-4.2-8b.merger agreements.run",
+   "quote": "| merger agreements | `20260927T082404Z-eval-merger_agreement`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/granite-4.2-8b/README.md",
+   "value": "20260927T082404Z-eval-merger_agreement"
+  },
+  {
+   "key": "api.granite-4.2-8b.merger agreements.score",
+   "quote": "| merger agreements | `20260927T082404Z-eval-merger_agreement` | overall 0.4548 | 0 / 0 | 38 | $0.177431 | [report](merger_agreement/RUN-20-MERGER_AGREEMENT-GRANITE-4.2-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/granite-4.2-8b/README.md",
+   "value": 0.4548
+  },
+  {
+   "key": "api.granite-4.2-8b.merger agreements.readme_cost",
+   "quote": "| merger agreements | `20260927T082404Z-eval-merger_agreement` | overall 0.4548 | 0 / 0 | 38 | $0.177431 | [report](merger_agreement/RUN-20-MERGER_AGREEMENT-GRANITE-4.2-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/granite-4.2-8b/README.md",
+   "value": 0.177431
+  },
+  {
+   "key": "api.granite-4.2-8b.merger agreements.model",
+   "quote": "model = \"ibm-granite/granite-4.2-8b\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "ibm-granite/granite-4.2-8b"
+  },
+  {
+   "key": "api.granite-4.2-8b.merger agreements.n",
+   "quote": "metrics.n = 20",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 20
+  },
+  {
+   "key": "api.granite-4.2-8b.merger agreements.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "api.granite-4.2-8b.merger agreements.wall",
+   "quote": "duration_s = 1228.0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 1228.0
+  },
+  {
+   "key": "api.granite-4.2-8b.merger agreements.p95",
+   "quote": "performance.latency_ms_p95 = 580299.4",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 580299.4
+  },
+  {
+   "key": "api.granite-4.2-8b.merger agreements.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.177433",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.177433
+  },
+  {
+   "key": "api.granite-4.2-8b.merger agreements.score_log",
+   "quote": "metrics.overall_score = 0.4548",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.4548
+  },
+  {
+   "key": "api.granite-4.2-8b.corporate records.run",
+   "quote": "| corporate records | `20260927T065622Z-eval-corporate_records`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/granite-4.2-8b/README.md",
+   "value": "20260927T065622Z-eval-corporate_records"
+  },
+  {
+   "key": "api.granite-4.2-8b.corporate records.score",
+   "quote": "| corporate records | `20260927T065622Z-eval-corporate_records` | overall 0.4156 | 0 / 0 | 22 | $0.043637 | [report](corporate_records/RUN-20-CORPORATE_RECORD-GRANITE-4.2-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/granite-4.2-8b/README.md",
+   "value": 0.4156
+  },
+  {
+   "key": "api.granite-4.2-8b.corporate records.readme_cost",
+   "quote": "| corporate records | `20260927T065622Z-eval-corporate_records` | overall 0.4156 | 0 / 0 | 22 | $0.043637 | [report](corporate_records/RUN-20-CORPORATE_RECORD-GRANITE-4.2-8B-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/granite-4.2-8b/README.md",
+   "value": 0.043637
+  },
+  {
+   "key": "api.granite-4.2-8b.corporate records.model",
+   "quote": "model = \"ibm-granite/granite-4.2-8b\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "ibm-granite/granite-4.2-8b"
+  },
+  {
+   "key": "api.granite-4.2-8b.corporate records.n",
+   "quote": "metrics.n = 20",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 20
+  },
+  {
+   "key": "api.granite-4.2-8b.corporate records.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "api.granite-4.2-8b.corporate records.wall",
+   "quote": "duration_s = 508.6",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 508.6
+  },
+  {
+   "key": "api.granite-4.2-8b.corporate records.p95",
+   "quote": "performance.latency_ms_p95 = 205019.6",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 205019.6
+  },
+  {
+   "key": "api.granite-4.2-8b.corporate records.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.043638",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.043638
+  },
+  {
+   "key": "api.granite-4.2-8b.corporate records.score_log",
+   "quote": "metrics.overall_score = 0.4156",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.4156
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.correspondence.run",
+   "quote": "| correspondence | `20260927T105317Z-eval-correspondence`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/deepseek-v4.1-flash/README.md",
+   "value": "20260927T105317Z-eval-correspondence"
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.correspondence.score",
+   "quote": "| correspondence | `20260927T105317Z-eval-correspondence` | overall 0.4419 | 0 / 0 | 20 | $0.012063 | [report](correspondence/RUN-20-CORRESPONDENCE-DEEPSEEK-V4.1-FLASH-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/deepseek-v4.1-flash/README.md",
+   "value": 0.4419
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.correspondence.readme_cost",
+   "quote": "| correspondence | `20260927T105317Z-eval-correspondence` | overall 0.4419 | 0 / 0 | 20 | $0.012063 | [report](correspondence/RUN-20-CORRESPONDENCE-DEEPSEEK-V4.1-FLASH-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/deepseek-v4.1-flash/README.md",
+   "value": 0.012063
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.correspondence.model",
+   "quote": "model = \"deepseek/deepseek-v4.1-flash\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "deepseek/deepseek-v4.1-flash"
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.correspondence.n",
+   "quote": "metrics.n = 20",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 20
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.correspondence.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.correspondence.wall",
+   "quote": "duration_s = 40.3",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 40.3
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.correspondence.p95",
+   "quote": "performance.latency_ms_p95 = 14399.5",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 14399.5
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.correspondence.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.012063",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.012063
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.correspondence.score_log",
+   "quote": "metrics.overall_score = 0.4419",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.4419
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.insurance claims.run",
+   "quote": "| insurance claims | `20260927T105400Z-eval-insurance_claims`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/deepseek-v4.1-flash/README.md",
+   "value": "20260927T105400Z-eval-insurance_claims"
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.insurance claims.score",
+   "quote": "| insurance claims | `20260927T105400Z-eval-insurance_claims` | overall 0.7974 | 0 / 0 | 20 | $0.013491 | [report](insurance_claims/RUN-20-INSURANCE_CLAIM-DEEPSEEK-V4.1-FLASH-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/deepseek-v4.1-flash/README.md",
+   "value": 0.7974
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.insurance claims.readme_cost",
+   "quote": "| insurance claims | `20260927T105400Z-eval-insurance_claims` | overall 0.7974 | 0 / 0 | 20 | $0.013491 | [report](insurance_claims/RUN-20-INSURANCE_CLAIM-DEEPSEEK-V4.1-FLASH-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/deepseek-v4.1-flash/README.md",
+   "value": 0.013491
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.insurance claims.model",
+   "quote": "model = \"deepseek/deepseek-v4.1-flash\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "deepseek/deepseek-v4.1-flash"
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.insurance claims.n",
+   "quote": "metrics.n = 20",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 20
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.insurance claims.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.insurance claims.wall",
+   "quote": "duration_s = 107.3",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 107.3
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.insurance claims.p95",
+   "quote": "performance.latency_ms_p95 = 79745.0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 79745.0
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.insurance claims.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.013491",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.013491
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.insurance claims.score_log",
+   "quote": "metrics.overall_score = 0.7974",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.7974
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.contracts.run",
+   "quote": "| contracts | `20260927T105549Z-eval-contracts`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/deepseek-v4.1-flash/README.md",
+   "value": "20260927T105549Z-eval-contracts"
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.contracts.score",
+   "quote": "| contracts | `20260927T105549Z-eval-contracts` | overall 0.5137 | 0 / 0 | 23 | $0.050233 | [report](contracts/RUN-20-CONTRACT-DEEPSEEK-V4.1-FLASH-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/deepseek-v4.1-flash/README.md",
+   "value": 0.5137
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.contracts.readme_cost",
+   "quote": "| contracts | `20260927T105549Z-eval-contracts` | overall 0.5137 | 0 / 0 | 23 | $0.050233 | [report](contracts/RUN-20-CONTRACT-DEEPSEEK-V4.1-FLASH-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/deepseek-v4.1-flash/README.md",
+   "value": 0.050233
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.contracts.model",
+   "quote": "model = \"deepseek/deepseek-v4.1-flash\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "deepseek/deepseek-v4.1-flash"
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.contracts.n",
+   "quote": "metrics.n = 20",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 20
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.contracts.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.contracts.wall",
+   "quote": "duration_s = 361.6",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 361.6
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.contracts.p95",
+   "quote": "performance.latency_ms_p95 = 268776.2",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 268776.2
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.contracts.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.050234",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.050234
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.contracts.score_log",
+   "quote": "metrics.overall_score = 0.5137",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.5137
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.merger agreements.run",
+   "quote": "| merger agreements | `20260927T110153Z-eval-merger_agreement`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/deepseek-v4.1-flash/README.md",
+   "value": "20260927T110153Z-eval-merger_agreement"
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.merger agreements.score",
+   "quote": "| merger agreements | `20260927T110153Z-eval-merger_agreement` | overall 0.2423 | 0 / 0 | 15 | $0.075246 | [report](merger_agreement/RUN-20-MERGER_AGREEMENT-DEEPSEEK-V4.1-FLASH-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/deepseek-v4.1-flash/README.md",
+   "value": 0.2423
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.merger agreements.readme_cost",
+   "quote": "| merger agreements | `20260927T110153Z-eval-merger_agreement` | overall 0.2423 | 0 / 0 | 15 | $0.075246 | [report](merger_agreement/RUN-20-MERGER_AGREEMENT-DEEPSEEK-V4.1-FLASH-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/deepseek-v4.1-flash/README.md",
+   "value": 0.075246
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.merger agreements.model",
+   "quote": "model = \"deepseek/deepseek-v4.1-flash\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "deepseek/deepseek-v4.1-flash"
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.merger agreements.n",
+   "quote": "metrics.n = 20",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 20
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.merger agreements.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.merger agreements.wall",
+   "quote": "duration_s = 392.7",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 392.7
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.merger agreements.p95",
+   "quote": "performance.latency_ms_p95 = 63886.6",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 63886.6
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.merger agreements.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.075245",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.075245
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.merger agreements.score_log",
+   "quote": "metrics.overall_score = 0.2423",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.2423
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.corporate records.run",
+   "quote": "| corporate records | `20260927T110828Z-eval-corporate_records`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/deepseek-v4.1-flash/README.md",
+   "value": "20260927T110828Z-eval-corporate_records"
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.corporate records.score",
+   "quote": "| corporate records | `20260927T110828Z-eval-corporate_records` | overall 0.4415 | 0 / 0 | 21 | $0.019675 | [report](corporate_records/RUN-20-CORPORATE_RECORD-DEEPSEEK-V4.1-FLASH-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/deepseek-v4.1-flash/README.md",
+   "value": 0.4415
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.corporate records.readme_cost",
+   "quote": "| corporate records | `20260927T110828Z-eval-corporate_records` | overall 0.4415 | 0 / 0 | 21 | $0.019675 | [report](corporate_records/RUN-20-CORPORATE_RECORD-DEEPSEEK-V4.1-FLASH-REPORT.md) |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/deepseek-v4.1-flash/README.md",
+   "value": 0.019675
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.corporate records.model",
+   "quote": "model = \"deepseek/deepseek-v4.1-flash\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "deepseek/deepseek-v4.1-flash"
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.corporate records.n",
+   "quote": "metrics.n = 20",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 20
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.corporate records.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.corporate records.wall",
+   "quote": "duration_s = 91.6",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 91.6
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.corporate records.p95",
+   "quote": "performance.latency_ms_p95 = 16931.3",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 16931.3
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.corporate records.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.019674",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.019674
+  },
+  {
+   "key": "api.deepseek-v4.1-flash.corporate records.score_log",
+   "quote": "metrics.overall_score = 0.4415",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.4415
+  },
+  {
+   "key": "cls.api-comparisons/qwen3-8b/classification/RUN-20-FULL-QWEN3-8B-REPORT.md.run",
+   "quote": "| run_id | `20260927T043145Z-eval-classification`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3-8b/classification/RUN-20-FULL-QWEN3-8B-REPORT.md",
+   "value": "20260927T043145Z-eval-classification"
+  },
+  {
+   "key": "cls.20260927T043145Z-eval-classification.model",
+   "quote": "model = \"qwen/qwen3-8b\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "qwen/qwen3-8b"
+  },
+  {
+   "key": "cls.20260927T043145Z-eval-classification.n",
+   "quote": "metrics.n = 20",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 20
+  },
+  {
+   "key": "cls.20260927T043145Z-eval-classification.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "cls.20260927T043145Z-eval-classification.wall",
+   "quote": "duration_s = 194.3",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 194.3
+  },
+  {
+   "key": "cls.20260927T043145Z-eval-classification.p95",
+   "quote": "performance.latency_ms_p95 = 133971.5",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 133971.5
+  },
+  {
+   "key": "cls.20260927T043145Z-eval-classification.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.149264",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.149264
+  },
+  {
+   "key": "cls.20260927T043145Z-eval-classification.class",
+   "quote": "metrics.class_accuracy = 0.7",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.7
+  },
+  {
+   "key": "cls.20260927T043145Z-eval-classification.subclass",
+   "quote": "metrics.subclass_accuracy = 0.05",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.05
+  },
+  {
+   "key": "cls.api-comparisons/granite-4.2-8b/classification/RUN-20-FULL-GRANITE-4.2-8B-REPORT.md.run",
+   "quote": "| run_id | `20260927T070900Z-eval-classification`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/granite-4.2-8b/classification/RUN-20-FULL-GRANITE-4.2-8B-REPORT.md",
+   "value": "20260927T070900Z-eval-classification"
+  },
+  {
+   "key": "cls.20260927T070900Z-eval-classification.model",
+   "quote": "model = \"ibm-granite/granite-4.2-8b\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "ibm-granite/granite-4.2-8b"
+  },
+  {
+   "key": "cls.20260927T070900Z-eval-classification.n",
+   "quote": "metrics.n = 20",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 20
+  },
+  {
+   "key": "cls.20260927T070900Z-eval-classification.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "cls.20260927T070900Z-eval-classification.wall",
+   "quote": "duration_s = 184.3",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 184.3
+  },
+  {
+   "key": "cls.20260927T070900Z-eval-classification.p95",
+   "quote": "performance.latency_ms_p95 = 111121.3",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 111121.3
+  },
+  {
+   "key": "cls.20260927T070900Z-eval-classification.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.064367",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.064367
+  },
+  {
+   "key": "cls.20260927T070900Z-eval-classification.class",
+   "quote": "metrics.class_accuracy = 0.9",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.9
+  },
+  {
+   "key": "cls.20260927T070900Z-eval-classification.subclass",
+   "quote": "metrics.subclass_accuracy = 0.6",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.6
+  },
+  {
+   "key": "cls.api-comparisons/granite-4.2-8b/classification/RUN-100-FULL-GRANITE-4.2-8B-REPORT.md.run",
+   "quote": "| run_id | `20260927T100340Z-eval-classification`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/granite-4.2-8b/classification/RUN-100-FULL-GRANITE-4.2-8B-REPORT.md",
+   "value": "20260927T100340Z-eval-classification"
+  },
+  {
+   "key": "cls.20260927T100340Z-eval-classification.model",
+   "quote": "model = \"ibm-granite/granite-4.2-8b\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "ibm-granite/granite-4.2-8b"
+  },
+  {
+   "key": "cls.20260927T100340Z-eval-classification.n",
+   "quote": "metrics.n = 100",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 100
+  },
+  {
+   "key": "cls.20260927T100340Z-eval-classification.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "cls.20260927T100340Z-eval-classification.wall",
+   "quote": "duration_s = 294.8",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 294.8
+  },
+  {
+   "key": "cls.20260927T100340Z-eval-classification.p95",
+   "quote": "performance.latency_ms_p95 = 75382.4",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 75382.4
+  },
+  {
+   "key": "cls.20260927T100340Z-eval-classification.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.150646",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.150646
+  },
+  {
+   "key": "cls.20260927T100340Z-eval-classification.class",
+   "quote": "metrics.class_accuracy = 0.94",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.94
+  },
+  {
+   "key": "cls.20260927T100340Z-eval-classification.subclass",
+   "quote": "metrics.subclass_accuracy = 0.49",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.49
+  },
+  {
+   "key": "cls.api-comparisons/qwen3.7-flash/classification/RUN-100-FULL-QWEN3.7-FLASH-REPORT.md.run",
+   "quote": "| run_id | `20260927T101020Z-eval-classification`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/classification/RUN-100-FULL-QWEN3.7-FLASH-REPORT.md",
+   "value": "20260927T101020Z-eval-classification"
+  },
+  {
+   "key": "cls.20260927T101020Z-eval-classification.model",
+   "quote": "model = \"qwen/qwen3.7-flash\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "qwen/qwen3.7-flash"
+  },
+  {
+   "key": "cls.20260927T101020Z-eval-classification.n",
+   "quote": "metrics.n = 100",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 100
+  },
+  {
+   "key": "cls.20260927T101020Z-eval-classification.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "cls.20260927T101020Z-eval-classification.wall",
+   "quote": "duration_s = 293.7",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 293.7
+  },
+  {
+   "key": "cls.20260927T101020Z-eval-classification.p95",
+   "quote": "performance.latency_ms_p95 = 126629.0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 126629.0
+  },
+  {
+   "key": "cls.20260927T101020Z-eval-classification.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.08509",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.08509
+  },
+  {
+   "key": "cls.20260927T101020Z-eval-classification.class",
+   "quote": "metrics.class_accuracy = 0.91",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.91
+  },
+  {
+   "key": "cls.20260927T101020Z-eval-classification.subclass",
+   "quote": "metrics.subclass_accuracy = 0.56",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.56
+  },
+  {
+   "key": "cls.api-comparisons/deepseek-v4.1-flash/classification/RUN-100-FULL-DEEPSEEK-V4.1-FLASH-REPORT.md.run",
+   "quote": "| run_id | `20260927T101544Z-eval-classification`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/deepseek-v4.1-flash/classification/RUN-100-FULL-DEEPSEEK-V4.1-FLASH-REPORT.md",
+   "value": "20260927T101544Z-eval-classification"
+  },
+  {
+   "key": "cls.20260927T101544Z-eval-classification.model",
+   "quote": "model = \"deepseek/deepseek-v4.1-flash\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "deepseek/deepseek-v4.1-flash"
+  },
+  {
+   "key": "cls.20260927T101544Z-eval-classification.n",
+   "quote": "metrics.n = 100",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 100
+  },
+  {
+   "key": "cls.20260927T101544Z-eval-classification.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "cls.20260927T101544Z-eval-classification.wall",
+   "quote": "duration_s = 4.8",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 4.8
+  },
+  {
+   "key": "cls.20260927T101544Z-eval-classification.p95",
+   "quote": "performance.latency_ms_p95 = 31993.5",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 31993.5
+  },
+  {
+   "key": "cls.20260927T101544Z-eval-classification.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.100115",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.100115
+  },
+  {
+   "key": "cls.20260927T101544Z-eval-classification.class",
+   "quote": "metrics.class_accuracy = 0.95",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.95
+  },
+  {
+   "key": "cls.20260927T101544Z-eval-classification.subclass",
+   "quote": "metrics.subclass_accuracy = 0.64",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.64
+  },
+  {
+   "key": "api.granite_corr_superseded",
+   "quote": "`RUN-20-CORRESPONDENCE-GRANITE-4.2-8B-REPORT.md`: **final** `20260927T053647Z-eval-correspondence`; superseded `20260927T052637Z-eval-correspondence`, `20260927T044805Z-eval-correspondence`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/API-LEG-MASTER-REPORT.md",
+   "value": "20260927T053647Z-eval-correspondence"
+  },
+  {
+   "key": "sorter.20260927T100340Z-eval-classification.cases",
+   "quote": "cases[20260927T100340Z-eval-classification]: 100 rows",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "web/data/snapshot.json",
+   "value": 100
+  },
+  {
+   "key": "sorter.20260927T101020Z-eval-classification.cases",
+   "quote": "cases[20260927T101020Z-eval-classification]: 100 rows",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "web/data/snapshot.json",
+   "value": 100
+  },
+  {
+   "key": "sorter.20260927T101544Z-eval-classification.cases",
+   "quote": "cases[20260927T101544Z-eval-classification]: 100 rows",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "web/data/snapshot.json",
+   "value": 100
+  },
+  {
+   "key": "route50.correspondence.run",
+   "quote": "| run_id | `20260928T090253Z-eval-correspondence`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/correspondence/RUN-50-CORRESPONDENCE-QWEN3.7-FLASH-REPORT.md",
+   "value": "20260928T090253Z-eval-correspondence"
+  },
+  {
+   "key": "route50.correspondence.model",
+   "quote": "model = \"qwen/qwen3.7-flash\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "qwen/qwen3.7-flash"
+  },
+  {
+   "key": "route50.correspondence.n",
+   "quote": "metrics.n = 50",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 50
+  },
+  {
+   "key": "route50.correspondence.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "route50.correspondence.score",
+   "quote": "metrics.overall_score = 0.4931",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.4931
+  },
+  {
+   "key": "route50.correspondence.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.022468",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.022468
+  },
+  {
+   "key": "route50.correspondence.wall",
+   "quote": "duration_s = 322.4",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 322.4
+  },
+  {
+   "key": "route50.correspondence.p95",
+   "quote": "performance.latency_ms_p95 = 44692.4",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 44692.4
+  },
+  {
+   "key": "route50.correspondence.prompt_tokens",
+   "quote": "performance.tokens_prompt_total = 112385",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 112385
+  },
+  {
+   "key": "route50.correspondence.completion_tokens",
+   "quote": "performance.tokens_completion_total = 146894",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 146894
+  },
+  {
+   "key": "route50.correspondence.report_prompt_tokens",
+   "quote": "| prompt / completion / total tokens | 112385 / 146894 / 259279 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/correspondence/RUN-50-CORRESPONDENCE-QWEN3.7-FLASH-REPORT.md",
+   "value": 112385.0
+  },
+  {
+   "key": "route50.correspondence.report_completion_tokens",
+   "quote": "| prompt / completion / total tokens | 112385 / 146894 / 259279 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/correspondence/RUN-50-CORRESPONDENCE-QWEN3.7-FLASH-REPORT.md",
+   "value": 146894.0
+  },
+  {
+   "key": "route50.correspondence.report_score",
+   "quote": "| overall_score | 0.4931 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/correspondence/RUN-50-CORRESPONDENCE-QWEN3.7-FLASH-REPORT.md",
+   "value": 0.4931
+  },
+  {
+   "key": "route50.insurance claims.run",
+   "quote": "| run_id | `20260928T070248Z-eval-insurance_claims`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/insurance_claims/RUN-50-INSURANCE_CLAIM-QWEN3.7-FLASH-REPORT.md",
+   "value": "20260928T070248Z-eval-insurance_claims"
+  },
+  {
+   "key": "route50.insurance claims.model",
+   "quote": "model = \"qwen/qwen3.7-flash\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "qwen/qwen3.7-flash"
+  },
+  {
+   "key": "route50.insurance claims.n",
+   "quote": "metrics.n = 50",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 50
+  },
+  {
+   "key": "route50.insurance claims.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "route50.insurance claims.score",
+   "quote": "metrics.overall_score = 0.7733",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.7733
+  },
+  {
+   "key": "route50.insurance claims.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.025306",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.025306
+  },
+  {
+   "key": "route50.insurance claims.wall",
+   "quote": "duration_s = 307.9",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 307.9
+  },
+  {
+   "key": "route50.insurance claims.p95",
+   "quote": "performance.latency_ms_p95 = 63022.3",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 63022.3
+  },
+  {
+   "key": "route50.insurance claims.prompt_tokens",
+   "quote": "performance.tokens_prompt_total = 115773",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 115773
+  },
+  {
+   "key": "route50.insurance claims.completion_tokens",
+   "quote": "performance.tokens_completion_total = 167942",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 167942
+  },
+  {
+   "key": "route50.insurance claims.report_prompt_tokens",
+   "quote": "| prompt / completion / total tokens | 115773 / 167942 / 283715 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/insurance_claims/RUN-50-INSURANCE_CLAIM-QWEN3.7-FLASH-REPORT.md",
+   "value": 115773.0
+  },
+  {
+   "key": "route50.insurance claims.report_completion_tokens",
+   "quote": "| prompt / completion / total tokens | 115773 / 167942 / 283715 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/insurance_claims/RUN-50-INSURANCE_CLAIM-QWEN3.7-FLASH-REPORT.md",
+   "value": 167942.0
+  },
+  {
+   "key": "route50.insurance claims.report_score",
+   "quote": "| overall_score | 0.7733 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/insurance_claims/RUN-50-INSURANCE_CLAIM-QWEN3.7-FLASH-REPORT.md",
+   "value": 0.7733
+  },
+  {
+   "key": "route50.corporate records.run",
+   "quote": "| run_id | `20260928T083627Z-eval-corporate_records`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/corporate_records/RUN-50-CORPORATE_RECORD-QWEN3.7-FLASH-REPORT.md",
+   "value": "20260928T083627Z-eval-corporate_records"
+  },
+  {
+   "key": "route50.corporate records.model",
+   "quote": "model = \"qwen/qwen3.7-flash\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "qwen/qwen3.7-flash"
+  },
+  {
+   "key": "route50.corporate records.n",
+   "quote": "metrics.n = 50",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 50
+  },
+  {
+   "key": "route50.corporate records.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "route50.corporate records.score",
+   "quote": "metrics.overall_score = 0.4178",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.4178
+  },
+  {
+   "key": "route50.corporate records.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.039277",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.039277
+  },
+  {
+   "key": "route50.corporate records.wall",
+   "quote": "duration_s = 347.3",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 347.3
+  },
+  {
+   "key": "route50.corporate records.p95",
+   "quote": "performance.latency_ms_p95 = 97541.5",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 97541.5
+  },
+  {
+   "key": "route50.corporate records.prompt_tokens",
+   "quote": "performance.tokens_prompt_total = 569472",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 569472
+  },
+  {
+   "key": "route50.corporate records.completion_tokens",
+   "quote": "performance.tokens_completion_total = 170711",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 170711
+  },
+  {
+   "key": "route50.corporate records.report_prompt_tokens",
+   "quote": "| prompt / completion / total tokens | 569472 / 170711 / 740183 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/corporate_records/RUN-50-CORPORATE_RECORD-QWEN3.7-FLASH-REPORT.md",
+   "value": 569472.0
+  },
+  {
+   "key": "route50.corporate records.report_completion_tokens",
+   "quote": "| prompt / completion / total tokens | 569472 / 170711 / 740183 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/corporate_records/RUN-50-CORPORATE_RECORD-QWEN3.7-FLASH-REPORT.md",
+   "value": 170711.0
+  },
+  {
+   "key": "route50.corporate records.report_score",
+   "quote": "| overall_score | 0.4178 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/corporate_records/RUN-50-CORPORATE_RECORD-QWEN3.7-FLASH-REPORT.md",
+   "value": 0.4178
+  },
+  {
+   "key": "route50.contracts.run",
+   "quote": "| run_id | `20260928T063713Z-eval-contracts`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/contracts/RUN-50-CONTRACT-QWEN3.7-FLASH-REPORT.md",
+   "value": "20260928T063713Z-eval-contracts"
+  },
+  {
+   "key": "route50.contracts.model",
+   "quote": "model = \"qwen/qwen3.7-flash\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "qwen/qwen3.7-flash"
+  },
+  {
+   "key": "route50.contracts.n",
+   "quote": "metrics.n = 50",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 50
+  },
+  {
+   "key": "route50.contracts.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "route50.contracts.score",
+   "quote": "metrics.overall_score = 0.5462",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.5462
+  },
+  {
+   "key": "route50.contracts.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.073918",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.073918
+  },
+  {
+   "key": "route50.contracts.wall",
+   "quote": "duration_s = 690.2",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 690.2
+  },
+  {
+   "key": "route50.contracts.p95",
+   "quote": "performance.latency_ms_p95 = 202765.2",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 202765.2
+  },
+  {
+   "key": "route50.contracts.prompt_tokens",
+   "quote": "performance.tokens_prompt_total = 786252",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 786252
+  },
+  {
+   "key": "route50.contracts.completion_tokens",
+   "quote": "performance.tokens_completion_total = 387157",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 387157
+  },
+  {
+   "key": "route50.contracts.report_prompt_tokens",
+   "quote": "| prompt / completion / total tokens | 786252 / 387157 / 1173409 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/contracts/RUN-50-CONTRACT-QWEN3.7-FLASH-REPORT.md",
+   "value": 786252.0
+  },
+  {
+   "key": "route50.contracts.report_completion_tokens",
+   "quote": "| prompt / completion / total tokens | 786252 / 387157 / 1173409 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/contracts/RUN-50-CONTRACT-QWEN3.7-FLASH-REPORT.md",
+   "value": 387157.0
+  },
+  {
+   "key": "route50.contracts.report_score",
+   "quote": "| overall_score | 0.5462 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/contracts/RUN-50-CONTRACT-QWEN3.7-FLASH-REPORT.md",
+   "value": 0.5462
+  },
+  {
+   "key": "route50.merger agreements.run",
+   "quote": "| run_id | `20260928T070803Z-eval-merger_agreement`",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/merger_agreement/RUN-50-MERGER_AGREEMENT-QWEN3.7-FLASH-REPORT.md",
+   "value": "20260928T070803Z-eval-merger_agreement"
+  },
+  {
+   "key": "route50.merger agreements.model",
+   "quote": "model = \"qwen/qwen3.7-flash\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": "qwen/qwen3.7-flash"
+  },
+  {
+   "key": "route50.merger agreements.n",
+   "quote": "metrics.n = 50",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 50
+  },
+  {
+   "key": "route50.merger agreements.errors",
+   "quote": "metrics.errors = 0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0
+  },
+  {
+   "key": "route50.merger agreements.score",
+   "quote": "metrics.overall_score = 0.5213",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.5213
+  },
+  {
+   "key": "route50.merger agreements.cost_est",
+   "quote": "performance.cost_usd_est_total = 0.161145",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.161145
+  },
+  {
+   "key": "route50.merger agreements.wall",
+   "quote": "duration_s = 488.0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 488.0
+  },
+  {
+   "key": "route50.merger agreements.p95",
+   "quote": "performance.latency_ms_p95 = 99717.0",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 99717.0
+  },
+  {
+   "key": "route50.merger agreements.prompt_tokens",
+   "quote": "performance.tokens_prompt_total = 3864179",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 3864179
+  },
+  {
+   "key": "route50.merger agreements.completion_tokens",
+   "quote": "performance.tokens_completion_total = 347846",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 347846
+  },
+  {
+   "key": "route50.merger agreements.report_prompt_tokens",
+   "quote": "| prompt / completion / total tokens | 3864179 / 347846 / 4212025 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/merger_agreement/RUN-50-MERGER_AGREEMENT-QWEN3.7-FLASH-REPORT.md",
+   "value": 3864179.0
+  },
+  {
+   "key": "route50.merger agreements.report_completion_tokens",
+   "quote": "| prompt / completion / total tokens | 3864179 / 347846 / 4212025 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/merger_agreement/RUN-50-MERGER_AGREEMENT-QWEN3.7-FLASH-REPORT.md",
+   "value": 347846.0
+  },
+  {
+   "key": "route50.merger agreements.report_score",
+   "quote": "| overall_score | 0.5213 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/merger_agreement/RUN-50-MERGER_AGREEMENT-QWEN3.7-FLASH-REPORT.md",
+   "value": 0.5213
+  },
+  {
+   "key": "mb.armB.acc",
+   "quote": "doc_type_accuracy = 0.9505",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-20260927-014429.json",
+   "value": 0.9505
+  },
+  {
+   "key": "mb.armB.confusion",
+   "quote": "per_stratum_confusion = {\"contract->contract\": 53, \"contract->corporate_record\": 5, \"contract->correspondence\": 1, \"contract->merger_agreement\":",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-20260927-014429.json",
+   "value": {
+    "contract->contract": 53,
+    "contract->corporate_record": 5,
+    "contract->correspondence": 1,
+    "contract->merger_agreement": 1,
+    "corporate_record->corporate_record": 42,
+    "corporate_record->correspondence": 5,
+    "correspondence->contract": 3,
+    "correspondence->corporate_record": 1,
+    "correspondence->correspondence": 81,
+    "insurance_claim->insurance_claim": 114,
+    "merger_agreement->merger_agreement": 17
+   }
+  },
+  {
+   "key": "mb.armB.n",
+   "quote": "n_docs = 323",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-20260927-014429.json",
+   "value": 323
+  },
+  {
+   "key": "mb.armB.subclass",
+   "quote": "subclass_accuracy_conditional = 0.5831",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-20260927-014429.json",
+   "value": 0.5831
+  },
+  {
+   "key": "mb.armB.window_ece",
+   "quote": "window_calibration.ece = 0.0259",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-20260927-014429.json",
+   "value": 0.0259
+  },
+  {
+   "key": "mb.armB.head_ece",
+   "quote": "head_ece = {\"contract\": 0.0327, \"corporate_record\": 0.071, \"correspondence\": 0.1384, \"doc_type\": 0.02, \"insurance_claim\": 0.0025, \"",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-20260927-014429.json",
+   "value": {
+    "contract": 0.0327,
+    "corporate_record": 0.071,
+    "correspondence": 0.1384,
+    "doc_type": 0.02,
+    "insurance_claim": 0.0025,
+    "merger_agreement": 0.1083
+   }
+  },
+  {
+   "key": "mb.armB.fast_path",
+   "quote": "fast_path_rate = 0.3034",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-20260927-014429.json",
+   "value": 0.3034
+  },
+  {
+   "key": "mb.armB.ood",
+   "quote": "ood.rate = 0.0991",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-20260927-014429.json",
+   "value": 0.0991
+  },
+  {
+   "key": "mb.armB.pick",
+   "quote": "selective_risk.recommended_threshold = 0.9",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-20260927-014429.json",
+   "value": 0.9
+  },
+  {
+   "key": "mb.armA.acc",
+   "quote": "doc_type_accuracy = 0.8638",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-gpu1-armA-1ep-20260927-025236.json",
+   "value": 0.8638
+  },
+  {
+   "key": "mb.armA.confusion",
+   "quote": "per_stratum_confusion = {\"contract->contract\": 41, \"contract->corporate_record\": 9, \"contract->correspondence\": 1, \"contract->merger_agreement\":",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-gpu1-armA-1ep-20260927-025236.json",
+   "value": {
+    "contract->contract": 41,
+    "contract->corporate_record": 9,
+    "contract->correspondence": 1,
+    "contract->merger_agreement": 9,
+    "corporate_record->corporate_record": 38,
+    "corporate_record->correspondence": 9,
+    "correspondence->contract": 5,
+    "correspondence->corporate_record": 3,
+    "correspondence->correspondence": 75,
+    "correspondence->insurance_claim": 2,
+    "insurance_claim->correspondence": 6,
+    "insurance_claim->insurance_claim": 108,
+    "merger_agreement->merger_agreement": 17
+   }
+  },
+  {
+   "key": "mb.armA.n",
+   "quote": "n_docs = 323",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-gpu1-armA-1ep-20260927-025236.json",
+   "value": 323
+  },
+  {
+   "key": "mb.armA.subclass",
+   "quote": "subclass_accuracy_conditional = 0.4839",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-gpu1-armA-1ep-20260927-025236.json",
+   "value": 0.4839
+  },
+  {
+   "key": "mb.armA.window_ece",
+   "quote": "window_calibration.ece = 0.0397",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-gpu1-armA-1ep-20260927-025236.json",
+   "value": 0.0397
+  },
+  {
+   "key": "mb.armA.fast_path",
+   "quote": "fast_path_rate = 0.0372",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-gpu1-armA-1ep-20260927-025236.json",
+   "value": 0.0372
+  },
+  {
+   "key": "mb.armA.ood",
+   "quote": "ood.rate = 0.0619",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-gpu1-armA-1ep-20260927-025236.json",
+   "value": 0.0619
+  },
+  {
+   "key": "mb.run3.acc",
+   "quote": "doc_type_accuracy = 0.8947",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_run3_20260921.json",
+   "value": 0.8947
+  },
+  {
+   "key": "mb.run3.confusion",
+   "quote": "per_stratum_confusion = {\"contract->contract\": 50, \"contract->corporate_record\": 7, \"contract->correspondence\": 1, \"contract->llm_overflow\": 1,",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_run3_20260921.json",
+   "value": {
+    "contract->contract": 50,
+    "contract->corporate_record": 7,
+    "contract->correspondence": 1,
+    "contract->llm_overflow": 1,
+    "contract->merger_agreement": 1,
+    "corporate_record->corporate_record": 27,
+    "corporate_record->correspondence": 12,
+    "corporate_record->llm_overflow": 8,
+    "correspondence->contract": 2,
+    "correspondence->corporate_record": 2,
+    "correspondence->correspondence": 81,
+    "insurance_claim->insurance_claim": 114,
+    "merger_agreement->merger_agreement": 17
+   }
+  },
+  {
+   "key": "mb.run3.n",
+   "quote": "n_docs = 323",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_run3_20260921.json",
+   "value": 323
+  },
+  {
+   "key": "mb.run3.subclass",
+   "quote": "subclass_accuracy_conditional = 0.526",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_run3_20260921.json",
+   "value": 0.526
+  },
+  {
+   "key": "mb.run3.window_ece",
+   "quote": "window_calibration.ece = 0.0203",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_run3_20260921.json",
+   "value": 0.0203
+  },
+  {
+   "key": "mb.run3.head_ece",
+   "quote": "head_ece = {\"contract\": 0.0443, \"corporate_record\": 0.1346, \"correspondence\": 0.0713, \"doc_type\": 0.0228, \"insurance_claim\": 0.067,",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_run3_20260921.json",
+   "value": {
+    "contract": 0.0443,
+    "corporate_record": 0.1346,
+    "correspondence": 0.0713,
+    "doc_type": 0.0228,
+    "insurance_claim": 0.067,
+    "merger_agreement": 0.0655
+   }
+  },
+  {
+   "key": "mb.run3.pick",
+   "quote": "selective_risk.recommended_threshold = 0.93",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_run3_20260921.json",
+   "value": 0.93
+  },
+  {
+   "key": "mb.plus.acc",
+   "quote": "doc_type_accuracy = 0.0128",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-20260927-014429-heldout-plus.json",
+   "value": 0.0128
+  },
+  {
+   "key": "mb.plus.confusion",
+   "quote": "per_stratum_confusion = {\"contract->merger_agreement\": 60, \"corporate_record->correspondence\": 1, \"corporate_record->merger_agreement\": 46, \"cor",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-20260927-014429-heldout-plus.json",
+   "value": {
+    "contract->merger_agreement": 60,
+    "corporate_record->correspondence": 1,
+    "corporate_record->merger_agreement": 46,
+    "correspondence->merger_agreement": 1085,
+    "insurance_claim->merger_agreement": 114,
+    "merger_agreement->merger_agreement": 17
+   }
+  },
+  {
+   "key": "mb.plus.n",
+   "quote": "n_docs = 1323",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-20260927-014429-heldout-plus.json",
+   "value": 1323
+  },
+  {
+   "key": "mb.plus.subclass",
+   "quote": "subclass_accuracy_conditional = 0.2353",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-20260927-014429-heldout-plus.json",
+   "value": 0.2353
+  },
+  {
+   "key": "mb.plus.window_ece",
+   "quote": "window_calibration.ece = 0.1991",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-20260927-014429-heldout-plus.json",
+   "value": 0.1991
+  },
+  {
+   "key": "mb.plus.fast_path",
+   "quote": "fast_path_rate = 0.0",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-20260927-014429-heldout-plus.json",
+   "value": 0.0
+  },
+  {
+   "key": "mb.plus.ood",
+   "quote": "ood.rate = null",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/eval_m9a-local-20260927-014429-heldout-plus.json",
+   "value": null
+  },
+  {
+   "key": "mb.cmp.armB",
+   "quote": "| doc_type_accuracy | **0.9505** | 0.8638 | **+0.0867** |",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/M9a-COMPARE-ArmA-vs-ArmB-20260927.md",
+   "value": 0.9505
+  },
+  {
+   "key": "mb.cmp.armA",
+   "quote": "| doc_type_accuracy | **0.9505** | 0.8638 | **+0.0867** |",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/M9a-COMPARE-ArmA-vs-ArmB-20260927.md",
+   "value": 0.8638
+  },
+  {
+   "key": "mb.run3_reeval.acc",
+   "quote": "doc_type_accuracy = 0.9257",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/modernbert/held-out-test/eval_full_test_20260927.json",
+   "value": 0.9257
+  },
+  {
+   "key": "mb.run3_reeval.sha",
+   "quote": "artifact_sha = \"56a4e8919cc3ae11d6bcfc13ec012677409afff99daf167cdd4fb70a6e1754f9\"",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/modernbert/held-out-test/eval_full_test_20260927.json",
+   "value": "56a4e8919cc3ae11d6bcfc13ec012677409afff99daf167cdd4fb70a6e1754f9"
+  },
+  {
+   "key": "mb.run3_reeval.subclass",
+   "quote": "subclass_accuracy_conditional = 0.5117",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/modernbert/held-out-test/eval_full_test_20260927.json",
+   "value": 0.5117
+  },
+  {
+   "key": "mb.sorter.acc",
+   "quote": "sorter_api_qwen3_8b.scores.accuracy = 0.7",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/modernbert/comparisons/sorter-vs-modernbert-full-test-323.json",
+   "value": 0.7
+  },
+  {
+   "key": "mb.sorter.usd",
+   "quote": "sorter_api_qwen3_8b.cost_per_document = 0.0075",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/modernbert/comparisons/sorter-vs-modernbert-full-test-323.json",
+   "value": 0.0075
+  },
+  {
+   "key": "mb.sorter.lat",
+   "quote": "sorter_api_qwen3_8b.e2e_latency_seconds = 33.0565",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/modernbert/comparisons/sorter-vs-modernbert-full-test-323.json",
+   "value": 33.0565
+  },
+  {
+   "key": "mb.sorter.mb_acc",
+   "quote": "modernbert.scores.accuracy = 0.8947",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/modernbert/comparisons/sorter-vs-modernbert-full-test-323.json",
+   "value": 0.8947
+  },
+  {
+   "key": "mb.sorter.mb_usd",
+   "quote": "modernbert.cost_per_document = 1e-06",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/modernbert/comparisons/sorter-vs-modernbert-full-test-323.json",
+   "value": 1e-06
+  },
+  {
+   "key": "mb.sorter.mb_lat",
+   "quote": "modernbert.e2e_latency_seconds = 0.075",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/modernbert/comparisons/sorter-vs-modernbert-full-test-323.json",
+   "value": 0.075
+  }
+ ],
+ "sources": {
+  "LLM-Mailroom-Services/eval-environment": "86b4e54fc5a2",
+  "LLM-Mailroom-Services/mailroom-ml": "d3ad22263da0"
+ }
+}

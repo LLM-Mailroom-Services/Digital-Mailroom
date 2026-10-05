@@ -12,17 +12,20 @@ nodes:
   catalog_write: true
   archive: true
   vision: true
+  # HUB-015 reduced profile: the reporter AGENT is retired; the compile stage
+  # is the computational procedural assembler (llm-mailroom v0.7.1
+  # compile_matter_record — no LLM call).
+  compile_report: true
 
 agents:
   sorter: true
   sorter_reviewer: true
   arbiter: true
   contracts_specialist: true
+  merger_agreement_specialist: true
   corporate_records_specialist: true
   correspondence_specialist: true
-  compliance_specialist: true
   insurance_claims_specialist: true
-  reporter: true
   boss: true
   pdf_transcriber: true
   image_extractor: true
@@ -30,10 +33,16 @@ agents:
   intake: true
   archivist: true
 
-# Retired live-pipeline specialists (dojo still scores historical traces).
+# Retired live-pipeline agents (dojo still scores historical traces).
+# reporter: the LLM reporter was retired in llm-mailroom v0.7.1 — the graph's
+# compile_report node is the procedural assembler (no LLM call).
+# compliance_specialist: docclass-era agent retired in llm-mailroom (59c47401,
+# five-class taxonomy) — removed from the vendored snapshot (DMR-057/070).
 retired_agents:
   - court_opinions_specialist
   - due_diligence_specialist
+  - reporter
+  - compliance_specialist
 
 routing:
   confidence:
@@ -46,3 +55,10 @@ prompts:
   sorter: sorter_local_v0
   sorter_reviewer: sorter_reviewer_local_v0
   judge: judge_local_v0
+  # SAND-027-3: specialist isolated/Modal evals default to eval-environment frozen v1
+  # (byte-identical sandbox stems). See config/prompts/eval_environment_lineage.json.
+  contracts_specialist: contracts_specialist_v33_simplified
+  merger_agreement_specialist: merger_agreement_specialist_simplified
+  corporate_records_specialist: corporate_records_specialist_simplified
+  correspondence_specialist: correspondence_specialist_simplified
+  insurance_claims_specialist: insurance_claims_specialist_simplified

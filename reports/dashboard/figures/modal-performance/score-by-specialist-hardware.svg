@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 720 400" width="720" height="400" role="img" aria-label="Specialist extraction score by hardware config">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --good:#0ca30c; --critical:#d03b3b; }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+
+<style>
+  .viz .grp { fill: var(--ink); font-size: 12px; font-weight: 600; }
+  .viz .axt { fill: var(--ink2); font-size: 11px; }
+  .viz .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .viz .lndeemph { stroke: var(--deemph); }
+  .viz .lead { stroke: var(--ink2); stroke-width: 1; }
+  .viz .hit { fill: transparent; }
+</style>
+
+<rect class="bg" width="720" height="400" rx="8"/>
+<text class="title" x="16" y="24">Specialist extraction score by hardware config</text>
+<text class="sub" x="16" y="42">Grouped bars: document-type specialist on the x-axis, Modal fleet shape on color · SAND-032 run reports</text>
+<rect class="s2" x="16" y="53" width="10" height="10" rx="2"/><text class="lbl" x="31" y="62">2×L4 c32</text>
+<rect class="s4" x="97.39999999999999" y="53" width="10" height="10" rx="2"/><text class="lbl" x="112.39999999999999" y="62">2×L4 c32 MAUD</text>
+<line class="grid" x1="56" y1="350.0" x2="696" y2="350.0"/>
+<text class="tick" x="50" y="354.0" text-anchor="end">0.000</text>
+<line class="grid" x1="56" y1="285.0" x2="696" y2="285.0"/>
+<text class="tick" x="50" y="289.0" text-anchor="end">0.200</text>
+<line class="grid" x1="56" y1="220.0" x2="696" y2="220.0"/>
+<text class="tick" x="50" y="224.0" text-anchor="end">0.400</text>
+<line class="grid" x1="56" y1="155.0" x2="696" y2="155.0"/>
+<text class="tick" x="50" y="159.0" text-anchor="end">0.600</text>
+<line class="grid" x1="56" y1="90.0" x2="696" y2="90.0"/>
+<text class="tick" x="50" y="94.0" text-anchor="end">0.800</text>
+<line class="axis" x1="56" y1="350" x2="696" y2="350"/>
+<line class="axis" x1="56" y1="90" x2="56" y2="350"/>
+<text class="tick" x="120.0" y="366" text-anchor="middle">Correspondence</text>
+<rect class="s2" x="60.0" y="252.4" width="58.0" height="97.6" rx="2"><title>Correspondence · 2×L4 c32: 0.300</title></rect>
+<text class="val" x="89.0" y="248.4" text-anchor="middle">0.300</text>
+<text class="tick" x="248.0" y="366" text-anchor="middle">Insurance claims</text>
+<rect class="s2" x="188.0" y="126.4" width="58.0" height="223.6" rx="2"><title>Insurance claims · 2×L4 c32: 0.688</title></rect>
+<text class="val" x="217.0" y="122.4" text-anchor="middle">0.688</text>
+<text class="tick" x="376.0" y="366" text-anchor="middle">Corpora…records</text>
+<rect class="s2" x="316.0" y="201.1" width="58.0" height="148.9" rx="2"><title>Corporate records · 2×L4 c32: 0.458</title></rect>
+<text class="val" x="345.0" y="197.1" text-anchor="middle">0.458</text>
+<text class="tick" x="504.0" y="366" text-anchor="middle">Contracts</text>
+<rect class="s2" x="444.0" y="156.3" width="58.0" height="193.7" rx="2"><title>Contracts · 2×L4 c32: 0.596</title></rect>
+<text class="val" x="473.0" y="152.3" text-anchor="middle">0.596</text>
+<text class="tick" x="632.0" y="366" text-anchor="middle">Merger …eements</text>
+<rect class="s2" x="572.0" y="336.9" width="58.0" height="13.1" rx="2"><title>Merger agreements · 2×L4 c32: 0.040</title></rect>
+<text class="val" x="601.0" y="332.9" text-anchor="middle">0.040</text>
+<rect class="s4" x="632.0" y="322.5" width="58.0" height="27.5" rx="2"><title>Merger agreements · 2×L4 c32 MAUD: 0.085</title></rect>
+<text class="val" x="661.0" y="318.5" text-anchor="middle">0.085</text>
+</svg>

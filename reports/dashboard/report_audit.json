@@ -1,0 +1,44 @@
+{
+  "swept": "2026-09-29",
+  "method": "Chromium text-box audit of every committed SVG; relative link/image resolution over tracked markdown",
+  "repos": {
+    "local-mailroom-sandbox": {
+      "svgs": 51,
+      "overflow": 0,
+      "collisions": 0,
+      "min_font": 11,
+      "markdown": 154,
+      "broken": 0,
+      "orphans": 0
+    },
+    "eval-environment": {
+      "svgs": 15,
+      "overflow": 0,
+      "collisions": 0,
+      "min_font": 10,
+      "markdown": 348,
+      "broken": 0,
+      "orphans": 0
+    },
+    "mailroom-ml": {
+      "svgs": 22,
+      "overflow": 0,
+      "collisions": 0,
+      "min_font": 10,
+      "markdown": 31,
+      "broken": 0,
+      "orphans": 0
+    }
+  },
+  "fixes": {
+    "local-mailroom-sandbox": "`scripts/sand032/viz.py` sizes label columns by measured text width (long subclass names overflowed the left edge on contracts and corporate latency/subclass figures), puts reference-line labels in their own lane (p50/p95 labels collided with each other and with the subtitle) and spaces dumbbell legends by measured width; new `scripts/sand032/rerender.py` re-laid all 51 SAND-032 figures from their embedded data, asserting the data is unchanged. The reports hub no longer crashes on eval-environment log rows without `run_id`, is synced to eval-environment `ef8c448` / mailroom-ml `640610d`, cross-checks the Qwen3.7-Flash n = 50 legs, and gains a Modal vs API tab. Broken relative links fixed in docs, CHANGELOG, RUN-20 serving reports and agent prompts.",
+    "eval-environment": "`src/evals/viz/svgcharts.py` wraps long subtitles (the calibration subtitle overflowed the right edge), lays legends out by measured width with the reference-line key inside the legend (the subclass legend collided with value labels), measures bar and heatmap labels, and raises confusion-matrix text from 9.5 px to 10 px; all 15 `web/data/charts` figures regenerated. Broken link in the RUN-03 ModernBERT held-out report fixed. `render_comparison_reports.py` now covers Qwen3.7-Flash, and the missing `reports/api-comparisons/qwen3.7-flash/README.md` suite summary is added (12 canonical stems; every row matches its canonical report).",
+    "mailroom-ml": "`src/mailroom_ml/viz/svgcharts.py` gets the same layout fixes (the `ale_windows` tick labels collided with the axis title, `subclass_collapse` axis title collided with the 1.00 tick, confusion text was 9.5 px); both chart galleries (Run 3 / Arm A / Arm B and Arm A) regenerated from the committed eval JSON."
+  },
+  "open": [
+    "eval-environment `reports/api-comparisons/granite-4.2-8b/README.md` and `deepseek-v4.1-flash/README.md` are stale: they predate canonical runs whose reports are committed (the Granite n = 100 sorter; the DeepSeek 28 Sep specialist re-runs and n = 50 merger). Re-render them with `python scripts/render_comparison_reports.py` on the machine that holds `data/experiments/`, which recomputes costs from case rows.",
+    "Merger agreements are the weakest extraction class on every route (master report §2 and §3).",
+    "Sorter subclass accuracy (LLM and ModernBERT) is below the 75% gate on every route.",
+    "Pre-existing environment-only test failures in all three repos (missing `huggingface_hub`, sibling checkpoints, proxy-blocked downloads); none are caused by this sweep and each fails identically on `main`."
+  ]
+}

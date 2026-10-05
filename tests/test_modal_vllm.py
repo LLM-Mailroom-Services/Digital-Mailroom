@@ -1,0 +1,769 @@
+"""Modal deploy app contract tests — network-free, `modal` SDK stubbed.
+
+The real `modal` package is a deploy-time extra, never installed in the
+runtime venv (same rule as llm-mailroom's
+`src/tests/test_vllm_modal_capability.py`). These tests pin the deploy
+surface: app/volume scoping, the vLLM argv builder (v0.29.0 flags), the
+bearer-env mapping, the cost guards, the SDK-1.5.5 secret API
+(``from_local`` was removed; the named ``huggingface-secret`` carries
+HF_TOKEN), and local compose <-> Modal argv parity.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import re
+import sys
+import types
+from pathlib import Path
+
+import pytest
+
+from mailroom_sandbox.paths import repo_root
+
+DEPLOY_APP = repo_root() / "deploy" / "modal_vllm.py"
+COMPOSE = repo_root() / "deploy" / "docker-compose.yml"
+PYPROJECT = repo_root() / "pyproject.toml"
+
+KNOB_ENV = (
+    "MODAL_VLLM_MODEL",
+    "MODAL_VLLM_GPU",
+    "MODAL_VLLM_QUANTIZATION",
+    "MODAL_VLLM_MAX_MODEL_LEN",
+    "MODAL_VLLM_GPU_MEMORY_UTILIZATION",
+    "MODAL_VLLM_MAX_NUM_SEQS",
+    "MODAL_VLLM_ENABLE_PREFIX_CACHING",
+    "MODAL_VLLM_ENFORCE_EAGER",
+    "MODAL_VLLM_TP_SIZE",
+    "MODAL_VLLM_ATTENTION_BACKEND",
+    "MODAL_VLLM_ASYNC_SCHEDULING",
+    "MODAL_VLLM_IMAGE_TAG",
+    "MODAL_VLLM_REVISION",
+    "MODAL_VLLM_API_TOKEN",
+    "MODAL_VLLM_SCALEDOWN_SECONDS",
+    "MODAL_VLLM_MAX_CONTAINERS",
+    "MODAL_VLLM_MIN_CONTAINERS",
+    "MODAL_VLLM_STARTUP_TIMEOUT_SECONDS",
+    "MODAL_VLLM_KV_CACHE_DTYPE",
+    "MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS",
+    "MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES",
+    "MODAL_VLLM_MAX_NUM_BATCHED_TOKENS",
+    "MODAL_VLLM_CHAT_TEMPLATE",
+    "MODAL_VLLM_MAX_INPUTS",
+    "MODAL_VLLM_APP_NAME",
+    "HF_TOKEN",
+)
+
+
+def _install_modal_stub() -> None:
+    """Minimal stand-in for the `modal` surface used by the app (SDK 1.5.5)."""
+    if "modal" in sys.modules:
+        return
+    stub = types.ModuleType("modal")
+
+    class _Secret:
+        calls: list[dict] = []
+        named_calls: list[dict] = []
+
+        @staticmethod
+        def from_dict(env):
+            _Secret.calls.append(dict(env))
+            return ("secret", dict(env))
+
+        @staticmethod
+        def from_name(name, *, environment_name=None, required_keys=None, client=None):
+            _Secret.named_calls.append({"name": name, "required_keys": required_keys})
+            return ("named-secret", name)
+
+        # Deliberately no from_local: removed in SDK 1.5.x (regression guard).
+
+    class _Volume:
+        @staticmethod
+        def from_name(name, create_if_missing=False):
+            return ("volume", name)
+
+    class _Image:
+        def __init__(self, ref=None):
+            self.ref = ref
+            self.commands: list = []
+            self.envs: dict = {}
+
+        @staticmethod
+        def from_registry(ref, add_python=None):
+            img = _Image(ref)
+            img.add_python = add_python
+            return img
+
+        @staticmethod
+        def debian_slim(python_version=None):
+            img = _Image("debian_slim")
+            img.python_version = python_version
+            return img
+
+        def run_commands(self, *cmds):
+            self.commands.extend(cmds)
+            return self
+
+        def uv_pip_install(self, *packages):
+            self.commands.extend(packages)
+            return self
+
+        def entrypoint(self, *args):
+            self.entrypoint_args = args
+            return self
+
+        def env(self, mapping):
+            self.envs.update(mapping)
+            return self
+
+    class _FunctionRecord:
+        def __init__(self, fn, kwargs):
+            self.fn = fn
+            self.kwargs = kwargs
+            self.web_server_kwargs = getattr(fn, "web_server_kwargs", None)
+
+    class _App:
+        def __init__(self, name, image=None, tags=None):
+            self.name = name
+            self.image = image
+            self.tags = tags or {}
+
+        def function(self, **kwargs):
+            def deco(fn):
+                return _FunctionRecord(fn, kwargs)
+
+            return deco
+
+        def local_entrypoint(self, fn=None):
+            if fn is not None:
+                return fn
+
+            def deco(f):
+                return f
+
+            return deco
+
+    def _web_server(port=None, *, startup_timeout=None, **kwargs):
+        def deco(fn):
+            fn.web_server_kwargs = {"port": port, "startup_timeout": startup_timeout}
+            return fn
+
+        return deco
+
+    stub.Secret = _Secret
+    stub.Volume = _Volume
+    stub.Image = _Image
+    stub.App = _App
+    stub.web_server = _web_server
+
+    def _concurrent(*, max_inputs=None, target_inputs=None):
+        def deco(fn):
+            fn.concurrent_kwargs = {"max_inputs": max_inputs, "target_inputs": target_inputs}
+            return fn
+
+        return deco
+
+    stub.concurrent = _concurrent
+    sys.modules["modal"] = stub
+
+
+def _load_app_module():
+    _install_modal_stub()
+    spec = importlib.util.spec_from_file_location("sandbox_modal_vllm", DEPLOY_APP)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+@pytest.fixture(autouse=True)
+def _clear_deploy_knobs(monkeypatch):
+    """Deploy knobs come from the local env at import time — normalize them."""
+    for name in KNOB_ENV:
+        monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture
+def modal_stub():
+    _install_modal_stub()
+    stub = sys.modules["modal"]
+    stub.Secret.calls = []
+    stub.Secret.named_calls = []
+    return stub
+
+
+class TestDeploySurface:
+    def test_app_file_exists(self):
+        assert DEPLOY_APP.is_file(), "deploy/modal_vllm.py missing"
+
+    def test_sandbox_scoped_constants(self):
+        mod = _load_app_module()
+        assert mod.APP_NAME == "sandbox-vllm"
+        assert mod.HF_CACHE_VOLUME_NAME == "sandbox-hf-cache"
+        assert mod.VLLM_CACHE_VOLUME_NAME == "sandbox-vllm-cache"
+        assert mod.SERVER_PORT == 8000
+
+    def test_defaults_are_pinned_and_cost_guarded(self):
+        mod = _load_app_module()
+        assert mod.MODEL == "Qwen/Qwen3-8B"
+        assert mod.GPU == "L4"
+        assert mod.VLLM_IMAGE_TAG == "v0.29.0"  # never `latest`
+        assert mod.MAX_MODEL_LEN == "16384"  # DMR-056: L4-bf16 boot-valid default
+        assert mod.GPU_MEMORY_UTILIZATION == "0.90"  # below vLLM's 0.92 default
+        assert mod.MAX_NUM_SEQS == "6"  # L4 long-prompt 4–6 (KV cliff at ~8 × ~8k)
+        assert mod.ENABLE_PREFIX_CACHING == "1"
+        assert mod.ENFORCE_EAGER == "1"
+        assert mod.SCALEDOWN_SECONDS == 120  # DMR-076 attended default (restore 600 unattended)
+        assert mod.MAX_CONTAINERS == 1  # a test sandbox must not fan out GPUs
+        assert mod.MIN_CONTAINERS == 0  # scale-to-zero
+        assert mod.STARTUP_TIMEOUT_SECONDS == 20 * 60
+
+    def test_serve_function_config(self):
+        mod = _load_app_module()
+        kwargs = mod.serve.kwargs
+        assert kwargs["gpu"] == "L4"
+        assert kwargs["volumes"] == {
+            "/root/.cache/huggingface": ("volume", "sandbox-hf-cache"),
+            "/root/.cache/vllm": ("volume", "sandbox-vllm-cache"),
+        }
+        assert kwargs["max_containers"] == 1
+        assert kwargs["min_containers"] == 0
+        assert kwargs["scaledown_window"] == 120  # DMR-076 attended pin
+        assert kwargs["timeout"] == mod.STARTUP_TIMEOUT_SECONDS == 20 * 60
+        assert mod.serve.web_server_kwargs == {
+            "port": 8000,
+            "startup_timeout": 20 * 60,
+        }
+        # The named HF secret is attached to the serve function (fail-loud
+        # via required_keys if the Modal workspace lacks it).
+        assert kwargs["secrets"][0] == ("named-secret", "huggingface-secret")
+
+    def test_app_tags_for_cost_allocation(self):
+        mod = _load_app_module()
+        assert mod.app.name == "sandbox-vllm"
+        assert mod.app.tags["package"] == "local-mailroom-sandbox"
+        assert mod.app.tags["purpose"] == "remote-gpu-testing"
+
+    def test_image_pins_and_transfer_env(self):
+        mod = _load_app_module()
+        assert mod.image.ref == "vllm/vllm-openai:v0.29.0"
+        assert mod.image.add_python == "3.12"
+        # Direct-subprocess architecture: the image's vLLM entrypoint is
+        # cleared so Modal runs our serve() with no flag leakage.
+        assert mod.image.entrypoint_args == ([],)
+        # DMR-056: huggingface_hub 1.x has no [hf_transfer] extra — Xet is the
+        # default backend; HF_HUB_ENABLE_HF_TRANSFER is a no-op and dropped.
+        assert mod.image.envs["HF_XET_HIGH_PERFORMANCE"] == "1"
+        assert mod.image.envs["NETWORKX_AUTOMATIC_BACKEND_SELECTION"] == "0"
+        assert "HF_HUB_ENABLE_HF_TRANSFER" not in mod.image.envs
+        assert mod.download_image.envs["HF_XET_HIGH_PERFORMANCE"] == "1"
+        assert mod.image.envs["HF_XET_HIGH_PERFORMANCE"] == "1"
+
+    def test_download_model_prewarm_surface(self):
+        mod = _load_app_module()
+        kwargs = mod.download_model.kwargs
+        assert kwargs["image"] is mod.download_image
+        assert kwargs["volumes"] == {
+            "/root/.cache/huggingface": ("volume", "sandbox-hf-cache")
+        }
+        assert kwargs["secrets"][0] == ("named-secret", "huggingface-secret")
+        assert mod.download_image.python_version == "3.12"
+
+
+class TestCommandBuilder:
+    def test_command_defaults(self):
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B")
+        assert cmd[:3] == ["vllm", "serve", "Qwen/Qwen3-8B"]
+        assert "--host" in cmd and cmd[cmd.index("--host") + 1] == "0.0.0.0"
+        assert "--port" in cmd and cmd[cmd.index("--port") + 1] == "8000"
+        assert "--max-model-len" in cmd
+        # Safe test-sandbox memory posture (v0.29.0 flags).
+        assert cmd[cmd.index("--gpu-memory-utilization") + 1] == "0.90"
+        assert cmd[cmd.index("--max-num-seqs") + 1] == "6"
+        assert "--enable-prefix-caching" in cmd
+        assert "--enforce-eager" in cmd
+        # fp16/bf16 default: no quantization or revision flag unless configured.
+        assert "--quantization" not in cmd
+        assert "--revision" not in cmd
+        # v0.28.0 renamed the log flag (opt-in `--enable-log-requests`); the
+        # explicit negation keeps request logging off, and the pre-0.28 flag
+        # would make the server reject its own argv.
+        assert "--no-enable-log-requests" in cmd
+        assert "--disable-log-requests" not in cmd
+
+    def test_prefix_caching_and_eager_env_toggles(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_ENABLE_PREFIX_CACHING", "0")
+        monkeypatch.setenv("MODAL_VLLM_ENFORCE_EAGER", "0")
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B")
+        assert "--no-enable-prefix-caching" in cmd
+        assert "--enable-prefix-caching" not in cmd
+        assert "--enforce-eager" not in cmd
+
+    def test_memory_knobs_read_env_at_import(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_GPU_MEMORY_UTILIZATION", "0.85")
+        monkeypatch.setenv("MODAL_VLLM_MAX_NUM_SEQS", "64")
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B")
+        assert cmd[cmd.index("--gpu-memory-utilization") + 1] == "0.85"
+        assert cmd[cmd.index("--max-num-seqs") + 1] == "64"
+
+    def test_quantization_flag_injected_when_configured(self):
+        mod = _load_app_module()
+        original = mod.QUANTIZATION
+        try:
+            mod.QUANTIZATION = "awq"
+            cmd = mod.build_vllm_command("Qwen/Qwen3-14B")
+            assert cmd[cmd.index("--quantization") + 1] == "awq"
+        finally:
+            mod.QUANTIZATION = original
+
+    def test_revision_flag_injected_when_configured(self):
+        mod = _load_app_module()
+        original = mod.REVISION
+        try:
+            mod.REVISION = "abc123"
+            cmd = mod.build_vllm_command("Qwen/Qwen3-8B")
+            assert cmd[cmd.index("--revision") + 1] == "abc123"
+        finally:
+            mod.REVISION = original
+
+    def test_tensor_parallel_defaults_to_1_single_gpu(self):
+        """DMR-045: no TP flag on a single-GPU deploy (the default)."""
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B")
+        assert "--tensor-parallel-size" not in cmd
+        assert mod.TP_SIZE == "1"
+
+    def test_tensor_parallel_from_gpu_suffix(self, monkeypatch):
+        """DMR-045: MODAL_VLLM_GPU='A100-80GB:2' must derive TP_SIZE=2."""
+        monkeypatch.setenv("MODAL_VLLM_GPU", "A100-80GB:2")
+        mod = _load_app_module()
+        assert mod.TP_SIZE == "2"
+        cmd = mod.build_vllm_command("meta-llama/Llama-3.3-70B-Instruct")
+        assert cmd[cmd.index("--tensor-parallel-size") + 1] == "2"
+
+    def test_tensor_parallel_explicit_override(self, monkeypatch):
+        """DMR-045: explicit MODAL_VLLM_TP_SIZE beats the GPU-suffix default."""
+        monkeypatch.setenv("MODAL_VLLM_GPU", "A100-80GB:2")
+        monkeypatch.setenv("MODAL_VLLM_TP_SIZE", "1")
+        mod = _load_app_module()
+        assert mod.TP_SIZE == "1"
+        cmd = mod.build_vllm_command("Qwen/Qwen3-32B")
+        assert "--tensor-parallel-size" not in cmd
+
+    def test_tensor_parallel_knob_travels_through_secret(self, modal_stub, monkeypatch):
+        """DMR-045: TP_SIZE must reach the container via the deploy Secret."""
+        monkeypatch.setenv("MODAL_VLLM_TP_SIZE", "2")
+        monkeypatch.setenv("MODAL_VLLM_GPU", "A100-80GB:2")
+        mod = _load_app_module()
+        assert len(modal_stub.Secret.calls) == 2
+        for call in modal_stub.Secret.calls:
+            assert call["MODAL_VLLM_TP_SIZE"] == "2"
+        assert "MODAL_VLLM_TP_SIZE" in mod.CONFIG_ENV_KEYS
+
+    def test_throughput_knobs_absent_by_default(self):
+        """The Modal vLLM exemplar's throughput flags stay OFF by default —
+        empty = vLLM's engine default, preserving compose parity and the
+        reproducible test-sandbox posture."""
+        mod = _load_app_module()
+        assert mod.ATTENTION_BACKEND == ""
+        assert mod.ASYNC_SCHEDULING == ""
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B")
+        assert "--attention-backend" not in cmd
+        assert "--async-scheduling" not in cmd
+
+    def test_throughput_knobs_injected_when_configured(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_ATTENTION_BACKEND", "flashinfer")
+        monkeypatch.setenv("MODAL_VLLM_ASYNC_SCHEDULING", "1")
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B")
+        assert cmd[cmd.index("--attention-backend") + 1] == "flashinfer"
+        assert "--async-scheduling" in cmd
+
+    def test_async_scheduling_truthiness(self, monkeypatch):
+        for falsy in ("", "0", "false", "off", "no"):
+            monkeypatch.setenv("MODAL_VLLM_ASYNC_SCHEDULING", falsy)
+            mod = _load_app_module()
+            assert mod._truthy(mod.ASYNC_SCHEDULING) is False
+        for truthy in ("1", "true", "yes", "on"):
+            monkeypatch.setenv("MODAL_VLLM_ASYNC_SCHEDULING", truthy)
+            mod = _load_app_module()
+            assert mod._truthy(mod.ASYNC_SCHEDULING) is True
+
+    def test_throughput_knobs_travel_through_secret(self, modal_stub, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_ATTENTION_BACKEND", "flashinfer")
+        monkeypatch.setenv("MODAL_VLLM_ASYNC_SCHEDULING", "1")
+        mod = _load_app_module()
+        assert len(modal_stub.Secret.calls) == 2
+        for call in modal_stub.Secret.calls:
+            assert call["MODAL_VLLM_ATTENTION_BACKEND"] == "flashinfer"
+            assert call["MODAL_VLLM_ASYNC_SCHEDULING"] == "1"
+        for name in ("MODAL_VLLM_ATTENTION_BACKEND", "MODAL_VLLM_ASYNC_SCHEDULING"):
+            assert name in mod.CONFIG_ENV_KEYS
+
+    def test_masked_config_reports_throughput_knobs(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_ATTENTION_BACKEND", "flashinfer")
+        monkeypatch.setenv("MODAL_VLLM_ASYNC_SCHEDULING", "1")
+        mod = _load_app_module()
+        cfg = mod._masked_config()
+        assert cfg["attention_backend"] == "flashinfer"
+        assert cfg["async_scheduling"] == "on"
+
+
+class TestServerEnv:
+    def test_api_token_maps_to_vllm_enforcement_var(self, monkeypatch):
+        mod = _load_app_module()
+        monkeypatch.setenv("MODAL_VLLM_API_TOKEN", "tok-abc123")
+        assert mod._server_env()["VLLM_API_KEY"] == "tok-abc123"
+
+    def test_no_token_means_keyless_server(self, monkeypatch):
+        mod = _load_app_module()
+        monkeypatch.delenv("MODAL_VLLM_API_TOKEN", raising=False)
+        assert "VLLM_API_KEY" not in mod._server_env()
+
+    def test_hf_token_passthrough_for_gated_repos(self, monkeypatch):
+        mod = _load_app_module()
+        monkeypatch.setenv("HF_TOKEN", "hf_xxx")
+        assert mod._server_env()["HF_TOKEN"] == "hf_xxx"
+        monkeypatch.delenv("HF_TOKEN")
+        assert "HF_TOKEN" not in mod._server_env()
+
+
+class TestSecretApi:
+    """SDK 1.5.5 removed ``Secret.from_local``; optional knobs must survive."""
+
+    def test_optional_knobs_use_from_dict_and_skip_missing(self, modal_stub, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_MODEL", "Qwen/Qwen3-14B")
+        monkeypatch.setenv("HF_TOKEN", "hf_test")
+        mod = _load_app_module()
+        # One from_dict call per decorated function (serve + download_model)…
+        assert len(modal_stub.Secret.calls) == 2
+        for call in modal_stub.Secret.calls:
+            # …but HF_TOKEN must NOT ride the from_dict secret: Modal applies
+            # secrets in list order (last wins), and from_dict is appended
+            # AFTER the named secret — a local HF_TOKEN would override it.
+            assert call == {"MODAL_VLLM_MODEL": "Qwen/Qwen3-14B"}
+        # Both functions carry the named secret first, then the from_dict one.
+        for record in (mod.serve, mod.download_model):
+            assert record.kwargs["secrets"][0] == ("named-secret", "huggingface-secret")
+            assert record.kwargs["secrets"][1][1] == {
+                "MODAL_VLLM_MODEL": "Qwen/Qwen3-14B"
+            }
+
+    def test_no_knobs_means_only_the_named_secret(self, modal_stub):
+        mod = _load_app_module()
+        # No local env knobs -> no from_dict secrets…
+        assert modal_stub.Secret.calls == []
+        # …but the named HF secret is attached unconditionally (fail-loud at
+        # deploy if it is missing from the Modal workspace).
+        for record in (mod.serve, mod.download_model):
+            assert record.kwargs["secrets"] == [("named-secret", "huggingface-secret")]
+
+    def test_named_hf_secret_contract(self, modal_stub):
+        """SDK 1.5.5 `Secret.from_name(name, required_keys=[...])` — one call
+        per decorated function; required_keys makes a missing HF_TOKEN fail
+        the deploy at hydration."""
+        mod = _load_app_module()
+        assert len(modal_stub.Secret.named_calls) == 2
+        for call in modal_stub.Secret.named_calls:
+            assert call == {"name": "huggingface-secret", "required_keys": ["HF_TOKEN"]}
+        assert "HF_TOKEN" not in mod.CONFIG_ENV_KEYS
+
+    def test_named_hf_secret_name_override(self, modal_stub, monkeypatch):
+        monkeypatch.setenv("MODAL_HF_SECRET_NAME", "sandbox-hf")
+        mod = _load_app_module()
+        assert mod.HF_SECRET_NAME == "sandbox-hf"
+        assert all(
+            c["name"] == "sandbox-hf" for c in modal_stub.Secret.named_calls
+        )
+
+    def test_removed_from_local_api_is_not_used(self):
+        text = DEPLOY_APP.read_text(encoding="utf-8")
+        assert not re.search(r"\.from_local\s*\(", text), (
+            "Secret.from_local was removed in Modal SDK 1.5.x — "
+            "use from_dict / from_local_environ"
+        )
+        assert "Secret.from_dict" in text
+
+    def test_engine_knobs_travel_through_secret(self, modal_stub, monkeypatch):
+        """The container re-imports the module; argv knobs need the Secret."""
+        monkeypatch.setenv("MODAL_VLLM_REVISION", "abc123")
+        monkeypatch.setenv("MODAL_VLLM_GPU_MEMORY_UTILIZATION", "0.85")
+        monkeypatch.setenv("MODAL_VLLM_MAX_NUM_SEQS", "64")
+        monkeypatch.setenv("MODAL_VLLM_ENABLE_PREFIX_CACHING", "0")
+        monkeypatch.setenv("MODAL_VLLM_ENFORCE_EAGER", "0")
+        mod = _load_app_module()
+        assert len(modal_stub.Secret.calls) == 2
+        for call in modal_stub.Secret.calls:
+            assert call["MODAL_VLLM_REVISION"] == "abc123"
+            assert call["MODAL_VLLM_GPU_MEMORY_UTILIZATION"] == "0.85"
+            assert call["MODAL_VLLM_MAX_NUM_SEQS"] == "64"
+            assert call["MODAL_VLLM_ENABLE_PREFIX_CACHING"] == "0"
+            assert call["MODAL_VLLM_ENFORCE_EAGER"] == "0"
+        for name in (
+            "MODAL_VLLM_REVISION",
+            "MODAL_VLLM_GPU_MEMORY_UTILIZATION",
+            "MODAL_VLLM_MAX_NUM_SEQS",
+            "MODAL_VLLM_ENABLE_PREFIX_CACHING",
+            "MODAL_VLLM_ENFORCE_EAGER",
+        ):
+            assert name in mod.CONFIG_ENV_KEYS
+
+
+class TestComposeParity:
+    """Local compose and Modal must speak the same vLLM argv (image pins
+    diverge until the v0.29.0 live parity pilot passes — see
+    test_same_pinned_image)."""
+
+    @staticmethod
+    def _vllm_service() -> dict:
+        import yaml
+
+        data = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
+        return data["services"]["vllm"]
+
+    def test_same_pinned_image(self):
+        # DMR-062: the v0.29.0 live parity pilot passed (7/7 sorter rows on
+        # the deployed endpoint), so Modal + compose + htcondor pins moved
+        # together in one commit — they must never drift apart again.
+        mod = _load_app_module()
+        assert self._vllm_service()["image"] == mod.image.ref == "vllm/vllm-openai:v0.29.0"
+
+    def test_command_parity(self):
+        cmd = self._vllm_service()["command"]
+        assert cmd[0] == "${VLLM_MODEL:-Qwen/Qwen3-8B}"
+        assert cmd[cmd.index("--host") + 1] == "0.0.0.0"
+        assert cmd[cmd.index("--port") + 1] == "8000"
+        assert cmd[cmd.index("--max-model-len") + 1] == "${VLLM_MAX_MODEL_LEN:-16384}"
+        assert (
+            cmd[cmd.index("--gpu-memory-utilization") + 1]
+            == "${VLLM_GPU_MEMORY_UTILIZATION:-0.90}"
+        )
+        assert cmd[cmd.index("--max-num-seqs") + 1] == "${VLLM_MAX_NUM_SEQS:-6}"
+        assert "--enable-prefix-caching" in cmd
+        assert "--enforce-eager" in cmd
+        assert cmd[-1] == "--no-enable-log-requests"
+
+    def test_defaults_match_modal_constants(self):
+        mod = _load_app_module()
+        cmd = self._vllm_service()["command"]
+        assert f"${{VLLM_MAX_MODEL_LEN:-{mod.MAX_MODEL_LEN}}}" in cmd
+        assert f"${{VLLM_GPU_MEMORY_UTILIZATION:-{mod.GPU_MEMORY_UTILIZATION}}}" in cmd
+        assert f"${{VLLM_MAX_NUM_SEQS:-{mod.MAX_NUM_SEQS}}}" in cmd
+
+    def test_bearer_and_hf_env_contract(self):
+        env = self._vllm_service()["environment"]
+        assert env["VLLM_API_KEY"] == "${VLLM_API_KEY:-}"
+        assert env["HF_TOKEN"] == "${HF_TOKEN:-}"
+
+    def test_removed_log_flag_absent(self):
+        # Comments may document the rename; the argv must never carry it.
+        assert "--disable-log-requests" not in self._vllm_service()["command"]
+        mod = _load_app_module()
+        assert "--disable-log-requests" not in mod.build_vllm_command("Qwen/Qwen3-8B")
+
+
+class TestSmokeCheckDiagnostics:
+    """DMR-053: helpful smoke-check errors carry response bodies + hints."""
+
+    def test_401_mentions_bearer_hint(self, monkeypatch):
+        mod = _load_app_module()
+
+        class _Resp:
+            status_code = 401
+            text = "unauthorized"
+
+        monkeypatch.setattr("httpx.get", lambda *a, **k: _Resp())
+        with pytest.raises(SystemExit, match="VLLM_API_KEY"):
+            mod._smoke_check("https://x--sandbox-vllm-serve.modal.run/v1")
+
+    def test_http_error_includes_body(self, monkeypatch):
+        mod = _load_app_module()
+
+        class _Resp:
+            status_code = 503
+            text = "model warming up"
+
+        monkeypatch.setattr("httpx.get", lambda *a, **k: _Resp())
+        with pytest.raises(SystemExit, match="503"):
+            mod._smoke_check("https://x--sandbox-vllm-serve.modal.run/v1")
+
+    def test_non_json_body_reported(self, monkeypatch):
+        mod = _load_app_module()
+
+        class _Resp:
+            status_code = 200
+            text = "not json at all"
+
+            def json(self):
+                raise ValueError("no json")
+
+        monkeypatch.setattr("httpx.get", lambda *a, **k: _Resp())
+        with pytest.raises(SystemExit, match="non-JSON"):
+            mod._smoke_check("https://x--sandbox-vllm-serve.modal.run/v1")
+
+    def test_masked_config_never_prints_token(self, monkeypatch):
+        mod = _load_app_module()
+        monkeypatch.setenv("MODAL_VLLM_API_TOKEN", "super-secret-token")
+        cfg = mod._masked_config()
+        assert cfg["VLLM_API_KEY"] == "set"
+        assert "super-secret-token" not in str(cfg)
+        assert cfg["model"] == "Qwen/Qwen3-8B"
+        monkeypatch.delenv("MODAL_VLLM_API_TOKEN")
+
+
+class TestTeardownScript:
+    """DMR-063: the loud teardown guard must exist and do the right things —
+    stop the app, VERIFY zero running deployments, keep volumes."""
+
+    def test_script_exists_and_is_executable(self):
+        path = repo_root() / "deploy" / "teardown_vllm.sh"
+        assert path.is_file()
+        assert path.stat().st_mode & 0o111, "teardown_vllm.sh must be executable"
+
+    def test_script_stops_verifies_and_keeps_volumes(self):
+        text = (repo_root() / "deploy" / "teardown_vllm.sh").read_text()
+        assert "modal app stop" in text
+        # Verification: the script exits 1 if the app is still running.
+        assert "exit 1" in text and "still shows a running deployment" in text
+        # Data-bearing state persists; cost-bearing state is gone.
+        assert "modal volume ls sandbox-hf-cache" in text
+        assert "modal billing summary" in text
+
+
+class TestVersionPins:
+    def test_deploy_extra_pins_modal_sdk(self):
+        import tomllib
+
+        data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+        deploy = data["project"]["optional-dependencies"]["deploy"]
+        assert "modal==1.5.5" in deploy, "deploy extra must pin the verified SDK"
+        core = data["project"]["dependencies"]
+        assert all("modal" not in dep for dep in core), (
+            "modal must stay a deploy-time extra (runtime venv stays clean)"
+        )
+
+    def test_app_file_records_sdk_version(self):
+        text = DEPLOY_APP.read_text(encoding="utf-8")
+        assert "1.5.5" in text
+        assert "v0.29.0" in text
+        assert "huggingface-secret" in text
+
+
+class TestSand032Knobs:
+    def test_new_knobs_absent_by_default(self):
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B-AWQ")
+        for flag in (
+            "--kv-cache-dtype",
+            "--default-chat-template-kwargs",
+            "--compilation-config",
+            "--max-num-batched-tokens",
+            "--chat-template",
+            "--hf-overrides",
+        ):
+            assert flag not in cmd
+
+    def test_hf_overrides_passed_when_set(self, monkeypatch):
+        monkeypatch.setenv(
+            "MODAL_VLLM_HF_OVERRIDES",
+            '{"rope_parameters": {"factor": 2.0, "rope_type": "yarn"}}',
+        )
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B-AWQ")
+        assert cmd[cmd.index("--hf-overrides") + 1] == (
+            '{"rope_parameters": {"factor": 2.0, "rope_type": "yarn"}}'
+        )
+
+    def test_kv_cache_dtype_fp8(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_KV_CACHE_DTYPE", "fp8")
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B-AWQ")
+        assert cmd[cmd.index("--kv-cache-dtype") + 1] == "fp8"
+
+    def test_thinking_off_kwargs_passed_verbatim_json(self, monkeypatch):
+        import json as _json
+
+        monkeypatch.setenv(
+            "MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS", '{"enable_thinking": false}'
+        )
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B-AWQ")
+        raw = cmd[cmd.index("--default-chat-template-kwargs") + 1]
+        assert _json.loads(raw) == {"enable_thinking": False}
+
+    def test_invalid_chat_template_kwargs_fail_at_import(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS", "{not json")
+        with pytest.raises(ValueError, match="DEFAULT_CHAT_TEMPLATE_KWARGS"):
+            _load_app_module()
+
+    def test_cudagraph_capture_sizes_render_compilation_config(self, monkeypatch):
+        import json as _json
+
+        monkeypatch.setenv("MODAL_VLLM_ENFORCE_EAGER", "0")
+        monkeypatch.setenv("MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES", "1,2,4,8,16")
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B-AWQ")
+        cfg = _json.loads(cmd[cmd.index("--compilation-config") + 1])
+        assert cfg == {"cudagraph_capture_sizes": [1, 2, 4, 8, 16]}
+        assert "--enforce-eager" not in cmd
+
+    def test_capture_sizes_with_eager_is_rejected(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_ENFORCE_EAGER", "1")
+        monkeypatch.setenv("MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES", "1,2")
+        with pytest.raises(ValueError, match="enforce_eager"):
+            _load_app_module()
+
+    def test_batched_tokens_and_chat_template(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_MAX_NUM_BATCHED_TOKENS", "8192")
+        monkeypatch.setenv("MODAL_VLLM_CHAT_TEMPLATE", "/templates/qwen3_nothink.jinja")
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B-AWQ")
+        assert cmd[cmd.index("--max-num-batched-tokens") + 1] == "8192"
+        assert cmd[cmd.index("--chat-template") + 1] == "/templates/qwen3_nothink.jinja"
+
+    def test_new_knobs_forwarded_to_container(self):
+        mod = _load_app_module()
+        for key in (
+            "MODAL_VLLM_KV_CACHE_DTYPE",
+            "MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS",
+            "MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES",
+            "MODAL_VLLM_MAX_NUM_BATCHED_TOKENS",
+            "MODAL_VLLM_CHAT_TEMPLATE",
+            "MODAL_VLLM_MAX_INPUTS",
+        ):
+            assert key in mod.CONFIG_ENV_KEYS
+
+    def test_serve_not_concurrent_by_default(self):
+        mod = _load_app_module()
+        assert getattr(mod.serve.fn, "concurrent_kwargs", None) is None
+
+    def test_max_inputs_wraps_serve_in_modal_concurrent(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_MAX_INPUTS", "32")
+        mod = _load_app_module()
+        assert mod.serve.fn.concurrent_kwargs["max_inputs"] == 32
+
+
+class TestDedicatedApp:
+    def test_default_app_name_unchanged(self):
+        mod = _load_app_module()
+        assert mod.APP_NAME == "sandbox-vllm"
+        assert mod.app.name == "sandbox-vllm"
+
+    def test_app_name_env_gives_dedicated_app(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_APP_NAME", "sandbox-vllm-sand032")
+        mod = _load_app_module()
+        assert mod.app.name == "sandbox-vllm-sand032"
+
+    def test_vllm_help_probe_is_cpu_only(self):
+        mod = _load_app_module()
+        kwargs = mod.vllm_help.kwargs
+        assert "gpu" not in kwargs
+        assert kwargs["timeout"] <= 600
+
+
+    def test_app_name_must_stay_sandbox_scoped(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_APP_NAME", "mailroom-ml-trainer")
+        with pytest.raises(ValueError, match="sandbox-vllm"):
+            _load_app_module()

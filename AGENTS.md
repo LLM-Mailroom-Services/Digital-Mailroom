@@ -2,11 +2,30 @@
 
 Local-mailroom-sandbox: a **local-first experiment harness** around the governed
 LLM-Mailroom family. It does **not** reimplement the 13-node LangGraph pipeline.
-Pipeline code lives in [`llm-mailroom`](https://github.com/Exios66/llm-mailroom)
-`v0.5.0`; scoring in [`llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring)
-`v0.12.1`; prompt loops optionally in `llm-entity-extraction`.
+The family code the sandbox imports at runtime — the pipeline
+([`llm-mailroom`](https://github.com/Exios66/llm-mailroom):
+`pipeline.*`/`graph.*`/`agents.*`/`llm.*`/`legalbench.*`) and scoring
+([`llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring)) —
+ships as **tracked snapshots under `vendor/`** (DMR-057). Both snapshots
+track the monorepo **workspace packages** (hub#62 doctrine) — the drift
+guard (`tests/test_vendor_drift.py`) enforces byte-identity and
+`python scripts/sync_vendor.py` (monorepo root) is the refresh leg
+(DMR-070). The docclass-era compliance files are intentionally absent from
+the vendored llm-mailroom tree (retired agent, 59c47401). The sandbox is
+**self-contained**: no pip git pins, no `sandbox fetch-deps` step, no network
+needed to score or run evals. Prompt loops optionally in `llm-entity-extraction`.
 
 Python 3.11+, no build step.
+
+**Monorepo-family flow:** this package syncs to
+`Exios66/local-mailroom-sandbox` via `scripts/sync_packages.py` on the org monorepo
+[LLM-Mailroom-Services/Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
+(`status`/`push --all --patch` is the release-train sweep); the
+sandbox itself ships no releases, but sibling surfaces (llm-mailroom,
+llm-dojo-scoring) do — their version bumps flow through the same sync pass,
+the vendor refresh below, and the consuming pins. Full law: root
+`AGENTS.md` §Sub-package sync + `docs/wiki/Sub-Package-Sync.md` +
+`docs/wiki/Releases.md`.
 
 ## Skills (tool selection)
 
@@ -26,10 +45,27 @@ provider, tracing, dataset, or deploy task, then open exactly one specialty skil
 Do not use Phoenix or Braintrust as the The-Mailroom sink. Do not use OpenRouter
 unless explicitly opted in.
 
+## Coding subagents (Cursor + OpenCode)
+
+Family-wide roster under `config/subagents/family-roster.yaml` with canonical
+prompts in `.opencode/agents/`. Harness adapters sync OpenCode frontmatter and
+Cursor stubs (`sandbox subagents sync --harness all`). Materialize into sibling checkouts on **Digital-Mailroom** with
+`sandbox subagents propagate` or `materialize --package <id> --root <path>`
+([`docs/subagents-family-sync.md`](docs/subagents-family-sync.md)).
+Meta agents: **`harness-doctor`** and **`adversarial-reviewer`**. See
+[`config/subagents/README.md`](config/subagents/README.md). Harness health:
+`sandbox subagents doctor` (add `--also-root ~/path/to/eval-environment` for
+sibling checkouts). Durable eve doctor:
+`~/Downloads/agent-harness-doctor` (`npm exec -- eve dev`, Node >= 24).
+
 ## Commands
 
 ```bash
 pip install -e ".[dev]"
+# or: pip install -r requirements.txt   # → requirements/dev.txt (mirrors pyproject)
+# specialist / Modal live path also needs:
+#   pip install -e ".[pipeline,deploy]"
+#   # or: pip install -r requirements/pipeline.txt && pip install -r requirements/deploy.txt
 cp config/.env.example .env
 sandbox profiles
 sandbox agents list
@@ -37,7 +73,7 @@ sandbox cutover --profile ollama --agent-model judge=qwen3:14b
 sandbox up                          # langfuse + ollama compose profiles
 sandbox pull-models                 # ollama pull qwen3:8b
 sandbox health
-sandbox fetch-deps                  # vendor/llm-mailroom @ v0.5.0
+sandbox fetch-deps                  # optional: refresh tracked vendor snapshots (workspace mirror in the monorepo; tag fallback standalone)
 sandbox fetch-deps --visualizer     # also clone The-Mailroom
 sandbox pilot --mock                # no LLM
 sandbox eval sorter --mock
@@ -46,28 +82,82 @@ sandbox eval pipeline --mock        # connected graph scores
 sandbox eval local_vs_api --mock    # Ollama vs OpenRouter serving (no API key)
 sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0 --mock --dry-run
 pytest -v                           # network-free; live LLM tests need SANDBOX_LOCAL_LLM=1
+sandbox datasets pull               # LIVE pinned FULL Hub pull (train+test, 3302 rows) → data/cache/
+sandbox datasets sample --per-class 40  # offline 40/class draw from that cache (20/40/100…)
 sandbox datasets prepare            # offline JSONL under data/runtime/prepared/
 sandbox up --compose-profile jupyter  # Lab on :8888 (deploy/Dockerfile)
+sandbox tunnel plan|up|status|down    # SSH forward for vllm-remote (HUB-026)
+modal run deploy/modal_vllm.py::download_model  # Modal: pre-warm HF cache ([deploy])
+modal deploy deploy/modal_job.py  # Modal job worker (remote runs)
+sandbox watch [--web] [--config config/runs/<name>.yaml|--follow <current-file>]  # terminal TUI or localhost browser UI (SSE); docs/pretty-logging/mailroom-themed-logging.md
+sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml [--job-mode endpoint|modal] [--watch]
+sandbox runbook list|show <id>|check|write   # operator runbooks (catalog → docs/runbooks/)
+sandbox prompts list|show <agent>     # all pipeline agent prompts (local + Langfuse)
+sandbox subagents list|show <id>      # coding subagent roster (GEPA, traces, meta)
+sandbox subagents sync --harness all  # OpenCode frontmatter + .cursor/agents/ stubs
+sandbox subagents propagate              # materialize + sync all mapped family checkouts
+sandbox subagents materialize --package digital-mailroom --root <path>  # monorepo hub export
+sandbox metrics compare --runs local,modal,api   # serving metrics comparison
+sandbox watch --web                   # mailroom pretty-logs TUI in the browser (http://127.0.0.1:8765/, SSE); full command matrix in docs/pretty-logging/mailroom-themed-logging.md
+sandbox dev                           # dev server: same themed UI on a synthetic looping run (no Modal/spend)
+scripts/mailroom-tui dev|web|score <run>   # launcher; .claude/launch.json → mailroom-watch-dev / -live
+sandbox board [--tui] [--demo]        # persistent job board: every mailroom.beacon/v1 job (~/.mailroom/jobs), browser :8767 or terminal
+sandbox beacon update --job ID --package P --done N --total M   # shell jobs publish to the board
+# long Python jobs: `with Beacon(job_id, package=...) as b: b.update(done=i, total=n)` (mailroom_sandbox/tui/beacon.py — vendorable single file)
+# keep the board up across reboots: deploy/launchd/com.mailroom.board.plist (install steps in the file)
+# SANDBOX_DEBUG=1 → set -x + results/run.log diagnostics (CHTC/Modal, DMR-053)
 ```
 
-- Config: `config/profiles/*.yaml` + `config/taxonomy.overlay.yaml` + `config/components.yaml` + `config/models.yaml`.
+- Config: `config/profiles/*.yaml` + `config/taxonomy.overlay.yaml` + `config/components.yaml` + `config/models.yaml` + `config/runbooks/catalog.yaml`.
+- Remote serving (Modal / SSH-tunneled vLLM / CHTC / conda): `docs/setting-up/remote-serving.md` + `deploy/htcondor/` + `deploy/conda/`. Modal deploy workflow (SDK pinned `modal==1.5.5`; pre-warm → deploy → verify → teardown, cost guards, troubleshooting) lives in `deploy/README.md`. CLI rule: pass `--profile` AFTER the subcommand (or via `SANDBOX_PROFILE`) — a `--profile` before the subcommand is clobbered by the subparser default.
 - Runtime taxonomy is written to `data/runtime/taxonomy.yaml` (gitignored).
 - Prepared fixtures: `data/runtime/prepared/` via notebooks or `sandbox datasets prepare`.
 - Experiment log: `reports/experiment_log.jsonl` (sandbox-local, not a sister-repo mirror).
 - Tracing default: Langfuse 3 / SDK v4 (`OBSERVABILITY_PROVIDER=langfuse`). Phoenix is an optional sidecar. OpenRouter is opt-in.
-- Docker: `deploy/Dockerfile` + Compose profiles including `jupyter` — see `docs/docker-offline.md`.
+- Docker: `deploy/Dockerfile` + Compose profiles including `jupyter` — see `docs/setting-up/docker-offline.md`.
+- Serving/run cost: [`docs/RUN-COST-DERIVATION.md`](docs/RUN-COST-DERIVATION.md) — per-doc cost
+  derivation (OpenRouter token-billing is exact; Modal is container-time), the wave/escalation cap
+  rules, and the repo layout index at `docs/setting-up/LAYOUT.md`.
 - Agent skills: `.cursor/skills/` (router + Langfuse / Braintrust / Phoenix / Ollama / Modal / Hugging Face).
+
+## Reduced agent profile (HUB-015)
+
+- The **reporter agent is retired** in this sandbox: `components.yaml` lists it
+  under `retired_agents`, and the compile stage is the **computational
+  procedural reporter** — the graph's `compile_report` node backed by
+  llm-mailroom v0.7.1's `compile_matter_record` (deterministic, **no LLM
+  call**; the sandbox eval never acquires an LLM client for it).
+- **Reviewers stay enabled** (`sorter_reviewer` + its `sorter_reviewer_local_v0`
+  prompt) — the reduced profile removes the reporter, not the reviewers.
+- HF fixture targets (`data/fixtures/hf/docclass_mini.jsonl`) carry the full
+  mailroom-dataset ground-truth schema: per-doc-type `expected_subclass`
+  (corpus strata vocabulary) + `expected_fields` (27-key GT schema subset:
+  intent + provenance, sentiment, claims/entity fields) propagated into every
+  eval row.
+- **1:1 live-class specialists:** `contract` → `contracts_specialist`,
+  `merger_agreement` → `merger_agreement_specialist`, `corporate_record` →
+  `corporate_records_specialist`, `correspondence` →
+  `correspondence_specialist`, `insurance_claim` →
+  `insurance_claims_specialist`. Merger no longer rides the CUAD contracts
+  agent.
 
 ## Architecture gotchas
 
 - Activate **before** importing mailroom graph/agents: `mailroom_sandbox.runtime.activate(profile)`.
+- The vendored family trees are put on `sys.path` at package import (`mailroom_sandbox/__init__.py`) — a fresh checkout works offline, no `fetch-deps`. `MAILROOM_SRC` / `DOJO_SRC` env vars still override for refresh workflows.
 - Mailroom's `pipeline.config.CONFIG_PATH` is hardcoded; the sandbox monkeypatches it.
 - `DEFAULT_PROVIDER` alone is not enough — OpenRouter model ids must be rewritten via the overlay.
 - `--model` overrides every agent; `--agent-model NAME=tag` is surgical and wins last.
-- Scoring is pinned to `llm-dojo-scoring @ v0.12.1`. The `llm-mailroom` **v0.5.0 tag** still depends on dojo v0.7.0, so mailroom is not a core pip dependency (pip cannot satisfy both). `sandbox fetch-deps` clones the v0.5.0 source tree; `pip install -e ".[pipeline]"` installs current mailroom *main*. Importable `get_suite("local_vs_api")` compares offline vs API-key serving metrics (table + scorecard + cost; TTFT never inferred; GPU/KV stripped on API records).
-- Isolated evals call vendored agent classes when present; otherwise they mock and set `offline_fallback`.
-- `scripts/` and `legalbench/` are not in the installed `mailroom` wheel. `sandbox fetch-deps` supplies `PYTHONPATH` for `sandbox pipeline watcher` / `sandbox pipeline api`.
-- No second kanban board in this repo. Cross-family work stays on llm-entity-extraction's MESSAGE_BOARD.
+- Scoring + pipeline are pinned by the tracked snapshots: `vendor/llm-mailroom/VENDOR.md` + `vendor/llm-dojo-scoring/VENDOR.md` — both track the monorepo workspace packages (hub#62 doctrine); refresh with `python scripts/sync_vendor.py` (monorepo root) or `sandbox fetch-deps` and commit the diff. `get_suite("local_vs_api")` compares offline vs API-key serving metrics (table + scorecard + cost; TTFT never inferred; GPU/KV stripped on API records).
+- Isolated evals call vendored agent classes (always importable now); the `offline_fallback` path still exists for missing deps.
+- `scripts/` and `legalbench/` are not in the installed `mailroom` wheel — they ARE in the vendored tree, which also supplies `PYTHONPATH` for `sandbox pipeline watcher` / `sandbox pipeline api` (`_mailroom_env` adds both vendored srcs).
+- Sandbox-isolated work uses the local **`SAND-*`** board in
+  [`governance/TASKS.md`](governance/TASKS.md) (prefix cheat-sheet:
+  [`governance/PREFIX.md`](governance/PREFIX.md)). Do **not** open `DMR-*`
+  cards here. Cross-family / mailroom-pipeline work stays on
+  llm-entity-extraction's MESSAGE_BOARD as **`DMR-*`** — cite `Related:
+  DMR-NNN` on a SAND card when a sandbox change is driven by family work.
+  Do not invent a second family MESSAGE_BOARD in this repo.
 
 ## Tests
 

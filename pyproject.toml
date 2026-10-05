@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mailroom-sandbox"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local-first experiment sandbox for the LLM-Mailroom pipeline (Ollama, vLLM, llama.cpp)."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -15,16 +15,62 @@ dependencies = [
     "structlog>=24.0",
     "pydantic>=2.0",
     "openai>=1.30",
-    # Current family scoring pin. The v0.5.0 mailroom *tag* still asks for
-    # dojo v0.7.0, so mailroom is not a core pip dep — use `sandbox fetch-deps`
-    # (source tree @ v0.5.0) or the `[pipeline]` extra (mailroom main).
-    "llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.12.1",
+    # Vendored runtime surface (DMR-057/058): the TRACKED llm-dojo-scoring
+    # snapshot imports numpy/pandas/matplotlib/openpyxl eagerly (error_analysis,
+    # visualize, export) and the sandbox CLI imports llm_dojo_scoring at
+    # startup — a clean `pip install .` must land them or `sandbox` dies on
+    # ModuleNotFoundError. Keep in BASE deps, not [dev].
+    "numpy>=1.26",
+    "pandas>=2.0",
+    "matplotlib>=3.8",
+    "openpyxl>=3.1",
+    # SAND-019: the vendored dojo scorer soft-imports scipy's
+    # ``linear_sum_assignment`` for OPTIMAL entity-list matching and silently
+    # degrades to a greedy fallback when it is absent (``bipartite_matching_
+    # failed``). Like numpy above it is a scoring-runtime dep, not an extra, so
+    # a clean install scores entity lists optimally instead of greedily.
+    "scipy>=1.11",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
     "pytest-mock>=3.12",
+    # reports/dashboard/pages_site.py renders the mailroom-issues Pages site (SAND-036).
+    "markdown-it-py>=3.0",
+    # `sandbox datasets pull` / `hf-pilot` / corpus work (DMR-058): the
+    # offline-first BASE install skips these, so a clean venv gets a pointed
+    # hint instead of a bare ModuleNotFoundError; [dev] installs them.
+    "huggingface_hub>=0.24",
+    "pyarrow>=15.0",
+    # The default suite imports the vendored graph/agents/legalbench surface
+    # (tests/test_vendor.py, test_legalbench.py, test_llm_timeout.py), which
+    # needs langchain/langgraph/sqlalchemy. [dev] therefore pulls [pipeline]
+    # so `pip install -e ".[dev]" && pytest` is green on a fresh venv.
+    "mailroom-sandbox[pipeline]",
+]
+pipeline = [
+    # Eager third-party surface of the vendored llm-mailroom tree's langchain
+    # paths (legalbench suite, live mailroom agent calls) — DMR-058. The
+    # OFFLINE-first base install deliberately omits these; suite/live runs
+    # hint at this extra instead of crashing with a bare import error.
+    "langchain-core>=0.3",
+    "langchain-openai>=0.2",
+    "langgraph>=0.2",
+    "requests>=2.31",
+    "watchdog>=4.0",
+    # DMR-067/078: vendored graph live storage (storage.catalog / audit_log)
+    # uses ``sqlite+aiosqlite://`` by default — sqlalchemy alone is not enough.
+    # greenlet is required for SQLAlchemy asyncio on the platforms we run.
+    "sqlalchemy>=2.0",
+    "aiosqlite>=0.20",
+    "greenlet>=3.0",
+    # PDF / page-image path used by specialist extract + intake (pypdf /
+    # pdfplumber / pillow). Soft-imported in agents, but Modal + Docker
+    # specialist runs must have them present.
+    "pypdf>=4.0",
+    "pdfplumber>=0.11",
+    "pillow>=10.0",
 ]
 notebooks = [
     "jupyterlab>=4.2",
@@ -34,22 +80,29 @@ notebooks = [
 ]
 observability = [
     "langfuse>=4.0,<5",
+    # Braintrust = opt-in hosted sink for eval spans. Verified against 0.42.0:
+    # no start_root_span / Logger.score / Span.score in that line — see
+    # src/mailroom_sandbox/eval/tracing.py for the adapter.
+    "braintrust>=0.42,<0.43",
+    "opentelemetry-sdk>=1.25",
+    "opentelemetry-exporter-otlp-proto-http>=1.25",
+]
+hf = [
+    "huggingface_hub>=0.24",
+    "pyarrow>=15.0",
 ]
 deploy = [
-    "modal>=0.73",
+    # Pinned SDK for deploy/modal_vllm.py (verified 2026-09-09; the app file
+    # records the same version). Bump deliberately after reading the release
+    # notes — 1.5.5 removed `Secret.from_local`.
+    "modal==1.5.5",
 ]
-# Current llm-mailroom main. Conflicts with the v0.5.0 tag (dojo v0.7.0).
-pipeline = [
-    "mailroom @ git+https://github.com/Exios66/llm-mailroom.git",
-]
-evals = [
-    "llm-entity-extraction @ git+https://github.com/Exios66/llm-entity-extraction.git@v0.20.0",
-]
-gpu = [
-    "mailroom-sandbox[deploy]",
-]
+# DMR-057: the family eval stack (llm-mailroom@v0.7.1 + llm-dojo-scoring@v0.15.0)
+# is vendored under vendor/ and wired onto sys.path at import — the old
+# `[pipeline]`/`[evals]` git-pin extras are gone; refresh the snapshots with
+# `sandbox fetch-deps` instead.
 all = [
-    "mailroom-sandbox[dev,deploy,evals,observability,notebooks]",
+    "mailroom-sandbox[dev,deploy,hf,observability,notebooks,pipeline]",
 ]
 
 [project.scripts]
@@ -69,3 +122,7 @@ pythonpath = ["src"]
 markers = [
     "local_llm: live test against a local OpenAI-compatible server (skipped unless SANDBOX_LOCAL_LLM=1)",
 ]
+
+# DMR-057: no workspace redirects needed — the family code is vendored and
+# tracked in this package (vendor/llm-mailroom + vendor/llm-dojo-scoring).
+# A plain `pip install .` (or `pip install -e ".[dev]"`) is fully self-contained.

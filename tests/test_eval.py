@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -88,7 +90,11 @@ def test_legalbench_eval_mock(tmp_path, monkeypatch):
     monkeypatch.setattr(experiment_log, "jsonl_path", lambda: log)
     monkeypatch.setattr(experiment_log, "md_path", lambda: tmp_path / "experiment_log.md")
     result = runners.run_legalbench_eval(mock=True)
-    assert result["scores"]["exact_match"] == 1.0
+    # The mock is deterministic md5 parity, never a self-fulfilling 1.0 —
+    # a perfect mock would mask scoring defects (DMR-049 F8).
+    assert 0.0 <= result["scores"]["exact_match"] < 1.0
+    assert result["seed"] == 42
+    assert result["legalbench_task"] == "contract_qa"
 
 
 def test_matrix_dry_run():
@@ -153,14 +159,143 @@ def test_classification_scoring_smoke():
     assert scores["f1_macro"] == 1.0
 
 
-def test_dojo_pin_is_v0_12():
+def test_score_manifest_groups_only_associated_sweeps(tmp_path, monkeypatch):
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    assert scoring.scores_path("sand032-s3-corr50") == (
+        tmp_path / "reports" / "scores" / "SAND-32" / "scores.jsonl"
+    )
+    assert scoring.scores_path("grid-50-contracts-specialist-awq-2l4") == (
+        tmp_path / "reports" / "scores" / "SAND-37" / "scores.jsonl"
+    )
+    assert scoring.scores_path("run-20-contracts-specialist") == (
+        tmp_path / "reports" / "scores" / "scores.jsonl"
+    )
+
+
+def test_score_emit_uses_sweep_manifest_path(tmp_path, monkeypatch):
+    """Score emit writes under the sweep directory named in run metadata."""
+    from types import SimpleNamespace
+
+    emitted = {}
+
+    class RecordingSink:
+        def __init__(self, path):
+            """Capture the sink path for assertions."""
+            emitted["path"] = Path(path)
+
+        def emit(self, record):
+            """Capture the emitted score record."""
+            emitted["record"] = record
+
+    record = SimpleNamespace(
+        run_id="sand40-100-contracts-specialist-awq-2l4",
+        metadata={"runbook": "sand40"},
+    )
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    monkeypatch.setattr(scoring, "LocalManifestSink", RecordingSink)
+
+    scoring.emit(record)
+
+    assert emitted["path"] == tmp_path / "reports" / "scores" / "SAND-40" / "scores.jsonl"
+    assert emitted["record"] is record
+
+
+def test_score_emit_resolves_runbook_group_without_group_token(tmp_path, monkeypatch):
+    """A runbook_id in metadata selects the catalog group without a SAND token."""
+    from types import SimpleNamespace
+
+    emitted = {}
+
+    class RecordingSink:
+        def __init__(self, path):
+            """Capture the sink path for assertions."""
+            emitted["path"] = Path(path)
+
+        def emit(self, record):
+            """Capture the emitted score record."""
+            emitted["record"] = record
+
+    record = SimpleNamespace(run_id="job-204", metadata={"runbook_id": "grid-1l4"})
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    monkeypatch.setattr(scoring, "LocalManifestSink", RecordingSink)
+
+    scoring.emit(record)
+
+    assert emitted["path"] == tmp_path / "reports" / "scores" / "SAND-37" / "scores.jsonl"
+    assert emitted["record"] is record
+
+
+def test_local_vs_api_scorecard_uses_run_group(tmp_path, monkeypatch):
+    """Local-vs-API scorecards follow the SAND token in the experiment name."""
+    captured = {}
+
+    class RecordingSink:
+        def __init__(self, path):
+            """Capture the scorecard sink path."""
+            captured["path"] = Path(path)
+
+    class RecordingEmitter:
+        def __init__(self, *, sinks):
+            """Capture the first emitter sink."""
+            captured["sink"] = sinks[0]
+
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    monkeypatch.setattr(scoring, "LocalManifestSink", RecordingSink)
+    monkeypatch.setattr(scoring, "Emitter", RecordingEmitter)
+    monkeypatch.setattr(scoring, "emit_serving_scorecard", lambda *args, **kwargs: {})
+
+    scoring.emit_local_vs_api_scorecard({}, run_id="sand32-s3-corr50")
+
+    assert captured["path"] == tmp_path / "reports" / "scores" / "SAND-32" / "scores.jsonl"
+
+
+def test_local_vs_api_scorecard_uses_locked_metadata_when_run_id_has_no_group(tmp_path, monkeypatch):
+    """Locked report_group metadata wins when the run id has no SAND token."""
+    captured = {}
+
+    class RecordingSink:
+        def __init__(self, path):
+            """Capture the scorecard sink path."""
+            captured["path"] = Path(path)
+
+    class RecordingEmitter:
+        def __init__(self, *, sinks):
+            """Capture the first emitter sink."""
+            captured["sink"] = sinks[0]
+
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    monkeypatch.setattr(scoring, "LocalManifestSink", RecordingSink)
+    monkeypatch.setattr(scoring, "Emitter", RecordingEmitter)
+    monkeypatch.setattr(scoring, "emit_serving_scorecard", lambda *args, **kwargs: {})
+
+    scoring.emit_local_vs_api_scorecard(
+        {},
+        run_id="sandbox_local_vs_api_job-204",
+        metadata={"report_group": "SAND-123"},
+    )
+
+    assert captured["path"] == tmp_path / "reports" / "scores" / "SAND-123" / "scores.jsonl"
+
+
+def test_dojo_pin_is_v0_15():
+    """The sandbox pins llm-dojo-scoring at the v0.15 line."""
+    import re
+
     import llm_dojo_scoring as dojo
     from llm_dojo_scoring import get_suite, headline_metrics
-    from mailroom_sandbox.paths import repo_root
+    from mailroom_sandbox.paths import repo_root, vendored_dojo_src
 
-    pin = (repo_root() / "pyproject.toml").read_text(encoding="utf-8")
-    assert "llm-dojo-scoring.git@v0.12.1" in pin
-    assert dojo.__version__ == "0.12.1"
+    # DMR-057: the scoring engine is the TRACKED vendored snapshot — resolved
+    # from the vendored tree's VENDOR.md, not a pyproject git pin.
+    vendor = vendored_dojo_src()
+    assert vendor is not None, "vendored llm-dojo-scoring snapshot missing"
+    vendor_md = (vendor.parent / "VENDOR.md").read_text(encoding="utf-8")
+    assert "v0.15.0" in vendor_md
+    assert str(vendor.resolve()) in sys.path, "vendored dojo must be on sys.path"
+    assert str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
+    version = re.match(r"(\d+)\.(\d+)", dojo.__version__)
+    assert version is not None
+    assert tuple(map(int, version.groups())) >= (0, 12)
     assert headline_metrics("sorter") == ["accuracy", "f1_macro"]
     assert "ttft_seconds" in headline_metrics("local_vs_api")
     assert "tokens_per_second" in headline_metrics("local_vs_api")
@@ -223,6 +358,19 @@ def test_serving_ttft_not_inferred_from_e2e():
     assert any("ttft" in g for g in run["honest_gaps"])
 
 
+def test_isolated_eval_record_uses_bound_prompt_not_mailroom_default(tmp_path, monkeypatch):
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path / "data"))
+    row = {
+        "id": "d0",
+        "filename": "d0.txt",
+        "doc_text": "t",
+        "expected": "contract",
+        "expected_doc_class": "contract",
+    }
+    result = runners.run_isolated_eval("sorter", mock=True, rows=[row], dry_run=False)
+    assert result["record"]["prompt_version"] != "mailroom-default"
+
+
 def test_compare_from_log_pairs_local_and_api(tmp_path, monkeypatch):
     monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
     log = tmp_path / "experiment_log.jsonl"
@@ -278,6 +426,29 @@ def test_cli_local_vs_api_dry_run(capsys):
     assert "ttft_seconds" in payload["headlines"]
 
 
+def test_sorter_vs_modernbert_fixtures(tmp_path, monkeypatch):
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    log = tmp_path / "experiment_log.jsonl"
+    monkeypatch.setenv("EXPERIMENT_LOG_PATH", str(log))
+    monkeypatch.setattr(experiment_log, "jsonl_path", lambda: log)
+    monkeypatch.setattr(experiment_log, "md_path", lambda: tmp_path / "experiment_log.md")
+    plan = runners.run_sorter_vs_modernbert_eval(mock=True, dry_run=True)
+    assert plan["task"] == "sorter_vs_modernbert"
+    result = runners.run_sorter_vs_modernbert_eval(
+        mock=True, experiment_name="test_sorter_vs_modernbert"
+    )
+    assert result["scores"]["accuracy_modernbert"] == pytest.approx(0.96)
+    assert result["comparison"]["agent"] == "sorter_vs_modernbert"
+    assert "Sorter vs ModernBERT" in (result["comparison"].get("markdown") or "")
+
+
+def test_cli_sorter_vs_modernbert_dry_run(capsys):
+    rc = main(["eval", "sorter_vs_modernbert", "--mock", "--dry-run"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["task"] == "sorter_vs_modernbert"
+
+
 @pytest.mark.local_llm
 def test_live_ollama_health():
     if os.environ.get("SANDBOX_LOCAL_LLM", "").strip() not in {"1", "true", "yes"}:
@@ -286,3 +457,28 @@ def test_live_ollama_health():
 
     result = health_check("ollama")
     assert result["ok"] is True
+
+
+def test_score_extraction_row_reads_nested_suite_overall(monkeypatch):
+    """SAND-019: mailroom suites return a flat dict with the real aggregate
+    nested at ``result["extraction"].overall_score``. Reading only top-level
+    keys left every specialist row null (extraction_f1 computed, headline
+    score not) even after ground truth was wired in.
+    """
+
+    class _Nested:
+        overall_score = 0.42
+
+    class _StubSuite:
+        field_types: dict = {}
+
+        def score(self, expected, predicted, doc_text=None):
+            return {"extraction": _Nested(), "extraction_f1": 0.4}
+
+    monkeypatch.setattr(scoring, "suite_for_doc_type", lambda doc_type: _StubSuite())
+    out = scoring.score_extraction_row("correspondence", {"a": 1}, {"a": 1})
+    assert out["overall_extraction_score"] == 0.42
+    assert out["extraction_f1"] == 0.4
+    assert out["scoring_method"] == "suite"
+    assert out["parse_error"] is False
+    assert "schema_valid" in out

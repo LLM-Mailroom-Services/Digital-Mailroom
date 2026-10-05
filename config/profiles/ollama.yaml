@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=./profile.schema.json
 name: ollama
 description: Local Ollama OpenAI-compatible server (sandbox default).
 provider: ollama

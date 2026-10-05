@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Keeps the mailroom job board (sandbox board) running across logins/reboots.
+     Install (user-level, reversible):
+       sed "s#__REPO__#$PWD#g; s#__HOME__#$HOME#g" deploy/launchd/com.mailroom.board.plist > ~/Library/LaunchAgents/com.mailroom.board.plist
+       launchctl load ~/Library/LaunchAgents/com.mailroom.board.plist
+     Remove: launchctl unload ~/Library/LaunchAgents/com.mailroom.board.plist && rm that file.
+     Board: http://127.0.0.1:8767/  ·  beacons: ~/.mailroom/jobs  ·  logs: ~/.mailroom/board.log -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.mailroom.board</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__REPO__/scripts/mailroom-tui</string>
+    <string>board</string>
+    <string>--no-browser</string>
+    <string>--port</string><string>8767</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>__HOME__/.mailroom/board.log</string>
+  <key>StandardErrorPath</key><string>__HOME__/.mailroom/board.log</string>
+</dict>
+</plist>

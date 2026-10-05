@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 720 602" width="720" height="602" role="img" aria-label="Per-document latency · sand032-l5-graphs">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --good:#0ca30c; --critical:#d03b3b; }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+<rect class="bg" width="720" height="602" rx="8"/>
+<text class="title" x="16" y="24">Per-document latency · sand032-l5-graphs</text>
+<text class="sub" x="16" y="42">20 docs, slowest first · c8 on 1×L4 · wall 18.0s</text>
+<line class="grid" x1="190.0" y1="84" x2="190.0" y2="568"/>
+<text class="tick" x="190.0" y="584" text-anchor="middle">0s</text>
+<line class="grid" x1="305.0" y1="84" x2="305.0" y2="568"/>
+<text class="tick" x="305.0" y="584" text-anchor="middle">25s</text>
+<line class="grid" x1="420.0" y1="84" x2="420.0" y2="568"/>
+<text class="tick" x="420.0" y="584" text-anchor="middle">50s</text>
+<line class="grid" x1="535.0" y1="84" x2="535.0" y2="568"/>
+<text class="tick" x="535.0" y="584" text-anchor="middle">75s</text>
+<line class="grid" x1="650.0" y1="84" x2="650.0" y2="568"/>
+<text class="tick" x="650.0" y="584" text-anchor="middle">100s</text>
+<line class="axis" x1="190" y1="84" x2="190" y2="568"/>
+<line class="ref" x1="420.0" y1="62" x2="420.0" y2="568"/>
+<line class="ref" x1="627.0" y1="62" x2="627.0" y2="568"/>
+<text class="reflbl" x="424.0" y="70">p50 6.4s</text>
+<text class="reflbl" x="631.0" y="70">p95 10.2s</text>
+<text class="lbl" x="182" y="104.0" text-anchor="end">dda97989 · memo</text>
+<path class="s1" d="M190.0,93.0 H240.3 Q244.3,93.0 244.3,97.0 V103.0 Q244.3,107.0 240.3,107.0 H190.0 Z"><title>dda97989 · memo: 11.8s — 2075 prompt / 257 completion tok</title></path>
+<text class="val" x="250.3" y="104.0">11.8s</text>
+<text class="lbl" x="182" y="128.0" text-anchor="end">bf0e601a · email</text>
+<path class="s1" d="M190.0,117.0 H232.9 Q236.9,117.0 236.9,121.0 V127.0 Q236.9,131.0 232.9,131.0 H190.0 Z"><title>bf0e601a · email: 10.2s — 2025 prompt / 198 completion tok</title></path>
+<text class="val" x="242.9" y="128.0">10.2s</text>
+<text class="lbl" x="182" y="152.0" text-anchor="end">72273528 · email</text>
+<path class="s1" d="M190.0,141.0 H229.7 Q233.7,141.0 233.7,145.0 V151.0 Q233.7,155.0 229.7,155.0 H190.0 Z"><title>72273528 · email: 9.5s — 2028 prompt / 187 completion tok</title></path>
+<text class="val" x="239.7" y="152.0">9.5s</text>
+<text class="lbl" x="182" y="176.0" text-anchor="end">0b363d3e · letter</text>
+<path class="s1" d="M190.0,165.0 H225.1 Q229.1,165.0 229.1,169.0 V175.0 Q229.1,179.0 225.1,179.0 H190.0 Z"><title>0b363d3e · letter: 8.5s — 1996 prompt / 152 completion tok</title></path>
+<text class="val" x="235.1" y="176.0">8.5s</text>
+<text class="lbl" x="182" y="200.0" text-anchor="end">b727a0d4 · email</text>
+<path class="s1" d="M190.0,189.0 H222.3 Q226.3,189.0 226.3,193.0 V199.0 Q226.3,203.0 222.3,203.0 H190.0 Z"><title>b727a0d4 · email: 7.9s — 1779 prompt / 134 completion tok</title></path>
+<text class="val" x="232.3" y="200.0">7.9s</text>
+<text class="lbl" x="182" y="224.0" text-anchor="end">0c70b02b · memo</text>
+<path class="s1" d="M190.0,213.0 H220.0 Q224.0,213.0 224.0,217.0 V223.0 Q224.0,227.0 220.0,227.0 H190.0 Z"><title>0c70b02b · memo: 7.4s — 2206 prompt / 225 completion tok</title></path>
+<text class="val" x="230.0" y="224.0">7.4s</text>
+<text class="lbl" x="182" y="248.0" text-anchor="end">a9c1351e · press_release</text>
+<path class="s1" d="M190.0,237.0 H217.7 Q221.7,237.0 221.7,241.0 V247.0 Q221.7,251.0 217.7,251.0 H190.0 Z"><title>a9c1351e · press_release: 6.9s — 1707 prompt / 106 completion tok</title></path>
+<text class="val" x="227.7" y="248.0">6.9s</text>
+<text class="lbl" x="182" y="272.0" text-anchor="end">c826ad07 · email</text>
+<path class="s1" d="M190.0,261.0 H217.7 Q221.7,261.0 221.7,265.0 V271.0 Q221.7,275.0 217.7,275.0 H190.0 Z"><title>c826ad07 · email: 6.9s — 1685 prompt / 115 completion tok</title></path>
+<text class="val" x="227.7" y="272.0">6.9s</text>
+<text class="lbl" x="182" y="296.0" text-anchor="end">ed293da4 · memo</text>
+<path class="s1" d="M190.0,285.0 H217.7 Q221.7,285.0 221.7,289.0 V295.0 Q221.7,299.0 217.7,299.0 H190.0 Z"><title>ed293da4 · memo: 6.9s — 1698 prompt / 103 completion tok</title></path>
+<text class="val" x="227.7" y="296.0">6.9s</text>
+<text class="lbl" x="182" y="320.0" text-anchor="end">ef21747b · email</text>
+<path class="s1" d="M190.0,309.0 H215.4 Q219.4,309.0 219.4,313.0 V319.0 Q219.4,323.0 215.4,323.0 H190.0 Z"><title>ef21747b · email: 6.4s — 1954 prompt / 159 completion tok</title></path>
+<text class="val" x="225.4" y="320.0">6.4s</text>
+<text class="lbl" x="182" y="344.0" text-anchor="end">ccb52f44 · email</text>
+<path class="s1" d="M190.0,333.0 H215.4 Q219.4,333.0 219.4,337.0 V343.0 Q219.4,347.0 215.4,347.0 H190.0 Z"><title>ccb52f44 · email: 6.4s — 1739 prompt / 157 completion tok</title></path>
+<text class="val" x="225.4" y="344.0">6.4s</text>
+<text class="lbl" x="182" y="368.0" text-anchor="end">b1514bec · notice</text>
+<path class="s1" d="M190.0,357.0 H213.1 Q217.1,357.0 217.1,361.0 V367.0 Q217.1,371.0 213.1,371.0 H190.0 Z"><title>b1514bec · notice: 5.9s — 1913 prompt / 179 completion tok</title></path>
+<text class="val" x="223.1" y="368.0">5.9s</text>
+<text class="lbl" x="182" y="392.0" text-anchor="end">8f2c06e0 · email</text>
+<path class="s1" d="M190.0,381.0 H211.3 Q215.3,381.0 215.3,385.0 V391.0 Q215.3,395.0 211.3,395.0 H190.0 Z"><title>8f2c06e0 · email: 5.5s — 1936 prompt / 139 completion tok</title></path>
+<text class="val" x="221.3" y="392.0">5.5s</text>
+<text class="lbl" x="182" y="416.0" text-anchor="end">6ecfecc3 · email</text>
+<path class="s1" d="M190.0,405.0 H210.8 Q214.8,405.0 214.8,409.0 V415.0 Q214.8,419.0 210.8,419.0 H190.0 Z"><title>6ecfecc3 · email: 5.4s — 1729 prompt / 144 completion tok</title></path>
+<text class="val" x="220.8" y="416.0">5.4s</text>
+<text class="lbl" x="182" y="440.0" text-anchor="end">e32f0d3b · notice</text>
+<path class="s1" d="M190.0,429.0 H209.0 Q213.0,429.0 213.0,433.0 V439.0 Q213.0,443.0 209.0,443.0 H190.0 Z"><title>e32f0d3b · notice: 5.0s — 1976 prompt / 155 completion tok</title></path>
+<text class="val" x="219.0" y="440.0">5.0s</text>
+<text class="lbl" x="182" y="464.0" text-anchor="end">205d564b · email</text>
+<path class="s1" d="M190.0,453.0 H207.2 Q211.2,453.0 211.2,457.0 V463.0 Q211.2,467.0 207.2,467.0 H190.0 Z"><title>205d564b · email: 4.6s — 1894 prompt / 168 completion tok</title></path>
+<text class="val" x="217.2" y="464.0">4.6s</text>
+<text class="lbl" x="182" y="488.0" text-anchor="end">b08f097e · memo</text>
+<path class="s1" d="M190.0,477.0 H205.3 Q209.3,477.0 209.3,481.0 V487.0 Q209.3,491.0 205.3,491.0 H190.0 Z"><title>b08f097e · memo: 4.2s — 1724 prompt / 132 completion tok</title></path>
+<text class="val" x="215.3" y="488.0">4.2s</text>
+<text class="lbl" x="182" y="512.0" text-anchor="end">6d7e6348 · memo</text>
+<path class="s1" d="M190.0,501.0 H205.3 Q209.3,501.0 209.3,505.0 V511.0 Q209.3,515.0 205.3,515.0 H190.0 Z"><title>6d7e6348 · memo: 4.2s — 1806 prompt / 129 completion tok</title></path>
+<text class="val" x="215.3" y="512.0">4.2s</text>
+<text class="lbl" x="182" y="536.0" text-anchor="end">ed14e557 · email</text>
+<path class="s1" d="M190.0,525.0 H203.9 Q207.9,525.0 207.9,529.0 V535.0 Q207.9,539.0 203.9,539.0 H190.0 Z"><title>ed14e557 · email: 3.9s — 1674 prompt / 107 completion tok</title></path>
+<text class="val" x="213.9" y="536.0">3.9s</text>
+<text class="lbl" x="182" y="560.0" text-anchor="end">3cb1d34e · email</text>
+<path class="s1" d="M190.0,549.0 H198.4 Q202.4,549.0 202.4,553.0 V559.0 Q202.4,563.0 198.4,563.0 H190.0 Z"><title>3cb1d34e · email: 2.7s — 1668 prompt / 84 completion tok</title></path>
+<text class="val" x="208.4" y="560.0">2.7s</text>
+</svg>

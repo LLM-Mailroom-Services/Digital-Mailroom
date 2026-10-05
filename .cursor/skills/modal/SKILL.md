@@ -8,6 +8,10 @@ description: Deploy and cut over to Modal-hosted vLLM for local-mailroom-sandbox
 **When:** No suitable local GPU, user asks for Modal, or profile `modal-vllm`.  
 **Prefer Ollama** for everyday local/CPU smoke ([ollama](../ollama/SKILL.md)). Local NVIDIA compose uses profile `vllm-local` + compose `vllm` (not Modal).
 
+Pinned: Modal SDK **1.5.5** (`[deploy]` extra) + vLLM **v0.29.0**
+(`vllm/vllm-openai:v0.29.0`, matching the local compose pin). Full workflow:
+[`deploy/README.md`](../../../deploy/README.md).
+
 ## Deploy
 
 ```bash
@@ -17,12 +21,15 @@ export MODAL_VLLM_MODEL=Qwen/Qwen3-8B
 export MODAL_VLLM_GPU=L4
 export MODAL_VLLM_API_TOKEN="$(openssl rand -hex 24)"
 # optional: HF_TOKEN for gated weights
-cd deploy && modal deploy modal_vllm.py
+
+modal run deploy/modal_vllm.py::download_model   # pre-warm weights (CPU-only)
+modal deploy deploy/modal_vllm.py                # prints the modal.run URL
 ```
 
-App name: **`sandbox-vllm`** (sandbox-scoped; HF volume `sandbox-hf-cache`). Source: `deploy/modal_vllm.py`.
+App name: **`sandbox-vllm`** (sandbox-scoped; Volumes `sandbox-hf-cache` +
+`sandbox-vllm-cache`). Source: `deploy/modal_vllm.py`.
 
-Tear down: `modal app stop sandbox-vllm`.
+Tear down: `modal app stop sandbox-vllm` (Volumes persist).
 
 ## Cut over the sandbox
 
@@ -36,7 +43,7 @@ VLLM_API_KEY=<same as MODAL_VLLM_API_TOKEN>
 
 ```bash
 sandbox cutover --profile modal-vllm
-sandbox health --profile modal-vllm
+sandbox health --profile modal-vllm     # 401 = VLLM_API_KEY mismatch
 sandbox pilot --local --profile modal-vllm
 ```
 
@@ -48,19 +55,64 @@ Compose for Modal profile only starts **langfuse** (no local vLLM container).
 | --- | --- |
 | `MODAL_VLLM_MODEL` | `Qwen/Qwen3-8B` |
 | `MODAL_VLLM_GPU` | `L4` |
-| `MODAL_VLLM_MAX_MODEL_LEN` | `32768` |
+| `MODAL_VLLM_MAX_MODEL_LEN` | `16384` (DMR-056: boot-valid cap for L4-bf16 8B rows — v0.29.0 raises at 32768; AWQ/FP8 rows set 32768) |
+| `MODAL_VLLM_MAX_NUM_SEQS` | `6` (L4 long-prompt 4–6; cliff at ~8 × ~8k; scale-matrix overrides to 256) |
+| `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` |
+| `MODAL_VLLM_ENABLE_PREFIX_CACHING` | `1` (`--enable-prefix-caching`) |
+| `MODAL_VLLM_ENFORCE_EAGER` | `1` (`--enforce-eager` — faster cold boot) |
+| `MODAL_VLLM_ATTENTION_BACKEND` | empty (`flashinfer` for throughput runs — Modal vllm_throughput exemplar) |
+| `MODAL_VLLM_ASYNC_SCHEDULING` | empty (`1` enables the async scheduler; not all vLLM features supported under it) |
 | `MODAL_VLLM_QUANTIZATION` | empty |
-| `MODAL_VLLM_IMAGE_TAG` | `latest` |
+| `MODAL_VLLM_IMAGE_TAG` | `v0.29.0` (pin; never `latest`) |
+| `MODAL_VLLM_REVISION` | empty (HF revision) |
+| `MODAL_VLLM_TP_SIZE` | from GPU `:N` suffix (1 single-GPU) — only for models that won't fit one GPU; second L4 on 8B → raise `MAX_CONTAINERS` |
+| `MODAL_VLLM_API_TOKEN` | empty (bearer) |
 | `HF_TOKEN` | optional Hub auth |
+| `MODAL_VLLM_SCALEDOWN_SECONDS` | `120` (attended specialist default; set `600` unattended/overnight) |
+| `MODAL_VLLM_MAX_CONTAINERS` | `1` (cost guard; `2` = data-parallel second L4, Modal round-robins) |
+| `MODAL_VLLM_MIN_CONTAINERS` | `0` (scale-to-zero) |
+| `MODAL_VLLM_STARTUP_TIMEOUT_SECONDS` | `1200` |
+
+Specialist 5×30 runbooks pin **Qwen/Qwen3-8B** on 1×L4 (`max_containers=1`).
+Operator cards: `sandbox runbook show l4-qwen3-8b` (catalog
+`config/runbooks/catalog.yaml`). Improved configs (AWQ/c8, Granite FP8, second
+L4): `sandbox runbook list --family improved`. Per-doc-type concurrency /
+`cost_cap_usd` / `max_wall_seconds` still come from `job/specialist_posture.py`.
+
+Cost: L4 ≈ $0.80/hr while warm (rates: modal.com/pricing, verified
+2026-09-09); GPU billing stops after the scaledown window; `download_model`
+is CPU-only. Check spend with `modal billing summary`.
+
+## Throughput runs
+
+Big batch evals are a throughput workload (Modal `vllm_throughput`
+exemplar, 2026-09): deploy the published FP8 checkpoint on a single H100
+(`MODAL_VLLM_MODEL=Qwen/Qwen3-8B-FP8 MODAL_VLLM_GPU=H100
+MODAL_VLLM_MAX_MODEL_LEN=32768 MODAL_VLLM_ATTENTION_BACKEND=flashinfer
+MODAL_VLLM_ASYNC_SCHEDULING=1`), and set `concurrency: 4-16` in the run
+spec's `job:` block so the runner fills vLLM's continuous batching
+(`docs/jobs.md`). Keep async scheduling off when the run depends on
+structured outputs.
+
+## SDK gotchas (1.5.5)
+
+- `Secret.from_local` was **removed** — use `from_dict` (skips missing keys,
+  which keeps `HF_TOKEN`/`MODAL_VLLM_API_TOKEN` optional) or
+  `from_local_environ` (raises on missing).
+- `@modal.web_server` is supported; `@app.server` (1.5.1+) is the modern
+  path — migration notes in `deploy/README.md` (do not migrate ad hoc).
+- Memory snapshots are not enabled: GPU snapshots are alpha, vLLM needs the
+  dedicated KV-cache-discarding pattern, and weight loads are storage-bound.
 
 ## Boundaries
 
 - Do not use Modal for default pytest or `--mock` paths.  
-- Do not rename the Modal app to mailroom’s production name — keep `sandbox-vllm`.  
+- Do not rename the Modal app to mailroom's production name — keep `sandbox-vllm`.  
 - Still activate via `runtime.activate("modal-vllm")` so taxonomy overlay rewrites agents.
+- Never commit tokens; only variable names appear in the repo.
 
 ## Related
 
 - Local default: [ollama](../ollama/SKILL.md)  
 - Hub weights: [huggingface](../huggingface/SKILL.md)  
-- Docs: `deploy/README.md`, `docs/providers.md`
+- Docs: `deploy/README.md`, `docs/setting-up/remote-serving.md`, `docs/setting-up/providers.md`

@@ -1,0 +1,29 @@
+# Conda environment for the offline mailroom sandbox (HUB-026).
+#
+#   conda env create -f deploy/conda/environment.yml
+#   conda activate mailroom-sandbox
+#   pip install -e ".[dev]"          # inside the env, from the package root
+#
+# Local-first: CPU-only by default; nothing here contacts a provider.
+# Extras on top of dev, as needed:
+#   pip install -e ".[deploy]"       # Modal remote vLLM wrapper
+#   pip install -e ".[notebooks]"    # Jupyter Lab + figures
+#   pip install -e ".[observability]"# Langfuse v4 tracing
+#
+# vLLM serving is NOT in this env on purpose: vLLM ships its own torch/CUDA
+# stack, is Linux-only, and is happiest in its own container or env
+#   (docker compose profile `vllm`, the vllm/vllm-openai image on
+#    Modal/CHTC, or `pip install vllm` on a Linux+CUDA host).
+# For CHTC, pack this env portable-style instead of rebuilding per job —
+# and BUILD THE ENV ON THE CHTC ACCESS POINT (Linux), never on macOS:
+# the conda-pack tarball must match the execute nodes' RHEL-family glibc.
+#   conda pack -n mailroom-sandbox -o /staging/$USER/mailroom-sandbox.tar.gz
+name: mailroom-sandbox
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip>=24.0
+  - git
+  - pip:
+      - -e ".[dev]"

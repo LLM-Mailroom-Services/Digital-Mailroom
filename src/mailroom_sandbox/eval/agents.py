@@ -7,6 +7,7 @@ The 13-node graph is not duplicated here.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -22,23 +23,31 @@ from mailroom_sandbox.eval import scoring
 from mailroom_sandbox.eval.tracing import observation_type_for
 from mailroom_sandbox.paths import fixtures_dir
 
+_log = logging.getLogger("mailroom_sandbox.eval.agents")
+
 SPECIALIST_CLASS = {
     "contracts_specialist": "contract",
+    "merger_agreement_specialist": "merger_agreement",
     "corporate_records_specialist": "corporate_record",
     "correspondence_specialist": "correspondence",
-    "compliance_specialist": "compliance_filing",
     "insurance_claims_specialist": "insurance_claim",
 }
 
 LIVE_CLASS_MAP = {
     "contracts_specialist": ("agents.contracts_specialist", "ContractsSpecialist"),
+    "merger_agreement_specialist": (
+        "agents.merger_agreement_specialist",
+        "MergerAgreementSpecialist",
+    ),
     "corporate_records_specialist": ("agents.corporate_records_specialist", "CorporateRecordsSpecialist"),
     "correspondence_specialist": ("agents.correspondence_specialist", "CorrespondenceSpecialist"),
-    "compliance_specialist": ("agents.compliance_specialist", "ComplianceSpecialist"),
     "insurance_claims_specialist": ("agents.insurance_claims_specialist", "InsuranceClaimsSpecialist"),
 }
 
-RETIRED_AGENTS = ("court_opinions_specialist", "due_diligence_specialist")
+# compliance_specialist: docclass-era agent retired in llm-mailroom (59c47401,
+# five-class taxonomy); the vendored snapshot no longer ships the class, so
+# the retired list below keeps the isolated-eval loader from referencing it.
+RETIRED_AGENTS = ("court_opinions_specialist", "due_diligence_specialist", "compliance_specialist")
 
 
 def _resolve_fixture_path(row: dict[str, Any], default: Path) -> Path:
@@ -52,15 +61,30 @@ def _resolve_fixture_path(row: dict[str, Any], default: Path) -> Path:
 
     alt = repo_root() / path
     return alt if alt.is_file() else default
-    if row.get("text"):
-        return str(row["text"])
+
+
+def _doc_text(row: dict[str, Any]) -> str:
+    """Resolve the document text for a live agent call (live-or-loud).
+
+    Prepared corpus rows carry ``doc_text`` (the blind ``default`` config
+    column); fixture rows may carry ``text`` inline or fall back to the
+    fixture file on disk. A row with no resolvable document RAISES — a live
+    eval must never call a model on an empty document and score the result.
+    """
+    for key in ("doc_text", "text"):
+        value = row.get(key)
+        if value:
+            return str(value)
     try:
         path = fixture_file(row)
-        if path.is_file():
-            return path.read_text(encoding="utf-8")
-    except Exception:
-        pass
-    return ""
+    except KeyError:
+        # Prepared corpus rows have no subdir/filename keys — the loud raise
+        # below carries the honest cause instead of a KeyError.
+        path = None
+    if path is not None and path.is_file():
+        return path.read_text(encoding="utf-8")
+    ident = row.get("id") or row.get("filename") or "<unknown>"
+    raise ValueError(f"live eval row {ident!r} has no document text (doc_text/text/file)")
 
 
 def _manifest_for_class(doc_class: str) -> list[dict[str, Any]]:
@@ -108,10 +132,9 @@ def _mock_extract(row: dict[str, Any]) -> dict[str, Any]:
 def _live_sorter(row: dict[str, Any]) -> dict[str, Any]:
     from agents.sorter import SorterAgent  # type: ignore
 
-    result = SorterAgent().classify(_doc_text(row))
-    if isinstance(result, dict):
-        return result
-    return {"doc_type": str(result)}
+    # SAND-032: classify() returns a (doc_type, subtype, confidence, reasoning)
+    # tuple; str()-ing it made doc_type unscoreable. Use the dict form.
+    return SorterAgent().classify_json(_doc_text(row))
 
 
 def _live_reviewer(row: dict[str, Any]) -> dict[str, Any]:
@@ -120,13 +143,32 @@ def _live_reviewer(row: dict[str, Any]) -> dict[str, Any]:
     return SorterReviewerAgent().review(_doc_text(row))
 
 
+def chunk_window(max_input_chars: int, chunk_chars: int, overlap_chars: int) -> tuple[int, int]:
+    """Window and overlap capped the way the pipeline caps them (``build_graph._run_chunked_extraction``):
+    overlap ≤ budget / 8 and window ≤ budget − overlap, so no chunk is truncated inside ``extract()``."""
+    budget = max(1, int(max_input_chars))
+    overlap = min(int(overlap_chars), max(0, budget // 8))
+    return min(int(chunk_chars), max(1_000, budget - overlap)), overlap
+
+
 def _live_specialist(agent: str, row: dict[str, Any]) -> dict[str, Any]:
     module_name, cls_name = LIVE_CLASS_MAP[agent]
     import importlib
 
     mod = importlib.import_module(module_name)
     cls = getattr(mod, cls_name)
-    return cls().extract(_doc_text(row))
+    specialist = cls()
+    # SAND-040: run-scoped `chunk_chars` sends long documents through the pipeline's own
+    # chunked pass (overlapping windows, deterministic merge — what the production graph
+    # runs, `chunking.enabled: true`) instead of single-pass head+tail truncation.
+    from mailroom_sandbox.runtime import agent_knobs_for
+
+    knobs = agent_knobs_for(agent)
+    if knobs.get("chunk_chars") and hasattr(specialist, "extract_chunked"):
+        budget = int(knobs.get("max_input_chars") or getattr(specialist, "_max_input_chars", 90_000))
+        window, overlap = chunk_window(budget, int(knobs["chunk_chars"]), int(knobs.get("overlap_chars") or 8_000))
+        return specialist.extract_chunked(_doc_text(row), chunk_chars=window, overlap_chars=overlap)
+    return specialist.extract(_doc_text(row))
 
 
 def _live_judge(row: dict[str, Any]) -> dict[str, Any]:
@@ -166,20 +208,48 @@ def _live_boss(row: dict[str, Any]) -> dict[str, Any]:
     return BossAgent().adjudicate(manifest)
 
 
+def _procedural_report(row: dict[str, Any]) -> dict[str, Any]:
+    """Computational procedural reporter — deterministic matter-record
+    assembly with NO LLM call. Sandbox-side mirror of llm-mailroom v0.7.1
+    ``agents.reporter.compile_matter_record`` (the reporter agent is retired;
+    the graph's compile_report node is procedural)."""
+    extracted = row.get("extracted_data") or _mock_extract(row)
+    lines = [
+        f"Document type: {row.get('expected_doc_class') or 'unknown'}",
+        f"Subclass: {row.get('expected_subclass') or 'not stated'}",
+        "Classification confidence: 0.97",
+        "Extraction confidence: 0.9",
+        "",
+        "Extracted fields:",
+    ]
+    for key in sorted(extracted):
+        lines.append(f"- {key}: {extracted[key]}")
+    return {
+        "summary": "\n".join(lines).strip() + "\n",
+        "doc_type": row.get("expected_doc_class") or "unknown",
+        "doc_subclass": row.get("expected_subclass"),
+        "extracted_data": extracted,
+        "classification_confidence": 0.97,
+        "extraction_confidence": 0.9,
+        "procedural": True,
+    }
+
+
 def _live_reporter(row: dict[str, Any]) -> dict[str, Any]:
     from agents.reporter import compile_matter_record  # type: ignore
-    from llm.client import get_llm  # type: ignore
 
-    client, model = get_llm("reporter")
+    # HUB-015: no LLM call. The reporter agent is retired; the pipeline's
+    # compile_report node is the procedural assembler. The upstream function
+    # accepts client/model args for call-site compatibility but ignores them
+    # — we pass none at all.
     return compile_matter_record(
         {
             "doc_type": row.get("expected_doc_class") or "contract",
+            "doc_subclass": row.get("expected_subclass"),
             "extracted_data": row.get("extracted_data") or _mock_extract(row),
             "classification_confidence": 0.97,
             "extraction_confidence": 0.9,
-        },
-        client,
-        model,
+        }
     )
 
 
@@ -203,16 +273,33 @@ def _live_intake(row: dict[str, Any]) -> dict[str, Any]:
 
         cleaned, stats = apply_intake(str(row.get("text") or ""), filename=str(row.get("id")))
         return {"text": cleaned, **(stats or {})}
-    except Exception:
+    except Exception as exc:
+        # A live intake failure must never masquerade as a real prediction:
+        # fall back to the deterministic normalizer, but label the row so
+        # provenance is honest (offline_fallback=True) and say so out loud.
+        _log.warning(
+            "agents.intake.apply_intake failed for row %r — falling back to "
+            "llm_dojo_scoring.intake.deterministic_normalize (row marked "
+            "offline_fallback=True)",
+            row.get("id"),
+            exc_info=exc,
+        )
         from llm_dojo_scoring.intake import deterministic_normalize
 
         cleaned, stats = deterministic_normalize(str(row.get("text") or ""))
-        return {"text": cleaned, **(stats or {})}
+        return {"text": cleaned, **(stats or {}), "offline_fallback": True}
 
 
 def _score_class(row: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
     expected = str(row.get("expected_doc_class") or row.get("doc_type") or "")
     predicted = str(pred.get("doc_type") or pred.get("value") or "")
+    if predicted.startswith("("):  # legacy stringified classify() tuple (SAND-032 s6)
+        import ast
+
+        try:
+            predicted = str(ast.literal_eval(predicted)[0])
+        except (ValueError, SyntaxError, IndexError, TypeError):
+            pass
     return {"match": float(expected == predicted), "expected": expected, "predicted": predicted}
 
 
@@ -438,16 +525,13 @@ _register(
 )
 _register(
     AgentSpec(
-        name="reporter",
+        name="compile_report",
         observation="compile-report",
-        dojo_profile="reporter",
+        kind="nodes",
         load_rows=lambda: _rows_or_agent_jsonl(
             "reporter", lambda: [r for r in load_manifest() if parse_expected_fields(r)][:3]
         ),
-        mock_predict=lambda row: {
-            "summary": f"Mock report for {row.get('id')}",
-            "confidence": 0.9,
-        },
+        mock_predict=_procedural_report,
         live_predict=_live_reporter,
         score_one=_score_keys,
     )
@@ -484,7 +568,14 @@ _register(
     )
 )
 
-COMPOSITE_TASKS = ("extract", "chained", "pipeline", "legalbench", "local_vs_api")
+COMPOSITE_TASKS = (
+    "extract",
+    "chained",
+    "pipeline",
+    "legalbench",
+    "local_vs_api",
+    "sorter_vs_modernbert",
+)
 EVAL_TASKS = tuple(SPECS) + COMPOSITE_TASKS
 
 

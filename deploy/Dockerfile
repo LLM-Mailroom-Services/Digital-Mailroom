@@ -1,14 +1,18 @@
 # Offline sandbox + Jupyter Lab image for local-mailroom-sandbox.
-# Build from repo root:
+# Build from the package root:
 #   docker build -f deploy/Dockerfile -t mailroom-sandbox:offline .
-# Or via compose:
+# Or via compose (context = package root):
 #   sandbox up --compose-profile jupyter
 #
 # This image does NOT reimplement the mailroom graph. It installs the sandbox
 # harness and notebook extras so you can prepare fixtures and activate profiles
-# without a cloud LLM.
+# without a cloud LLM. The [hf] extra (huggingface_hub + pyarrow) lets
+# `sandbox run preflight` prepare Hub-spec datasets. The vendored family
+# (vendor/llm-mailroom + vendor/llm-dojo-scoring) IS copied and the [pipeline]
+# extra is installed, so vendored evals (`sandbox eval ... --local`) run
+# in-image; Modal deploys run from the host.
 
-FROM python:3.11-slim-bookworm
+FROM python:3.14-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -33,11 +37,25 @@ COPY config ./config
 COPY data/fixtures ./data/fixtures
 COPY notebooks ./notebooks
 COPY deploy/README.md ./deploy/README.md
+# hub#55: the vendored family ships in the image — without vendor/ the
+# sandbox __init__ hard-deps would silently degrade and `--local` evals
+# would raise "mailroom pipeline is not importable" in a read-only image
+# where `sandbox fetch-deps` cannot persist anything.
+COPY vendor ./vendor
 
-RUN pip install --no-cache-dir -e ".[dev,notebooks]" \
-    && mkdir -p /workspace/data/runtime /workspace/data/cache /workspace/reports
+RUN pip install --no-cache-dir -e ".[dev,notebooks,hf,pipeline]" \
+    && mkdir -p /workspace/data/runtime /workspace/data/cache /workspace/reports \
+    && useradd --create-home --uid 1000 --shell /bin/bash sandbox \
+    && chown -R sandbox:sandbox /workspace
+
+# Bind mounts carry host ownership; on hosts whose first user is not uid 1000,
+# override with --user "$(id -u):$(id -g)" (docker compose: user: "1000:1000").
+USER sandbox
 
 EXPOSE 8888
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8888/lab || exit 1
 
 # Tokenless Lab on the compose network; bind only to localhost from the host.
 CMD ["jupyter", "lab", \
@@ -48,3 +66,7 @@ CMD ["jupyter", "lab", \
      "--ServerApp.password=", \
      "--ServerApp.root_dir=/workspace", \
      "--allow-root"]
+
+# To run the sandbox CLI instead of Jupyter:
+#   docker run --entrypoint sandbox mailroom-sandbox:offline pilot --mock
+#   docker run --entrypoint sandbox mailroom-sandbox:offline up --profile ollama

@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=./profile.schema.json
 name: llamacpp
 description: llama.cpp llama-server OpenAI-compatible endpoint.
 provider: generic

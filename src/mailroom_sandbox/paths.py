@@ -34,6 +34,10 @@ def prompts_dir() -> Path:
     return config_dir() / "prompts"
 
 
+def runbooks_dir() -> Path:
+    return config_dir() / "runbooks"
+
+
 def deploy_dir() -> Path:
     return repo_root() / "deploy"
 
@@ -60,3 +64,15 @@ def reports_dir() -> Path:
 
 def vendor_dir() -> Path:
     return repo_root() / "vendor"
+
+
+def vendored_mailroom_src() -> Path | None:
+    """Tracked llm-mailroom snapshot (DMR-057) or None when pruned."""
+    cand = vendor_dir() / "llm-mailroom" / "src"
+    return cand if (cand / "pipeline" / "config.py").is_file() else None
+
+
+def vendored_dojo_src() -> Path | None:
+    """Tracked llm-dojo-scoring snapshot (DMR-057) or None when pruned."""
+    cand = vendor_dir() / "llm-dojo-scoring" / "src"
+    return cand if (cand / "llm_dojo_scoring" / "__init__.py").is_file() else None

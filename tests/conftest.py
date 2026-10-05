@@ -16,6 +16,13 @@ def _sandbox_root(monkeypatch):
     monkeypatch.setenv("PHOENIX_TRACING", "disabled")
 
 
+@pytest.fixture
+def job_data_dir(monkeypatch, tmp_path):
+    """Point run-store writes at tmp (DMR-027 tests)."""
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    return tmp_path
+
+
 def pytest_configure(config):
     config.addinivalue_line(
         "markers",
@@ -30,3 +37,9 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "local_llm" in item.keywords:
             item.add_marker(skip)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_beacon_dir(tmp_path, monkeypatch):
+    """Runs started in tests publish mailroom beacons — keep them out of ~/.mailroom/jobs."""
+    monkeypatch.setenv("MAILROOM_BEACON_DIR", str(tmp_path / "_beacons"))

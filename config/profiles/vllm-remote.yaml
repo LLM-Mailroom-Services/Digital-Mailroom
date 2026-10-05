@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=./profile.schema.json
+name: vllm-remote
+description: >-
+  Remote vLLM reached through an SSH local port forward (lab GPU box, owned
+  CHTC machine, any Linux host). `sandbox tunnel plan/up` builds the forward
+  from the tunnel block; the app itself just sees localhost:18000.
+provider: vllm
+default_model: Qwen/Qwen3-8B
+judge_model: Qwen/Qwen3-8B
+base_url: http://localhost:18000/v1
+base_url_env: VLLM_BASE_URL
+api_key_env: VLLM_API_KEY
+default_provider_env: vllm
+compose_profiles:
+  - langfuse
+pull_models: []
+health:
+  models_url: "{base_url}/models"
+  chat_url: "{base_url}/chat/completions"
+json_object: true
+tunnel:
+  # ssh -N -L 18000:localhost:8000 <user>@<host> -p <ssh_port> [-i <key>]
+  # Credentials resolve from the environment at `sandbox tunnel` time —
+  # nothing secret is stored in this repo.
+  local_port: 18000
+  remote_host: localhost
+  remote_port: 8000
+  host_env: SANDBOX_TUNNEL_HOST
+  user_env: SANDBOX_TUNNEL_USER
+  ssh_port_env: SANDBOX_TUNNEL_PORT
+  key_env: SANDBOX_TUNNEL_KEY

@@ -65,11 +65,11 @@ def test_field_scoring():
 
 
 def test_dojo_scoring_pin():
-    """Agent Mailroom pins the same llm-dojo-scoring tag as llm-mailroom.
+    """Agent Mailroom tracks llm-mailroom 0.7.1 @959bb0b → llm-dojo-scoring v0.16.0.
 
-    Release contract = the git pin in pyproject.toml. Monorepo dev resolves
-    the pin to the workspace member via [tool.uv.sources], so the installed
-    version may be newer than the pin (>= 0.14 required).
+    Release contract = the git pin in pyproject.toml. The monorepo re-adds a
+    [tool.uv.sources] workspace override, so the installed version may be
+    newer than the pin (>= 0.16 required).
     """
     import re
     from pathlib import Path
@@ -81,18 +81,11 @@ def test_dojo_scoring_pin():
     pin = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(
         encoding="utf-8"
     )
-    pin_re = r"llm-dojo-scoring\.git@(v\d+\.\d+\.\d+)"
-    tag = re.search(pin_re, pin)
-    assert tag is not None
-    sibling = Path(__file__).resolve().parents[2] / "llm-mailroom" / "pyproject.toml"
-    if sibling.exists():
-        # Feeder sync bumps every package pin together (scripts/sync_packages.py).
-        sibling_tag = re.search(pin_re, sibling.read_text(encoding="utf-8"))
-        assert sibling_tag is not None
-        assert tag.group(1) == sibling_tag.group(1)
+    assert "llm-dojo-scoring.git@v0.16.0" in pin
+    assert "[tool.uv.sources]" not in pin  # monorepo-only adaptation
     version = re.match(r"(\d+)\.(\d+)", llm_dojo_scoring.__version__)
     assert version is not None
-    assert tuple(map(int, version.groups())) >= (0, 14)
+    assert tuple(map(int, version.groups())) >= (0, 16)
     assert hasattr(fs, "score_extraction")
     assert fs.DOJO_AVAILABLE and hasattr(fs, "ExtractionScoreResult")
 

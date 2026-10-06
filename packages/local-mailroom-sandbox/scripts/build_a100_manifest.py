@@ -2,12 +2,17 @@
 """build_a100_manifest.py — S1: per-leg A100 run manifest (DMR-078).
 
 Standalone, stdlib-only. Reads ONLY from the staged inputs tree
-    C:/Users/grant/Digital Mailroom/wt-manifest/_a100_inputs/
-and writes two artifacts flat into the local-mailroom-sandbox package's
-reports/ directory:
+``<monorepo-root>/_a100_inputs`` and writes two artifacts flat into the
+local-mailroom-sandbox package's reports/ directory:
 
     reports/a100-run-manifest.md
     reports/a100-run-manifest.csv
+
+The input root is resolved RELATIVE to this file (repo-portable): the script
+lives at ``<monorepo-root>/packages/local-mailroom-sandbox/scripts/`` so the
+staged tree sits at ``Path(__file__).resolve().parents[3] / "_a100_inputs"``
+and regenerates from any checkout. An env override
+(``A100_MANIFEST_INPUT_ROOT``) takes precedence when set.
 
 One row per A100 run *leg*, i.e. one row per job record under
 _a100_inputs/jobs/ whose job_id contains the token "a100". That count
@@ -17,7 +22,9 @@ and additionally asserts that every row's run_store directory exists
 (_a100_inputs/run_store/<run_id>). Any mismatch fails loudly (non-zero exit).
 
 Field provenance (faithful — blank when there is genuinely no source):
-  run_id        job record job_id (== job filename stem == run_store dir name)
+  run_id        job record job_id (== job filename stem == run_store dir name;
+                the staged job ids are truncated to ~62 chars where the source
+                id was longer, job filenames being capped at 64 chars)
   gpu           1x/2x parsed from the job_id token; blank when absent
   doc_class     parsed from the run_id class token
   n             job record `total` (fallback `done`) = documents in the leg
@@ -33,6 +40,13 @@ Field provenance (faithful — blank when there is genuinely no source):
   dataset_fingerprint  no per-A100-leg fingerprint exists in the inputs -> blank
   notes         short provenance / caveat string
 
+Cost caveat: the report-basis GPU cost is a FIXED constant copied from the A100
+report/deck. When a cost-bearing leg's own job record shows more errors than the
+report's stated A100 total (4 errors / 4,882 docs), that leg is very unlikely to
+be the report's clean source leg, so its row carries an explicit
+"COST CAVEAT: ... source leg UNVERIFIED" note rather than silently claiming the
+number. No new cost is ever invented.
+
 Deterministic: rows are sorted by run_id, no timestamps, fixed float
 formatting, LF line terminators. Two runs are byte-identical.
 """
@@ -41,12 +55,18 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
-# --- fixed roots -------------------------------------------------------------
-INPUT_ROOT = Path("C:/Users/grant/Digital Mailroom/wt-manifest/_a100_inputs")
+# --- input root (repo-relative; env-overridable) -----------------------------
+# <monorepo-root>/packages/local-mailroom-sandbox/scripts/<this file>
+#   parents[0]=scripts  [1]=local-mailroom-sandbox  [2]=packages  [3]=<root>
+INPUT_ROOT_ENV = "A100_MANIFEST_INPUT_ROOT"
+_DEFAULT_INPUT_ROOT = Path(__file__).resolve().parents[3] / "_a100_inputs"
+INPUT_ROOT = Path(os.environ.get(INPUT_ROOT_ENV) or _DEFAULT_INPUT_ROOT).resolve()
+
 JOBS_DIR = INPUT_ROOT / "jobs"
 RUN_STORE = INPUT_ROOT / "run_store"
 CONFIGS_DIR = INPUT_ROOT / "configs"
@@ -69,6 +89,17 @@ A100_COST_PER_100 = {
     "contract":         {"1x": 0.516, "2x": 0.690, "n": 150},
     "merger":           {"1x": 0.400, "2x": 0.548, "n": 100},
 }
+
+# The report states its whole A100 campaign produced 4 errors in 4,882 docs. A
+# cost-bearing leg whose own job record exceeds this is not a plausible clean
+# source leg for the report number -> flagged, never silently costed.
+A100_REPORT_TOTAL_ERRORS = 4
+
+COST_CAVEAT_FMT = (
+    "COST CAVEAT: gpu_cost_usd/cost_per_doc are the A100 report basis only; "
+    "source leg UNVERIFIED — this leg's job record shows {errors} errors, so it "
+    "is likely not the report's clean source leg"
+)
 
 # class token -> canonical key (longest first so "merger" never shadows nothing
 # longer; "corporate_record" before any "corporate").
@@ -134,7 +165,11 @@ def config_spec_for(run_id: str, gpu: str) -> str:
 
 def load_a100_jobs() -> list[dict]:
     if not JOBS_DIR.is_dir():
-        raise SystemExit(f"FATAL: jobs dir not found: {JOBS_DIR}")
+        raise SystemExit(
+            f"FATAL: jobs dir not found: {JOBS_DIR}\n"
+            f"  input root resolved to: {INPUT_ROOT}\n"
+            f"  (repo-relative default; override with env {INPUT_ROOT_ENV})"
+        )
     jobs = []
     for path in sorted(JOBS_DIR.glob("*.json")):
         rec = json.loads(path.read_text(encoding="utf-8"))
@@ -188,6 +223,10 @@ def build_rows(jobs: list[dict]) -> list[dict]:
             notes.append("gpu not encoded in run_id")
         if cost_note:
             notes.append(cost_note)
+            # A cost-bearing leg whose own record is an obvious failure is not a
+            # credible clean source for the fixed report-basis cost -> flag it.
+            if errors is not None and int(errors) > A100_REPORT_TOTAL_ERRORS:
+                notes.append(COST_CAVEAT_FMT.format(errors=int(errors)))
         else:
             notes.append("no per-leg score/fingerprint/cost source in inputs")
         if n is None:
@@ -225,8 +264,30 @@ COLUMNS = [
 ]
 
 
+# File-level provenance/caveat notes mirrored into the CSV as '#' comment lines
+# immediately above the header (the 32 data rows stay machine-parseable; a strict
+# CSV consumer should drop lines beginning with '#').
+CSV_NOTE_LINES = [
+    "# a100-run-manifest.csv — per-leg A100 run manifest (S1, DMR-078). "
+    "Generated by scripts/build_a100_manifest.py.",
+    "# NOTE (provenance): run_id values are the staged job-record ids, truncated "
+    "to ~62 chars where the source id was longer (job filenames are capped at 64 "
+    "chars); the full id is the run_store directory name.",
+    "# NOTE (blanks): an empty field means NO per-A100-leg source exists in the "
+    "staged inputs (e.g. score, dataset_fingerprint) — blanks are source-less, "
+    "NOT zeros.",
+    "# NOTE (cost caveat): gpu_cost_usd/cost_per_doc are the A100-Research-Report.md "
+    "base-matrix basis. A cost-bearing leg whose own job record shows more errors "
+    "than the report's stated A100 total (4 errors / 4,882 docs) carries an "
+    "UNVERIFIED source leg — see that row's `notes` (e.g. "
+    "run_id=qwen3-8b-a100-contract-a100-1x-contract-150, 53 errors).",
+]
+
+
 def write_csv(rows: list[dict], path: Path) -> None:
     with path.open("w", encoding="utf-8", newline="") as fh:
+        for note in CSV_NOTE_LINES:
+            fh.write(note + "\n")
         w = csv.DictWriter(fh, fieldnames=COLUMNS, lineterminator="\n")
         w.writeheader()
         for r in rows:
@@ -250,13 +311,39 @@ def write_md(rows: list[dict], path: Path, n_jobs: int) -> None:
     lines.append("- Source of record: `_a100_inputs/jobs/*.json` (identity, n, errors), "
                  "`_a100_inputs/cards/A100-Research-Report.md` (base-leg GPU cost basis), "
                  "`_a100_inputs/run_store/<run_id>/` (matched dataset dir).")
-    lines.append("- Fields left blank carry no per-A100-leg source in the staged "
-                 "inputs (`score`, `dataset_fingerprint`); blanks are not zeros.")
+    lines.append("- Provenance note (run_id): `run_id` values are the staged "
+                 "job-record ids, **truncated to ~62 characters** where the source "
+                 "id was longer (job filenames are capped at 64 chars); the full id "
+                 "is the `run_store` directory name.")
+    lines.append("- Provenance note (blanks): an empty field means **no per-A100-leg "
+                 "source exists** in the staged inputs (`score`, `dataset_fingerprint`, "
+                 "and any blank `gpu_cost_usd`/`cost_per_doc`); **blanks are "
+                 "source-less, not zeros**.")
     lines.append("")
     lines.append("| " + " | ".join(COLUMNS) + " |")
     lines.append("|" + "|".join(["---"] * len(COLUMNS)) + "|")
     for r in rows:
         lines.append("| " + " | ".join(_md_cell(r[c]) for c in COLUMNS) + " |")
+    lines.append("")
+
+    # Per-row cost footnotes for cost-bearing legs whose own record is a failure.
+    flagged = [(r["run_id"], r["errors"]) for r in rows if "COST CAVEAT" in r["notes"]]
+    lines.append("### Cost footnotes (report-basis with UNVERIFIED source leg)")
+    lines.append("")
+    if flagged:
+        for run_id, err in flagged:
+            lines.append(
+                f"- **`{run_id}`** — `gpu_cost_usd`/`cost_per_doc` are the "
+                f"**A100 report basis only, with an UNVERIFIED source leg**: the "
+                f"staged job record for this leg shows **{err} errors**, so this leg "
+                f"is likely *not* the report's clean source leg (the report states "
+                f"4 errors / 4,882 docs across all A100 runs). No per-leg cost is "
+                f"derivable from the staged inputs, and no new cost is invented — "
+                f"the value is the fixed report constant, flagged as unverified for "
+                f"this leg."
+            )
+    else:
+        lines.append("- (none)")
     lines.append("")
     lines.append("## Provenance notes")
     lines.append("")
@@ -273,7 +360,9 @@ def write_md(rows: list[dict], path: Path, n_jobs: int) -> None:
     lines.append("- `gpu_cost_usd` / `cost_per_doc` are taken from the "
                  "A100-Research-Report.md base matrix (GPU $ per 100 docs) for the "
                  "ten base allclass legs only; all other legs have no per-run cost "
-                 "source in the inputs.")
+                 "source in the inputs. Cost-bearing legs whose job record shows "
+                 "more errors than the report's stated A100 total (4) are called out "
+                 "in the **Cost footnotes** section above.")
     lines.append("- `score` and `dataset_fingerprint` are blank throughout: the "
                  "staged `experiment_log_head.jsonl` and `reports/*.serving.json` "
                  "carry only non-A100 (L4 / sand032 / sorter) legs, and "
@@ -301,6 +390,7 @@ def main() -> int:
     write_csv(rows, csv_path)
     write_md(rows, md_path, n_jobs)
 
+    print(f"input root       : {INPUT_ROOT}")
     print(f"A100 job records : {n_jobs}")
     print(f"manifest rows    : {len(rows)}")
     print(f"rows == jobs     : {n_jobs == len(rows)}")

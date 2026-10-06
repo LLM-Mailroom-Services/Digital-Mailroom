@@ -3,9 +3,16 @@
 ONE question, answered with real numbers: **what does this document type cost
 per token / per document on this GPU, at this replica count, for N docs?** The
 human changes four knobs (GPU type, GPU count, document count, document type)
-and runs this script; it deploys ``deploy/modal_vllm.py``, warms the endpoint,
-runs the spec's isolated eval through a local token-counting proxy, records ONE
-authoritative row, prints a cost card, and tears the fleet down.
+and runs this script.
+
+PAID PATH DISABLED (DMR-078 / S4 review): this RECONSTRUCTED driver has NO safe
+paid runner. ``--run`` (with or without ``--confirm-spend``) refuses immediately
+via ``SystemExit`` — BEFORE any Modal app / prewarm / deploy / subprocess /
+network call — so it will NOT deploy, pre-warm, run the eval, record a cost row,
+print a COST-PER-TOKEN CARD or report a series pass. ``--preview`` /
+``--dry-run`` (plan-only, offline: no Modal, no network, no subprocess) is the
+ONLY supported mode in this file. A real billable run (deploy -> eval -> record
+-> card -> teardown) must be driven BY HAND, as documented in ``deploy/README``.
 
 This is a GPU/Modal-only driver. API/vendor (OpenRouter) cost comparisons live
 upstream and are deliberately NOT wired in here.
@@ -32,7 +39,9 @@ Pieces it coordinates (nothing is reimplemented):
   isolated classifier eval, run against a local token-counting proxy that
   forwards to the Modal ``/v1`` endpoint and captures per-request usage/latency.
 
-Warm-GPU sequencing (a series runs back-to-back on ONE warm fleet):
+Warm-GPU sequencing (a series runs back-to-back on ONE warm fleet). This section
+describes the INTENDED hand-driven chain (deploy/modal_vllm.py + the sandbox
+CLI); the in-file paid runner that would sequence it is disabled (see below):
 
 * A run whose ENGINE IDENTITY — every ``MODAL_VLLM_*`` knob ``spec_env`` emits,
   plus ``(gpu_type, gpu_count, model)`` — equals the PREVIOUS run's does NOT
@@ -44,9 +53,14 @@ Warm-GPU sequencing (a series runs back-to-back on ONE warm fleet):
 
 Modes::
 
+    python deploy/run_gpu_cost.py --preview --spec config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml
     python deploy/run_gpu_cost.py --preview --series config/runs/gpu_cost_series.yaml
     python deploy/run_gpu_cost.py --mock --num-docs 4
-    python deploy/run_gpu_cost.py --run --gpu-type L4 --gpu-count 1 --num-docs 20
+
+``--run`` is DISABLED (DMR-078/S4): with or without ``--confirm-spend`` it raises
+``SystemExit`` with a not-implemented message before touching Modal. There is no
+offline default spec — ``--preview``/``--dry-run`` with no ``--spec`` errors out
+telling you to pass ``--spec <path>``.
 
 Secrets are never printed (presence only). Run specs and the series manifest
 carry no credentials; the bearer token and HF token stay in the operator's
@@ -74,9 +88,11 @@ Provenance:
 
 Offline-versus-paid: the module imports with STDLIB ONLY (no httpx / PyYAML /
 pydantic), so ``--preview`` / ``--dry-run`` runs with no network and no Modal.
-The heavy dependencies (``mailroom_sandbox.*``, ``modal_vllm``, ``httpx``) are
-imported lazily, inside the run legs. The real, billable Modal legs are gated
-behind ``--run`` AND an explicit ``--confirm-spend`` opt-in.
+The heavy dependencies (``mailroom_sandbox.*``, ``modal_vllm``, ``httpx``) were
+imported lazily inside the run legs. The real, billable Modal legs are NOT
+implemented here (DMR-078/S4): ``--run`` raises ``SystemExit`` BEFORE any
+subprocess or network call, so no reachable path in this file can spend or
+report a pass.
 --------------------------------------------------------------------------------
 """
 
@@ -87,7 +103,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import threading
 import time
@@ -146,6 +161,16 @@ VLLM_METRICS_ATTEMPTS = 6
 GPU_SAMPLE_INTERVAL_SECONDS = 2.0
 GPU_SAMPLE_WINDOW_PAD_SECONDS = 120.0  # > one sampler interval (FIX 9)
 ASSUMED_COLD_BOOT_SECONDS = 120.0      # plan-only cold-boot band
+
+# DMR-078 / S4 BLOCK: the reconstructed paid runner is a STUB. This message is
+# raised by ``Driver._run_real`` BEFORE any prewarm / deploy / eval / teardown or
+# any subprocess / network call, so NO reachable code path can spend or report a
+# pass. Drive the real chain by hand (see deploy/README) if a paid run is wanted.
+PAID_RUN_DISABLED_MSG = (
+    "not implemented: this reconstructed driver has no safe paid runner; "
+    "drive the eval + record + card chain by hand (see deploy/README) before "
+    "any Modal leg runs. --run refuses: no code may silently deploy or report passed."
+)
 
 # Keys spec_reuse_key drops because they are dataset-scoped, not engine-scoped.
 # The current spec_env emits no dataset-scoped MODAL_VLLM_* knobs, so this is a
@@ -666,7 +691,15 @@ def load_run_spec(path: str | os.PathLike[str]) -> RunSpecView:
     """Read a ``config/runs/*.yaml`` run spec into a ``RunSpecView``."""
     p = Path(path)
     if not p.exists():
-        raise FileNotFoundError(f"run spec not found: {path}")
+        # S4 FLAG (DMR-078): --preview/--dry-run with no --spec has no default
+        # spec to fall back to (DEFAULT_SPEC does not exist in this tree). Fail
+        # with an actionable message instead of a bare FileNotFoundError.
+        raise SystemExit(
+            f"run spec not found: {path}\n"
+            f"pass --spec <path> (e.g. --spec "
+            f"config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml) or --doc-type <alias> "
+            f"resolving to an existing config/runs/*.yaml."
+        )
     raw = _parse_yaml(p.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError(f"{path} must be a mapping, got {type(raw).__name__}")
@@ -1181,66 +1214,26 @@ class Driver:
         return 0
 
     def _run_real(self, plans: list[RunPlan], confirm_spend: bool) -> int:
-        _step("REAL Modal legs (deploy -> eval -> record -> teardown)")
-        check_run_preconditions(plans, mode="run")
-        if not confirm_spend:
-            _warn(
-                "--run would deploy a billed Modal fleet (prewarm -> deploy -> eval -> record -> "
-                "teardown). Re-run with --confirm-spend to opt in; nothing was executed and no "
-                "Modal/network call was made."
-            )
-            # Show the exact plan so the operator can eyeball the spend first.
-            return self.preview(plans)
-        # The billable path: prewarm HF cache, cold deploy, run the spec's
-        # isolated eval through the token-counting proxy, record one JSONL row,
-        # then tear the fleet down (always, in a finally).
-        return self._execute_real_legs(plans)
-
-    def _execute_real_legs(self, plans: list[RunPlan]) -> int:  # pragma: no cover - paid path
-        """Prewarm -> deploy -> eval -> record -> teardown. Requires the real deps."""
-        import modal_vllm  # lazy: deploy facts / MODAL_VLLM_* contract
-        from mailroom_sandbox.job import deploy_env  # lazy
-
-        outcomes: list[RunOutcome] = []
-        try:
-            _step("Pre-warm HF cache (Modal)")
-            _run(_modal_cmd() + ["run", "deploy/modal_vllm.py::download_model"])
-            for idx, plan in enumerate(plans, 1):
-                spec = build_spec(plan)
-                _step(f"Deploy {spec.app} (gpu={spec.gpu} x{spec.gpu_count})")
-                env = dict(os.environ)
-                env.update(deploy_env.spec_env(spec))  # type: ignore[arg-type]
-                _run(_modal_cmd() + ["deploy", "deploy/modal_vllm.py", "--strategy", "recreate"], env=env)
-                outcomes.append(RunOutcome(run_id=plan.run_id, passed=True))
-        finally:
-            _step(f"Teardown — modal app stop -y {' '.join(modal_vllm and [getattr(modal_vllm, 'APP_NAME', 'sandbox-vllm')])}")
-            _run(_modal_cmd() + ["app", "stop", "-y", "sandbox-vllm"], allow_fail=True)
-        self._report_series_status(outcomes)
-        return 0 if all(o.passed for o in outcomes) else 1
-
-    def _report_series_status(self, outcomes: list[RunOutcome]) -> None:
-        passed = sum(1 for o in outcomes if o.passed)
-        _step("Series status")
-        _log(f"{passed}/{len(outcomes)} run(s) passed")
-        for o in outcomes:
-            _log(f"  run {o.run_id}: {'PASSED' if o.passed else 'FAILED: '}")
+        # ------------------------------------------------------------------ #
+        # S4 BLOCK (DMR-078): the reconstructed paid runner is a STUB. The old
+        # body pre-warmed, deployed, appended RunOutcome(passed=True) and tore
+        # down WITHOUT running the eval, recording a cost row or printing the
+        # COST-PER-TOKEN CARD — yet it reported "N/N run(s) passed". Refuse
+        # BEFORE any deploy / prewarm / Modal app / subprocess / network call so
+        # that NOTHING on this path can spend or report a false success.
+        #
+        # A real billable run must be driven by hand (deploy -> eval -> record ->
+        # card -> teardown); see deploy/README. There is no offline safe default.
+        # ------------------------------------------------------------------ #
+        _step("REAL Modal legs — REFUSED (paid runner not implemented)")
+        raise SystemExit(PAID_RUN_DISABLED_MSG)
 
 
-def _run(cmd: list[str], env: dict[str, str] | None = None,
-         allow_fail: bool = False, echo: bool = False) -> tuple[int, str]:
-    """Run a subprocess, optionally echoing its output line-by-line."""
-    _env = dict(os.environ)
-    _env.update({"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"})
-    if env:
-        _env.update(env)
-    proc = subprocess.run(cmd, env=_env, capture_output=True, text=True)
-    out = (proc.stdout or "") + (proc.stderr or "")
-    if echo:
-        for line in out.splitlines():
-            _log(line)
-    if proc.returncode != 0 and not allow_fail:
-        raise SystemExit(f"command failed (rc={proc.returncode}): {' '.join(cmd)}\n{out}")
-    return proc.returncode, out
+# NOTE (DMR-078/S4): the paid-leg subprocess helper — prewarm, ``modal deploy``
+# and the hardcoded ``modal app stop -y sandbox-vllm`` teardown (previously run
+# with ``allow_fail=True``) — was REMOVED together with the stub paid runner.
+# Nothing in this module launches a subprocess, so no teardown remnant can
+# silently run or swallow a failure.
 
 
 # --------------------------------------------------------------------------- #
@@ -1311,9 +1304,11 @@ class FakeEndpointServer:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="run_gpu_cost.py",
-        description="GPU/MODAL cost-per-token driver: deploy a vLLM endpoint, run the spec's "
-                    "isolated eval through a token-counting proxy, record cost per token/document "
-                    "with cold-boot pricing and real nvidia-smi GPU utilization, then tear down.",
+        description="GPU/MODAL cost-per-token driver. --preview/--dry-run and --mock are the only "
+                    "supported modes: they print the plan / rehearse against a fake endpoint with no "
+                    "Modal and no network. The PAID runner is NOT implemented in this reconstructed "
+                    "driver — --run refuses immediately (SystemExit) before any Modal or network call; "
+                    "drive deploy -> eval -> record -> card -> teardown by hand (see deploy/README).",
     )
     parser.add_argument("--spec", default=None, help="run spec path (overrides --doc-type)")
     parser.add_argument("--doc-type", default=None,
@@ -1338,9 +1333,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mock", dest="mode", action="store_const", const="mock",
                         help="full offline rehearsal against a fake local /v1 endpoint")
     parser.add_argument("--run", dest="mode", action="store_const", const="run",
-                        help="the real Modal legs (deploy -> eval -> record -> teardown)")
+                        help="DISABLED (DMR-078/S4): the reconstructed paid runner is not "
+                             "implemented; --run refuses with SystemExit before any Modal call")
     parser.add_argument("--confirm-spend", action="store_true",
-                        help="explicit opt-in for the billable --run legs (no Modal call without it)")
+                        help="opt-in for the billable --run legs (no longer reaches any Modal call: "
+                             "--run is disabled)")
     return parser
 
 

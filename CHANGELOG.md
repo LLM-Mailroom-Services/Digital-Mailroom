@@ -22,6 +22,16 @@ and is recorded there, not here.
 ## [Unreleased]
 ### Added
 
+- **DMR-078: A100 cost-per-token evidence into `packages/local-mailroom-sandbox`:**
+  per-leg run manifest builder (`scripts/build_a100_manifest.py` →
+  `reports/a100-run-manifest.{md,csv}`, 32 A100 legs, deterministic, cost from the
+  A100 report $/100-docs basis with per-leg caveats); GPU-aware cost renderer
+  (`scripts/sand032/report.py` — GPU rate table L4 $0.80 / A100 $2.10, L4 output
+  byte-identical) + `tests/test_report_gpu_rates.py`; and a **RECONSTRUCTED**
+  `deploy/run_gpu_cost.py` recovered from compiled bytecode (SAND-033; paid `--run`
+  path deliberately DISABLED/not-implemented pending the eval+record+cost-card chain).
+  Landed on `main` `85930345`; [issue #128](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/128).
+
 - **Feeder import (dojo v0.19.1 + sandbox @62a71e9 + remaining Exios66 tips):**
   pull-only overlay into `packages/*` — feeder content wins on overlapping
   paths; hub-only files are kept; **no subtree-push** (feeders are never

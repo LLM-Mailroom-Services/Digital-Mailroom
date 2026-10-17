@@ -7,14 +7,18 @@ the **centralized** helpers in
 
 ## mailroom-dataset (v9.1 — quality revision, 2026-09-26)
 
-The **current** corpus pin is
+The **canonical pipeline** corpus pin is the published tag **`v9.1`**
+(`bc9eab28`; data commit **`ed7576b676343e0b402ec5412cded301e629bdee`**) of
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
-@ **`ed7576b676343e0b402ec5412cded301e629bdee`** (v9.1 quality revision —
-mailroom-issues#196 Phase B; zero row/identity/content drift from the v9
-GT-closure tip below). Same **3,302 rows** and configs (`default` /
-`ground_truth` / `bundles` / `streams` / `fixtures`); adds B1/B2/B4 schema
-hygiene (`gt_presence`, context-window bands, weak-indirect signal removal).
-Pin the full SHA until Hub tag `v9.1` ships.
+(v9.1 quality revision — mailroom-issues#196 Phase B; zero
+row/identity/content drift from the v9 GT-closure tip below; the tag is a
+README-only delta over the data commit). Same **3,302 rows** and configs
+(`default` / `ground_truth` / `bundles` / `streams` / `fixtures`); adds
+B1/B2/B4 schema hygiene (`gt_presence`, context-window bands, weak-indirect
+signal removal). The latest published tag is **`v9.2`** (`670e8bc6`; parent
+data commit `d49f60a4`): not yet adopted by the pipeline/eval/ML pins — the
+corpus-EDA loader re-pinned to it on 2026-10-06
+(`packages/mailroom-corpus-eda`, test-enforced).
 
 ## mailroom-dataset (v9 — published 2026-09-12, GT-closure revision 2026-09-13)
 
@@ -96,7 +100,8 @@ supporting_documents, cuad_clause_labels, maud_clause_labels, intent,
 subject_matter, keywords, intent_source, intent_confidence, intent_status`
 
 Corpus strata vocabulary (per doc type, used by eval targets) — re-pinned to
-the current dataset GT (mailroom-dataset v9.1, tip `ed7576b6`, 3,302 rows;
+the current dataset GT (mailroom-dataset v9.1, tag `bc9eab28` / data commit
+`ed7576b6`, 3,302 rows;
 DMR-071 2026-09-16: the dataset pin is the source of truth; the v8-era
 `voicemail` correspondence key is not in the v9 GT vocabulary and left every
 catalog surface):
@@ -148,11 +153,15 @@ sister repo under `data/hf_cache/corpus/` (generation tracked on
 [mailroom-issues#201](https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/201);
 operator README: `data/hf_cache/README.md` once published there).
 
-**Pinned revision for the v9.1 quality revision** (code-only drift from the
-v9 tip; same 3,302 rows): `ed7576b676343e0b402ec5412cded301e629bdee` — keep
-this SHA aligned with revision pins in
+**Pin for the v9.1 quality revision** (code-only drift — no new document
+sourcing — from the v9 tip; same 3,302 rows): the published tag `v9.1`
+(`bc9eab28`; data commit
+`ed7576b676343e0b402ec5412cded301e629bdee`) — keep it aligned with revision
+pins in
 [Digital-Mailroom#110](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/110)
-and `FULL_CORPUS_REVISION` in `packages/llm-mailroom/src/pipeline/hf_corpora.py`.
+and `FULL_CORPUS_REVISION` in
+`packages/llm-mailroom/src/pipeline/hf_corpora.py` (currently the tag string
+`v9.1`).
 
 ### Sparse checkout (engineers)
 

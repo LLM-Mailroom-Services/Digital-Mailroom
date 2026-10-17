@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Corpus pin → v9.2** — `FULL_CORPUS_REVISION` now targets Hub tag `v9.2`
+  (`670e8bc6`; parent data commit `d49f60a4`), superseding v9.1 (`bc9eab28`;
+  data `ed7576b6`). Provenance-only: zero row-set/identity/content drift,
+  `_published` dropped from `ground_truth` (35 columns).
 - **llm-dojo-scoring pin bumped `v0.19.1` → `v0.21.0`** ([llm-dojo-scoring@v0.21.0](https://github.com/Exios66/llm-dojo-scoring/releases/tag/v0.21.0), tip `6a3053cc`): the dojo `production` family was re-vendored verbatim from a live mailroom checkout (five specialists now equal the frozen `production_prompts` v1 bytes, `reporter` is `kind: deterministic`, every row records `source_commit`), `llm_dojo_scoring.intents` added the controlled `intent` vocabularies, the exact-match `label` field type landed, and the six `production` classification prompts were re-synced from mailroom `6ddde73` (llm-mailroom#102 — the five-class doctrine no longer names the MAUD/CUAD corpora). Scoring semantics for the pinned behaviour are unchanged, so no pipeline code change is required; pins, badges, skills, wiki, README / landing, current-state GitBook pages (Overview, repos guides, architecture, Agents honest gaps, Scoring and performance, Running), the observability README, and the `## Corpus honesty` heading in generated HF-pilot reports now all cite `v0.21.0`. The pin was moved only via `PYTHONPATH=src python src/scripts/bump_dojo_scoring.py --apply --tag v0.21.0`.
 
 ### Fixed

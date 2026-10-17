@@ -42,6 +42,13 @@ and is recorded there, not here.
 
 ### Changed
 
+- **Corpus pin → v9.2** — `packages/llm-mailroom` now pins Hub tag `v9.2`
+  (`670e8bc6`; parent data commit `d49f60a4`), superseding v9.1
+  (`bc9eab28`; data `ed7576b6`). Provenance-only: zero row-set/identity/content
+  drift, `_published` dropped from `ground_truth` (35 columns). To be published
+  to the standalone `Exios66/llm-mailroom` mirror via `scripts/sync_packages.py
+  push` after merge; the eval harness and ML pins remain on v9.1 until their
+  coordinated bump.
 - **`llm-dojo-scoring` pin → `v0.22.0` (tagged + published 2026-10-16):** the
   Phase-1 feeder import carried the 9 unreleased commits toward v0.22.0
   (upstream branch `claude/cool-wozniak-o044u4`, `852b0527`); the tag was then

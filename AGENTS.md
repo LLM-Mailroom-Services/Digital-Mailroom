@@ -226,11 +226,11 @@ python scripts/release_notes.py X.Y.Z           # render the GitHub Release body
 ## HF Hub uploads
 
 The `mailroom-dataset` dataset family (canonical id
-`Lucius-Morningstar/mailroom-dataset`, "Mailroom Dataset v1", v9, 3,302 rows,
-pinned to the published tag `v9.1` (`bc9eab28`; data commit `ed7576b6`,
-2026-09-26); the latest published tag `v9.2` (`670e8bc6`) is not yet adopted
-by the pipeline/eval/ML pins — the corpus-EDA loader re-pinned to it on
-2026-10-06) is the current corpus.
+`Lucius-Morningstar/mailroom-dataset`, "Mailroom Dataset v1", v9, 3,302 rows;
+the pipeline pin is the published tag `v9.2` (`670e8bc6`; parent data commit
+`d49f60a4`); the eval/ML pins remain on `v9.1` (`bc9eab28`; data commit
+`ed7576b6`, 2026-09-26) until their coordinated bump; the corpus-EDA loader
+re-pinned to v9.2 on 2026-10-06) is the current corpus.
 Its frozen
 v8 baseline remains `Lucius-Morningstar/mailroom-corpus` (2,000 rows, pinned
 eafe1ab4) — itself renamed from `docclass-merged` on 2026-09-02 ("docclass"

@@ -1,24 +1,27 @@
-# HF corpus — mailroom-dataset (v9 / v9.1)
+# HF corpus — mailroom-dataset (v9 / v9.2)
 
 The corpus family is published on the
 [Lucius-Morningstar HF org](https://huggingface.co/Lucius-Morningstar) via
 the **centralized** helpers in
 `packages/mailroom-corpus-eda/src/mailroom_eda/` — never ad-hoc upload code.
 
-## mailroom-dataset (v9.1 — quality revision, 2026-09-26)
+## mailroom-dataset (v9.2 — current pipeline pin; v9.1 — quality revision, 2026-09-26)
 
-The **canonical pipeline** corpus pin is the published tag **`v9.1`**
-(`bc9eab28`; data commit **`ed7576b676343e0b402ec5412cded301e629bdee`**) of
+The **canonical pipeline** corpus pin is the published tag **`v9.2`**
+(`670e8bc6`; parent data commit
+**`d49f60a402ccc090617db58a8593aa971d63a2ff`**) of
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
-(v9.1 quality revision — mailroom-issues#196 Phase B; zero
-row/identity/content drift from the v9 GT-closure tip below; the tag is a
-README-only delta over the data commit). Same **3,302 rows** and configs
-(`default` / `ground_truth` / `bundles` / `streams` / `fixtures`); adds
+— the provenance/relations revision: zero row-set/identity/content drift from
+v9.1, `_published` dropped from `ground_truth` (35 columns). The previous pin
+was the published tag **`v9.1`** (`bc9eab28`; data commit
+`ed7576b676343e0b402ec5412cded301e629bdee`) — mailroom-issues#196 Phase B,
+zero row/identity/content drift from the v9 GT-closure tip below, with the tag
+a README-only delta over the data commit. Same **3,302 rows** and configs
+(`default` / `ground_truth` / `bundles` / `streams` / `fixtures`); v9.1 added
 B1/B2/B4 schema hygiene (`gt_presence`, context-window bands, weak-indirect
-signal removal). The latest published tag is **`v9.2`** (`670e8bc6`; parent
-data commit `d49f60a4`): not yet adopted by the pipeline/eval/ML pins — the
-corpus-EDA loader re-pinned to it on 2026-10-06
-(`packages/mailroom-corpus-eda`, test-enforced).
+signal removal). The corpus-EDA loader re-pinned to v9.2 on 2026-10-06
+(`packages/mailroom-corpus-eda`, test-enforced); the eval harness and ML pins
+remain on v9.1 until their coordinated bump.
 
 ## mailroom-dataset (v9 — published 2026-09-12, GT-closure revision 2026-09-13)
 
@@ -100,8 +103,8 @@ supporting_documents, cuad_clause_labels, maud_clause_labels, intent,
 subject_matter, keywords, intent_source, intent_confidence, intent_status`
 
 Corpus strata vocabulary (per doc type, used by eval targets) — re-pinned to
-the current dataset GT (mailroom-dataset v9.1, tag `bc9eab28` / data commit
-`ed7576b6`, 3,302 rows;
+the current dataset GT (mailroom-dataset v9.2, tag `670e8bc6` / data commit
+`d49f60a4`, 3,302 rows;
 DMR-071 2026-09-16: the dataset pin is the source of truth; the v8-era
 `voicemail` correspondence key is not in the v9 GT vocabulary and left every
 catalog surface):
@@ -161,7 +164,7 @@ pins in
 [Digital-Mailroom#110](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/110)
 and `FULL_CORPUS_REVISION` in
 `packages/llm-mailroom/src/pipeline/hf_corpora.py` (currently the tag string
-`v9.1`).
+`v9.2`).
 
 ### Sparse checkout (engineers)
 

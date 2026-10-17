@@ -79,6 +79,15 @@ def _body(text: str) -> str:
     return text if text.endswith("\n") else text + "\n"
 
 
+def _is_lineage_locked(path: Path) -> bool:
+    """True when ``path``'s sha256 is recorded in the pin lineage manifest."""
+    manifest = PROMPTS / "eval_environment_lineage.json"
+    if not manifest.is_file():
+        return False
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    return digest in manifest.read_text(encoding="utf-8")
+
+
 def _refuse_experiment_write(stem: str, *, overwrite_experiment: bool) -> str | None:
     if stem in EXPERIMENT_STEMS and not overwrite_experiment:
         return (
@@ -111,6 +120,15 @@ def sync(*, check: bool = False, overwrite_experiment: bool = False) -> int:
             if vendor_text is None:
                 continue
             if path.read_text(encoding="utf-8") == _body(vendor_text):
+                if _is_lineage_locked(path):
+                    # Vendor promoted the sha256-locked eval-environment frozen
+                    # v1 text into its code default (promotion issues #4-#8), so
+                    # identity is the lineage, not a blind copy.
+                    print(
+                        f"ok experiment {experiment_stem} (promoted: vendor "
+                        f"{vendor_stem} == sha256-locked frozen v1 lineage text)"
+                    )
+                    continue
                 drifted.append(
                     f"{experiment_stem} is byte-identical to vendor {vendor_stem} "
                     "(simplified pin must diverge; do not copy vendor blindly)"

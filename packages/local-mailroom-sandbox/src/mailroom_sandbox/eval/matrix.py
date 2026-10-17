@@ -134,7 +134,9 @@ def run_matrix(
     if records:
         from mailroom_sandbox.eval import scoring
 
+        # A matrix mixes models / prompts / providers: compare per comparable
+        # group (full identity), never one pooled leg per side.
         compared = scoring.compare_from_records(records)
-        if compared.get("comparison") is not None:
+        if compared.get("groups"):
             payload["local_vs_api"] = compared
     return payload

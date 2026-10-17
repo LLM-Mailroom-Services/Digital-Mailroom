@@ -68,7 +68,7 @@ def test_cli_deploy_env_prints_exports(capsys):
     from mailroom_sandbox.paths import config_dir
 
     rc = main(["run", "deploy-env", "--config",
-               str(config_dir() / "runs" / "run-50-correspondence-specialist-awq.yaml")])
+               str(config_dir() / "runs" / "legacy" / "run-50-correspondence-specialist-awq.yaml")])
     out = capsys.readouterr().out
     assert rc == 0
     assert "export MODAL_VLLM_MODEL=Qwen/Qwen3-8B-AWQ" in out

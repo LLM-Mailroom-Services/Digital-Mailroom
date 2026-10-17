@@ -31,7 +31,6 @@
 | Package | Docs |
 | :--- | :--- |
 | `llm-mailroom` | `packages/llm-mailroom/docs/` — full pipeline documentation |
-| `llm-entity-extraction` | `packages/llm-entity-extraction/docs/` — experiment log, slides, memos |
 | `mailroom-corpus-eda` | `packages/mailroom-corpus-eda/docs/` — dataset cards, source corpora |
 
 ## Wiki

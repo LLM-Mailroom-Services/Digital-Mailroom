@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from mailroom_sandbox.job import grid_cards
+from mailroom_sandbox.job import grid_cards, metrics
 from mailroom_sandbox.job.checkpoint import RunStore
 
 
@@ -73,9 +73,13 @@ def test_card_lands_under_shape_and_specialist(tmp_path):
 def test_card_measures_cost_tokens_engine_and_quality(tmp_path):
     store = _store(tmp_path)
     card = json.loads(grid_cards.write_card(store, repo=tmp_path, wall_seconds=150.0)["json"].read_text())
-    # cost: 150 s × 2 L4 × $0.80/hr
+    # busy window: 150 s × 2 L4 × $0.80/hr
     assert abs(card["cost"]["busy_gpu_usd"] - 150 * 2 * 0.80 / 3600) < 1e-9
-    assert abs(card["cost"]["usd_per_document"] - card["cost"]["busy_gpu_usd"] / 3) < 1e-12
+    # Per-document money uses the BILLED figure (the run's own telemetry window,
+    # else wall + cold boot), because that is what was actually spent. This store
+    # carries no telemetry file, so billed = (150 + cold boot) × 2 L4 × rate.
+    assert card["cost"]["billed_gpu_usd"] > card["cost"]["busy_gpu_usd"]
+    assert abs(card["cost"]["usd_per_document"] - card["cost"]["billed_gpu_usd"] / 3) < 1e-12
     assert card["tokens"]["total"] == 19000 and card["tokens"]["completion_max"] == 2500
     assert abs(card["throughput"]["tokens_per_second_per_gpu"] - 19000 / 150 / 2) < 1e-9
     assert abs(card["concurrency"]["parallelism"] - 270 / 150) < 1e-9
@@ -243,3 +247,78 @@ def test_chunk_gate_fails_on_lost_chunks_or_failed_documents(tmp_path):
     assert any("need 6 chunk calls" in e for e in lost)
     failed = grid_cards.chunk_gate(_gate_store(tmp_path / "b", requests=6, ok=False), split=_three_chunks)
     assert any("documents ok 1/2" in e for e in failed)
+
+
+def test_card_prefers_knobs_frozen_at_preflight(tmp_path):
+    """A posture edit after a run must not rewrite what its card says the run used.
+
+    ``collect_card`` used to read only the live posture table, so editing a posture
+    retroactively changed historical cards — exactly what the contracts whole-document
+    change would have done to its already-completed run.
+    """
+    from mailroom_sandbox.job import grid_cards
+
+    store = _store(tmp_path)
+    lock = store.read_lock()
+    lock["agent_knobs"] = {"contracts_specialist": {"max_tokens": 4096, "max_input_chars": 24000}}
+    store.lock_path.unlink()  # write_lock refuses to overwrite an existing lock
+    store.write_lock(lock)
+
+    card = grid_cards.collect_card(store)
+    assert card["conditions"]["max_input_chars"] == 24000
+    assert card["conditions"]["max_tokens"] == 4096
+
+
+def test_card_falls_back_to_live_posture_for_pre_freeze_locks(tmp_path):
+    """Runs locked before the freeze still render: no agent_knobs means use the table."""
+    from mailroom_sandbox.job import grid_cards
+    from mailroom_sandbox.job.specialist_posture import posture_for_run
+
+    store = _store(tmp_path)
+    run_id = str(store.read_lock()["run_id"])
+    card = grid_cards.collect_card(store)
+    assert card["conditions"]["max_input_chars"] == posture_for_run(run_id)["max_input_chars"]
+
+
+# ── SAND-042: cost computed from the run, never scraped ──────────────────────
+
+
+def test_billed_cost_comes_from_the_runs_own_telemetry_window(tmp_path):
+    """The run's container telemetry wins over the item-`ts` span.
+
+    The item-`ts` span runs first-completion -> last-completion, so it drops the whole
+    first wave — measured 100.3 s against a true 438 s on the 5-document merger probe
+    (4.4x), and ~1/waves at n=50. The window the runbook's `before`/`after` scrapes
+    bracket is the billed interval, and it is derived from the run itself.
+    """
+    store = _store(tmp_path)
+    (store.dir / "container_telemetry_after.json").write_text(
+        json.dumps({"start": 1000.0, "end": 1300.0, "samples": [], "replicas": {}})
+    )
+    rec = metrics.serving_record_from_store(store, wall_seconds=150.0)
+    assert rec["gpu_seconds"] == 300.0
+    # 300 s x 2 L4 x $0.80/hr — replicas bill the full wall (SAND-032)
+    assert abs(rec["estimated_gpu_cost_usd"] - 300 * 2 * 0.80 / 3600) < 1e-6
+
+
+def test_billed_cost_falls_back_to_wall_plus_boot_without_telemetry(tmp_path):
+    store = _store(tmp_path)
+    store.cold_boot_path.write_text(json.dumps({"cold_boot_seconds": 30.0}))
+    rec = metrics.serving_record_from_store(store, wall_seconds=150.0)
+    assert rec["gpu_seconds"] == 180.0  # wall + cold boot, never the bare wall
+
+
+def test_telemetry_window_and_fleet_seconds_are_read_off_the_doc():
+    from mailroom_sandbox.job import container_telemetry as ct
+
+    doc = {
+        "start": 10.0,
+        "end": 70.0,
+        "samples": [{"t": 12.0}, {"t": 68.0}],
+        "replicas": {"a": {"samples": [{"t": 12.0}, {"t": 68.0}]},
+                     "b": {"samples": [{"t": 20.0}, {"t": 60.0}]}},
+    }
+    assert ct.billed_seconds(doc) == 60.0
+    assert ct.fleet_gpu_seconds(doc) == 56.0 + 40.0  # per-replica lifetimes, summed
+    assert ct.billed_seconds({"samples": [{"t": 5.0}]}) is None
+    assert ct.fleet_gpu_seconds({"replicas": {}}) is None

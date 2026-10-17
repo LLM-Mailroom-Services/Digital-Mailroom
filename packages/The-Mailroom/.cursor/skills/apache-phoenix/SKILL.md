@@ -28,6 +28,11 @@ Langfuse + Phoenix when `MAILROOM_SOURCE=both`.
 GH Pages can point `?api=` at a local server with CORS
 (`MAILROOM_CORS_ORIGINS`).
 
+**mailroom-reloaded:** its `mailroom.document` / `mailroom.node.*` spans are
+mapped by `RELOADED_NODE_STAGES` (`pipeline_schema.py`) and the root's
+`mailroom.*` attributes (`PhoenixSource._reloaded_io`). New node or status in
+that pipeline -> update both maps and `tests/fake_phoenix.make_reloaded_trace`.
+
 ## Boundaries
 
 | Do | Don't |

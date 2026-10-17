@@ -1,7 +1,7 @@
 """llm-dojo-scoring — dedicated scoring, error analysis, visualization, and
 interpretation suite for LLM document pipelines.
 
-Import into llm-entity-extraction / llm-mailroom to replace the project-local
+Import into llm-mailroom (and the vendored sandbox) to replace the project-local
 scoring code (``src/field_scoring.py``, ``src/metrics.py``, ``src/bootstrap.py``,
 ``src/cost_models.py``, ``src/scorers.py``, ``src/experiment_log.py``,
 ``src/taxonomy.py``, ``agents/sorter_agent.py`` equivalence constants,
@@ -15,7 +15,7 @@ from importlib import metadata
 try:
     __version__ = metadata.version("llm-dojo-scoring")
 except metadata.PackageNotFoundError:
-    __version__ = "0.19.1"
+    __version__ = "0.22.0"
 
 from . import (
     archive,
@@ -83,8 +83,15 @@ from .failure_modes import (
     per_subtype_accuracy,
     summarize_failures,
 )
+from .intents import (
+    INTENT_ALIASES,
+    INTENT_DESCRIPTIONS,
+    INTENT_LABELS,
+    normalize_intent,
+)
 from .field_scoring import (
     EntityListScore,
+    embed_texts,
     ExtractionScoreResult,
     FIELD_SCORERS,
     field_is_ambiguous,
@@ -226,6 +233,26 @@ from .corpus import (
     normalize_corpus_subclass,
     suite_schema,
 )
+from .cuad_schema import (
+    CUAD_CATEGORIES,
+    CUAD_FAMILIES,
+    cuad_category,
+    cuad_family,
+    cuad_json_schema,
+    cuad_questions,
+    render_cuad_question_block,
+)
+from .maud_schema import (
+    MAUD_CONSIDERATION_SUBCLASSES,
+    MAUD_QUESTIONS,
+    maud_answers_to_clauses,
+    maud_json_schema,
+    maud_question,
+    maud_questions,
+    parse_maud_clause,
+    render_maud_question_block,
+)
+from .schema_contract import contract_empty_payload, contract_violations
 from .mailroom import (
     EXTRACT_CLASS_ALIASES,
     LIVE_DOC_TYPES,
@@ -310,10 +337,12 @@ __all__ = [
     "score_field", "score_entity_list", "field_is_ambiguous",
     "get_field_types", "get_type_bands", "warm_embedding_model",
     "normalize_text", "parse_date", "parse_money", "score_category_presence",
-    "is_entity_list", "get_ambiguous_band", "FIELD_SCORERS",
+    "is_entity_list", "get_ambiguous_band", "FIELD_SCORERS", "embed_texts",
+    "INTENT_LABELS", "INTENT_ALIASES", "INTENT_DESCRIPTIONS", "normalize_intent",
     "extraction_binary_metrics", "mean_entity_list_f1", "merge_extraction_counts",
     "amount_exactness", "determination_consistency", "score_claims_extras",
     "Settings", "TraceKnobSettings", "clear_settings_cache", "configure", "configure_from_taxonomy",
+
     "get_settings",
     "load_settings",
     "chained_composite", "chained_summary", "court_opinion_score",
@@ -350,6 +379,12 @@ __all__ = [
     "MAUD_CATALOG_GENERATED", "MAUD_CATALOG_ROWS",
     "canonical_maud_class", "is_maud_class", "maud_class_index",
     "maud_question_catalog",
+    "CUAD_CATEGORIES", "CUAD_FAMILIES", "cuad_category", "cuad_family",
+    "cuad_json_schema", "cuad_questions", "render_cuad_question_block",
+    "MAUD_CONSIDERATION_SUBCLASSES", "MAUD_QUESTIONS", "maud_answers_to_clauses",
+    "maud_json_schema", "maud_question", "maud_questions", "parse_maud_clause",
+    "render_maud_question_block",
+    "contract_empty_payload", "contract_violations",
     "parse_gt_fields", "scoring_gt_fields", "normalize_field_values",
     "parse_json_container", "is_empty_value", "gt_presence_map",
     "presence_expectations_from_cuad_labels", "derive_presence_from_gt",

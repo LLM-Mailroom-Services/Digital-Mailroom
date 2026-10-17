@@ -61,6 +61,17 @@ def resolve_logged_prompt_version(
     specialist stem, the label is the catalog key (``contracts_specialist_v1``)
     so Modal records pair with eval-environment ``prompt_key``.
     """
+    # eval-environment prompt versions (``--prompt-version`` / ``prompt.versions``):
+    # the selected key + sha256 are the identity, from the lock when given, else
+    # from the process-wide selection the CLI / job runner activated.
+    from mailroom_sandbox.prompt_versions import active_selection, selection_from_lock
+
+    selection = selection_from_lock(prompt_lock) or active_selection()
+    if selection and not prompt_version:
+        picked = selection.label_for(task)
+        if picked is not None:
+            return picked
+
     stem: str | None = None
     sha: str | None = None
     if prompt_version:
@@ -100,10 +111,22 @@ def resolve_logged_prompt_version(
     return label, sha
 
 
-def stamp_prompt_provenance(record: dict[str, Any], label: str, sha256: str | None) -> None:
+def stamp_prompt_provenance(
+    record: dict[str, Any],
+    label: str,
+    sha256: str | None,
+    *,
+    prompt_lock: dict[str, Any] | None = None,
+) -> None:
     record["prompt_version"] = label
     if sha256:
         record["prompt_sha256"] = sha256
+    from mailroom_sandbox.prompt_versions import active_selection, selection_from_lock
+
+    selection = selection_from_lock(prompt_lock) or active_selection()
+    if selection and selection.label_for(str(record.get("task") or "")) == (label, sha256):
+        selection.stamp(record)
+        return
     env_key, stem, catalog_sha = _catalog_identity(label, task=str(record.get("task") or ""))
     if env_key:
         record["eval_environment_prompt_key"] = env_key

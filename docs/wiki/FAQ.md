@@ -34,7 +34,7 @@ One-time interactive grant: `gh auth refresh -s read:project`, then
 **Q: Where do prompts flow?**
 llm-dojo → llm-mailroom, never the reverse. Prompt versions are the
 experiment identity — never mutate a prompt that has run; derive a new
-version key (see the llm-entity-extraction AGENTS.md).
+version key (convention from the pruned llm-entity-extraction package; see its standalone repo).
 
 **Q: Which HF dataset is canonical?**
 [mailroom-dataset](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)

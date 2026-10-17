@@ -23,6 +23,7 @@ import json
 import logging
 import math
 import os
+import re
 import statistics
 from datetime import datetime
 from pathlib import Path
@@ -31,7 +32,10 @@ from typing import Any, Mapping, Sequence, TYPE_CHECKING
 if TYPE_CHECKING:
     from mailroom_sandbox.job.checkpoint import RunStore
 
+from llm_dojo_scoring.scorecard_honesty import COST_BASIS_TOKEN_PRICE
 from llm_dojo_scoring.serving import compare_serving, estimate_cost
+
+from mailroom_sandbox.serving_groups import group_legs, pair_legs, pooled_identity_conflict
 
 from mailroom_sandbox.job.specialist_posture import as_metrics_sec_tables
 
@@ -246,6 +250,44 @@ def _gpu_seconds_from_items(
     return sum(latencies) / 1000.0
 
 
+_FULL_SHA_RE = re.compile(r"[0-9a-f]{40}")
+
+
+def lock_dataset_provenance(lock: Mapping[str, Any] | None) -> dict[str, str]:
+    """``dataset_revision`` / ``split`` / ``draw_seed`` a run lock actually knows.
+
+    The dojo (v0.22) refuses to emit a serving scorecard without
+    ``dataset_revision`` and never derives it from the dataset fingerprint
+    (the fingerprint maps to ``draw_seed``). The run lock is the one place the
+    sandbox records which Hub snapshot a run scored, so the stamp comes from
+    there and only there:
+
+    * ``dataset_revision`` — the lock's resolved 40-hex Hub sha (or a requested
+      revision that already is one). An offline ``file`` dataset has no Hub
+      revision, so nothing is stamped for it (never ``"offline"``).
+    * ``split`` — the locked split.
+    * ``draw_seed`` — the locked ``sample_seed`` (absent for an undrawn run).
+    """
+    dataset = (lock or {}).get("dataset")
+    if not isinstance(dataset, Mapping):
+        return {}
+    meta = dataset.get("metadata") if isinstance(dataset.get("metadata"), Mapping) else {}
+    out: dict[str, str] = {}
+    if meta.get("source") == "huggingface":
+        for key in ("revision_resolved", "revision"):
+            value = str(dataset.get(key) or "").strip().lower()
+            if _FULL_SHA_RE.fullmatch(value):
+                out["dataset_revision"] = value
+                break
+        split = str(dataset.get("split") or "").strip()
+        if split:
+            out["split"] = split
+    seed = dataset.get("sample_seed")
+    if seed is not None and not isinstance(seed, bool):
+        out["draw_seed"] = str(seed)
+    return out
+
+
 def record_from_run(
     *,
     run_id: str,
@@ -259,9 +301,16 @@ def record_from_run(
     scores: Mapping[str, Any] | None = None,
     gpu: str | None = None,
     billed_window_seconds: float | None = None,
+    replicas: int = 1,
     mock: bool = False,
+    dataset_provenance: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Aggregate per-item captures into one dojo-compatible serving record."""
+    """Aggregate per-item captures into one dojo-compatible serving record.
+
+    ``dataset_provenance`` (``dataset_revision`` / ``split`` / ``draw_seed``,
+    see :func:`lock_dataset_provenance`) is stamped on the record when given so
+    the dojo can emit its scorecard; it is never inferred here.
+    """
     kind = bucket_kind({"serving_kind": "", "profile": profile, "provider": _provider_for(profile)})
     # hub#56: TTFT aggregation must treat failures like the latency
     # aggregation — failed/retried items carry inflated TTFT from backoff
@@ -288,6 +337,10 @@ def record_from_run(
         "run_id": run_id,
         "spec_hash": spec_hash,
     }
+    for key in ("dataset_revision", "split", "draw_seed"):
+        value = (dataset_provenance or {}).get(key)
+        if value not in (None, ""):
+            rec[key] = value
     if gpu:
         rec["gpu"] = gpu
     if latencies:
@@ -309,6 +362,9 @@ def record_from_run(
         cost = _estimate_cost(prompt_tokens, completion_tokens, model)
         if cost is not None:
             rec["estimated_cost_usd"] = float(cost)
+            # tokens x a price table: label it so the dojo can stamp USD rows
+            # (a USD metric without cost_basis is refused at emission).
+            rec["cost_basis"] = COST_BASIS_TOKEN_PRICE
             if n_ok > 0:
                 rec["cost_per_document"] = round(float(cost) / n_ok, 8)
         elif not mock and n_ok > 0 and total_tokens <= 0:
@@ -345,7 +401,7 @@ def record_from_run(
         )
         if gpu_seconds is not None:
             rec["gpu_seconds"] = round(gpu_seconds, 3)
-            gpu_cost = estimate_gpu_cost_usd(gpu_seconds, gpu=gpu)
+            gpu_cost = estimate_gpu_cost_usd(gpu_seconds, gpu=gpu, replicas=replicas)
             if gpu_cost is not None:
                 rec["estimated_gpu_cost_usd"] = gpu_cost
                 if n_ok > 0:
@@ -394,20 +450,39 @@ def infer_wall_seconds_from_items(items: Sequence[Mapping[str, Any]]) -> float |
     return round(max(stamps) - min(stamps), 3)
 
 
-def infer_wall_seconds_from_store(store: RunStore) -> float | None:
-    """Best-effort wall seconds from items or the run event journal."""
-    wall = infer_wall_seconds_from_items(store.load_items())
-    if wall is not None:
-        return wall
-    events = store.events()
+def _event_span_stamps(events: Sequence[Mapping[str, Any]]) -> list[float]:
+    """Event timestamps bracketing the run, skipping the pre-run ``cold_boot`` probe."""
     stamps: list[float] = []
-    for ev in events:
+    for ev in events or []:
+        if ev.get("event") == "cold_boot":
+            continue
         ts = _parse_item_ts(ev.get("ts"))
         if ts is not None:
             stamps.append(ts)
-    if len(stamps) < 2:
-        return None
-    return round(max(stamps) - min(stamps), 3)
+    return stamps
+
+
+def journal_wall_seconds(store: RunStore) -> float | None:
+    """The run's event-journal span (``preflight_ok`` → ``done``), or ``None``.
+
+    The journal brackets the whole run; the item ``ts`` span only covers first
+    completion → last completion and drops the entire first scheduling wave.
+    """
+    stamps = _event_span_stamps(store.events())
+    if len(stamps) >= 2:
+        return round(max(stamps) - min(stamps), 3)
+    return None
+
+
+def infer_wall_seconds_from_store(store: RunStore) -> float | None:
+    """Best-effort wall seconds bracketing the run.
+
+    Prefer the event journal over the item ``ts`` span: the items only carry a
+    *completion* stamp, so their span drops the entire first scheduling wave —
+    measured ~7× low on the 50-document merger (4208 s against a 4658 s journal
+    span). Falls back to the item span when the journal is absent or too short.
+    """
+    return journal_wall_seconds(store) or infer_wall_seconds_from_items(store.load_items())
 
 
 def _prompt_version_from_lock(lock: Mapping[str, Any]) -> str:
@@ -451,6 +526,7 @@ def enrich_serving_report(
     scores: Mapping[str, Any] | None = None,
     replicas: int = 1,
     scaledown_seconds: float | None = None,
+    billed_window_seconds: float | None = None,
 ) -> dict[str, Any]:
     """Extend a ``record_from_run`` dict with wall/concurrency/latency_sum fields.
 
@@ -506,16 +582,22 @@ def enrich_serving_report(
     kind = bucket_kind(out)
     gpu_class = gpu or out.get("gpu")
     if kind == "modal" and wall_seconds and wall_seconds > 0:
-        billed = float(wall_seconds) + (
-            float(cold_boot_seconds) if cold_boot_seconds is not None else 0.0
+        # Prefer the run's OWN container-telemetry window: it brackets the run, so it
+        # is what Modal metered — computed from the run, not scraped from a billing
+        # CLI. Falls back to boot + wall, which under-counts because the item-`ts`
+        # wall starts at the FIRST completion (4.4x low on the 5-document probe).
+        billed = (
+            float(billed_window_seconds)
+            if billed_window_seconds and billed_window_seconds > 0
+            else float(wall_seconds)
+            + (float(cold_boot_seconds) if cold_boot_seconds is not None else 0.0)
         )
         out["gpu_seconds"] = round(billed, 3)
         gpu_cost = estimate_gpu_cost_usd(billed, gpu=gpu_class, replicas=replicas)
-        # SAND-032: LOWER bound on what Modal bills for this run — boot + wall
-        # (+ scale-down tail for scale-to-zero fleets; pinned MIN=MAX fleets pass
-        # scaledown_seconds=None), on every replica. Pre-run warm time and idle
-        # gaps between suite configs are NOT included: the Modal usage page is
-        # the ground truth and is reconciled in the spend ledger.
+        # SAND-032: on every replica. With the telemetry window this is the metered
+        # figure; without it, a LOWER bound (boot + wall), excluding pre-run warm
+        # time and the idle gaps between suite configs. Pinned MIN=MAX fleets pass
+        # scaledown_seconds=None.
         span = billed + float(scaledown_seconds or 0.0)
         out["run_span_seconds_lower_bound"] = round(span, 3)
         out["run_span_usd_lower_bound"] = estimate_gpu_cost_usd(
@@ -551,6 +633,26 @@ def enrich_serving_report(
     return out
 
 
+def _telemetry_billed_seconds(store: RunStore) -> float | None:
+    """The run's own container-telemetry window, when the runbook scraped one.
+
+    SAND-042 runs pull nvidia-smi samples from inside the serving replica; that file
+    carries the window the samples were sliced to, which brackets the run. Absent on
+    every run without a telemetry scrape, so the caller falls back.
+    """
+    try:
+        doc = json.loads(
+            (store.dir / "container_telemetry_after.json").read_text(encoding="utf-8")
+        )
+    except (OSError, ValueError):
+        return None
+    if not isinstance(doc, dict):
+        return None
+    from mailroom_sandbox.job.container_telemetry import billed_seconds
+
+    return billed_seconds(doc)
+
+
 def serving_record_from_store(
     store: RunStore,
     *,
@@ -577,8 +679,24 @@ def serving_record_from_store(
         else None
     )
     wall = wall_seconds if wall_seconds is not None else infer_wall_seconds_from_store(store)
+    # Never report a wall shorter than the run's own journal span: a stale or
+    # partial wall (a resumed run, or a re-render that preserved a prior card's
+    # value) must not understate the run — the 50-document merger card read 566 s
+    # against a 4658 s journal span. Only the journal is trusted here; the item
+    # span is an approximation and must not override an explicit wall.
+    journal_wall = journal_wall_seconds(store)
+    if journal_wall is not None and (wall is None or wall < journal_wall):
+        wall = journal_wall
     env_billed = _env_float("MODAL_BILLED_GPU_SECONDS")
     billed_window = env_billed if env_billed and env_billed > 0 else None
+    if billed_window is None:
+        # Prefer the run's OWN container telemetry: the runbook's `before` scrape
+        # opens the window and its `after` scrape closes it, so it brackets the run
+        # and is the billed interval — computed, never scraped from a billing CLI.
+        # The fallback below anchors to the item-`ts` span, which starts at the FIRST
+        # completion and therefore drops the entire first wave (measured 4.4x low on
+        # the 5-document merger probe: 100.3 s against a true 438 s).
+        billed_window = _telemetry_billed_seconds(store)
     if billed_window is None and wall is not None:
         billed_window = float(wall) + (cold_boot_seconds or 0.0)
     base = record_from_run(
@@ -589,10 +707,14 @@ def serving_record_from_store(
         model=(engine.get("model") if isinstance(engine, dict) else None) or "?",
         prompt_version=_prompt_version_from_lock(lock),
         dataset_fingerprint=_dataset_fingerprint_from_store(store),
+        dataset_provenance=lock_dataset_provenance(lock),
         items=items,
         scores=scores,
         gpu=gpu,
         billed_window_seconds=billed_window if billed_window and billed_window > 0 else None,
+        # MIN=MAX data-parallel replicas each bill the full wall (SAND-032), so a
+        # 2xL4 cell's GPU-seconds cost twice a 1xL4 cell's at the same wall.
+        replicas=max(1, int(modal.get("max_containers") or 1)),
         mock=bool(mock),
     )
     return enrich_serving_report(
@@ -611,6 +733,7 @@ def serving_record_from_store(
             or modal.get("scaledown_seconds") is None
             else float(modal["scaledown_seconds"])
         ),
+        billed_window_seconds=billed_window if billed_window and billed_window > 0 else None,
     )
 
 
@@ -623,11 +746,11 @@ def default_serving_json_path(run_id: str, *, store: RunStore | None = None) -> 
         canonical = serving_export_path(store, repo=repo_root())
         if canonical is not None:
             return canonical
-    from mailroom_sandbox.report_paths import experiment_prefix
+    from mailroom_sandbox.report_paths import experiment_prefix, report_folder
 
     prefix = experiment_prefix(run_id)
     if prefix:
-        return repo_root() / "reports" / "serving" / prefix / f"{run_id}.serving.json"
+        return repo_root() / "reports" / "serving" / report_folder(prefix) / f"{run_id}.serving.json"
     return repo_root() / "reports" / "serving" / f"{run_id}.serving.json"
 
 
@@ -749,13 +872,46 @@ def compare(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "mean_cost_per_document": delta_vs_api("mean_cost_per_document"),
     }
 
+    # Pairwise dojo comparisons are made per comparable GROUP (full identity:
+    # model / prompt / task / dataset ...), not per serving kind: the dojo marks
+    # a leg that pools different identities ``identity_mixed`` and reports no
+    # delta. One comparable pair keeps the historical key ("local_vs_api");
+    # several get "local_vs_api[<n>]" and are listed under ``groups``.
     pairs: dict[str, Any] = {}
-    if buckets.get("local") and buckets.get("api"):
-        pairs["local_vs_api"] = compare_serving(buckets["local"], buckets["api"])
-    if buckets.get("modal") and buckets.get("api"):
-        pairs["modal_vs_api"] = compare_serving(buckets["modal"], buckets["api"])
-    if buckets.get("local") and buckets.get("modal"):
-        pairs["local_vs_modal"] = compare_serving(buckets["local"], buckets["modal"])
+    groups: list[dict[str, Any]] = []
+    unpaired: list[dict[str, Any]] = []
+    legs = {kind: group_legs(buckets.get(kind) or [], bucket_kind) for kind in ("local", "modal", "api")}
+    for name, (lk, rk) in (
+        ("local_vs_api", ("local", "api")),
+        ("modal_vs_api", ("modal", "api")),
+        ("local_vs_modal", ("local", "modal")),
+    ):
+        if not legs[lk] or not legs[rk]:
+            continue
+        leg_pairs, lone_l, lone_r = pair_legs(legs[lk], legs[rk])
+        for side, lone in ((lk, lone_l), (rk, lone_r)):
+            unpaired.extend(
+                {
+                    "comparison": name,
+                    "side": side,
+                    "label": leg.label,
+                    "n": len(leg.rows),
+                    "reason": "incomparable: no opposite-side leg measured the same "
+                    "task / prompt / dataset fingerprint / revision / split / draw seed",
+                }
+                for leg in lone
+            )
+        for idx, pair in enumerate(leg_pairs, start=1):
+            key = name if len(leg_pairs) == 1 else f"{name}[{idx}]"
+            pairs[key] = compare_serving(pair.left.rows, pair.right.rows)
+            groups.append({"pair": key, "label": pair.label, "n_left": len(pair.left.rows), "n_right": len(pair.right.rows)})
+    # The per-bucket summary above still pools every row of a kind (a plain
+    # mean over whatever was logged); say so when the pool mixes identities.
+    for kind, rows in buckets.items():
+        if rows and kind in summary:
+            conflict = pooled_identity_conflict(rows)
+            if conflict:
+                summary[kind]["identity_mixed"] = conflict
 
     cost_total = {
         kind: (agg.get("estimated_cost_usd") if agg else None)
@@ -765,13 +921,15 @@ def compare(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         kind: (agg.get("estimated_gpu_cost_usd") if agg else None)
         for kind, agg in summary.items()
     }
-    markdown = _markdown(summary, deltas, pairs)
+    markdown = _markdown(summary, deltas, pairs, groups, unpaired)
     return {
         "buckets": summary,
         "deltas_vs_api": deltas,
         "total_cost_usd": cost_total,
         "total_gpu_cost_usd": gpu_cost_total,
         "pairwise": pairs,
+        "groups": groups,
+        "unpaired": unpaired,
         "markdown": markdown,
     }
 
@@ -959,7 +1117,13 @@ def _cell(value: Any) -> str:
     return "-" if value is None else str(value)
 
 
-def _markdown(summary: dict[str, Any], deltas: dict[str, Any], pairs: dict[str, Any]) -> str:
+def _markdown(
+    summary: dict[str, Any],
+    deltas: dict[str, Any],
+    pairs: dict[str, Any],
+    groups: Sequence[Mapping[str, Any]] = (),
+    unpaired: Sequence[Mapping[str, Any]] = (),
+) -> str:
     lines = ["## Serving metrics (local vs Modal vs API)", ""]
     header = (
         "| bucket | n | mean e2e (s) | mean ttft (s) | tok/s | total tokens | "
@@ -977,6 +1141,14 @@ def _markdown(summary: dict[str, Any], deltas: dict[str, Any], pairs: dict[str, 
             f"{_cell(agg.get('estimated_gpu_cost_usd'))} | "
             f"{_cell(agg.get('mean_cost_per_document'))} |"
         )
+    mixed = {k: v["identity_mixed"] for k, v in summary.items() if v.get("identity_mixed")}
+    if mixed:
+        lines.append("")
+        for kind, fields in mixed.items():
+            lines.append(
+                f"> **{kind} bucket pools different {', '.join(fields)}** (identity_mixed): "
+                "the row above is a plain mean over unlike runs; compare the groups below."
+            )
     lines.append("")
     lines.append("### Delta vs API (%)")
     lines.append("| metric | local | modal |")
@@ -985,8 +1157,12 @@ def _markdown(summary: dict[str, Any], deltas: dict[str, Any], pairs: dict[str, 
         lines.append(f"| {metric} | {_cell(d.get('local'))} | {_cell(d.get('modal'))} |")
     for name, pair in pairs.items():
         md = pair.get("markdown") if isinstance(pair, dict) else None
+        label = next((g["label"] for g in groups if g.get("pair") == name), None)
         if md:
-            lines += ["", f"### Pairwise: {name}", str(md)]
+            lines += ["", f"### Pairwise: {name}" + (f" - {label}" if label else ""), str(md)]
+    if unpaired:
+        lines += ["", "### Incomparable legs (no counterpart measured the same thing)"]
+        lines += [f"- {u['comparison']}: {u['side']} {u['label']} (n={u['n']})" for u in unpaired]
     return "\n".join(lines)
 
 

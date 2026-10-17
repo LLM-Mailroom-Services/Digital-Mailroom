@@ -1,0 +1,597 @@
+{
+  "accepted": 78,
+  "documents": {
+    "0000721748-15-000033_ncmf121214s1aex10_19.htm": {
+      "accepted": true,
+      "present_categories": 6,
+      "problems": [],
+      "span_count": 6
+    },
+    "0000721748-15-000083_ncmf02121510_20.htm": {
+      "accepted": true,
+      "present_categories": 4,
+      "problems": [],
+      "span_count": 4
+    },
+    "0000819050-20-000127_a20200608s1aexhibit1014.htm": {
+      "accepted": true,
+      "present_categories": 18,
+      "problems": [],
+      "span_count": 18
+    },
+    "0000891020-07-000003_v25599a1exv10w31.txt": {
+      "accepted": true,
+      "present_categories": 4,
+      "problems": [],
+      "span_count": 4
+    },
+    "0000936392-03-001431_a92189a4exv10w38.txt": {
+      "accepted": true,
+      "present_categories": 4,
+      "problems": [],
+      "span_count": 4
+    },
+    "0000936392-05-000402_a12564a2exv10w17.txt": {
+      "accepted": true,
+      "present_categories": 22,
+      "problems": [],
+      "span_count": 22
+    },
+    "0000950123-05-003443_y68255a1exv10w22.txt": {
+      "accepted": true,
+      "present_categories": 8,
+      "problems": [],
+      "span_count": 8
+    },
+    "0000950123-05-012539_y06540a5exv10w3.htm": {
+      "accepted": true,
+      "present_categories": 26,
+      "problems": [],
+      "span_count": 26
+    },
+    "0000950123-05-012539_y06540a5exv10w5.htm": {
+      "accepted": true,
+      "present_categories": 14,
+      "problems": [],
+      "span_count": 14
+    },
+    "0000950123-07-005608_l25337a5exv10w4.htm": {
+      "accepted": true,
+      "present_categories": 12,
+      "problems": [],
+      "span_count": 12
+    },
+    "0000950123-09-046709_y01981a3exv10w15.htm": {
+      "accepted": true,
+      "present_categories": 30,
+      "problems": [],
+      "span_count": 30
+    },
+    "0000950123-10-028441_a54842a1exv10w11w1.htm": {
+      "accepted": true,
+      "present_categories": 4,
+      "problems": [],
+      "span_count": 4
+    },
+    "0000950123-11-069430_a59248a2exv10w32.htm": {
+      "accepted": false,
+      "present_categories": 0,
+      "problems": [
+        "HTTPError: HTTP Error 400: Bad Request"
+      ],
+      "span_count": 0
+    },
+    "0000950134-07-005012_v25599a5exv10w55.txt": {
+      "accepted": true,
+      "present_categories": 10,
+      "problems": [],
+      "span_count": 10
+    },
+    "0000950135-04-002790_b49788a4exv10w5.txt": {
+      "accepted": true,
+      "present_categories": 8,
+      "problems": [],
+      "span_count": 8
+    },
+    "0001047469-02-008341_a2095799zex-10_12c.txt": {
+      "accepted": true,
+      "present_categories": 5,
+      "problems": [],
+      "span_count": 5
+    },
+    "0001047469-05-021628_a2161868zex-10_9.htm": {
+      "accepted": false,
+      "present_categories": 2,
+      "problems": [
+        "2 present categories; golden contracts are annotated across the clause inventory (floor 4)"
+      ],
+      "span_count": 2
+    },
+    "0001047469-06-006057_a2169810zex-10_10.htm": {
+      "accepted": true,
+      "present_categories": 7,
+      "problems": [],
+      "span_count": 7
+    },
+    "0001047469-06-008719_a2171318zex-10_43.htm": {
+      "accepted": true,
+      "present_categories": 14,
+      "problems": [],
+      "span_count": 14
+    },
+    "0001047469-06-012992_a2173503zex-10_30.htm": {
+      "accepted": true,
+      "present_categories": 6,
+      "problems": [],
+      "span_count": 6
+    },
+    "0001047469-06-012992_a2173503zex-10_32.htm": {
+      "accepted": true,
+      "present_categories": 5,
+      "problems": [],
+      "span_count": 8
+    },
+    "0001047469-08-008242_a2186911zex-10_13.htm": {
+      "accepted": true,
+      "present_categories": 12,
+      "problems": [],
+      "span_count": 17
+    },
+    "0001047469-15-005538_a2225135zex-10_19.htm": {
+      "accepted": true,
+      "present_categories": 5,
+      "problems": [],
+      "span_count": 5
+    },
+    "0001104659-26-049674_tm2518736d11_ex10-4.htm": {
+      "accepted": true,
+      "present_categories": 7,
+      "problems": [],
+      "span_count": 7
+    },
+    "0001144204-09-019873_v145506_ex10-7.htm": {
+      "accepted": true,
+      "present_categories": 11,
+      "problems": [],
+      "span_count": 11
+    },
+    "0001144204-13-006917_v333161_ex10-32.htm": {
+      "accepted": true,
+      "present_categories": 4,
+      "problems": [],
+      "span_count": 4
+    },
+    "0001144204-14-011078_v367545_ex10-51.htm": {
+      "accepted": true,
+      "present_categories": 4,
+      "problems": [],
+      "span_count": 4
+    },
+    "0001193125-04-040915_dex1041.htm": {
+      "accepted": true,
+      "present_categories": 13,
+      "problems": [],
+      "span_count": 13
+    },
+    "0001193125-04-113293_dex101.htm": {
+      "accepted": true,
+      "present_categories": 6,
+      "problems": [],
+      "span_count": 6
+    },
+    "0001193125-04-202829_dex10291.htm": {
+      "accepted": true,
+      "present_categories": 7,
+      "problems": [],
+      "span_count": 7
+    },
+    "0001193125-05-021087_dex1060.htm": {
+      "accepted": true,
+      "present_categories": 4,
+      "problems": [],
+      "span_count": 4
+    },
+    "0001193125-07-065680_dex1044.htm": {
+      "accepted": true,
+      "present_categories": 10,
+      "problems": [],
+      "span_count": 10
+    },
+    "0001193125-07-205683_dex1039.htm": {
+      "accepted": true,
+      "present_categories": 4,
+      "problems": [],
+      "span_count": 4
+    },
+    "0001193125-10-068933_dex1029.htm": {
+      "accepted": true,
+      "present_categories": 7,
+      "problems": [],
+      "span_count": 7
+    },
+    "0001193125-10-076663_dex104a.htm": {
+      "accepted": true,
+      "present_categories": 6,
+      "problems": [],
+      "span_count": 6
+    },
+    "0001193125-10-124434_dex1022.htm": {
+      "accepted": false,
+      "present_categories": 2,
+      "problems": [
+        "2 present categories; golden contracts are annotated across the clause inventory (floor 4)",
+        "neither Document Name nor Parties was recovered"
+      ],
+      "span_count": 2
+    },
+    "0001193125-12-006758_d231008dex1019.htm": {
+      "accepted": true,
+      "present_categories": 10,
+      "problems": [],
+      "span_count": 10
+    },
+    "0001193125-12-121805_d306143dex1030.htm": {
+      "accepted": true,
+      "present_categories": 12,
+      "problems": [],
+      "span_count": 12
+    },
+    "0001193125-13-395732_d559406dex104.htm": {
+      "accepted": true,
+      "present_categories": 5,
+      "problems": [],
+      "span_count": 5
+    },
+    "0001193125-14-115023_d659829dex106.htm": {
+      "accepted": true,
+      "present_categories": 19,
+      "problems": [],
+      "span_count": 19
+    },
+    "0001193125-14-131966_d406707dex1045.htm": {
+      "accepted": true,
+      "present_categories": 5,
+      "problems": [],
+      "span_count": 5
+    },
+    "0001193125-14-230547_d693356dex1030.htm": {
+      "accepted": true,
+      "present_categories": 36,
+      "problems": [],
+      "span_count": 63
+    },
+    "0001193125-14-242205_d623882dex1023.htm": {
+      "accepted": true,
+      "present_categories": 10,
+      "problems": [],
+      "span_count": 10
+    },
+    "0001193125-15-263882_d917371dex1014.htm": {
+      "accepted": true,
+      "present_categories": 17,
+      "problems": [],
+      "span_count": 17
+    },
+    "0001193125-15-404697_d73715dex1014b.htm": {
+      "accepted": false,
+      "present_categories": 2,
+      "problems": [
+        "2 present categories; golden contracts are annotated across the clause inventory (floor 4)"
+      ],
+      "span_count": 2
+    },
+    "0001193125-18-272192_d494258dex1011.htm": {
+      "accepted": true,
+      "present_categories": 5,
+      "problems": [],
+      "span_count": 5
+    },
+    "0001193125-19-189938_d727772dex1013.htm": {
+      "accepted": true,
+      "present_categories": 5,
+      "problems": [],
+      "span_count": 5
+    },
+    "0001193125-19-248330_d617454dex1073.htm": {
+      "accepted": true,
+      "present_categories": 9,
+      "problems": [],
+      "span_count": 9
+    },
+    "0001193125-20-156385_d875118dex109.htm": {
+      "accepted": true,
+      "present_categories": 14,
+      "problems": [],
+      "span_count": 14
+    },
+    "0001213900-12-003228_fs12012a2ex10iii_caldera.htm": {
+      "accepted": true,
+      "present_categories": 12,
+      "problems": [],
+      "span_count": 12
+    },
+    "0001213900-19-008324_fs12019a3ex10-22_bricktown.htm": {
+      "accepted": true,
+      "present_categories": 9,
+      "problems": [],
+      "span_count": 9
+    },
+    "0001213900-23-083790_ea187099ex10-23_perfect.htm": {
+      "accepted": false,
+      "present_categories": 3,
+      "problems": [
+        "3 present categories; golden contracts are annotated across the clause inventory (floor 4)"
+      ],
+      "span_count": 3
+    },
+    "0001213900-23-083790_ea187099ex10-24_perfect.htm": {
+      "accepted": false,
+      "present_categories": 2,
+      "problems": [
+        "2 present categories; golden contracts are annotated across the clause inventory (floor 4)"
+      ],
+      "span_count": 2
+    },
+    "0001213900-23-083790_ea187099ex10-28_perfect.htm": {
+      "accepted": false,
+      "present_categories": 3,
+      "problems": [
+        "3 present categories; golden contracts are annotated across the clause inventory (floor 4)"
+      ],
+      "span_count": 3
+    },
+    "0001213900-24-021327_ea020144601ex10-18_retic.htm": {
+      "accepted": true,
+      "present_categories": 7,
+      "problems": [],
+      "span_count": 7
+    },
+    "0001213900-24-021327_ea020144601ex10-20_retic.htm": {
+      "accepted": true,
+      "present_categories": 10,
+      "problems": [],
+      "span_count": 10
+    },
+    "0001213900-24-021327_ea020144601ex10-21_retic.htm": {
+      "accepted": true,
+      "present_categories": 13,
+      "problems": [],
+      "span_count": 13
+    },
+    "0001213900-25-051717_ea024476901ex10-37_natures.htm": {
+      "accepted": true,
+      "present_categories": 11,
+      "problems": [],
+      "span_count": 11
+    },
+    "0001213900-25-051717_ea024476901ex10-38_natures.htm": {
+      "accepted": true,
+      "present_categories": 8,
+      "problems": [],
+      "span_count": 8
+    },
+    "0001368365-24-000034_ex1029letteragreementdated.htm": {
+      "accepted": true,
+      "present_categories": 4,
+      "problems": [],
+      "span_count": 4
+    },
+    "0001376799-08-000016_exhibit1019.htm": {
+      "accepted": true,
+      "present_categories": 7,
+      "problems": [],
+      "span_count": 7
+    },
+    "0001393905-18-000242_tngp_ex101.htm": {
+      "accepted": true,
+      "present_categories": 7,
+      "problems": [],
+      "span_count": 7
+    },
+    "0001437749-22-002169_ex_331042.htm": {
+      "accepted": true,
+      "present_categories": 12,
+      "problems": [],
+      "span_count": 12
+    },
+    "0001493152-15-005653_ex10-23.htm": {
+      "accepted": true,
+      "present_categories": 7,
+      "problems": [],
+      "span_count": 7
+    },
+    "0001493152-16-006927_ex10-23.htm": {
+      "accepted": true,
+      "present_categories": 5,
+      "problems": [],
+      "span_count": 5
+    },
+    "0001493152-17-012423_ex10-22.htm": {
+      "accepted": true,
+      "present_categories": 7,
+      "problems": [],
+      "span_count": 7
+    },
+    "0001493152-17-012423_ex10-25.htm": {
+      "accepted": true,
+      "present_categories": 10,
+      "problems": [],
+      "span_count": 10
+    },
+    "0001493152-22-019482_ex10-10.htm": {
+      "accepted": true,
+      "present_categories": 9,
+      "problems": [],
+      "span_count": 9
+    },
+    "0001493152-23-003674_ex10-32.htm": {
+      "accepted": true,
+      "present_categories": 18,
+      "problems": [],
+      "span_count": 18
+    },
+    "0001493152-24-017321_ex10-19.htm": {
+      "accepted": true,
+      "present_categories": 13,
+      "problems": [],
+      "span_count": 13
+    },
+    "0001548123-19-000138_ex10-2.htm": {
+      "accepted": true,
+      "present_categories": 9,
+      "problems": [],
+      "span_count": 9
+    },
+    "0001564590-21-028164_ck7045120534-ex108_276.htm": {
+      "accepted": false,
+      "present_categories": 3,
+      "problems": [
+        "3 present categories; golden contracts are annotated across the clause inventory (floor 4)"
+      ],
+      "span_count": 3
+    },
+    "0001564590-21-046613_sdmi-ex1025_706.htm": {
+      "accepted": true,
+      "present_categories": 5,
+      "problems": [],
+      "span_count": 5
+    },
+    "0001564590-21-046613_sdmi-ex1027_705.htm": {
+      "accepted": true,
+      "present_categories": 6,
+      "problems": [],
+      "span_count": 6
+    },
+    "0001567619-13-000087_s000086x3_ex10-3.htm": {
+      "accepted": true,
+      "present_categories": 6,
+      "problems": [],
+      "span_count": 6
+    },
+    "0001571049-13-001230_t1300651_ex10-8.htm": {
+      "accepted": true,
+      "present_categories": 7,
+      "problems": [],
+      "span_count": 7
+    },
+    "0001575872-22-000712_cm106_ex10-69.htm": {
+      "accepted": true,
+      "present_categories": 4,
+      "problems": [],
+      "span_count": 4
+    },
+    "0001582718-14-000075_ex-10_1.htm": {
+      "accepted": false,
+      "present_categories": 3,
+      "problems": [
+        "3 present categories; golden contracts are annotated across the clause inventory (floor 4)"
+      ],
+      "span_count": 3
+    },
+    "0001582718-14-000092_ex-10_1.htm": {
+      "accepted": false,
+      "present_categories": 3,
+      "problems": [
+        "3 present categories; golden contracts are annotated across the clause inventory (floor 4)"
+      ],
+      "span_count": 3
+    },
+    "0001627469-15-000036_ex-10_1.htm": {
+      "accepted": true,
+      "present_categories": 5,
+      "problems": [],
+      "span_count": 5
+    },
+    "0001628280-18-007944_exhibit1013s-1a.htm": {
+      "accepted": true,
+      "present_categories": 7,
+      "problems": [],
+      "span_count": 7
+    },
+    "0001628280-18-007944_exhibit1014s-1a.htm": {
+      "accepted": true,
+      "present_categories": 5,
+      "problems": [],
+      "span_count": 5
+    },
+    "0001628280-23-006327_exhibit1015-sx1a2.htm": {
+      "accepted": true,
+      "present_categories": 16,
+      "problems": [],
+      "span_count": 16
+    },
+    "0001628280-26-004091_exhibit1010-sx1a.htm": {
+      "accepted": true,
+      "present_categories": 7,
+      "problems": [],
+      "span_count": 7
+    },
+    "0001628280-26-042574_exhibit1010-sx1a1.htm": {
+      "accepted": false,
+      "present_categories": 1,
+      "problems": [
+        "1 present categories; golden contracts are annotated across the clause inventory (floor 4)"
+      ],
+      "span_count": 1
+    },
+    "0001640334-26-000472_gbux_ex106.htm": {
+      "accepted": false,
+      "present_categories": 4,
+      "problems": [
+        "neither Document Name nor Parties was recovered"
+      ],
+      "span_count": 4
+    },
+    "0001654954-23-003821_lafa_ex1013.htm": {
+      "accepted": true,
+      "present_categories": 10,
+      "problems": [],
+      "span_count": 10
+    },
+    "0001675426-16-000031_ex-10_1.htm": {
+      "accepted": true,
+      "present_categories": 5,
+      "problems": [],
+      "span_count": 5
+    },
+    "0001675426-16-000038_ex-10_1.htm": {
+      "accepted": false,
+      "present_categories": 3,
+      "problems": [
+        "3 present categories; golden contracts are annotated across the clause inventory (floor 4)"
+      ],
+      "span_count": 3
+    },
+    "0001683168-18-001629_iiot_s1a3-ex1019.htm": {
+      "accepted": true,
+      "present_categories": 4,
+      "problems": [],
+      "span_count": 4
+    },
+    "0001683168-21-002146_intorio_ex1003.htm": {
+      "accepted": true,
+      "present_categories": 8,
+      "problems": [],
+      "span_count": 8
+    }
+  },
+  "journal": "ex10-cuad-labels.jsonl",
+  "next_filenames": [
+    "0000950123-11-069430_a59248a2exv10w32.htm",
+    "0001047469-05-021628_a2161868zex-10_9.htm",
+    "0001193125-10-124434_dex1022.htm",
+    "0001193125-15-404697_d73715dex1014b.htm",
+    "0001213900-23-083790_ea187099ex10-23_perfect.htm",
+    "0001213900-23-083790_ea187099ex10-24_perfect.htm",
+    "0001213900-23-083790_ea187099ex10-28_perfect.htm",
+    "0001564590-21-028164_ck7045120534-ex108_276.htm",
+    "0001582718-14-000075_ex-10_1.htm",
+    "0001582718-14-000092_ex-10_1.htm",
+    "0001628280-26-042574_exhibit1010-sx1a1.htm",
+    "0001640334-26-000472_gbux_ex106.htm",
+    "0001675426-16-000038_ex-10_1.htm"
+  ],
+  "queue": 91,
+  "remaining": 13,
+  "updated_at": "2026-10-01T04:50:06Z"
+}

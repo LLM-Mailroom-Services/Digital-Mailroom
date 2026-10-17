@@ -1,0 +1,10 @@
+{
+  "SAND-42": {
+    "billed_usd": 0.0,
+    "metered_usd": 0.0
+  },
+  "SAND42": {
+    "billed_usd": 4.48,
+    "metered_usd": 4.48
+  }
+}

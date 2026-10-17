@@ -144,19 +144,20 @@ app = FastAPI(
 async def _check_llm_provider() -> dict:
     """Best-effort LLM provider connectivity check.
 
-    Resolves the provider for the sorter agent (fails fast if the API key is
-    missing or is the mock placeholder) and pings the models endpoint with a
-    short timeout. Never spends completion tokens.
+    Resolve the sorter's wire model and gateway tier, then probe the models
+    endpoint with a five-second request timeout. Never spends completion tokens.
+    Return status, detail, and provider; resolution or probe errors become a
+    ``degraded`` result, with provider set to None if resolution fails.
     """
     import os
     try:
-        from llm.providers import resolve_provider
-        from pipeline.config import get_agent_config
+        from llm.client import resolve_agent_model
 
-        agent_cfg = get_agent_config("sorter")
-        provider, model = resolve_provider(agent_cfg)
+        resolved = resolve_agent_model("sorter")
+        provider, model = resolved.provider, resolved.model
         status = "ok"
-        detail = f"{provider.name}:{model}"
+        # Gateway runs report the tier too (e.g. litellm:mailroom-fast[fast]).
+        detail = f"{provider.name}:{model}" + (f"[{resolved.tier}]" if resolved.tier else "")
         try:
             from openai import OpenAI
 
@@ -1321,9 +1322,18 @@ def assert_bind_allowed(host: str | None = None) -> None:
 
 
 if __name__ == "__main__":
+    import argparse
+
     import uvicorn
     from observability.tracing import ensure_process_tracing
+    from pipeline.pager import Pager, load_pager_config, prompt_on_start
 
+    _ap = argparse.ArgumentParser(description="Serve the mailroom API.")
+    _ap.add_argument("--pager", action=argparse.BooleanOptionalAction, default=None,
+                     help="Turn operator text alerts on/off without the start prompt.")
+    _pager_cfg = prompt_on_start(load_pager_config(), flag=_ap.parse_args().pager)
+    if _pager_cfg.active:
+        Pager(_pager_cfg).start_background()
     host = listen_host()
     port = listen_port()
     assert_bind_allowed(host)

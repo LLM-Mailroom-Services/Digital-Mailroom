@@ -76,6 +76,8 @@ def test_live_serve_target_follows_provider(monkeypatch):
     monkeypatch.setenv("DEFAULT_PROVIDER", "vllm")
     monkeypatch.setenv("VLLM_BASE_URL", "http://vllm:8000/v1")
     monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
+    # A prior activate(profile="modal-vllm") writes the dense profile default
+    # into VLLM_MODEL. This test pins the unset-env fallback.
     monkeypatch.delenv("VLLM_MODEL", raising=False)
     monkeypatch.delenv("MODAL_VLLM_MODEL", raising=False)
     base, model = runners._live_serve_target()

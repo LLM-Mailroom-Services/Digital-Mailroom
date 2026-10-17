@@ -6,7 +6,53 @@ All notable changes to The-Mailroom are documented here, following
 
 ## [Unreleased]
 
+### Added
+
+- **Phoenix source reads mailroom-reloaded runs.** `mailroom.document` roots
+  and `mailroom.node.{ingest,bert_primary,sort,extract,verify,boss,
+  human_review,report_catalog_archive}` spans map to the floor stations and
+  Langfuse observation types (`RELOADED_NODE_STAGES` /
+  `RELOADED_STATUS_STAGES` in `pipeline_schema.py`); the root's
+  `mailroom.status|doc_id|filename|run_id|doc_type` attributes populate the
+  trace input/output/session when no `input.value` / `output.value` is set
+  (explicit values win; nothing is fabricated). `parked` -> REVIEW siding;
+  repeated `sort` / `extract` spans fold into retry stages. Tests:
+  `make_reloaded_trace` + `tests/test_phoenix_source.py`.
+
+## [0.5.1] - 2026-09-28
+
+> Operator desk: one bin watcher + Docker production path (hub #117/#118)
+
+### Changed
+
+- **Operator desk: one bin watcher** (mailroom-issues#118, Option A). The
+  operator compose stack drops the `mailroom-observer` sidecar; the
+  visualizer runs the in-process observer (`MAILROOM_OBSERVER=1` default).
+  `MAILROOM_OPERATOR_INGEST_TOKEN` is now optional there — only a standalone
+  `mailroom-observer` CLI (bins on another host) needs it. The
+  `/v1/ops/events` endpoint and the CLI are unchanged; no other caller exists.
+- **Operator desk: Docker production path** (mailroom-issues#117). New
+  `operator_desk/Dockerfile` (build context: repo root) installs the
+  `[operator]` extra — the image previously lacked `watchdog`, so both
+  observers silently no-oped — and bakes the React desk (`ui/dist`, base
+  `/desk/`) from a Node build stage. nginx is the only published port
+  (`MAILROOM_HTTP_PORT`, default 80); the visualizer no longer publishes
+  8001; nginx waits for the visualizer's healthcheck; both restart
+  `unless-stopped`. The broken `--profile ui` sidecar is gone. The hosted
+  root `Dockerfile` (HF Spaces / Railway / Fly) is untouched.
+
 ### Fixed
+
+- nginx forwarded `Host $host`, which drops a non-80 port, so the same-origin
+  write guard refused every operator POST when nginx ran on another port.
+  It now forwards `$http_host`, and `/ws` / `/ws/pipeline` also carry
+  `X-Real-IP` / `X-Forwarded-*`. Explicit `/desk` location, a 40 MB body cap
+  for inbox uploads, and a commented TLS server block.
+- `ui/Dockerfile` (dev-only image) served the SPA at `/` although it is
+  built for `/desk/`, and its nginx proxied nothing; it now serves `/desk/`
+  and proxies `/api` `/v1` `/ws`. `ui/.dockerignore` added, and the root
+  `.dockerignore` keeps `ui/node_modules` / `ui/dist` out of image contexts.
+- Removed the dead `operator_desk.mount.start_operator_observer` helper.
 
 - `scripts/publish_pages.sh --skip-export` wiped `docs/debug/build-info.json`
   on `gh-pages`, so `--status` (and the main → gh-pages hook) reported

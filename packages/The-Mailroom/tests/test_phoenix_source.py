@@ -8,7 +8,7 @@ import pytest
 
 from mailroom_ui.phoenix_source import PhoenixSource, PhoenixUnavailable
 from server.main import create_app
-from tests.fake_phoenix import FakePhoenixClient, make_phoenix_trace
+from tests.fake_phoenix import FakePhoenixClient, make_phoenix_trace, make_reloaded_trace
 
 
 def _source(traces=None) -> PhoenixSource:
@@ -117,3 +117,79 @@ def test_serves_through_display_api():
     assert health["phoenix"] is True
     assert meta["source"] == "phoenix"
     assert any(e["path"] == "/api/debug/logs" for e in meta["endpoints"])
+
+
+# --- mailroom-reloaded runs (mailroom.document / mailroom.node.*) ---------
+
+
+def test_reloaded_archived_run_maps_stages_and_types():
+    now = datetime.now(timezone.utc) - timedelta(hours=1)
+    src = _source([make_reloaded_trace("r1", base_time=now)])
+    t = src.list_traces(since=now - timedelta(hours=2))[0]
+    assert t["name"] == "mailroom.document"
+    assert t["session_id"] == "eval-20261009"  # falls back to mailroom.run_id
+    assert t["input"] == {"doc_id": "doc-0001", "filename": "lease.pdf", "run_id": "eval-20261009"}
+    assert t["output"] == {"stage": "archived", "doc_type": "contract"}
+    run = src.get_run("r1")
+    assert run is not None
+    assert run.stage.value == "archived"
+    assert run.doc_id == "doc-0001"
+    assert run.filename == "lease.pdf"
+    assert run.doc_type == "contract"
+    by_name = {s.name: s.observation_type for s in run.spans}
+    assert by_name["mailroom.node.sort"] == "AGENT"
+    assert by_name["mailroom.node.ingest"] == "SPAN"
+    assert by_name["mailroom.node.report_catalog_archive"] == "SPAN"
+    assert run.routing_path[:3] == ["intake", "classify", "extract"]
+
+
+def test_reloaded_parked_run_lands_on_review_station():
+    now = datetime.now(timezone.utc) - timedelta(hours=1)
+    src = _source([make_reloaded_trace(
+        "r2", base_time=now, status="parked", doc_type=None,
+        nodes=["ingest", "bert_primary", "sort", "human_review"],
+    )])
+    run = src.get_run("r2")
+    assert run.stage.value == "review"
+
+
+def test_reloaded_failed_run_and_judge_detour():
+    now = datetime.now(timezone.utc) - timedelta(hours=1)
+    src = _source([make_reloaded_trace(
+        "r3", base_time=now, status="failed",
+        nodes=["ingest", "sort", "extract", "verify", "boss"],
+    )])
+    run = src.get_run("r3")
+    assert run.stage.value == "failed"
+    types = {s.name: s.observation_type for s in run.spans}
+    assert types["mailroom.node.verify"] == "EVALUATOR"
+    assert "judge_verify" in run.routing_path and "boss" in run.routing_path
+
+
+def test_reloaded_retry_loop_is_folded_into_retry_stage():
+    now = datetime.now(timezone.utc) - timedelta(hours=1)
+    src = _source([make_reloaded_trace(
+        "r4", base_time=now,
+        nodes=["ingest", "sort", "sort", "extract", "extract", "report_catalog_archive"],
+    )])
+    run = src.get_run("r4")
+    assert "retry_classify" in run.routing_path
+    assert "retry_extract" in run.routing_path
+
+
+def test_reloaded_in_flight_without_status_degrades_to_span_progress():
+    now = datetime.now(timezone.utc) - timedelta(hours=1)
+    spans = make_reloaded_trace("r5", base_time=now, nodes=["ingest", "sort"])
+    del spans[0]["attributes"]["mailroom.status"]
+    del spans[0]["attributes"]["mailroom.doc_type"]
+    run = _source([spans]).get_run("r5")
+    assert run is not None
+    assert run.stage.value == "classify"
+
+
+def test_reloaded_explicit_io_wins_over_attributes():
+    now = datetime.now(timezone.utc) - timedelta(hours=1)
+    spans = make_reloaded_trace("r6", base_time=now, status="failed")
+    spans[0]["attributes"]["output.value"] = '{"stage": "archived"}'
+    t = _source([spans]).list_traces(since=now - timedelta(hours=2))[0]
+    assert t["output"]["stage"] == "archived"

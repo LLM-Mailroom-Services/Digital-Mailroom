@@ -29,7 +29,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 
 ## Configs
 
-- `config/runs/run-20-contracts-awq.yaml`
+- `config/runs/legacy/run-20-contracts-awq.yaml`
 
 ## Notes
 
@@ -73,18 +73,21 @@ modal profile current
 
 # equivalent: eval "$(sandbox modal-matrix env Qwen/Qwen3-8B-AWQ)"
 
-sandbox run benchmark-check --config config/runs/run-20-contracts-awq.yaml
+sandbox run benchmark-check --config config/runs/legacy/run-20-contracts-awq.yaml
 
 modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py --strategy recreate
 
-# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+# VLLM_BASE_URL is the FULL base: deploy output + '/v1'
+#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   (without /v1 every chat call 404s — the profile appends /chat/completions)
+# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
-sandbox run preflight --config config/runs/run-20-contracts-awq.yaml --live
-sandbox run start --config config/runs/run-20-contracts-awq.yaml --job-mode endpoint --watch
+sandbox run preflight --config config/runs/legacy/run-20-contracts-awq.yaml --live
+sandbox run start --config config/runs/legacy/run-20-contracts-awq.yaml --job-mode endpoint --watch
 
 ./deploy/teardown_vllm.sh   # ONLY after this run
 ```
@@ -116,13 +119,13 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 
 ## Configs
 
-- `config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml`
+- `config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml`
 
 ## Notes
 
 - CLI: pass --profile AFTER the subcommand (sandbox health --profile modal-vllm). Never paste unicode ellipsis into commands.
-- Pretty logs: open sandbox watch --web --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml in a second pane (http://127.0.0.1:8765/) BEFORE sandbox run start. start --watch is the CLI session layer only and does not tail Modal dispatch logs.
-- Canonical deploy knobs: set -a; eval "$(sandbox run deploy-env --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml)"; set +a. Then download_model and modal deploy --strategy recreate once.
+- Pretty logs: open sandbox watch --web --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml in a second pane (http://127.0.0.1:8765/) BEFORE sandbox run start. start --watch is the CLI session layer only and does not tail Modal dispatch logs.
+- Canonical deploy knobs: set -a; eval "$(sandbox run deploy-env --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml)"; set +a. Then download_model and modal deploy --strategy recreate once.
 - benchmark-check is skipped (L4 specialist gate). Engine pins are still catalog-asserted against the run YAML.
 - Trace sink is none so preflight is not blocked without Langfuse keys. Family default remains Langfuse when LANGFUSE_* are set; flip spec.trace.sink to langfuse then re-preflight. Keep PHOENIX_TRACING=disabled unless the Phoenix extra is installed.
 
@@ -194,9 +197,9 @@ Extrapolation: linear in N at fixed C if KV stays below cliff. Doubling N ≈ do
 ## Pretty logging
 
 ```bash
-sandbox watch --web --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml
+sandbox watch --web --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml
 # http://127.0.0.1:8765/
-sandbox run start --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml --job-mode endpoint --watch
+sandbox run start --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml --job-mode endpoint --watch
 ```
 
 See `docs/pretty-logging/mailroom-themed-logging.md` and `docs/snippets/pretty_logs.md`.
@@ -266,16 +269,19 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py --strategy recreate
 
-# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+# VLLM_BASE_URL is the FULL base: deploy output + '/v1'
+#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   (without /v1 every chat call 404s — the profile appends /chat/completions)
+# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
-sandbox run preflight --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml --live
-sandbox run start --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml --job-mode endpoint --watch
+sandbox run preflight --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml --live
+sandbox run start --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml --job-mode endpoint --watch
 
 ./deploy/teardown_vllm.sh   # ONLY after this run
 
-sandbox run status --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml
+sandbox run status --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml
 sandbox scorecard --run run-400-sorter-qwen3-14b-awq-a100
 modal billing summary
 ```
@@ -307,7 +313,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 
 ## Configs
 
-- `config/runs/run-20-contracts-awq-c8.yaml`
+- `config/runs/legacy/run-20-contracts-awq-c8.yaml`
 
 ## Do not
 
@@ -348,18 +354,21 @@ modal profile current
 
 # equivalent: eval "$(sandbox modal-matrix env Qwen/Qwen3-8B-AWQ)"
 
-sandbox run benchmark-check --config config/runs/run-20-contracts-awq-c8.yaml
+sandbox run benchmark-check --config config/runs/legacy/run-20-contracts-awq-c8.yaml
 
 modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py --strategy recreate
 
-# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+# VLLM_BASE_URL is the FULL base: deploy output + '/v1'
+#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   (without /v1 every chat call 404s — the profile appends /chat/completions)
+# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
-sandbox run preflight --config config/runs/run-20-contracts-awq-c8.yaml --live
-sandbox run start --config config/runs/run-20-contracts-awq-c8.yaml --job-mode endpoint --watch --force
+sandbox run preflight --config config/runs/legacy/run-20-contracts-awq-c8.yaml --live
+sandbox run start --config config/runs/legacy/run-20-contracts-awq-c8.yaml --job-mode endpoint --watch --force
 
 ./deploy/teardown_vllm.sh   # ONLY after this run
 ```
@@ -391,7 +400,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 
 ## Configs
 
-- `config/runs/run-20-correspondence-awq.yaml`
+- `config/runs/legacy/run-20-correspondence-awq.yaml`
 
 ## Do not
 
@@ -434,12 +443,15 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py --strategy recreate
 
-# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+# VLLM_BASE_URL is the FULL base: deploy output + '/v1'
+#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   (without /v1 every chat call 404s — the profile appends /chat/completions)
+# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
-sandbox run preflight --config config/runs/run-20-correspondence-awq.yaml --live
-sandbox run start --config config/runs/run-20-correspondence-awq.yaml --job-mode endpoint --watch
+sandbox run preflight --config config/runs/legacy/run-20-correspondence-awq.yaml --live
+sandbox run start --config config/runs/legacy/run-20-correspondence-awq.yaml --job-mode endpoint --watch
 
 ./deploy/teardown_vllm.sh   # ONLY after this run
 ```
@@ -471,7 +483,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 
 ## Configs
 
-- `config/runs/run-20-correspondence-awq-c8.yaml`
+- `config/runs/legacy/run-20-correspondence-awq-c8.yaml`
 
 ## Do not
 
@@ -514,12 +526,15 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py --strategy recreate
 
-# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+# VLLM_BASE_URL is the FULL base: deploy output + '/v1'
+#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   (without /v1 every chat call 404s — the profile appends /chat/completions)
+# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
-sandbox run preflight --config config/runs/run-20-correspondence-awq-c8.yaml --live
-sandbox run start --config config/runs/run-20-correspondence-awq-c8.yaml --job-mode endpoint --watch
+sandbox run preflight --config config/runs/legacy/run-20-correspondence-awq-c8.yaml --live
+sandbox run start --config config/runs/legacy/run-20-correspondence-awq-c8.yaml --job-mode endpoint --watch
 
 ./deploy/teardown_vllm.sh   # ONLY after this run
 ```
@@ -553,7 +568,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 
 ## Configs
 
-- `config/runs/run-20-correspondence-fp16-c8.yaml`
+- `config/runs/legacy/run-20-correspondence-fp16-c8.yaml`
 
 ## Notes
 
@@ -601,12 +616,15 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py --strategy recreate
 
-# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+# VLLM_BASE_URL is the FULL base: deploy output + '/v1'
+#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   (without /v1 every chat call 404s — the profile appends /chat/completions)
+# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
-sandbox run preflight --config config/runs/run-20-correspondence-fp16-c8.yaml --live
-sandbox run start --config config/runs/run-20-correspondence-fp16-c8.yaml --job-mode endpoint --watch
+sandbox run preflight --config config/runs/legacy/run-20-correspondence-fp16-c8.yaml --live
+sandbox run start --config config/runs/legacy/run-20-correspondence-fp16-c8.yaml --job-mode endpoint --watch
 
 ./deploy/teardown_vllm.sh   # ONLY after this run
 ```
@@ -646,11 +664,11 @@ account is available; otherwise prefer track-a ∥ track-b for parallel wall.
 
 Ordered configs:
 
-1. `config/runs/run-30-contracts-specialist.yaml`
-2. `config/runs/run-30-merger-specialist.yaml`
-3. `config/runs/run-30-corporate-records-specialist.yaml`
-4. `config/runs/run-30-correspondence-specialist.yaml`
-5. `config/runs/run-30-insurance-claims-specialist.yaml`
+1. `config/runs/legacy/run-30-contracts-specialist.yaml`
+2. `config/runs/legacy/run-30-merger-specialist.yaml`
+3. `config/runs/legacy/run-30-corporate-records-specialist.yaml`
+4. `config/runs/legacy/run-30-correspondence-specialist.yaml`
+5. `config/runs/legacy/run-30-insurance-claims-specialist.yaml`
 
 ## Deploy smoke
 
@@ -710,7 +728,10 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py --strategy recreate
 
-# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+# VLLM_BASE_URL is the FULL base: deploy output + '/v1'
+#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   (without /v1 every chat call 404s — the profile appends /chat/completions)
+# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 # smoke: Confirm /v1/models data[0].id is ibm-granite/granite-4.2-8b-fp8
@@ -756,11 +777,11 @@ account is available; otherwise prefer track-a ∥ track-b for parallel wall.
 
 Ordered configs:
 
-1. `config/runs/run-30-contracts-specialist.yaml`
-2. `config/runs/run-30-merger-specialist.yaml`
-3. `config/runs/run-30-corporate-records-specialist.yaml`
-4. `config/runs/run-30-correspondence-specialist.yaml`
-5. `config/runs/run-30-insurance-claims-specialist.yaml`
+1. `config/runs/legacy/run-30-contracts-specialist.yaml`
+2. `config/runs/legacy/run-30-merger-specialist.yaml`
+3. `config/runs/legacy/run-30-corporate-records-specialist.yaml`
+4. `config/runs/legacy/run-30-correspondence-specialist.yaml`
+5. `config/runs/legacy/run-30-insurance-claims-specialist.yaml`
 
 ## Notes
 
@@ -808,18 +829,21 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py --strategy recreate
 
-# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+# VLLM_BASE_URL is the FULL base: deploy output + '/v1'
+#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   (without /v1 every chat call 404s — the profile appends /chat/completions)
+# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
 sandbox run suite --suite full
 # sandbox run suite --suite full --execute --job-mode endpoint
 for cfg in \
-  config/runs/run-30-contracts-specialist.yaml \
-  config/runs/run-30-merger-specialist.yaml \
-  config/runs/run-30-corporate-records-specialist.yaml \
-  config/runs/run-30-correspondence-specialist.yaml \
-  config/runs/run-30-insurance-claims-specialist.yaml
+  config/runs/legacy/run-30-contracts-specialist.yaml \
+  config/runs/legacy/run-30-merger-specialist.yaml \
+  config/runs/legacy/run-30-corporate-records-specialist.yaml \
+  config/runs/legacy/run-30-correspondence-specialist.yaml \
+  config/runs/legacy/run-30-insurance-claims-specialist.yaml
 do
   sandbox run preflight --config "$cfg" --live
   sandbox run start --config "$cfg" --job-mode endpoint --watch
@@ -855,11 +879,11 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 
 ## Configs
 
-- `config/runs/scale-c1-4xl4-c16.yaml`
-- `config/runs/scale-d1-awq-4xl4-c16.yaml`
-- `config/runs/scale-e1-fp8-l4-4xl4-c16.yaml`
-- `config/runs/scale-f1-qwen35-9b-fp8-4xl4-c16.yaml`
-- `config/runs/scale-g1-qwen35-35b-tp2-1xl4x2-c16.yaml`
+- `config/runs/scale/scale-c1-4xl4-c16.yaml`
+- `config/runs/scale/scale-d1-awq-4xl4-c16.yaml`
+- `config/runs/scale/scale-e1-fp8-l4-4xl4-c16.yaml`
+- `config/runs/scale/scale-f1-qwen35-9b-fp8-4xl4-c16.yaml`
+- `config/runs/scale/scale-g1-qwen35-35b-tp2-1xl4x2-c16.yaml`
 
 ## Notes
 

@@ -27,14 +27,11 @@ invocation**.
 | Package | Command | Tests | Wall time |
 | --- | --- | --- | --- |
 | llm-dojo-scoring | `uv run pytest packages/llm-dojo-scoring/tests -q` | 369 pass / 5 skip | ~13 s |
-| llm-entity-extraction | `uv run pytest packages/llm-entity-extraction/tests -q` | 764 pass / 28 skip | ~26 s |
 | llm-mailroom | `uv run pytest packages/llm-mailroom/src/tests -q` | 995 pass / 36 skip | ~4:50 |
-| agent-mailroom | `uv run pytest packages/agent-mailroom/tests -q` | 86 pass | ~11 s |
 | local-mailroom-sandbox | `uv run pytest packages/local-mailroom-sandbox/tests -q` | 259 pass / 1 skip | ~12 s |
 | The-Mailroom | `uv run pytest packages/The-Mailroom/tests -q` | 334 pass / 2 skip | ~12 s |
 | claims-data-eda | `uv run pytest packages/claims-data-eda/tests -q` | 40 pass | ~6 s |
 | Enron-Evaluation-Environment | `uv run pytest packages/Enron-Evaluation-Environment/tests -q` | 87 pass | ~5 s |
-| llm-mailroom-graph | `uv run pytest packages/llm-mailroom-graph/tests -q` (if present) | — | — |
 
 > llm-mailroom is the long pole (~5 min). Its sub-suites can be targeted for
 > faster surgical feedback: `src/tests/test_observability.py`,
@@ -47,9 +44,9 @@ invocation**.
 | Docs/markdown/`.gitignore`/comment only | **1** | None required (surgical if the file has a test) |
 | Single-function fix in one package | **2** | That package's full suite |
 | New test file | **1** | The new file itself + the package it tests |
-| Prompt/template text change (prompts.py, `*.docclass.md`, docclass_prompts.py) | **3** | llm-entity-extraction + llm-dojo-scoring + The-Mailroom (all carry prompt surfaces) + llm-mailroom if `doc_inventories`/guards are affected |
-| Taxonomy/catalog change (corpus.py, sorter_agent.py, taxonomy.yaml, `taxonomy_parity.py`) | **3** | llm-dojo-scoring + llm-entity-extraction + llm-mailroom + The-Mailroom + **`python scripts/taxonomy_parity.py`** (CI gate) |
-| Shared-package change (llm-dojo-scoring, vendor/ snapshots) | **3** | The changed package + every dependant (llm-mailroom, llm-entity-extraction, agent-mailroom, sandbox) + sandbox `test_vendor_drift.py` |
+| Prompt/template text change (prompts.py, `*.docclass.md`, docclass_prompts.py) | **3** | llm-dojo-scoring + The-Mailroom (both carry prompt surfaces) + llm-mailroom if `doc_inventories`/guards are affected |
+| Taxonomy/catalog change (corpus.py, sorter_agent.py, taxonomy.yaml, `taxonomy_parity.py`) | **3** | llm-dojo-scoring + llm-mailroom + The-Mailroom + **`python scripts/taxonomy_parity.py`** (CI gate) |
+| Shared-package change (llm-dojo-scoring, vendor/ snapshots) | **3** | The changed package + every dependant (llm-mailroom, sandbox) + sandbox `test_vendor_drift.py` |
 | Version bump / pin change | **3** | All packages referencing the pin + `docs/wiki/Releases.md` + `release_chain.py check` |
 | Board/tooling change (scripts/, board-site/) | **2–3** | `scripts/board_state.py check`, `board-site/tests/api.test.js`, relevant script tests |
 | Multi-package refactor | **3** | Every touched package's full suite |

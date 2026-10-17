@@ -1,7 +1,7 @@
 # Digital-Mailroom — the LLM-Mailroom monorepo wiki
 
 **Digital-Mailroom** is the central checkout of the LLM-Mailroom constellation:
-one uv workspace, one lockfile, one virtualenv, ten packages under
+one uv workspace, one lockfile, one virtualenv, seven packages under
 [`packages/`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/main/packages) —
 each mirroring an independent, standalone-operational `Exios66/*` repository.
 
@@ -33,8 +33,8 @@ The board is also served live at **https://digital-mailroom-theta.vercel.app**
 | Served board | [digital-mailroom-theta.vercel.app](https://digital-mailroom-theta.vercel.app) — live, issue-backed ([[Served-Board]]) |
 | Conventions | [`AGENTS.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/AGENTS.md) — read first, every session |
 | Subagents | 15-agent roster ([[Subagents]]) — project + global agent files under `.opencode/agents/` (see DMR-062) |
-| Packages | 10 (6 built + 4 virtual members) |
+| Packages | 7 (4 built + 3 virtual members) |
 | Python | 3.11+ (workspace `requires-python >= 3.11`) |
-| Family pins | llm-mailroom **v0.7.1** · llm-dojo-scoring **v0.19.1** · llm-entity-extraction **v0.21.0** |
+| Family pins | llm-mailroom **v0.7.1** · llm-dojo-scoring **v0.19.1** |
 | HF corpus | [mailroom-dataset](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset) — schema v9, 3,302 rows (frozen v8 baseline: [mailroom-corpus](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-corpus)) |
 | CI gate | `.github/workflows/board-governance.yml` — board invariants + label drift |

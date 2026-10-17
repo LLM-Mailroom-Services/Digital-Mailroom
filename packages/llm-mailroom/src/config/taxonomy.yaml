@@ -58,6 +58,37 @@ llamafile_model_map:
   deepseek/deepseek-v4-pro: qwen3:14b
   openrouter/free: qwen3:7b
 
+# LiteLLM gateway routing (DEFAULT_PROVIDER=litellm, deploy/docker-compose.full.yml).
+# Every agent names a `tier:` below. A GPU tier sends its `alias` as the
+# model id; the gateway (deploy/litellm/config.yaml) routes that alias to the
+# matching Modal vLLM function, which serves it under the same name
+# (`--served-model-name`, deploy/modal_vllm.py) — so Langfuse generations
+# record the tier alias as the model. The `api` tier has no alias: the agent
+# sends its OpenRouter champion slug and the gateway forwards it to
+# OpenRouter (priced via cost_models as before). Agents sharing a tier share
+# one GPU container — grouping is by model, never per node.
+#
+# Flip an agent between GPU and API without editing this file:
+#   MAILROOM_GATEWAY_TIERS="sorter=api,boss=extract"   (read per get_llm call)
+# Ignored unless the provider resolves to `litellm`.
+gateway:
+  default_tier: fast
+  tiers:
+    fast:                      # short-context classify/triage reads
+      alias: mailroom-fast
+      context_tokens: 32768
+      vision: false
+    extract:                   # long-context extraction / judgment
+      alias: mailroom-extract
+      context_tokens: 65536
+      vision: false
+    vision:                    # page-image transcription
+      alias: mailroom-vision
+      context_tokens: 32768
+      vision: true
+    api:                       # OpenRouter through the gateway (champion slug)
+      alias: null
+
 # Free-model swarm (Gmail triage pilot): the Free Models Router. Instead of
 # hardcoding individual free models (their availability alternates as
 # providers rotate in and out of the free tier), the swarm is OpenRouter's
@@ -67,8 +98,66 @@ llamafile_model_map:
 # listed here; pin one only if a future eval proves the router wrong for a
 # specific surface. The free predicate is satisfied via the 0/0 cost_models
 # entry below.
+# A ranked list may precede it (keep `openrouter/free` LAST as the catch-all);
+# with more than one entry, OpenRouter calls send the list as the `models`
+# fallback array (server-side fallback, `provider.require_parameters: true`).
 free_model_swarm:
   - openrouter/free
+
+# Free-quota circuit breaker (llm/quota.py): after `trip_after` consecutive
+# 429s from free models, free calls short-circuit (FreeQuotaExhausted) for
+# Retry-After seconds or `cooldown_s` (doubling per consecutive trip, capped
+# at 3600). The Gmail triage lane then degrades to its deterministic header
+# pass instead of burning the retry ladder. Paid models never use it.
+free_quota:
+  trip_after: 3
+  cooldown_s: 300
+
+pager:
+  enabled: false                 # default OFF; `pager on|off` (settings file) > env MAILROOM_PAGER > this
+  recipients: []                 # `pager number …` (settings file) > env MAILROOM_PAGER_TO (comma list) — mobile and/or Google Voice, E.164
+  transport: twilio              # twilio | email_gateway | console        env MAILROOM_PAGER_TRANSPORT
+  mode: auto                     # auto | production | research           env MAILROOM_PAGER_MODE
+  style: emoji                   # emoji | ascii (ascii = GSM-7, ~2.3x cheaper)   env MAILROOM_PAGER_STYLE
+  max_chars: 640                 # per text, floor 160
+  timezone: ""                   # IANA name; blank = host local          env MAILROOM_PAGER_TZ
+  digest:
+    production_minutes: 10       # 0 disables digests                    env MAILROOM_PAGER_DIGEST_MINUTES (sets both)
+    research_minutes: 10
+    align_to_clock: true         # fire at :00/:10/:20… instead of start-relative
+    when_idle: true              # false: skip windows with 0 docs and no open alerts…
+    idle_heartbeat_minutes: 60   # …but still send one "· IDLE" digest this often (0 = never)
+  scan:
+    seconds: 60                  # floor 15                               env MAILROOM_PAGER_SCAN_SECONDS
+    degraded_after_scans: 2      # warnings must persist N scans before texting
+    recover_after_scans: 2       # an alert must stay clear N scans before "recovered"
+  alerts:
+    critical_cooldown_minutes: 15  # re-text a still-open critical
+    warning_cooldown_minutes: 60   # re-text a still-open warning
+    send_recovered: true
+    max_texts_per_hour: 12         # all texts; see "Frequency state machine"
+  quiet_hours:
+    window: ""                   # "22:00-07:00" (may cross midnight); blank = off   env MAILROOM_PAGER_QUIET_HOURS
+    allow: critical              # none | critical | all — what may text during quiet hours
+    catch_up_digest: true        # one digest when quiet hours end
+  rules:                         # each: enabled + its thresholds; severity fixed per rule
+    watcher_down:        {enabled: true}
+    provider_down:       {enabled: true}
+    provider_degraded:   {enabled: true, error_rate: 0.25, min_calls: 4}
+    openrouter_credit:   {enabled: true, below_usd: 1.0}
+    docs_failed:         {enabled: true, critical_at: 5}
+    review_backlog:      {enabled: true, threshold: 20}
+    stuck_docs:          {enabled: true, minutes: 15}
+    ingestion_paused:    {enabled: true}
+    outbox_dead:         {enabled: true}      # llm-mailroom only; ignored in mailroom-reloaded
+    run_stalled:         {enabled: true, minutes: 15}
+  providers:
+    openrouter_cache_minutes: 5
+    probe_modal: false           # opt-in; only probes tiers that already have a warm container
+  machine:
+    ref_in_text: true            # print "Ref P-…" as the last SMS line
+    log: true                    # <base_dir>/pager_log.jsonl
+    webhook_url: ""              # env MAILROOM_PAGER_WEBHOOK_URL (+ MAILROOM_PAGER_WEBHOOK_SECRET)
 
 run_limits:
   # Hard wall-clock cutoff per document run (abort past this).
@@ -116,6 +205,17 @@ cost_models:
   deepseek/deepseek-v4-pro:
     input_per_million: 0.435
     output_per_million: 0.87
+  # Self-hosted Modal GPU tiers (gateway aliases): no per-token price — the
+  # cost is GPU time, billed by Modal per container-second.
+  mailroom-fast:
+    input_per_million: 0.0
+    output_per_million: 0.0
+  mailroom-extract:
+    input_per_million: 0.0
+    output_per_million: 0.0
+  mailroom-vision:
+    input_per_million: 0.0
+    output_per_million: 0.0
 
 confidence:
   # Global fallbacks (used before doc_type is known). Per-class severity overrides
@@ -228,6 +328,19 @@ vision:
     - "llava"
     - "llama-3.2"
     - "qwen-vl"
+    - "-vl-"               # HF VL ids, e.g. Qwen/Qwen3-VL-8B-Instruct
+    - "mailroom-vision"    # gateway vision tier alias
+  # Text-only ids that a pattern above would otherwise match (checked first).
+  # Self-hosted served ids (vllm_model_map / gateway GPU tiers) are text-only
+  # Qwen3 checkpoints: sending them image_url parts is a hard 400.
+  exclude:
+    - "qwen/qwen3-8b"
+    - "qwen/qwen3-14b"
+    - "qwen/qwen3-32b"
+    - "qwen/qwen3-30b-a3b"
+    - "qwen/qwen3-4b"
+    - "mailroom-fast"
+    - "mailroom-extract"
 
 doc_classes:
   - key: contract
@@ -277,7 +390,7 @@ doc_classes:
       signatories: entity_list:name
       jurisdiction: name
       filing_number: id
-      intent: name
+      intent: label
       subject_matter: free_text
       keywords: entity_list:name
 
@@ -295,7 +408,7 @@ doc_classes:
       demand_amount: money
       action_items: entity_list
       urgency: name
-      intent: name
+      intent: label
       subject_matter: free_text
       keywords: entity_list:name
 
@@ -318,7 +431,7 @@ doc_classes:
       coverage_determination: name
       denial_reasons: entity_list:free_text
       supporting_documents: entity_list
-      intent: name
+      intent: label
       subject_matter: free_text
       keywords: entity_list:name
       claim_checklist: entity_list:free_text
@@ -378,6 +491,7 @@ agents:
   gmail_triage:
     provider: openrouter
     model: openrouter/free
+    tier: fast
     temperature: 0.1
     max_tokens: 700
     max_input_chars: 12000
@@ -390,6 +504,7 @@ agents:
   relations:
     provider: openrouter
     model: inclusionai/ling-3.0-flash-fin:free
+    tier: fast
     temperature: 0.1
     max_tokens: 900
     max_input_chars: 12000
@@ -398,6 +513,7 @@ agents:
   sorter:
     provider: openrouter
     model: qwen/qwen3.7-flash
+    tier: fast
     temperature: 0.1
     max_tokens: 2048
     max_input_chars: 12000
@@ -414,6 +530,7 @@ agents:
   intake:
     provider: openrouter
     model: qwen/qwen3.7-flash
+    tier: fast
     temperature: 0.1
     max_tokens: 2048
     max_input_chars: 25000
@@ -424,6 +541,7 @@ agents:
   sorter_reviewer:
     provider: openrouter
     model: qwen/qwen3.7-flash
+    tier: fast
     temperature: 0.1
     max_tokens: 2048
     max_input_chars: 12000
@@ -434,6 +552,7 @@ agents:
   arbiter:
     provider: openrouter
     model: qwen/qwen3.7-flash
+    tier: extract
     temperature: 0.1
     max_tokens: 4096
     max_input_chars: 100000
@@ -442,6 +561,7 @@ agents:
   contracts_specialist:
     provider: openrouter
     model: qwen/qwen3.7-flash
+    tier: extract
     temperature: 0.1
     max_tokens: 8192
     max_input_chars: 100000
@@ -450,6 +570,7 @@ agents:
   merger_agreement_specialist:
     provider: openrouter
     model: qwen/qwen3.7-flash
+    tier: extract
     temperature: 0.1
     max_tokens: 8192
     max_input_chars: 100000
@@ -458,6 +579,7 @@ agents:
   corporate_records_specialist:
     provider: openrouter
     model: qwen/qwen3.7-flash
+    tier: extract
     temperature: 0.1
     max_tokens: 8192
     max_input_chars: 60000
@@ -466,6 +588,7 @@ agents:
   correspondence_specialist:
     provider: openrouter
     model: qwen/qwen3.7-flash
+    tier: extract
     temperature: 0.1
     max_tokens: 8192
     max_input_chars: 40000
@@ -474,6 +597,7 @@ agents:
   insurance_claims_specialist:
     provider: openrouter
     model: qwen/qwen3.7-flash
+    tier: extract
     temperature: 0.1
     max_tokens: 8192
     max_input_chars: 60000
@@ -485,6 +609,7 @@ agents:
   reporter:
     provider: openrouter
     model: qwen/qwen3.7-flash
+    tier: fast
     temperature: 0.0
     max_tokens: 512
     max_input_chars: 40000
@@ -494,6 +619,7 @@ agents:
   boss:
     provider: openrouter
     model: qwen/qwen3.7-flash
+    tier: extract
     temperature: 0.1
     max_tokens: 8192
     max_input_chars: 40000
@@ -504,6 +630,7 @@ agents:
   pdf_transcriber:
     provider: openrouter
     model: qwen/qwen3.7-flash
+    tier: vision
     temperature: 0.1
     max_tokens: 8192
     max_input_chars: 40000
@@ -513,6 +640,7 @@ agents:
   image_extractor:
     provider: openrouter
     model: qwen/qwen3.7-flash
+    tier: vision
     temperature: 0.1
     max_tokens: 4096
     max_input_chars: 20000
@@ -522,6 +650,7 @@ agents:
   judge:
     provider: openrouter
     model: qwen/qwen3.7-flash
+    tier: extract
     temperature: 0.1
     max_tokens: 2048
     max_input_chars: 60000

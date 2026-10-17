@@ -4,7 +4,7 @@
   "source_repo": "LLM-Mailroom-Services/eval-environment",
   "source_path": "prompts/manifest.json",
   "frozen_at": "2026-09-26T05:09:29+00:00",
-  "notes": "eval-environment frozen v1 specialist stems (issues #4–#8). Sandbox Modal/vLLM specialist evals must inject these exact bytes. source_key is the sandbox stem at commit 303e7f0.",
+  "notes": "eval-environment frozen v1 specialist stems (issues #4–#8). Sandbox Modal/vLLM specialist evals must inject these exact bytes. source_key is the sandbox stem at commit 303e7f0. Re-freeze (dojo #29/#30): the corporate_records and correspondence stems carry the corrected text, frozen in eval-environment as mutations corporate_records_specialist_v6 / correspondence_specialist_v7; each row's `superseded` block keeps the original v1 key, sha256, chars and frozen_at. Every other specialist is still the unchanged v1 bytes.",
   "specialists": {
     "contracts_specialist": {
       "eval_environment_key": "contracts_specialist_v1",
@@ -14,18 +14,38 @@
       "opening": "You are the contracts specialist."
     },
     "corporate_records_specialist": {
-      "eval_environment_key": "corporate_records_specialist_v1",
+      "eval_environment_key": "corporate_records_specialist_v6",
+      "parent_key": "corporate_records_specialist_v5",
       "sandbox_stem": "corporate_records_specialist_simplified",
-      "sha256": "484e64dd847b7bb35afebca74edc1fb6c381f0f7d5e9367ad8673bec0b8af45c",
-      "chars": 5801,
-      "opening": "You are the corporate-records specialist."
+      "sha256": "fe13501f667fcd9f64f7dfbf8b0f124f81d9dd039f4109288b43f106f82b1399",
+      "chars": 5865,
+      "opening": "You are the corporate-records specialist.",
+      "refrozen_at": "2026-10-16T13:54:17+00:00",
+      "origin": "dojo #29/#30: corrected production_prompts text, frozen in eval-environment as a mutation",
+      "fix": "filing_number null unless an official number appears",
+      "superseded": {
+        "eval_environment_key": "corporate_records_specialist_v1",
+        "sha256": "484e64dd847b7bb35afebca74edc1fb6c381f0f7d5e9367ad8673bec0b8af45c",
+        "chars": 5801,
+        "frozen_at": "2026-09-26T05:09:29+00:00"
+      }
     },
     "correspondence_specialist": {
-      "eval_environment_key": "correspondence_specialist_v1",
+      "eval_environment_key": "correspondence_specialist_v7",
+      "parent_key": "correspondence_specialist_v6",
       "sandbox_stem": "correspondence_specialist_simplified",
-      "sha256": "eab63b5afd29906b1ad3aca2d7698bf5c15d4b7f4ce9ade3b744be535d18d4f3",
-      "chars": 6061,
-      "opening": "You are the correspondence specialist."
+      "sha256": "2b0b81ff98920b9207627707443e2b023db39212fda5bdcba7bfbded39fa38b6",
+      "chars": 6113,
+      "opening": "You are the correspondence specialist.",
+      "refrozen_at": "2026-10-16T13:54:17+00:00",
+      "origin": "dojo #29/#30: corrected production_prompts text, frozen in eval-environment as a mutation",
+      "fix": "communication_type null (not 'other') when the letter does not state one",
+      "superseded": {
+        "eval_environment_key": "correspondence_specialist_v1",
+        "sha256": "eab63b5afd29906b1ad3aca2d7698bf5c15d4b7f4ce9ade3b744be535d18d4f3",
+        "chars": 6061,
+        "frozen_at": "2026-09-26T05:09:29+00:00"
+      }
     },
     "insurance_claims_specialist": {
       "eval_environment_key": "insurance_claims_specialist_v1",
@@ -41,5 +61,33 @@
       "chars": 6116,
       "opening": "You are the merger-agreement specialist."
     }
-  }
+  },
+  "frozen_successors": [
+    {
+      "agent": "insurance_claims_specialist",
+      "eval_environment_key": "insurance_claims_specialist_v4",
+      "parent_key": "insurance_claims_specialist_v3",
+      "sandbox_stem": "insurance_claims_specialist_simplified_v2",
+      "sha256": "1ca6e83c944ca363e19f433089de375e799d10fa6ca2dde418feb93b84dc58ea",
+      "chars": 8461,
+      "opening": "You are the insurance-claims specialist.",
+      "frozen_at": "2026-10-15",
+      "source_path": "prompts/mutations.json",
+      "origin": "SAND-042 RCA (#134)",
+      "fix": "per-source layout cues; no phantom sorter doc_subclass handoff; bare-number claimed_amount"
+    },
+    {
+      "agent": "merger_agreement_specialist",
+      "eval_environment_key": "merger_agreement_specialist_v4",
+      "parent_key": "merger_agreement_specialist_v3",
+      "sandbox_stem": "merger_agreement_specialist_maud_v2",
+      "sha256": "da316691955a14537a4797ed1867b2c32a0dbd2851a634a1f21df0b5e9e21946",
+      "chars": 33125,
+      "opening": "You are the merger-agreement specialist.",
+      "frozen_at": "2026-10-15",
+      "source_path": "prompts/mutations.json",
+      "origin": "SAND-042 RCA (#134)",
+      "fix": "MAUD answer catalog generated from llm_dojo_scoring.maud_schema; no free text in maud_clauses; per-chunk answering duty"
+    }
+  ]
 }

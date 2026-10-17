@@ -13,6 +13,7 @@ import json
 from typing import Mapping
 
 from mailroom_sandbox.job.runbooks import _shell_quote
+from mailroom_sandbox.job.specialist_posture import sand42_cell_label
 from mailroom_sandbox.job.spec import RunSpec
 
 
@@ -26,6 +27,12 @@ _DEPLOY_DEFAULT_KEYS = (
     "MODAL_VLLM_ENABLE_AUTO_TOOL_CHOICE",
     "MODAL_VLLM_STARTUP_TIMEOUT_SECONDS",
     "MODAL_VLLM_CHAT_TEMPLATE",
+    # SAND-042 in-container GPU telemetry: deploy defaults are on / 5s / 6 / the
+    # shared volume, so a stale shell cannot silently redirect or silence it.
+    "MODAL_VLLM_TELEMETRY",
+    "MODAL_VLLM_TELEMETRY_INTERVAL",
+    "MODAL_VLLM_TELEMETRY_COMMIT_EVERY",
+    "MODAL_VLLM_TELEMETRY_VOLUME",
 )
 
 
@@ -55,6 +62,10 @@ def spec_env(spec: RunSpec) -> dict[str, str]:
         ),
         "MODAL_VLLM_MAX_INPUTS": str(v.max_inputs) if v.max_inputs else "",
         "MODAL_VLLM_HF_OVERRIDES": json.dumps(v.hf_overrides, sort_keys=True) if v.hf_overrides else "",
+        # SAND-042: the serving container writes its nvidia-smi series under this
+        # label. Derived from the run id (one label per cell, shared by its five
+        # configs) so the scraper finds the series from any of them; "" elsewhere.
+        "MODAL_VLLM_TELEMETRY_LABEL": sand42_cell_label(spec.run_id),
         # Knobs the deploy reads that no SAND-032 run sets: pinned to "unset"
         # (deploy default) so a stale shell — e.g. the Granite runbook's
         # MODAL_VLLM_REASONING_PARSER=granite — is caught as drift and cleared

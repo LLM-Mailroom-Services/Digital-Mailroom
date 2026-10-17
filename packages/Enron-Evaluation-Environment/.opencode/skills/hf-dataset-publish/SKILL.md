@@ -13,10 +13,10 @@ Lucius-Morningstar/enron-correspondence-dedup
 https://huggingface.co/datasets/Lucius-Morningstar/enron-correspondence-dedup
 ```
 
-The publisher is `scripts/publish_hf_dataset.py`. It is row-compatible with
-`llm-entity-extraction`'s `scripts/datasets/publish_enron_correspondence.py`
-(same schema, same shared labeler, same split rule) — either may be used; do
-not fork the spec.
+The publisher is `scripts/publish_hf_dataset.py`. It was ported from the
+now-pruned `llm-entity-extraction` publisher (standalone repo only; same
+schema, same shared labeler, same split rule) and is the canonical publisher
+in the monorepo — do not fork the spec.
 
 ## Prerequisites
 
@@ -81,7 +81,7 @@ What it does, in sequence:
 2. **One taxonomy source**: labels come from
    `scripts/correspondence_subclasses.label_correspondence` only. If this
    repo's enum changes, the sibling publisher picks it up automatically here;
-   `llm-entity-extraction`'s sorter needs a manual mirror (see AGENTS.md
+   `llm-mailroom`'s sorter needs a manual mirror (see AGENTS.md
    sync obligations).
 3. **Never ship partial-null schemas** — the schema guard exists because the
    Hub viewer hard-crashes on them. Extend the guard when adding fields.
@@ -104,6 +104,6 @@ What it does, in sequence:
 
 ## Related
 
-- Sibling implementation: `llm-entity-extraction/scripts/datasets/publish_enron_correspondence.py`
-- Family mirror state (other datasets): `llm-entity-extraction/data/hf_export/README.md`
+- Historical sibling (pruned in DMR-079, standalone `Exios66/llm-entity-extraction` only): `scripts/datasets/publish_enron_correspondence.py`
+- Centralized helpers for the dataset family: `packages/mailroom-corpus-eda/src/mailroom_eda/`
 - Downstream eval consumption: `reports/pipeline/README.md`

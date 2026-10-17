@@ -172,7 +172,7 @@ EXPANSION_FAMILIES: tuple[dict[str, Any], ...] = (
         "rationale": (
             "Second-smallest class (152 rows vs a 600-row median class) and "
             "single-source (MAUD): the objective scarcity rule drives the "
-            "priority — the merger route of contracts_specialist needs "
+            "priority — the merger_agreement route (merger_agreement_specialist) needs "
             "statistical depth, and format diversity within the class is "
             "the natural way to add it."
         ),

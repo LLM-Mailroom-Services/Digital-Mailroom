@@ -170,6 +170,54 @@ def make_phoenix_trace(
     return spans
 
 
+def make_reloaded_trace(
+    trace_id: str,
+    *,
+    doc_id: str = "doc-0001",
+    filename: str = "lease.pdf",
+    run_id: str | None = "eval-20261009",
+    status: str = "archived",
+    doc_type: str | None = "contract",
+    nodes: list[str] | None = None,
+    base_time: datetime | None = None,
+) -> list[dict]:
+    """mailroom-reloaded shape: ``mailroom.document`` root + ``mailroom.node.*``
+    children, no ``input.value`` / ``output.value`` on the root."""
+    base_time = base_time or datetime(2026, 10, 9, 12, 0, 0)
+    nodes = nodes or [
+        "ingest", "bert_primary", "sort", "extract", "report_catalog_archive",
+    ]
+    root_attrs = {
+        "openinference.span.kind": "CHAIN",
+        "mailroom.doc_id": doc_id,
+        "mailroom.status": status,
+    }
+    if filename:
+        root_attrs["mailroom.filename"] = filename
+    if run_id:
+        root_attrs["mailroom.run_id"] = run_id
+    if doc_type:
+        root_attrs["mailroom.doc_type"] = doc_type
+    spans = [
+        make_phoenix_span(
+            "mailroom.document", trace_id, f"{trace_id}-root",
+            parent_id=None, start_time=base_time, duration_s=20.0,
+            attributes=root_attrs,
+        )
+    ]
+    for i, node in enumerate(nodes):
+        spans.append(
+            make_phoenix_span(
+                f"mailroom.node.{node}", trace_id, f"{trace_id}-n{i}",
+                parent_id=f"{trace_id}-root",
+                start_time=base_time + timedelta(seconds=1 + 2 * i),
+                duration_s=1.5,
+                attributes={"mailroom.doc_id": doc_id},
+            )
+        )
+    return spans
+
+
 class FakePhoenixSpans:
     """`client.spans` stand-in: get_spans + get_span_annotations."""
 

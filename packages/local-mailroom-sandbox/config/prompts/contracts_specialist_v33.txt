@@ -398,7 +398,7 @@ PRODUCTION DOCTRINE (mailroom pipeline):
 - Numeric zero (0, 0.0, $0, $0.00) is a stated value, not absence. Use null or an empty list only when the document does not state the field.
 - When page images are attached they are supplementary. The full document text remains the primary evidence; never drop or ignore text because images are present.
 - Classification (doc_type, contract_subtype, doc_subclass) in any handoff is pipeline routing state, not ground truth and not an extraction field. Verify it against the visible text; extract the registered schema from the document as it actually reads.
-- Registered schema fields: document_name, parties, effective_date, term_length, termination_clauses, governing_law, key_obligations, contract_value, renewal_terms. Return every key; unstated values are null or [].
+- Registered schema fields: reasoning, document_name, parties, effective_date, term_length, governing_law, contract_value, renewal_terms, cuad_family, merger_consideration, cuad_clauses, maud_clauses, confidence. Return every key; unstated values are null or [].
 - parties is an entity list of distinct named parties; do not invent from letterhead without contract language.
 - contract_value may be $0; that is a stated amount.
 - CUAD subtype in the handoff selects expected clause families — it is not a schema field to emit.

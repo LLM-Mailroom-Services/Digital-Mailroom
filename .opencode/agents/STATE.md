@@ -365,3 +365,12 @@ Extensive references in `packages/llm-mailroom/docs/wiki/` and `docs/sister-repo
 ### New DMR Cards Required
 
 **None.** All discrepancies are already tracked by existing cards (DMR-023, DMR-024). The DMR-040 card claim is incorrect and should be updated or closed.
+
+---
+
+## DMR-079 package-prune note (appended 2026-10-16T00:00:00Z)
+
+- **Scope:** DMR-079 monorepo consolidation removed `packages/llm-entity-extraction`, `packages/llm-mailroom-graph`, and `packages/agent-mailroom` from the core monorepo (`agent-mailroom` is preserved on branch `feature/agent-mailroom`; the other two survive only as standalone `Exios66/*` repos that are no longer synced). Commits: 6020d75a, e78aeb9f, 41509c8f, 356112ab (relock).
+- **Audit consequence:** every path under those three packages cited in the entries above (e.g. `packages/llm-entity-extraction/deploy/modal_vllm.py` in DMR-024/DMR-030, the `agent-mailroom` / `llm-mailroom-graph` README findings, the llm-entity-extraction suite counts) is historical evidence only and is **no longer auditable** in this tree. Do not re-open those findings against the monorepo; the audit surface for deploy files is now `packages/llm-mailroom/deploy/modal_vllm.py` and `packages/local-mailroom-sandbox/deploy/modal_vllm.py`.
+- **Expected sync baseline:** `sync_packages.py status` now expects 7/7 (was 10/10).
+- **Entries above are left unedited** (append-only audit trail).

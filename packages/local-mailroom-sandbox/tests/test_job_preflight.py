@@ -310,6 +310,54 @@ def test_preflight_drift_refusal_then_force(tmp_path):
     assert report3["status"] == "prepared"
 
 
+def test_force_relock_refuses_a_store_another_fleet_owns(tmp_path, monkeypatch):
+    """--force must not take over a store locked to a different Modal app.
+
+    SAND-046: two fleets run one cell under different app names, sharing a run_id.
+    `engine.modal` is inside spec_hash, so a plain resume is refused. The open door
+    was `--force`: archive_generation() moves items.jsonl aside, but the owning
+    fleet's LIVE writer reopens it BY PATH (RunStore.append_item opens "a" per
+    item) and recreates it — both fleets would then append to one items.jsonl.
+    """
+    from pathlib import Path
+
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import EngineSpec, ModalSpec
+
+    spec = _run_spec(tmp_path, run_id="pf-fleet-a")
+    spec.engine = EngineSpec(kind="modal-vllm", modal=ModalSpec(app="sandbox-vllm"))
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    store = _store(report)
+    store.append_item({"item_id": "d0", "index": 0, "ok": True, "ts": "2026-01-01T00:00:00+00:00"})
+    assert store.items_path.is_file()
+
+    other = _run_spec(tmp_path, run_id=spec.run_id)
+    other.engine = EngineSpec(kind="modal-vllm", modal=ModalSpec(app="sandbox-vllm-b"))
+    assert other.spec_hash() != spec.spec_hash(), "the app must be inside spec_hash"
+
+    # Without --force the drift is refused and the items stay untouched.
+    refused = preflight.preflight(other, offline=True)
+    assert refused["status"] == "drift_refused"
+    assert store.items_path.is_file()
+
+    # WITH --force it is still refused — the archive cannot stop a live writer.
+    blocked = preflight.preflight(other, offline=True, force=True)
+    assert blocked["status"] == "foreign_store_refused", blocked
+    assert blocked["lock_app"] == "sandbox-vllm"
+    assert blocked["spec_app"] == "sandbox-vllm-b"
+    assert store.items_path.is_file(), "the owning fleet's items must survive"
+
+    # A deliberate takeover still archives the old generation, items included.
+    monkeypatch.setenv("SANDBOX_TAKEOVER_FOREIGN_STORE", "1")
+    taken = preflight.preflight(other, offline=True, force=True)
+    assert taken["status"] == "prepared", taken
+    archived = Path(taken["archived"])
+    assert (archived / "items.jsonl").is_file()
+    assert not store.items_path.exists(), "stale items must not survive a forced re-lock"
+    assert RunStore(store.dir).resume_cursor() == 0
+
+
 def test_force_relock_archives_old_generation(tmp_path, job_data_dir):
     """DMR-049: --force must move the old lock/items aside, not leave them."""
     from pathlib import Path

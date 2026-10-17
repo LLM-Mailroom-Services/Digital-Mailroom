@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from .archive import router as archive_router
 from .auth import router as auth_router
 from .db import db_path, ensure_bins, migrate
-from .observer import observer_enabled, start_observer
+from .observer import observer_enabled
 from .ops import router as ops_router, set_runs_provider
 from .websocket import router as ws_router
 
@@ -95,8 +95,3 @@ def mount_operator(
     app.state.operator = operator_status()
     log.info("operator desk mounted (db=%s)", db_path())
 
-
-def start_operator_observer(loop=None):
-    if not observer_enabled():
-        return None
-    return start_observer(loop=loop)

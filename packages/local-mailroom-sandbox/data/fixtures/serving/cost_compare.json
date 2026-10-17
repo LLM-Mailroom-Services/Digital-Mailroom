@@ -1,5 +1,5 @@
 {
-  "note": "Grant-style Qwen3 cost-compare fixture. Millisecond job fields + HF Modal id + OpenRouter champion. Not live GPU. Token $ uses the sandbox champion table (0.03/0.13 per 1M) matching qwen/qwen3.7-flash.",
+  "note": "Grant-style Qwen3 cost-compare fixture. Millisecond job fields + HF Modal id + OpenRouter champion. Not live GPU. `dataset_revision` is the pinned family Hub snapshot (`job.spec.FAMILY_HF_REVISION`). Token $ uses the sandbox champion table (0.03/0.13 per 1M) matching qwen/qwen3.7-flash.",
   "local": {
     "serving_kind": "local",
     "provider": "ollama",
@@ -8,6 +8,7 @@
     "task": "sorter",
     "prompt_version": "mailroom-default",
     "dataset_fingerprint": "fixture-cost-compare-v0",
+    "dataset_revision": "bc9eab280044befb51e19dda3071d290a8677f42",
     "n": 2,
     "latency_ms": 2400,
     "ttft_ms": 400,
@@ -27,6 +28,7 @@
     "task": "sorter",
     "prompt_version": "mailroom-default",
     "dataset_fingerprint": "fixture-cost-compare-v0",
+    "dataset_revision": "bc9eab280044befb51e19dda3071d290a8677f42",
     "n": 2,
     "latency_ms": 1800,
     "ttft_ms": 250,
@@ -47,6 +49,7 @@
     "task": "sorter",
     "prompt_version": "mailroom-default",
     "dataset_fingerprint": "fixture-cost-compare-v0",
+    "dataset_revision": "bc9eab280044befb51e19dda3071d290a8677f42",
     "n": 2,
     "latency_ms": 900,
     "ttft_ms": 150,

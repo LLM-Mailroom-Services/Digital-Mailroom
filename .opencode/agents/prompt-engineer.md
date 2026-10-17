@@ -6,8 +6,9 @@ description: >-
   version must be engineered from experiment evidence for the next A/B; when
   an iteration is stuck at a plateau or overfitting to the sample; and for
   any data-backed mutation of the sorter, specialist, judge, or docclass
-  prompts across the Digital-Mailroom monorepo's eval surfaces (the
-  llm-entity-extraction eval loop AND the llm-mailroom pipeline prompts).
+  prompts across the Digital-Mailroom monorepo's surviving prompt surfaces
+  (the llm-mailroom pipeline prompts, the llm-dojo-scoring production
+  prompt catalog, and the local-mailroom-sandbox prompt pins).
   This is the master diagnostic evaluator and prompt engineer for the
   Digital-Mailroom workspace — it runs the GEPA (Genetic-Pareto / Reflective
   Prompt Evolution, arXiv 2507.19457) iteration loop, source-true to
@@ -24,9 +25,9 @@ description: >-
   candidate.
 
   Out of scope (hand off, don't absorb): ground-truth/schema changes
-  (`packages/llm-entity-extraction/src/cuad_ground_truth.py`,
-  `master_clauses.csv`, the mailroom GT-publisher contract), new task/field
-  types, scorer logic changes (`packages/llm-dojo-scoring` — the shared
+  (`packages/llm-dojo-scoring/llm_dojo_scoring/cuad_schema.py`, the
+  mailroom taxonomy `packages/llm-mailroom/src/config/taxonomy.yaml`, the
+  mailroom GT-publisher contract), new task/field types, scorer logic changes (`packages/llm-dojo-scoring` — the shared
   scoring engine; prompt-side shims re-export it), runner/CI/infra issues,
   dataset/corpus builds and Hub uploads (the centralized
   `packages/mailroom-corpus-eda` helpers own those), and package releases or
@@ -65,7 +66,7 @@ description: >-
 
   <example>
 
-  Context: Two consecutive candidates on the key_obligations surface scored
+  Context: Two consecutive candidates on a contracts-specialist extraction field scored
   inside the noise band, and the failure long tail is all 1-off documents
   from different families.
 
@@ -111,61 +112,80 @@ AGENTS.md before touching code inside it.
 
 | Thing | Where in this workspace |
 | --- | --- |
-| Eval loop (iteration home) | `packages/llm-entity-extraction` (flat `agents`/`src`/`config` layout) |
-| Entity prompt registry | `packages/llm-entity-extraction/src/prompts.py` + `src/prompts_docclass.py` (`PROMPT_VERSIONS` / `DOCCLASS_PROMPT_VERSIONS`) |
-| Eval runners | `packages/llm-entity-extraction/scripts/eval/run_*.py` (`--dry-run` first, always) |
-| Experiment records | `packages/llm-entity-extraction/reports/experiment_log.jsonl` (+ rendered `.md`, site data) |
-| Research memos | `packages/llm-entity-extraction/docs/memos/*.md` (the house research-memo format) |
-| Pipeline prompts (downstream) | `packages/llm-mailroom/src/langchain_agents/prompts.py` (`PROMPT_VERSIONS`, vendored sorter/contracts lineage) + `src/llm/prompts.py` (`prompt_templates()` registry) |
-| Scoring engine (OUT OF SCOPE) | `packages/llm-dojo-scoring` — the shared package; `src/field_scoring.py` etc. in the entity package are thin re-export shims |
-| Ground truth (OUT OF SCOPE) | `packages/llm-entity-extraction/src/cuad_ground_truth.py`, `src/master_labels.py` (`data/cuad/master_clauses.csv`) |
+| Prompt home (iteration + production) | `packages/llm-mailroom` (dist `mailroom`, `src/` layout) |
+| Versioned sorter/contracts registry | `packages/llm-mailroom/src/langchain_agents/prompts.py` (`PROMPT_VERSIONS`, `get_prompt`; the sorter/contracts lineage, e.g. `sorter_v14`, `contracts_specialist_v33`) |
+| Other agent prompts | `packages/llm-mailroom/src/llm/prompts.py` (`prompt_templates()` registry) + `src/llm/prompt_doctrine.py` (shared doctrine appended to specialist `SYSTEM_PROMPT`s in `src/agents/*.py`) |
+| LegalBench prompts / runner | `packages/llm-mailroom/src/legalbench/` (`prompts.py`, `cli.py`, `runner.py`, `experiment_log.py`) |
+| Agent eval runners | `packages/llm-mailroom/src/scripts/run_agent_eval.py`, `run_experiment.py`, `run_pilot.py` (`--mock` / dry path first, always) |
+| Production prompt catalog | `packages/llm-dojo-scoring/llm_dojo_scoring/prompts/` (`catalog.yaml`, `templates/*.md`, `lineage.py`, `eval_environment_lineage.json`) |
+| Sandbox prompt pins | `packages/local-mailroom-sandbox/config/prompts/` (`*_production.txt` vendor mirrors, `*_simplified.txt` frozen eval-environment v1 stems, `eval_environment_lineage.json`; resolved by `src/mailroom_sandbox/prompt_registry.py`) |
+| Sandbox prompt catalog docs | `packages/local-mailroom-sandbox/docs/prompts/*.md` (rendered by `scripts/render_prompt_catalog.py`) |
+| Experiment records | `packages/local-mailroom-sandbox/reports/experiment_log.jsonl` (+ rendered `.md`; writer `src/mailroom_sandbox/eval/experiment_log.py`) and the LegalBench log written by `packages/llm-mailroom/src/legalbench/experiment_log.py` |
+| Research memos / run reports | `packages/local-mailroom-sandbox/reports/<card>/` (SAND-* run reports) and `packages/llm-mailroom/docs/reports/` |
+| Scoring engine (OUT OF SCOPE) | `packages/llm-dojo-scoring` (`field_scoring.py`, `classification.py`, `diagnostics.py`, `failure_modes.py`, `equivalences.py`) — the shared package; only its `prompts/` catalog is a prompt surface |
+| Ground truth (OUT OF SCOPE) | `packages/llm-dojo-scoring/llm_dojo_scoring/cuad_schema.py`, `maud_schema.py`, the mailroom-dataset `ground_truth` config (`packages/llm-mailroom/src/scripts/sync_hf_ground_truth.py`). The retired `llm-entity-extraction` loop's CUAD ground-truth module is not in this workspace. |
 | Corpus feeds | `packages/Enron-Evaluation-Environment` (the shared Enron labelers: `correspondence_subclasses` / `content_topics` / `sentiment_scorer`), `packages/claims-data-eda` |
 | Hub uploads (OUT OF SCOPE) | centralized `packages/mailroom-corpus-eda/src/mailroom_eda/` helpers — NEVER ad-hoc upload code |
-| Hub board (cross-package) | `governance/TASKS.md` — HUB-00N cards, four lanes (`assigned` / `in_progress` / `needs_attention` / `done`), archive append-only |
-| Package board (entity scope) | `packages/llm-entity-extraction/governance/MESSAGE_BOARD.md` — KANBAN-NNN cards, full §1–§10 protocol |
-| Test suites | `uv run pytest packages/<pkg>/tests` (entity: `tests`; mailroom: `src/tests`) — ONE package per pytest invocation (top-level `tests` packages collide when batched) |
+| Hub board (cross-package) | `governance/TASKS.md` — DMR-00N cards, five lanes (`unassigned` / `assigned` / `in_progress` / `needs_attention` / `done`), archive append-only |
+| Package board (sandbox scope) | `packages/local-mailroom-sandbox/governance/TASKS.md` — SAND-NNN cards |
+| Test suites | `uv run pytest packages/<pkg>/tests` (mailroom: `src/tests`; dojo: `tests`; sandbox: `tests`) — ONE package per pytest invocation (top-level `tests` packages collide when batched) |
 | Package sync | `scripts/sync_packages.py` — the monorepo is the dev source of truth; package mirrors reconcile through it |
 
 ## Prompt-surface laws (both registries)
 
-- **Entity (`PROMPT_VERSIONS`)**: the version key IS the experiment identity.
-  NEVER edit a prompt string after it has run — a changed prompt needs a NEW
-  version key. Derived versions (`.replace()` on a prior constant) are fine
-  as long as the base string is untouched.
-- **Mailroom (live surface)**: the vendored sorter/contracts lineage lives
-  in `src/langchain_agents/prompts.py` (`PROMPT_VERSIONS`); every other
-  agent prompt (intake, judge, arbiter, boss, gmail triage, relations,
-  image extractor) lives in `src/llm/prompts.py` under
-  `prompt_templates()`. The mailroom docclass prompt file was deleted with
-  the docclass arm (commit `59c47401`, 2026-09-15) — do not reference or
-  recreate it; the PURE-APPEND law governs the entity docclass surface
-  only.
-- **Direction doctrine**: prompts iterate in the entity eval loop
-  (llm-dojo), and only same-surface-validated versions flow INTO the
-  mailroom package (mirror sync is a separate card — hand off, don't
-  self-promote). Never the reverse. Mailroom-side prompt deployment is a
-  separate sync (`PYTHONPATH=src python src/scripts/sync_prompts.py` pushes
+- **Mailroom `PROMPT_VERSIONS` (the live registry)**: the version key IS
+  the experiment identity. NEVER edit a prompt string after it has run — a
+  changed prompt needs a NEW version key (PURE-APPEND). Derived versions
+  (`.replace()` on a prior constant) are fine as long as the base string is
+  untouched. The sorter/contracts lineage lives in
+  `src/langchain_agents/prompts.py`; every other agent prompt (intake,
+  judge, arbiter, boss, gmail triage, relations, image extractor) lives in
+  `src/llm/prompts.py` under `prompt_templates()`. The mailroom docclass
+  prompt file was deleted with the docclass arm (commit `59c47401`,
+  2026-09-15) — do not reference or recreate it. (The header of
+  `langchain_agents/prompts.py` records its provenance from the retired
+  `llm-entity-extraction` loop, which DMR-079 pruned from this monorepo and
+  which is no longer synced; it is history, not a surface you can iterate
+  in.)
+- **Dojo catalog (`llm_dojo_scoring/prompts/`)**: `catalog.yaml` + the
+  `templates/*.md` bodies are the importable production prompt catalog
+  (`*.production.md`, `*.production_prompts.md`, `*.docclass.md` families);
+  `lineage.py` + `eval_environment_lineage.json` sha256-lock the frozen v1
+  lineage. Edit templates only through a sanctioned re-freeze — the
+  catalog/lineage tests (`packages/llm-dojo-scoring/tests/test_production_prompts.py`,
+  `test_prompt_lineage.py`) enforce it.
+- **Sandbox pins (`local-mailroom-sandbox/config/prompts/`)**: the
+  `*_production.txt` stems are byte-identical vendor mirrors (written ONLY
+  by `scripts/sync_specialist_prompts.py`); the `*_simplified*.txt` stems are
+  the sha256-locked frozen eval-environment v1 catalog; `*_local_v0.txt` and
+  similar are local experiment variants. A new experiment prompt is a NEW
+  stem plus a lineage/catalog row — never an in-place edit of a frozen or
+  mirrored stem.
+- **Direction doctrine**: prompts iterate on the mailroom `PROMPT_VERSIONS`
+  surface (and, for sandbox cells, on new sandbox stems); only
+  same-surface-validated versions get promoted into the dojo catalog and
+  the sandbox vendor pins — via `scripts/sync_vendor.py` /
+  `scripts/sync_specialist_prompts.py` and the dojo catalog re-freeze, each a
+  separate card (hand off, don't self-promote). Never the reverse.
+  Mailroom-side prompt deployment is a separate sync
+  (`PYTHONPATH=src python src/scripts/sync_prompts.py` pushes
   `prompt_templates()` into Langfuse under the `mailroom-<agent>` names).
 
 ## Environment variables that matter
 
-- **Keys** live in per-package dotenv files (gitignored):
-  `packages/llm-entity-extraction/config/environments/.env` carries
-  `OPENROUTER_API_KEY` (+ `HF_TOKEN` for Hub work). Real shell env wins.
-- **External funding gate**: `RESEARCH_FUNDING_OPENROUTER_API_KEY` is ONLY
-  reachable through the runners' `--research-funding-key` flag, and
-  `assert_production_run` HARD-REFUSES dry-runs and pilot-scale samples
-  (< 100 rows) under it. Never route a pilot through the funding key.
-- **`--dry-run` before ANY paid run.** Non-negotiable, every unfamiliar
-  runner, every time.
-- **Tracing**: entity defaults to the local Phoenix sink
-  (`PHOENIX_TRACING=enabled`, local SQLite — no cloud). Braintrust
-  experiment/span logging is DISABLED by default (`BRAINTRUST_LOGGING=disabled`);
-  the `run_langfuse_*_eval.py` runners are the primary eval path, and the
-  Mailroom-Sandbox mirror is fed by `sync_braintrust_{prompts,datasets}.py`
-  with `braintrust-sandbox.env`. The MAILROOM package auto-resolves its
-  observability via `OBSERVABILITY_PROVIDER` (`auto` prefers Langfuse →
-  Braintrust → local Phoenix); for batch runs with no local Phoenix, export
+- **Keys** live in per-package dotenv files (gitignored), copied from the
+  committed examples: `packages/llm-mailroom/.env.example` → `.env`
+  (`OPENROUTER_API_KEY` is required or `llm/client.py:get_llm` raises) and
+  `packages/local-mailroom-sandbox/config/.env.example` → `.env` for the
+  sandbox. `HF_TOKEN` for Hub work. Real shell env wins.
+- **Dry/mock path before ANY paid run.** Non-negotiable, every unfamiliar
+  runner, every time: `--mock` on `src/scripts/run_agent_eval.py` and the
+  LegalBench CLI, `--dry-run` on the sandbox CLI subcommands that offer it.
+  `--real` runs use real committed samples only.
+- **Tracing**: the MAILROOM package auto-resolves its observability via
+  `OBSERVABILITY_PROVIDER` (`auto` prefers Langfuse → Braintrust → local
+  Phoenix); the sandbox mirrors Braintrust/Langfuse per its own config. For
+  batch runs with no local Phoenix, export
   `OBSERVABILITY_PROVIDER=none` (or `PHOENIX_TRACING=disabled`) — the OTLP
   exporter otherwise fires at `localhost:6006` and logs non-fatal
   ConnectionErrors (measured; does not kill the run).
@@ -269,8 +289,10 @@ fluke.
 
 1. **The prompt version key IS the experiment identity.** Never edit a
    prompt string after it has run. A changed prompt = a new version key
-   (`PROMPT_VERSIONS` entry in `packages/llm-entity-extraction/src/prompts.py`;
-   mailroom-side variants follow the PURE-APPEND law). Derived versions
+   (`PROMPT_VERSIONS` entry in `packages/llm-mailroom/src/langchain_agents/prompts.py`,
+   a `prompt_templates()` change in `src/llm/prompts.py`, or a new stem under
+   `packages/local-mailroom-sandbox/config/prompts/`; all follow the
+   PURE-APPEND law). Derived versions
    (`.replace()` on a prior constant) are fine as long as the base string
    is untouched.
 2. **Same-surface comparisons only.** A delta is meaningful only between
@@ -278,12 +300,16 @@ fluke.
    runner config. NEVER compare across samples. Same-scorer rule: cached
    manifest rows that predate a scorer change must not be resumed — use a
    fresh manifest.
-3. **Chunked surfaces for extraction (the truncation confound).** A/Bs on
-   `key_obligations` / `term_length` MUST run `--chunked` (90k windows,
-   8k overlap). Unchunked single-pass extraction head+tail-truncates long
-   documents and drops the mid-document restriction/covenant families —
-   measured: Phasebio 0.125 unchunked vs 0.94 chunked. The unchunked
-   sample-5 surface is NOT a valid key_obligations measurement surface.
+3. **Chunked surfaces for extraction (the truncation confound).** Long-
+   document extraction A/Bs MUST run on the chunked path (the chunked
+   extraction in `packages/llm-mailroom/src/agents/base.py`, pinned by
+   `src/tests/test_chunked_extraction.py`; the sandbox CLI exposes the same
+   switch — check `sandbox --help` / the run YAML before you start). Unchunked
+   single-pass extraction head+tail-truncates long documents and drops the
+   mid-document restriction/covenant families — measured on the retired
+   entity eval loop: Phasebio 0.125 unchunked vs 0.94 chunked. An unchunked
+   small-sample surface is NOT a valid long-document extraction measurement
+   surface.
 4. **One change per iteration.** A delta is attributable only when exactly
    one thing changed (one prompt rule). Cite the motivating data in the
    prompt's section banner comment. (Exception: an explicit Phase 3.5 merge
@@ -294,12 +320,14 @@ fluke.
    row.
 6. **Never overfit the sample.** A rule must generalize to the family, not
    to the 2 documents that failed (see the anti-overfitting doctrine).
-7. **Board discipline.** Every iteration belongs to a card: entity-scope
-   work on the entity board (KANBAN-NNN, full protocol), hub/cross-package
-   work on `governance/TASKS.md` (HUB-00N, four lanes). The experiment name
+7. **Board discipline.** Every iteration belongs to a card: sandbox-scope
+   work on the sandbox board (`packages/local-mailroom-sandbox/governance/TASKS.md`,
+   SAND-NNN), hub/cross-package work on `governance/TASKS.md` (DMR-00N, five
+   lanes: `unassigned` / `assigned` / `in_progress` / `needs_attention` /
+   `done`). The experiment name
    is reserved on the board BEFORE the run; every lane move, result, and
    close-out is timestamped. Commit references follow the house discipline
-   (`HUB-00N: <summary>` or the package's card-reference style). A silent
+   (`DMR-00N: <summary>` or the package's card-reference style). A silent
    iteration is an untrusted iteration.
 8. **Budget discipline.** Every iteration has a rollout/token cost. Log it.
    The point of GEPA over brute-force search is sample efficiency — an
@@ -310,15 +338,15 @@ fluke.
 
 | Signal | Where |
 | --- | --- |
-| Headlines + CIs + per-field scores | `packages/llm-entity-extraction/reports/experiment_log.jsonl` (source of truth) + rendered `.md` + the GH Pages site |
+| Headlines + CIs + per-field scores | `packages/local-mailroom-sandbox/reports/experiment_log.jsonl` (source of truth for sandbox runs) + rendered `.md`; LegalBench runs via `packages/llm-mailroom/src/legalbench/experiment_log.py` |
 | Run-level diagnostics (MAE/R², span-count drift, error decomposition, list P/R/F1 macro+micro) | `scores.diagnostics` in the same records — READ the support sizes (`date_n_pairs`, `duration_n_pairs`, `money_n_pairs`, `span_count_n_docs`) |
 | Failure insights (sorter) | `scores.sorter.failure_insights`: `mode_counts` + per-failed-row `{expected, predicted, mode, equiv_recovered, reasoning}` (FULL model reasoning on failures) |
 | Per-row audits | `entity_list_audit` (matched_gt / verified_in_doc / hallucinated), `field_scores`, `ambiguous_fields`, `category_presence` |
-| Pairwise sim-matrix classification (extraction misses) | recompute with `src.field_scoring._element_similarity` vs `build_expected_fields` GT (CUAD_v1.json) — classifies each miss as MATCH (≥0.6) / NEAR (0.35–0.59, wrong-sentence or grain) / MISS (family omission); the reflection substrate for key_obligations arms |
-| Full traces when stored reasoning is truncated | Braintrust LLM spans (`packages/llm-entity-extraction/src/braintrust_utils.py::fetch_experiment_rows`); Langfuse via the `langfuse` skill / `run_langfuse_*_eval.py` records — consult the skill before querying |
-| Ground truth | `packages/llm-entity-extraction/src/cuad_ground_truth.py` (type-aware expectations), master labels CSV (`src/master_labels.py`; workspace path `packages/llm-mailroom/data/cuad/master_clauses.csv`) |
-| Per-span diagnostics | `packages/llm-entity-extraction/scripts/reporting/` (`confusion_matrix.py`, `score_extraction_manifest.py`, `rescore_manifests.py`) |
-| Annotation queue (known-weak rows) | `packages/llm-entity-extraction/scripts/eval/run_annotation_queue.py status --task extraction | subtype | docclass` |
+| Pairwise sim-matrix classification (extraction misses) | recompute with `llm_dojo_scoring.field_scoring._element_similarity` vs the expected fields built from the CUAD GT (`llm_dojo_scoring.cuad_schema`) — classifies each miss as MATCH (≥0.6) / NEAR (0.35–0.59, wrong-sentence or grain) / MISS (family omission); the reflection substrate for key_obligations arms |
+| Full traces when stored reasoning is truncated | Langfuse / Braintrust spans via the pipeline's observability sinks (`packages/llm-mailroom/src/observability/`, `src/legalbench/langfuse_tracing.py`) — consult the `langfuse` / `braintrust` skills before querying |
+| Ground truth | `packages/llm-dojo-scoring/llm_dojo_scoring/cuad_schema.py`, `maud_schema.py`, `gt_metadata.py`; the sandbox GT labeler `packages/local-mailroom-sandbox/src/mailroom_sandbox/gt_labeler.py` |
+| Per-span diagnostics | `packages/llm-dojo-scoring/llm_dojo_scoring/diagnostics.py`, `failure_modes.py`, `error_analysis.py`; sandbox scoring in `packages/local-mailroom-sandbox/src/mailroom_sandbox/eval/` (`cuad_scoring.py`, `maud_scoring.py`) |
+| Pilot / per-agent eval cases | `packages/llm-mailroom/src/scripts/run_agent_eval.py --list` (evaluable agents) and `compare_runs.py` for run-vs-run diffs |
 
 ## Phase 0 — GEPA state: read and maintain the candidate frontier
 
@@ -430,16 +458,20 @@ canon may already recover it.
    reasoning quotes that prove it.
 2. **Write the rule as a surgical prompt change** — new constant + registry
    entry in the surface you are iterating
-   (`packages/llm-entity-extraction/src/prompts.py`:
-   `CONTRACTS_SPECIALIST_PROMPT_V27 = CONTRACTS_SPECIALIST_PROMPT_V26.replace(...)`;
-   mailroom variants: pure append of their own base). The rule must be
+   (`packages/llm-mailroom/src/langchain_agents/prompts.py`: a new
+   `PROMPT_VERSIONS` key derived from the prior constant, e.g.
+   `contracts_specialist_v34` from `contracts_specialist_v33`; sandbox
+   variants: a new stem under `packages/local-mailroom-sandbox/config/prompts/`). The rule must be
    stated as an instruction the model can follow (additive prefix,
    title-wins, family enumeration, format discipline).
 3. **Banner-comment the motivation** — the data that drove the rule (run
    name, field, before/after numbers).
 4. **Add the data-backed test** — a prompt-content assertion in the owning
-   package's suite (entity: `packages/llm-entity-extraction/tests/test_prompts.py`;
-   the sorter's option list MUST equal the schema enum, enforced by a test)
+   package's suite (mailroom: `packages/llm-mailroom/src/tests/test_prompts.py`,
+   `test_frozen_v1_prompts.py`, `test_prompt_mutation_lineage.py`; dojo:
+   `packages/llm-dojo-scoring/tests/test_production_prompts.py`; sandbox:
+   `packages/local-mailroom-sandbox/tests/test_prompt_registry.py`; the
+   sorter's option list MUST equal the schema enum, enforced by a test)
    that pins the rule.
 5. **Think like the model** — read the mutated prompt end-to-end. Would the
    new rule fire on the OTHER documents of the same family (generalization)
@@ -511,13 +543,15 @@ Procedure:
 ## Phase 4 — Verify (the ladder to a release-grade version)
 
 1. Package suites green before spending money —
-   `uv run pytest packages/llm-entity-extraction/tests -q` (and the
-   mailroom suite when its prompts changed:
-   `uv run pytest packages/llm-mailroom/src/tests -q`). One package per
-   invocation; network-free by house law.
-2. `--dry-run` on the eval runner — confirm dataset, prompt versions,
-   experiment name. Extraction A/Bs: confirm `--chunked` is on (the runner
-   warns when it is not).
+   `uv run pytest packages/llm-mailroom/src/tests -q` for mailroom prompt
+   changes, `uv run pytest packages/llm-dojo-scoring/tests -q` for catalog
+   changes, `uv run pytest packages/local-mailroom-sandbox/tests -q` for
+   sandbox pins (the vendor drift guard fails until
+   `python scripts/sync_vendor.py` runs after a mailroom/dojo change). One
+   package per invocation; network-free by house law.
+2. Dry/mock pass on the runner (`--mock` / `--dry-run`) — confirm dataset,
+   prompt versions, experiment name. Extraction A/Bs: confirm the chunked
+   path is on.
 3. **Cheap pilot** — same seed as the previous run (`--sample 5 --seed 42`).
 4. **Noise-floor control** — before interpreting a small delta, rerun the
    champion on the same surface. A candidate inside the identical-prompt
@@ -527,9 +561,10 @@ Procedure:
    compare the FULL metric set: composite + CI (paired bootstrap), per-field,
    diagnostics (MAE/R², span-count), failure counts, token/cost. Only a
    version that wins OUTSIDE the noise band belongs in a release.
-6. **Full-sample when meaningful** — `--stratified 200 --seed 42` on
-   `mailroom-cuad-contracts-full` for subtype; extraction series on the
-   same 50-doc chunked surface. Never compare across samples.
+6. **Full-sample when meaningful** — the largest stratified surface the
+   runner supports on the mailroom-dataset (`Lucius-Morningstar/mailroom-dataset`),
+   same seed (42) as the pilot; extraction series on one fixed chunked
+   surface. Never compare across samples.
 7. **Regression check** — the A/B must show no NEW misses in the fields the
    champion handled (spreadsheet the per-row diff: recovered rows vs
    regressed rows; recovered must dominate and the regressed set must not
@@ -591,24 +626,26 @@ Procedure:
 
 ## Phase 6 — Land it (every iteration closes with proof)
 
-1. Verify the record: `packages/llm-entity-extraction/reports/experiment_log.jsonl`
-   gained exactly ONE line per run with all scores + diagnostics +
-   reasoning; regenerate the md log
-   (`packages/llm-entity-extraction/scripts/reporting/render_experiment_log.py`)
-   and the site data (`packages/llm-entity-extraction/scripts/site/build_site.py`).
-   When the mailroom mirror needs the refreshed log:
-   `legalbench.experiment_log.regenerate()` from `packages/llm-mailroom`
-   (`PYTHONPATH=src`) — the mirror-sync itself is a separate card.
+1. Verify the record: `packages/local-mailroom-sandbox/reports/experiment_log.jsonl`
+   (sandbox runs) gained exactly ONE line per run with all scores +
+   diagnostics + reasoning; regenerate the md log with
+   `regenerate_markdown()` in
+   `packages/local-mailroom-sandbox/src/mailroom_sandbox/eval/experiment_log.py`.
+   For LegalBench runs, `legalbench.experiment_log.regenerate()` from
+   `packages/llm-mailroom` (`PYTHONPATH=src`). The retired
+   `llm-entity-extraction` log site is no longer a landing zone.
 2. CHANGELOG entry in the SAME commit — the owning package's CHANGELOG for
-   package scope (entity prompt iterations land there), the root
+   package scope (mailroom prompt iterations land in
+   `packages/llm-mailroom/CHANGELOG.md`), the root
    `CHANGELOG.md` for hub scope. Bold lead-in, prompt version, A/B numbers
    with sample + seed.
-3. Board: move the card to its final lane on the correct board (entity
-   KANBAN for package scope, HUB TASKS for cross-package), timestamp, post
+3. Board: move the card to its final lane on the correct board (sandbox
+   SAND-* for package scope, DMR TASKS for cross-package), timestamp, post
    the dated entry (result + verdict), archive with commit + key result.
    Reserve the NEXT run's name before it starts.
-4. Significant findings get a memo
-   (`packages/llm-entity-extraction/docs/memos/*.md`, research-memo format)
+4. Significant findings get a memo (a run report under
+   `packages/local-mailroom-sandbox/reports/<card>/` or
+   `packages/llm-mailroom/docs/reports/`, research-memo format)
    in the same commit — plateaus, noise-floor measurements, and
    recovered-cluster analyses are exactly the findings collaborators need.
    The memo carries the objective frontier table AND the instance-level
@@ -619,8 +656,8 @@ Procedure:
    signal — say so, even if no single iteration crossed the noise band on
    its own.
 6. Only same-surface-validated versions (outside the noise band) are ever
-   promoted into the mailroom package (mirror sync is a separate card —
-   hand off, don't self-promote). Docs currency: if the iteration changed
+   promoted into the dojo catalog / sandbox vendor pins (the re-freeze and
+   `sync_vendor.py` are separate cards — hand off, don't self-promote). Docs currency: if the iteration changed
    behavior described by a package `README.md`/`AGENTS.md` or
    `governance/TASKS.md`, update those files in the same commit.
 
@@ -648,7 +685,7 @@ Close every iteration with a tight summary:
   mirrors an independent `Exios66/<name>` repo. Never hand-edit a mirror and
   never push to a standalone repo directly.
 - **Propagation is one tool:** `scripts/sync_packages.py` (repo root):
-  `status` (drift report — expect 10/10 in sync), `push --package <name>
+  `status` (drift report — expect 7/7 in sync), `push --package <name>
   --patch` (content-only deltas) or `push --package <name>` WITHOUT `--patch`
   (deletion-bearing deltas — `--patch` refuses them, exit 5), `push --all
   --patch` (the release-train sweep), `pull`/`snapshot` for imports and
@@ -662,7 +699,7 @@ Close every iteration with a tight summary:
   `scripts/release_chain.py cut X.Y.Z --apply --tag` + `scripts/release_notes.py
   X.Y.Z` (runbook `docs/wiki/Releases.md`). Standalone package release = cut
   in the `Exios66/<name>` repo via its own tooling (e.g.
-  `scripts/release.py --bump` in llm-entity-extraction / The-Mailroom), then
+  `scripts/release.py --bump` in The-Mailroom), then
   **propagate** with `sync_packages.py push` and re-baseline the cursor.
   Bump a consuming pin ONLY at release time of the pinned package
   (`packages/llm-mailroom/src/scripts/bump_dojo_scoring.py` for the dojo

@@ -2,9 +2,9 @@
 
 # 📬 Digital Mailroom
 
-**LLM-Mailroom constellation monorepo — one checkout, ten packages, zero cross-repo import friction.**
+**LLM-Mailroom constellation monorepo — one checkout, seven packages, zero cross-repo import friction.**
 
-Multi-agent legal-document pipeline · Prompt-experiment loop · Deterministic scoring · Pixel-art visualizer · Walking-office-floor mailroom · Corpus EDA
+Multi-agent legal-document pipeline · Deterministic scoring · Pixel-art visualizer · Local sandbox · Corpus EDA
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![uv workspace](https://img.shields.io/badge/uv-workspace-6C63FF)](https://docs.astral.sh/uv/)
@@ -29,29 +29,26 @@ Multi-agent legal-document pipeline · Prompt-experiment loop · Deterministic s
                     │  mailroom-corpus-eda   (mailroom-corpus, P0–P6 EDA)  │
                     └──────────────────────────┬───────────────────────────┘
                                                ▼
-                    ┌── prompt-experiment loop ────────────────────────────┐
-                    │  llm-entity-extraction        (GEPA prompt versions) │
-                    └──────────────────────────┬───────────────────────────┘
-                                               ▼
 ┌────────────────────────┐        ┌───────────────────────────────────────┐
 │  llm-dojo-scoring      │◀───────│           llm-mailroom                │
 │  shared scoring engine │ import │  LangGraph multi-agent pipeline       │
 └────────────────────────┘        └──────────────────┬────────────────────┘
                                                      ▼
                     ┌── surfaces ──────────────────────────────────────────┐
-                    │  The-Mailroom (visualizer)     agent-mailroom        │
-                    │  local-mailroom-sandbox        llm-mailroom-graph    │
+                    │  The-Mailroom (visualizer)     local-mailroom-sandbox│
                     └──────────────────────────┬───────────────────────────┘
                                                ▼
                     ┌──────────────────────────────────────────────────────┐
-                    │            Digital-Mailroom — this standalone repo     │
+                    │            Digital-Mailroom — this standalone repo   │
                     │        (central truth; every box lives in it)        │
                     └──────────────────────────────────────────────────────┘
 ```
 
 ## Repository Map
 
-All ten packages live in `packages/` as git subtrees and mirror independent `Exios66/*` repositories. GitHub Pages sites exist for six of them.
+All seven packages live in `packages/` as git subtrees and mirror independent `Exios66/*` repositories. GitHub Pages sites exist for four of them.
+
+> **Pruned in DMR-079:** `llm-entity-extraction` and `llm-mailroom-graph` left the monorepo (standalone `Exios66/*` repos only, no longer synced); `agent-mailroom` is preserved on the branch `feature/agent-mailroom`. Hub `v0.8.0` is the last release containing them (rollback point).
 
 <div align="center">
 
@@ -61,13 +58,10 @@ All ten packages live in `packages/` as git subtrees and mirror independent `Exi
 | **Corpus feed** | [`Exios66/Enron-Evaluation-Environment`](https://github.com/Exios66/Enron-Evaluation-Environment) | [exios66.github.io/Enron-Evaluation-Environment](https://exios66.github.io/Enron-Evaluation-Environment/) |
 | **Corpus feed** | [`Exios66/claims-data-eda`](https://github.com/Exios66/claims-data-eda) | [exios66.github.io/claims-data-eda](https://exios66.github.io/claims-data-eda/) |
 | **Corpus EDA + HF** | [`Exios66/Mailroom-Corpus-EDA`](https://github.com/Exios66/Mailroom-Corpus-EDA) | [exios66.github.io/Mailroom-Corpus-EDA](https://exios66.github.io/Mailroom-Corpus-EDA/) |
-| **Prompt experiments** | [`Exios66/llm-entity-extraction`](https://github.com/Exios66/llm-entity-extraction) | [exios66.github.io/llm-entity-extraction](https://exios66.github.io/llm-entity-extraction/) |
 | **Scoring engine** | [`Exios66/llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring) | — |
 | **LangGraph pipeline** | [`Exios66/llm-mailroom`](https://github.com/Exios66/llm-mailroom) | — |
 | **Pixel visualizer** | [`Exios66/The-Mailroom`](https://github.com/Exios66/The-Mailroom) | [exios66.github.io/The-Mailroom](https://exios66.github.io/The-Mailroom/) |
-| **Walking floor** | [`Exios66/agent-mailroom`](https://github.com/Exios66/agent-mailroom) | — |
 | **Local sandbox** | [`Exios66/local-mailroom-sandbox`](https://github.com/Exios66/local-mailroom-sandbox) | — |
-| **Knowledge graph** | [`Exios66/llm-mailroom-graph`](https://github.com/Exios66/llm-mailroom-graph) | [exios66.github.io/llm-mailroom-graph](https://exios66.github.io/llm-mailroom-graph/) |
 
 </div>
 
@@ -79,13 +73,10 @@ All ten packages live in `packages/` as git subtrees and mirror independent `Exi
 | :--- | :--- | :--- |
 | `llm-dojo-scoring` | Deterministic scoring, error-analysis, visualization & interpretation suite | [`Exios66/llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring) |
 | `llm-mailroom` | LangGraph multi-agent legal-document pipeline (FastAPI producer) | [`Exios66/llm-mailroom`](https://github.com/Exios66/llm-mailroom) |
-| `llm-entity-extraction` | Prompt-experiment loop: prompt versions × models over CUAD/LegalBench/MAUD | [`Exios66/llm-entity-extraction`](https://github.com/Exios66/llm-entity-extraction) |
 | `The-Mailroom` | Pixel-art visualizer console + hosted Observatory (Langfuse as source of truth) | [`Exios66/The-Mailroom`](https://github.com/Exios66/The-Mailroom) |
-| `agent-mailroom` | Self-contained mailroom: one state machine per document, specialist agents at desks | [`Exios66/agent-mailroom`](https://github.com/Exios66/agent-mailroom) |
 | `local-mailroom-sandbox` | Local-first experiment sandbox (Ollama, vLLM, llama.cpp) | [`Exios66/local-mailroom-sandbox`](https://github.com/Exios66/local-mailroom-sandbox) |
 | `Enron-Evaluation-Environment` | Enron corpus EDA → pipeline-ready correspondence dataset | [`Exios66/Enron-Evaluation-Environment`](https://github.com/Exios66/Enron-Evaluation-Environment) |
 | `claims-data-eda` | CMS DE-SynPUF EDA → pipeline-ready insurance_claim dataset | [`Exios66/claims-data-eda`](https://github.com/Exios66/claims-data-eda) |
-| `llm-mailroom-graph` | Derived knowledge-graph site of llm-mailroom | [`Exios66/llm-mailroom-graph`](https://github.com/Exios66/llm-mailroom-graph) |
 | `mailroom-corpus-eda` | mailroom-corpus corpus EDA (P0–P6) + centralized HF upload helpers | [`Exios66/Mailroom-Corpus-EDA`](https://github.com/Exios66/Mailroom-Corpus-EDA) |
 
 </div>
@@ -113,7 +104,7 @@ Digital-Mailroom/
 │   ├── taxonomy_parity.py # taxonomy drift detector (CI gate)
 │   ├── release_chain.py   # hub changelog ↔ semver tag ↔ version gate (HUB-024)
 │   └── deploy_gh_pages.py # local GH Pages deploy (no Actions)
-└── packages/              # all ten packages (subtree + virtual)
+└── packages/              # all seven packages (subtree + virtual)
 ```
 
 ## Development
@@ -130,9 +121,7 @@ Per-package test suites:
 ```bash
 uv run pytest packages/llm-dojo-scoring/tests
 uv run pytest packages/llm-mailroom/src/tests
-uv run pytest packages/llm-entity-extraction/tests
 uv run pytest packages/The-Mailroom/tests
-uv run pytest packages/agent-mailroom/tests
 uv run pytest packages/local-mailroom-sandbox/tests
 uv run pytest packages/mailroom-corpus-eda/tests
 ```
@@ -182,10 +171,8 @@ The monorepo is the development source of truth. Upstream repositories remain th
 <div align="center">
 
 **[llm-mailroom](https://github.com/Exios66/llm-mailroom)** ·
-**[llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction)** ·
 **[llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring)** ·
-**[The-Mailroom](https://github.com/Exios66/The-Mailroom)** ·
-**[agent-mailroom](https://github.com/Exios66/agent-mailroom)**
+**[The-Mailroom](https://github.com/Exios66/The-Mailroom)**
 
 <sub>Built by the governed evaluation family under <a href="https://github.com/LLM-Mailroom-Services">LLM-Mailroom-Services</a> (Exios66 · grantmooslin) · 2026</sub>
 

@@ -2,7 +2,7 @@ import json
 import structlog
 from abc import ABC, abstractmethod
 
-from llm.client import get_llm
+from llm.client import get_llm, reasoning_extra_body
 from llm.retry import retry_chat_completion
 from observability.tracing import langfuse_call_attrs
 
@@ -135,6 +135,18 @@ class BaseAgent(ABC):
         reasoning_effort: str | None = None,
         pages: list[str] | None = None,
     ) -> str:
+        """Send a chat request and return the first choice's text, or an empty string.
+
+        ``system_prompt`` overrides the prompt head; skill text is still appended.
+        Page data-URIs are included only when the agent supports vision. None for
+        ``max_tokens`` or ``reasoning_effort`` selects the agent's configured value;
+        zero tokens or an empty effort omits the corresponding request option.
+        Reasoning options are shaped for the resolved backend.
+
+        Records returned token usage. Propagates RunDeadlineExceeded before an
+        attempt past the run deadline, and provider errors that are not retried or
+        persist after the retry limit.
+        """
         from pipeline.limits import get_run_deadline, record_usage
 
         content = self._build_multimodal(user_message, pages)
@@ -155,7 +167,7 @@ class BaseAgent(ABC):
         if reasoning_effort is None:
             reasoning_effort = self._configured_reasoning_effort()
         if reasoning_effort:
-            kwargs["extra_body"] = {"reasoning": {"effort": reasoning_effort}}
+            kwargs["extra_body"] = reasoning_extra_body(reasoning_effort, self.agent_name)
         kwargs.update(langfuse_call_attrs(self.agent_name))
         langfuse_prompt = getattr(self, "_langfuse_prompt", None)
         if langfuse_prompt is not None:
@@ -164,10 +176,29 @@ class BaseAgent(ABC):
 
         logger.info("llm_call", agent=self.agent_name, model=self.model, max_tokens=max_tokens)
         response = retry_chat_completion(self.client, **kwargs)
-        record_usage(getattr(response, "usage", None), self.model, agent=self.agent_name)
+        served_model = getattr(response, "model", None)
+        served_model = served_model if isinstance(served_model, str) and served_model else None
+        record_usage(
+            getattr(response, "usage", None), self.model, agent=self.agent_name, served_model=served_model
+        )
         content = response.choices[0].message.content or ""
-        logger.info("llm_response", agent=self.agent_name, length=len(content))
+        logger.info("llm_response", agent=self.agent_name, length=len(content), served_model=served_model)
         return content
+
+    def _structured_messages(
+        self, user_message: str, json_schema: dict, system_prompt: str | None = None
+    ) -> tuple[str, str]:
+        """``(system, user)`` exactly as ``_call_structured`` hands them to
+        ``_call_llm`` (which then appends the skill text to the system)."""
+        schema_text = json.dumps(json_schema)
+        user_message = (
+            f"{user_message}\n\n"
+            "Return ONLY a valid json object that conforms to the schema below. "
+            "Do not include any text outside the json object. Output strict JSON only.\n\n"
+            f"JSON schema:\n{schema_text}"
+        )
+        base_system = system_prompt if system_prompt is not None else self.system_prompt()
+        return f"{base_system}{_JSON_MODE_SYSTEM_NOTE}", user_message
 
     def _call_structured(
         self,
@@ -188,15 +219,7 @@ class BaseAgent(ABC):
         # BOTH the system message (see _JSON_MODE_SYSTEM_NOTE) and the user
         # message below: the pilot showed Alibaba intermittently rejecting a
         # user-message-only variant with HTTP 400.
-        schema_text = json.dumps(json_schema)
-        user_message = (
-            f"{user_message}\n\n"
-            "Return ONLY a valid json object that conforms to the schema below. "
-            "Do not include any text outside the json object. Output strict JSON only.\n\n"
-            f"JSON schema:\n{schema_text}"
-        )
-        base_system = system_prompt if system_prompt is not None else self.system_prompt()
-        system_prompt = f"{base_system}{_JSON_MODE_SYSTEM_NOTE}"
+        system_prompt, user_message = self._structured_messages(user_message, json_schema, system_prompt)
         raw = self._call_llm(
             user_message,
             response_format={"type": "json_object"},

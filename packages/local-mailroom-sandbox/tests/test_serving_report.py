@@ -124,3 +124,90 @@ def test_infer_wall_from_item_timestamps():
         {"ts": "2026-01-01T00:01:30.500+00:00", "ok": True},
     ]
     assert metrics.infer_wall_seconds_from_items(items) == pytest.approx(90.5)
+
+
+def test_stale_wall_never_understates_the_run_journal(tmp_path):
+    """A partial wall (resumed run / preserved prior card) loses to the journal span."""
+    store = RunStore(tmp_path / "run-journal")
+    store.write_lock(
+        {
+            "run_id": store.run_id,
+            "task": "merger_agreement_specialist",
+            "profile": "modal-vllm",
+            "engine": {"model": "Qwen/Qwen3-8B-AWQ", "modal": {"gpu": "L4"}},
+            "job": {"mock": False, "concurrency": 8},
+        }
+    )
+    store.append_item(
+        {
+            "item_id": "d0",
+            "ok": True,
+            "latency_ms": 1000.0,
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "ts": "2026-01-01T00:00:00.000+00:00",
+        }
+    )
+    store.append_item(
+        {
+            "item_id": "d1",
+            "ok": True,
+            "latency_ms": 1000.0,
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "ts": "2026-01-01T00:00:10.000+00:00",
+        }
+    )
+    # Journal brackets the run: the cold_boot probe is excluded, preflight → done = 599 s.
+    ev = lambda ts, name: json.dumps({"ts": ts, "event": name, "level": "info", "detail": None})
+    (store.dir / "events.jsonl").write_text(
+        "\n".join(
+            [
+                ev("2026-01-01T00:00:00.000+00:00", "cold_boot"),
+                ev("2026-01-01T00:00:01.000+00:00", "preflight_ok"),
+                ev("2026-01-01T00:10:00.000+00:00", "done"),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rec = metrics.serving_record_from_store(store, wall_seconds=10.0, mock=False)
+    assert rec["wall_seconds"] == pytest.approx(599.0)
+    # Without a journal the explicit wall stands — the item span must not override it.
+    (store.dir / "events.jsonl").unlink()
+    assert metrics.serving_record_from_store(store, wall_seconds=10.0, mock=False)[
+        "wall_seconds"
+    ] == pytest.approx(10.0)
+
+
+def test_billed_window_falls_back_to_journal_wall_plus_cold_boot(tmp_path):
+    """No telemetry window and no MODAL_BILLED_GPU_SECONDS → billed = journal + boot.
+
+    This is the path a run takes when its serving export is written before the
+    `after` scrape exists, so the journal-inflated wall flows straight into cost.
+    """
+    store = RunStore(tmp_path / "run-billed")
+    store.write_lock(
+        {
+            "run_id": store.run_id,
+            "task": "merger_agreement_specialist",
+            "profile": "modal-vllm",
+            "engine": {"model": "Qwen/Qwen3-8B-AWQ", "modal": {"gpu": "L4"}},
+            "job": {"mock": False, "concurrency": 8},
+        }
+    )
+    for i, ts in enumerate(("2026-01-01T00:00:00.000+00:00", "2026-01-01T00:01:00.000+00:00")):
+        store.append_item(
+            {"item_id": f"d{i}", "ok": True, "latency_ms": 1000.0, "prompt_tokens": 1,
+             "completion_tokens": 1, "ts": ts}
+        )
+    ev = lambda ts, name: json.dumps({"ts": ts, "event": name, "level": "info", "detail": None})
+    (store.dir / "events.jsonl").write_text(
+        "\n".join([ev("2026-01-01T00:00:00.000+00:00", "preflight_ok"),
+                   ev("2026-01-01T00:00:30.000+00:00", "done")]) + "\n",
+        encoding="utf-8",
+    )
+    (store.dir / "cold_boot.json").write_text(json.dumps({"cold_boot_seconds": 12.5}), encoding="utf-8")
+    rec = metrics.serving_record_from_store(store, mock=False)
+    assert rec["wall_seconds"] == pytest.approx(30.0)          # journal, not the 60 s item span
+    assert rec["gpu_seconds"] == pytest.approx(42.5)           # 30 + 12.5 cold boot

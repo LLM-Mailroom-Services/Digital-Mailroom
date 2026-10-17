@@ -83,6 +83,9 @@ def test_scrape_samples_and_records_errors(monkeypatch):
     out = vllm_metrics.scrape("https://x.modal.run/v1", "tok", attempts=4, expected=2)
     assert out["coverage"] == "replicas observed: 2 of 2"
     assert len(out["errors"]) == 1 and "RuntimeError" in out["errors"][0]
+    # Every family the exporter publishes is preserved verbatim, keyed by replica.
+    assert sorted(out["raw"]) == ["1000.0", "2000.0"]
+    assert "vllm:time_to_first_token_seconds_bucket" in out["raw"]["1000.0"]
     json.dumps(out)  # serializable
 
 
@@ -99,13 +102,24 @@ def test_cli_scrape_metrics_writes_labelled_json(tmp_path, monkeypatch, capsys):
 
     def fake_scrape(base, key, *, attempts=12, expected=1):
         seen.update(base=base, key=key, expected=expected)
-        return {"coverage": "replicas observed: 2 of 2", "replicas": {}, "errors": [], "at": 0}
+        return {
+            "coverage": "replicas observed: 2 of 2",
+            "replicas": {},
+            "raw": {"1000.0": "process_start_time_seconds 1000.0\nvllm:num_requests_waiting 3.0\n"},
+            "errors": [],
+            "at": 0,
+        }
 
     monkeypatch.setattr(vllm_metrics, "scrape", fake_scrape)
-    cfg = config_dir() / "runs" / "run-50-correspondence-specialist-awq.yaml"
+    cfg = config_dir() / "runs" / "legacy" / "run-50-correspondence-specialist-awq.yaml"
     rc = main(["run", "scrape-metrics", "--config", str(cfg), "--label", "after"])
     assert rc == 0
     assert seen["expected"] == 2 and seen["key"] == "tok"
-    out = tmp_path / "run-50-correspondence-specialist-awq" / "vllm_metrics_after.json"
-    assert json.loads(out.read_text())["coverage"] == "replicas observed: 2 of 2"
+    run_dir = tmp_path / "run-50-correspondence-specialist-awq"
+    payload = json.loads((run_dir / "vllm_metrics_after.json").read_text())
+    assert payload["coverage"] == "replicas observed: 2 of 2"
+    assert "raw" not in payload  # summary stays small; the verbatim text is a sibling
+    preserved = (run_dir / "vllm_metrics_after.txt").read_text()
+    assert "process_start_time_seconds=1000.0" in preserved
+    assert "vllm:num_requests_waiting 3.0" in preserved
     assert "replicas observed: 2 of 2" in capsys.readouterr().out

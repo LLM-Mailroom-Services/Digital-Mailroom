@@ -54,6 +54,34 @@ SPAN_STAGE_MAP: dict[str, Stage] = {
     "archive": Stage.ARCHIVE,
 }
 
+# mailroom-reloaded (CrewAI-Flows pipeline) node spans: ``mailroom.node.<node>``
+# under a ``mailroom.document`` root, read through the Phoenix source. Its
+# retry loops (sort -> gate -> sort) surface as consecutive repeats, which
+# build_routing_path already folds into the retry stages. ``grade`` is
+# eval-only and the gates are span events, so neither maps to a station.
+RELOADED_NODE_PREFIX = "mailroom.node."
+RELOADED_ROOT_SPAN = "mailroom.document"
+RELOADED_NODE_STAGES: dict[str, Stage] = {
+    "ingest": Stage.INTAKE,
+    "bert_primary": Stage.INTAKE,
+    "sort": Stage.CLASSIFY,
+    "extract": Stage.EXTRACT,
+    "verify": Stage.JUDGE_VERIFY,  # judge, then arbiter, inside one node
+    "boss": Stage.BOSS,
+    "human_review": Stage.HUMAN_REVIEW,
+    "report_catalog_archive": Stage.ARCHIVE,
+}
+# Document ``mailroom.status`` -> trace output ``stage`` token.
+RELOADED_STATUS_STAGES: dict[str, str] = {
+    "processing": "processing",
+    "archived": "archived",
+    "failed": "failed",
+    "parked": "review",
+}
+SPAN_STAGE_MAP.update(
+    {f"{RELOADED_NODE_PREFIX}{k}": v for k, v in RELOADED_NODE_STAGES.items()}
+)
+
 # Langfuse observation types (llm-mailroom observability/tracing.py
 # NODE_OBSERVATION_TYPES). The data-model docs require the most specific
 # type: chain = one document run; agent = specialist orchestration;
@@ -77,6 +105,15 @@ NODE_OBSERVATION_TYPES: dict[str, str] = {
     "archive-document": "span",
     "pipeline-result": "generation",
     "answer-question": "generation",
+    RELOADED_ROOT_SPAN: "chain",
+    f"{RELOADED_NODE_PREFIX}ingest": "span",
+    f"{RELOADED_NODE_PREFIX}bert_primary": "span",
+    f"{RELOADED_NODE_PREFIX}sort": "agent",
+    f"{RELOADED_NODE_PREFIX}extract": "agent",
+    f"{RELOADED_NODE_PREFIX}verify": "evaluator",
+    f"{RELOADED_NODE_PREFIX}boss": "agent",
+    f"{RELOADED_NODE_PREFIX}human_review": "span",
+    f"{RELOADED_NODE_PREFIX}report_catalog_archive": "span",
 }
 
 # Graph node names (underscored) that can appear as observation names

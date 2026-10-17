@@ -132,10 +132,10 @@ def test_report_groups_reuse_runbooks_for_multiple_configs():
     assert report_group_for_runbook("grid-1l4") == "SAND-37"
     assert report_group_for_runbook("sand40") == "SAND-40"
     assert report_group_for_config(
-        "config/runs/grid-20-correspondence-specialist-awq-1l4.yaml"
+        "config/runs/sand037/grid-20-correspondence-specialist-awq-1l4.yaml"
     ) == "SAND-37"
     assert report_group_for_config(
-        "config/runs/sand40-100-contracts-specialist-awq-2l4.yaml"
+        "config/runs/sand040/sand40-100-contracts-specialist-awq-2l4.yaml"
     ) == "SAND-40"
     assert report_group_for_runbook("future-unknown") is None
 
@@ -219,6 +219,31 @@ def test_dated_and_serving_paths_follow_sweep_or_general_root(tmp_path):
         tmp_path / "reports" / "serving" / "SAND-40" / "2L4" / "probes"
         / f"{probe.run_id}.serving.json"
     )
+
+
+def test_sand42_dated_tree_lands_in_the_study_folder(tmp_path):
+    """SAND-042's group is ``SAND-42`` but its study folder is ``reports/SAND42``.
+
+    The dated tree and the serving export must follow the study folder, or one
+    experiment gets two folders.
+    """
+    store = _specialist_store(tmp_path, run_id="sand42-50-merger-specialist-awq-1l4-c8")
+    now = datetime(2026, 10, 11)
+    assert dated_reports.dated_cell_dir(store, repo=tmp_path, now=now) == (
+        tmp_path / "reports" / "SAND42" / "2026-10-11" / "merger_agreement"
+    )
+    assert dated_reports.serving_export_path(store, repo=tmp_path) == (
+        tmp_path / "reports" / "serving" / "SAND42" / "1L4" / "n=20"
+        / f"{store.run_id}.serving.json"
+    )
+
+
+def test_report_folder_maps_sand42_group_to_study_folder():
+    from mailroom_sandbox.report_paths import report_folder
+
+    assert report_folder("SAND-42") == "SAND42"
+    assert report_folder("SAND-37") == "SAND-37"
+    assert report_folder(None) is None
 
 
 def test_default_serving_writer_uses_sweep_directory(tmp_path, monkeypatch):

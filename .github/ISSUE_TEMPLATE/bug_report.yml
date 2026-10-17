@@ -38,12 +38,9 @@ body:
         - none (hub-level)
         - Enron-Evaluation-Environment
         - The-Mailroom
-        - agent-mailroom
         - claims-data-eda
         - llm-dojo-scoring
-        - llm-entity-extraction
         - llm-mailroom
-        - llm-mailroom-graph
         - local-mailroom-sandbox
         - mailroom-corpus-eda
     validations:

@@ -17,7 +17,7 @@
 | | `build_pipeline_dump.py` | Build the pipeline-ready Enron correspondence dump |
 | | `build_samples.py` | Render a bounded, stratified set of messages as samples |
 | | `dedupe.py` | Exact-duplicate removal for the corpus index |
-| **Labeler library** | `correspondence_subclasses.py` | Correspondance subclass taxonomy + heuristic labeler (**imported by llm-entity-extraction publishers**) |
+| **Labeler library** | `correspondence_subclasses.py` | Correspondance subclass taxonomy + heuristic labeler (**shared labeler; consumers: dojo corpus module, mailroom-corpus-eda**) |
 | | `content_topics.py` | Content-topic taxonomy + heuristic labeler (shared) |
 | | `sentiment_scorer.py` | Lexicon sentiment scorer for the corpus (KANBAN-079, shared) |
 | **Publish** | `publish_hf_dataset.py` | Publish the CLEANED Enron correspondence corpus to the Hub |
@@ -26,8 +26,8 @@
 | | `eda/explore_subclasses.py` | Subclass-distribution EDA |
 
 > **Shared-labeler note:** `correspondence_subclasses.py`, `content_topics.py`,
-> and `sentiment_scorer.py` are imported by dataset publishers in
-> `llm-entity-extraction/scripts/datasets/` and by the dojo corpus module.
+> and `sentiment_scorer.py` are consumed by the dojo corpus module and the
+> `mailroom-corpus-eda` dataset builds.
 > Do not move or rename without updating those consumers.
 
 ## Usage

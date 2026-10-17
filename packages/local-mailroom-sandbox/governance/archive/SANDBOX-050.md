@@ -20,5 +20,5 @@ Historical mission board for the 50-subclass Modal+vLLM sorter run
 
 Original mission brief (abridged): real Modal+vLLM run of the
 subclass-stratified 50-row sorter eval; GPU hard cap 2; teardown after;
-monorepo sync last. Binding specs were `config/runs/run-50-subclass.yaml`
+monorepo sync last. Binding specs were `config/runs/legacy/run-50-subclass.yaml`
 / `run-50-five-types.yaml`, `deploy/README.md`, `docs/jobs.md`.

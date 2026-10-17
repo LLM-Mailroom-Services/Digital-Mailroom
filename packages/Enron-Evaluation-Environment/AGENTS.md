@@ -29,13 +29,13 @@ nothing flows back without a versioned handoff.
 | --- | --- | --- |
 | [`llm-mailroom`](https://github.com/Exios66/llm-mailroom) | Multi-agent legal-document intake pipeline; owns the doc-class taxonomy (`correspondence`, `contract`, `merger_agreement`, `corporate_record`) this repo labels against | Upstream taxonomy governor |
 | **Enron-Evaluation-Environment** (this repo) | Full-corpus EDA + stratified `correspondence` dataset production for the CMU Enron corpus | — |
-| [`llm-entity-extraction`](https://github.com/Exios66/llm-entity-extraction) | Training/eval environment for legal document entity extraction & classification; consumes `pipeline.jsonl` via `build_docclass_merged.py` + the sorter's subclass dimension | Direct downstream consumer |
+| [`mailroom-corpus-eda`](https://github.com/Exios66/mailroom-corpus-eda) | Corpus EDA + centralized HF upload helpers; builds the `mailroom-dataset` family that this repo's `correspondence` rows feed | Direct downstream consumer |
 | [`llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring) | Scoring environment; Langfuse mirror hosts the `mailroom-enron-correspondence` dataset | Downstream scoring mirror |
 | [`atticus-investigation`](https://github.com/Exios66/atticus-investigation) | LegalBench prompt-engineering eval pipeline (prompt versions × models via OpenRouter + Braintrust) | Adjacent eval environment |
 
 **Sync obligation:** when the labeler taxonomy (`correspondence_subclasses.py`)
-changes here, mirror the enum into `llm-entity-extraction`'s sorter
-(`SUBCLASS_DIMENSIONS`) and re-run its Langfuse sync — see
+changes here, check `llm-mailroom`'s sorter subclass dimensions and the
+`mailroom-corpus-eda` consumers for the same enum, and re-run the Langfuse sync — see
 [`reports/pipeline/README.md`](reports/pipeline/README.md).
 
 ---
@@ -324,8 +324,8 @@ raw_maildir/                    data/enron/index.jsonl          data/enron/pipel
                                              ▼                                ▼
                                    reports/eda/*                    pipeline.jsonl
                                    ├─ report.md                     ↓
-                                   ├─ findings.md              llm-entity-extraction
-                                   ├─ figures/*.png               (doc-class eval)
+                                   ├─ findings.md              mailroom-corpus-eda
+                                   ├─ figures/*.png               (mailroom-dataset build / eval)
                                    ├─ final_report.md
                                    └─ subclasses_discovery.md
 ```

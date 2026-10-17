@@ -73,6 +73,47 @@ is serving the other `C-1` documents for that same wall window.
 The 13 % gap is the 3 LengthFinish documents' unrecorded container time — the model is
 *conservative in the right direction* (it never over-projects). Re-validate after F1.
 
+## 3b · The billed window — computed from the run, never scraped
+
+The model above needs a wall. Two sources exist, and they disagree:
+
+| source | what it is | error |
+| --- | --- | --- |
+| item `ts` span (`infer_wall_seconds_from_items`) | first **completion** → last completion | drops the entire first wave |
+| **container telemetry window** | the `before`/`after` scrape bracket | the billed interval |
+
+The `ts` span starts when the *first document finishes*, so it excludes everything up to
+that point. Measured on the 5-document merger probe: **100.3 s against a true 438 s — 4.4×**.
+At n=50 the same defect is ~1/waves (8–15 %).
+
+So a run's cost is computed as:
+
+```
+billed_seconds = container_telemetry_after.json [end - start]     # else wall + cold_boot
+billed_gpu_usd = billed_seconds × replicas × gpu_usd_per_hour / 3600
+```
+
+This is derived from the run's own telemetry. It is **not** read from `modal billing`
+output, whose figures are credits-based and workspace-wide rather than per run — the CLI
+number is a reconciliation cross-check, never the source. `replicas` bills the full wall
+on every replica (SAND-032), so a 2×L4 cell costs twice a 1×L4 cell at the same wall.
+
+**Cell cost.** `min_containers=1` pins the fleet warm from deploy to teardown, so the cold
+boot and the idle between specialists bill too. A cell therefore reports:
+
+```
+fleet_gpu_usd = (teardown_ts - deploy_ts) × replicas × gpu_usd_per_hour / 3600
+```
+
+with `fleet_window.json` recorded by the cell runner (or recovered from the telemetry
+volume — one file per container, named by vLLM's `process_start_time_seconds`, so the
+filename *is* the container's start). An unrecorded or unclosed window reports
+`measured: false` and a reason; it never invents a number.
+
+Both per-run and per-cell figures land on the cards: `Billed GPU $` per specialist,
+`$/1k ok` and `$/1k schema-valid` in the cost-per-usable-record block, and the fleet block
+on the cell card. `Busy-window GPU $` is kept alongside as a diagnostic.
+
 ## 4 · Worked numbers — the contracts class (measured, 17 ok rows)
 
 Per-document statistics from `reports/RUN-20-CONTRACTS-AWQ-C8-REPORT.md`:
@@ -100,7 +141,7 @@ That asymmetry, not the cap, is the most decision-relevant number in this docume
 
 - `N = 20 / 100` — the sizes this program actually runs (measured per-doc basis above).
 - `N = 600` — the **full** contract split. A repo comment
-  (`config/runs/run-20-contracts-specialist.yaml:47-48`, "600 available at the pin") gives this
+  (`config/runs/legacy/run-20-contracts-specialist.yaml:47-48`, "600 available at the pin") gives this
   figure, but it is **UNVERIFIED** — see §7 to confirm it against the pinned corpus.
 
 | N | API (mean tokens) | API (p95 tokens) | Modal (model) | Modal (measured-scaled) |

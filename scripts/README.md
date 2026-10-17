@@ -48,7 +48,6 @@ python3 -m unittest discover scripts/tests
 | Package | Scripts Location |
 |:---|:---|
 | `llm-mailroom` | `packages/llm-mailroom/src/scripts/` — pipeline, deployment, evaluation |
-| `llm-entity-extraction` | `packages/llm-entity-extraction/scripts/` — eval, reporting, site build |
 | `llm-dojo-scoring` | `packages/llm-dojo-scoring/scripts/` — scoring utilities |
 | `mailroom-corpus-eda` | `packages/mailroom-corpus-eda/scripts/` — EDA, HF upload, chart generation |
 | `claims-data-eda` | `packages/claims-data-eda/scripts/` — CMS DE-SynPUF EDA |

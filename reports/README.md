@@ -20,7 +20,6 @@
 
 | Package | Reports Location |
 |:---|:---|
-| `llm-entity-extraction` | `packages/llm-entity-extraction/reports/` — experiment logs, evaluations |
 | `llm-mailroom` | `packages/llm-mailroom/data/` — HF pilot outputs |
 | `claims-data-eda` | `packages/claims-data-eda/reports/` — CMS DE-SynPUF EDA |
 | `Enron-Evaluation-Environment` | `packages/Enron-Evaluation-Environment/reports/` — Enron EDA |

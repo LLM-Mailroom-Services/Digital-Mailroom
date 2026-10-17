@@ -56,7 +56,7 @@ downstream; nothing flows back without a versioned handoff.
 | --- | --- | --- |
 | [`llm-mailroom`](https://github.com/Exios66/llm-mailroom) | Multi-agent legal-document intake pipeline; owns the doc-class taxonomy incl. **`insurance_claim`** (`InsuranceClaimExtraction` + `insurance_claims_specialist`) this repo renders GT against | ⬆️ Upstream taxonomy governor |
 | **claims-data-eda** (this repo) | Full-corpus EDA + rendered-EOB dataset production for CMS DE-SynPUF Sample 1 | — |
-| [`llm-entity-extraction`](https://github.com/Exios66/llm-entity-extraction) | Training/eval environment consuming streamer-dump JSONLs via `build_docclass_merged.py` — Enron feeds `correspondence`, this repo feeds `insurance_claim` | ⬇️ Direct downstream consumer |
+| [`mailroom-corpus-eda`](https://github.com/Exios66/mailroom-corpus-eda) | Corpus EDA + centralized HF upload helpers; its v8 build mirrors `render_eob.py` and re-renders `insurance_claim` rows from this repo | Direct downstream consumer |
 | [`Enron-Evaluation-Environment`](https://github.com/Exios66/Enron-Evaluation-Environment) | Sibling **correspondence** data-production node (CMU Enron corpus); structural template for this repo | ↔️ Sibling node |
 | [`atticus-investigation`](https://github.com/Exios66/atticus-investigation) | LegalBench prompt-engineering eval pipeline (OpenRouter × Braintrust) | ↔️ Adjacent eval environment |
 
@@ -187,15 +187,15 @@ claims-data-eda/
 │   └── eda/explore_cms.py              ← full-corpus EDA engine → reports/eda/
 ├── reports/
 │   ├── eda/                            ← committed EDA output (12 figures + stats)
-│   └── pipeline/README.md              ← wiring into llm-mailroom / llm-entity-extraction
+│   └── pipeline/README.md              ← wiring into llm-mailroom / mailroom-corpus-eda
 └── tests/test_pipeline.py              ← 30 unit tests (normalizers/renderer/GT/dump shape)
 ```
 
 ## 📦 Pipeline Output Shape
 
 `data/cms/pipeline.jsonl` — the flat streamer-dump format consumed by
-[`llm-entity-extraction`](https://github.com/Exios66/llm-entity-extraction)
-eval runners:
+the mailroom-dataset
+build and eval runners:
 
 ```jsonc
 {
@@ -265,7 +265,7 @@ python scripts/publish_hf_dataset.py             # upload + sha256 VERIFY: GREEN
 <div align="center">
 
 **[llm-mailroom](https://github.com/Exios66/llm-mailroom)** ·
-**[llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction)** ·
+**[mailroom-corpus-eda](https://github.com/Exios66/mailroom-corpus-eda)** ·
 **[Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment)** ·
 **[atticus-investigation](https://github.com/Exios66/atticus-investigation)**
 

@@ -1,8 +1,11 @@
 """Filesystem observer — bin moves become structured operator events.
 
 Prefer the in-process watcher started from the visualizer lifespan
-(``MAILROOM_OBSERVER=1``). A standalone ``mailroom-observer`` process POSTs
-events to ``{MAILROOM_API_URL}/v1/ops/events`` so the API owns the WS bus.
+(``MAILROOM_OBSERVER=1``) — the operator compose stack runs exactly that
+(mailroom-issues#118). A standalone ``mailroom-observer`` process POSTs
+events to ``{MAILROOM_API_URL}/v1/ops/events`` so the API owns the WS bus;
+use it only where the bins live on another host, and never alongside the
+in-process watcher on the same bins (every event would be emitted twice).
 """
 
 from __future__ import annotations

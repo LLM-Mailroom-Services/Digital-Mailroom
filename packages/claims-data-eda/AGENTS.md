@@ -29,7 +29,7 @@ downstream; nothing flows back without a versioned handoff.
 | --- | --- | --- |
 | [`llm-mailroom`](https://github.com/Exios66/llm-mailroom) | Multi-agent legal-document intake pipeline; owns the doc-class taxonomy incl. **`insurance_claim`** (`InsuranceClaimExtraction` schema + `insurance_claims_specialist`) this repo renders GT against | Upstream taxonomy governor |
 | **claims-data-eda** (this repo) | Full-corpus EDA + rendered-EOB dataset production for CMS DE-SynPUF Sample 1 | — |
-| [`llm-entity-extraction`](https://github.com/Exios66/llm-entity-extraction) | Training/eval environment consuming streamer-dump JSONLs via `build_docclass_merged.py`; Enron feeds it as `correspondence`, this repo as `insurance_claim` | Direct downstream consumer |
+| [`mailroom-corpus-eda`](https://github.com/Exios66/mailroom-corpus-eda) | Corpus EDA + centralized HF upload helpers; its v8 build mirrors `render_eob.py` and re-renders `insurance_claim` rows from this repo | Direct downstream consumer |
 | [`Enron-Evaluation-Environment`](https://github.com/Exios66/Enron-Evaluation-Environment) | Sibling correspondence data-production node; structural template for this repo | Sibling node |
 | [`atticus-investigation`](https://github.com/Exios66/atticus-investigation) | LegalBench prompt-engineering eval pipeline (OpenRouter × Braintrust) | Adjacent eval environment |
 
@@ -93,7 +93,7 @@ scripts/
     └── explore_cms.py       ← full-corpus EDA → reports/eda/
 reports/
 ├── eda/                     ← committed EDA output (report/findings/stats/figures)
-└── pipeline/README.md       ← wiring into llm-mailroom / llm-entity-extraction
+└── pipeline/README.md       ← wiring into llm-mailroom / mailroom-corpus-eda
 docs/examples/               ← real insurance_claim corpus documents as PDF samples
                               (manifest + README; regenerate via render_samples.py --input <hub jsonl>)
 scripts/render_samples.py    ← deterministic zero-dep text→PDF sampler feeding docs/examples

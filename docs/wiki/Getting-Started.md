@@ -25,16 +25,13 @@ regular `tests` package and collide when batched:
 ```bash
 uv run pytest packages/llm-dojo-scoring/tests
 uv run pytest packages/llm-mailroom/src/tests
-uv run pytest packages/llm-entity-extraction/tests
 uv run pytest packages/The-Mailroom/tests
-uv run pytest packages/agent-mailroom/tests
 uv run pytest packages/local-mailroom-sandbox/tests
 uv run pytest packages/claims-data-eda/tests
 uv run pytest packages/Enron-Evaluation-Environment/tests
 ```
 
-`llm-mailroom-graph` ships no test suite (static site); `mailroom-corpus-eda` ships 8 test files (~79 tests) — the
-graph site is a static build and the corpus EDA is verified behaviorally via
+`mailroom-corpus-eda` ships 8 test files (~79 tests) and is also verified behaviorally via
 `packages/mailroom-corpus-eda/run_all.py` (P0–P6).
 
 Surgical by default; run a package's FULL suite only for significant

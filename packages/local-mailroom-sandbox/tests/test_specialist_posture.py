@@ -20,6 +20,13 @@ from mailroom_sandbox.job.specialist_posture import (
     validate_mapping,
 )
 
+RUNS_DIR = Path(__file__).resolve().parents[1] / "config" / "runs"
+
+
+def _cfg(run_id: str) -> Path:
+    """Run specs live in per-SAND subdirs; find one by run id."""
+    return next(RUNS_DIR.glob(f"*/{run_id}.yaml"), RUNS_DIR / f"{run_id}.yaml")
+
 
 def _stub_modal(monkeypatch):
     monkeypatch.setattr(
@@ -50,9 +57,7 @@ def test_merger_1l4_retry_decode_16384():
     assert row["concurrency"] == 8
     assert row["replicas"] == 1
     assert context_fit_ok(row["max_tokens"], row["max_input_chars"], 32768)
-    spec = load_run_spec(
-        Path(__file__).resolve().parents[1] / "config" / "runs" / f"{run_id}.yaml"
-    )
+    spec = load_run_spec(_cfg(run_id))
     assert spec.run_id == run_id
     assert spec.engine.vllm.enable_thinking is False
     assert spec.engine.vllm.max_inputs == 8
@@ -62,7 +67,12 @@ def test_merger_1l4_retry_decode_16384():
 
 
 def test_posture_context_fit_and_invariants():
-    from mailroom_sandbox.job.specialist_posture import GRID_RUNS, SAND032_RUNS, SAND032_SORTER_RUNS
+    from mailroom_sandbox.job.specialist_posture import (
+        GRID_RUNS,
+        SAND032_RUNS,
+        SAND032_SORTER_RUNS,
+        SAND42_RUNS,
+    )
 
     assert validate_mapping() == []
     for run_id, row in SPECIALIST_POSTURE.items():
@@ -77,9 +87,12 @@ def test_posture_context_fit_and_invariants():
             or run_id in SAND032_SORTER_RUNS
             or run_id in GRID_RUNS
             or run_id.startswith("sand40-")
+            or run_id in SAND42_RUNS
+            or run_id.startswith("sand42-")
         ):
-            # SAND-032 / grid / SAND-040 rows scale the band per replica / max_num_seqs
-            # (up to c=32 on 2×L4); validate_mapping above enforces that ceiling.
+            # SAND-032 / grid / SAND-040 / SAND-042 rows scale the band per replica /
+            # max_num_seqs (SAND-042 runs C8 and C16 on 1 and 2 GPUs); validate_mapping
+            # above enforces that ceiling, and tests/test_sand42_grid.py pins the cells.
             continue
         else:
             assert 2 <= row["concurrency"] <= 8, run_id
@@ -98,8 +111,7 @@ def test_run_20_contracts_single_class_posture():
 
 
 def test_run_20_yaml_full_corpus_logged_sample():
-    root = Path(__file__).resolve().parents[1] / "config" / "runs"
-    spec = load_run_spec(root / "run-20-contracts-specialist.yaml")
+    spec = load_run_spec(_cfg("run-20-contracts-specialist"))
     assert spec.dataset.split == "all"
     assert spec.dataset.limit == 20
     assert spec.dataset.sample_seed == 42
@@ -141,8 +153,7 @@ def test_run_20_insurance_awq_posture():
     assert row["prompt_file"] == "insurance_claims_specialist_simplified"
     assert expected_limit("run-20-insurance-claims-specialist-awq") == 20
     assert context_fit_ok(row["max_tokens"], row["max_input_chars"], 32768)
-    root = Path(__file__).resolve().parents[1] / "config" / "runs"
-    spec = load_run_spec(root / "run-20-insurance-claims-specialist-awq.yaml")
+    spec = load_run_spec(_cfg("run-20-insurance-claims-specialist-awq"))
     assert spec.dataset.limit == 20
     assert spec.job.concurrency == 8
     assert spec.engine.model == "Qwen/Qwen3-8B-AWQ"
@@ -163,8 +174,7 @@ def test_run_20_correspondence_specialist_awq_posture():
     assert row["prompt_file"] == "correspondence_specialist_production"
     assert expected_limit("run-20-correspondence-specialist-awq") == 20
     assert context_fit_ok(row["max_tokens"], row["max_input_chars"], 32768)
-    root = Path(__file__).resolve().parents[1] / "config" / "runs"
-    spec = load_run_spec(root / "run-20-correspondence-specialist-awq.yaml")
+    spec = load_run_spec(_cfg("run-20-correspondence-specialist-awq"))
     assert spec.dataset.limit == 20
     assert spec.job.concurrency == 8
     assert spec.engine.model == "Qwen/Qwen3-8B-AWQ"
@@ -189,8 +199,7 @@ def test_run_50_correspondence_specialist_awq_posture():
     assert row["prompt_file"] == "correspondence_specialist_production"
     assert expected_limit("run-50-correspondence-specialist-awq") == 50
     assert context_fit_ok(row["max_tokens"], row["max_input_chars"], 32768)
-    root = Path(__file__).resolve().parents[1] / "config" / "runs"
-    spec = load_run_spec(root / "run-50-correspondence-specialist-awq.yaml")
+    spec = load_run_spec(_cfg("run-50-correspondence-specialist-awq"))
     assert spec.dataset.limit == 50
     assert spec.job.concurrency == 8
     assert spec.engine.model == "Qwen/Qwen3-8B-AWQ"
@@ -215,12 +224,7 @@ def test_run_20_correspondence_fp16_c8_posture():
     # twin — that is an experiment-design choice (see PR notes).
     assert row["prompt_file"] == "correspondence_specialist_production"
     assert expected_limit("run-20-correspondence-fp16-c8") == 20
-    spec = load_run_spec(
-        Path(__file__).resolve().parents[1]
-        / "config"
-        / "runs"
-        / "run-20-correspondence-fp16-c8.yaml"
-    )
+    spec = load_run_spec(_cfg("run-20-correspondence-fp16-c8"))
     assert spec.engine.model == "Qwen/Qwen3-8B"
     assert spec.engine.vllm.quantization in ("", None)
     assert spec.engine.vllm.max_model_len == 16384
@@ -232,8 +236,7 @@ def test_run_20_correspondence_fp16_c8_posture():
 def test_run_20_gate_enforces_limit_20(monkeypatch):
     """The loud gate must cover run-20 too — a wrong limit cannot pass green."""
     _stub_modal(monkeypatch)
-    root = Path(__file__).resolve().parents[1] / "config" / "runs"
-    spec = load_run_spec(root / "run-20-contracts-specialist.yaml")
+    spec = load_run_spec(_cfg("run-20-contracts-specialist"))
     report = check_benchmark_posture(spec=spec, require_hermes=True)
     assert report["ok"], report["errors"]
     assert report["checks"]["spec"]["limit"] == 20
@@ -266,12 +269,12 @@ def test_run_yamls_match_posture(monkeypatch):
         "mailroom_sandbox.job.benchmark_check._modal_cli_ok",
         lambda: {"ok": True, "version": "modal stub"},
     )
-    root = Path(__file__).resolve().parents[1] / "config" / "runs"
     from mailroom_sandbox.job.specialist_posture import (
         GRID_CELLS,
         GRID_RUNS,
         SAND032_RUNS,
         SAND032_SORTER_RUNS,
+        SAND42_RUNS,
     )
 
     for run_id, row in SPECIALIST_POSTURE.items():
@@ -279,16 +282,18 @@ def test_run_yamls_match_posture(monkeypatch):
             continue  # own gate + env-drift coverage in tests/test_sand032_configs.py
         if run_id in GRID_CELLS or run_id.startswith("sand40-"):
             continue  # SAND-037 grid and SAND-040 cells have their own engine gates
+        if run_id in SAND42_RUNS or run_id.startswith("sand42-"):
+            continue  # SAND-042 cells: tests/test_sand42_grid.py pins every one
         if run_id in GRID_RUNS and int(row.get("replicas", 1)) == 2:
             # 2×L4 grid cells pin awq + seqs16 + graphs; not the 1×L4 awq/eager pair.
-            spec = load_run_spec(root / f"{run_id}.yaml")
+            spec = load_run_spec(_cfg(run_id))
             assert spec.task == row["task"]
             assert spec.job.concurrency == expected_concurrency(run_id)
             assert spec.engine.model == "Qwen/Qwen3-8B-AWQ"
             assert spec.engine.vllm.max_num_seqs == 16
             assert spec.engine.modal.max_containers == 2
             continue
-        spec = load_run_spec(root / f"{run_id}.yaml")
+        spec = load_run_spec(_cfg(run_id))
         assert spec.task == row["task"]
         assert spec.job.concurrency == expected_concurrency(run_id)
         assert float(spec.job.cost_cap_usd) == float(row["cost_cap_usd"])
@@ -309,8 +314,7 @@ def test_run_yamls_match_posture(monkeypatch):
 
 
 def _grid_spec(run_id):
-    root = Path(__file__).resolve().parents[1] / "config" / "runs"
-    return load_run_spec(root / f"{run_id}.yaml")
+    return load_run_spec(_cfg(run_id))
 
 
 def test_grid_has_twenty_aligned_cells():

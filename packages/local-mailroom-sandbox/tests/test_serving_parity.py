@@ -62,7 +62,8 @@ def test_dojo_remaps_modal_identity_but_metrics_match():
         }
     )
     assert rec["serving_kind"] == "modal"
-    assert classify_serving_kind(rec) == "local"
+    # dojo >= v0.16 keeps Modal as its own serving kind (was folded to local).
+    assert classify_serving_kind(rec) == "modal"
     dojo = get_suite("local_vs_api")
     # Score modal vs a tiny API twin through the same suite Jack uses.
     api = to_dojo_serving_record(
@@ -83,7 +84,7 @@ def test_dojo_remaps_modal_identity_but_metrics_match():
     assert compared["local"]["estimated_cost_usd"] == pytest.approx(0.000095)
     assert compared["local"]["quality"]["accuracy"] == pytest.approx(0.98)
     assert compared["api"]["estimated_cost_usd"] == pytest.approx(0.000095)
-    assert compared["local"]["identity"]["serving_kind"] == "local"
+    assert compared["local"]["identity"]["serving_kind"] == "modal"
 
 
 def test_split_keeps_modal_out_of_local():

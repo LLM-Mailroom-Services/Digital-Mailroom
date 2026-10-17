@@ -96,7 +96,7 @@ Per-source documentation for the corpora integrated into [`mailroom-dataset`](ht
 
 ## HF Hub Interface
 
-The upload/publish helpers previously living in [llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction) are centralized here:
+The upload/publish helpers previously living in `llm-entity-extraction` (pruned from the monorepo in DMR-079; standalone repo only) are centralized here:
 
 | Module | Purpose |
 |:---|:---|
@@ -150,7 +150,6 @@ HF_TOKEN=hf_... .venv/bin/python scripts/build/build_v9.py --publish
 <div align="center">
 
 **[llm-mailroom](https://github.com/Exios66/llm-mailroom)** ·
-**[llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction)** ·
 **[llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring)** ·
 **[Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment)** ·
 **[claims-data-eda](https://github.com/Exios66/claims-data-eda)**

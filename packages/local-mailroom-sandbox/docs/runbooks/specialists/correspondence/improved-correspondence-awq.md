@@ -25,7 +25,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 
 ## Configs
 
-- `config/runs/run-20-correspondence-awq.yaml`
+- `config/runs/legacy/run-20-correspondence-awq.yaml`
 
 ## Do not
 
@@ -68,12 +68,15 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py --strategy recreate
 
-# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+# VLLM_BASE_URL is the FULL base: deploy output + '/v1'
+#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   (without /v1 every chat call 404s — the profile appends /chat/completions)
+# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
-sandbox run preflight --config config/runs/run-20-correspondence-awq.yaml --live
-sandbox run start --config config/runs/run-20-correspondence-awq.yaml --job-mode endpoint --watch
+sandbox run preflight --config config/runs/legacy/run-20-correspondence-awq.yaml --live
+sandbox run start --config config/runs/legacy/run-20-correspondence-awq.yaml --job-mode endpoint --watch
 
 ./deploy/teardown_vllm.sh   # ONLY after this run
 ```

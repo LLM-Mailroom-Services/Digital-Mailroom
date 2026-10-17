@@ -1,0 +1,74 @@
+# SAND-042 RCA re-check — merger · n=5 · 1×L4 · client concurrency 8.
+# IDENTICAL to sand42-check-5-merger-specialist-awq-1l4-c8 (same 5 docs, engine, decode,
+# chunking) except the prompt: merger_agreement_specialist_maud_v2 (answer catalog
+# rendered from llm_dojo_scoring.maud_schema, no free text in maud_clauses, per-chunk
+# answering duty) — scored with the fixed MAUD reducer (no first-chunk-wins).
+# Expect: MAUD accuracy well above the frozen stem's 0.028 (maud_v1 read 0.14 on SAND-040).
+# Not a benchmark cell.
+schema: sandbox.run/v1
+run_id: rca-check-5-merger-maud-v2-awq-1l4-c8
+task: merger_agreement_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    merger_agreement_specialist:
+      source: local
+      file: merger_agreement_specialist_maud_v2
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
+  strata:
+    buckets:
+      - doc_class: merger_agreement
+        count: 5
+        sub_buckets:
+          - {subclass: "all_cash", count: 2}
+          - {subclass: "other", count: 2}
+          - {subclass: "all_stock", count: 1}
+  limit: 5
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 16
+    enable_prefix_caching: true
+    enforce_eager: false
+    quantization: "awq_marlin"
+    revision: ""
+    kv_cache_dtype: "fp8"
+    enable_thinking: false
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16]
+    max_inputs: 32
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 1
+    min_containers: 1
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 8
+  cost_cap_usd: 0.60
+  max_wall_seconds: 3600
+
+trace:
+  sink: none
+  otlp: false
+  environment: sand42
+  tags: [sandbox, job, specialist, qwen3-8b-awq, l4, sand42, rca, merger, maud-v2, 1l4-c8]

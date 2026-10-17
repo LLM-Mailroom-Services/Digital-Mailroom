@@ -26,7 +26,7 @@ Generated cards:
 
 Live numeric pins (model, GPU, `max_containers=1`, `max_model_len=16384`, …)
 are declared in `serving.baseline` and tested against `deploy/modal_vllm.py`,
-`config/models.yaml`, and `config/runs/run-30-*-specialist.yaml`. Per-class
+`config/models.yaml`, and `config/runs/legacy/run-30-*-specialist.yaml`. Per-class
 concurrency and cost caps stay in `src/mailroom_sandbox/job/specialist_posture.py`.
 Suite order stays in `config/runs/suites/`.
 

@@ -8,18 +8,13 @@
                     │  mailroom-corpus-eda   (mailroom-corpus, P0–P6 EDA)  │
                     └──────────────────────────┬───────────────────────────┘
                                                ▼
-                    ┌── prompt-experiment loop ────────────────────────────┐
-                    │  llm-entity-extraction        (GEPA prompt versions) │
-                    └──────────────────────────┬───────────────────────────┘
-                                               ▼
 ┌────────────────────────┐        ┌───────────────────────────────────────┐
 │  llm-dojo-scoring      │◀───────│           llm-mailroom                │
 │  shared scoring engine │ import │  LangGraph multi-agent pipeline       │
 └────────────────────────┘        └──────────────────┬────────────────────┘
                                                      ▼
 ┌── surfaces ──────────────────────────────────────────┐
-│  The-Mailroom (visualizer)     agent-mailroom        │
-│  local-mailroom-sandbox        llm-mailroom-graph    │
+│  The-Mailroom (visualizer)     local-mailroom-sandbox│
 │  Digital-Mailroom dispatch board (Vercel)            │
 └──────────────────────────┬───────────────────────────┘
                            ▼
@@ -31,9 +26,14 @@
 
 ## Every repository, with links
 
-All ten packages live in this monorepo (`packages/`) as git subtrees and
+All seven packages live in this monorepo (`packages/`) as git subtrees and
 mirror independent `Exios66/*` repositories that remain standalone and
-operational. GitHub Pages sites exist for six of them.
+operational. GitHub Pages sites exist for four of them.
+
+> **Pruned in DMR-079:** `llm-entity-extraction` and `llm-mailroom-graph`
+> are standalone `Exios66/*` repos only (no longer synced); `agent-mailroom`
+> is preserved on branch `feature/agent-mailroom`. Hub `v0.8.0` is the last
+> release containing them.
 
 | Layer | Repository | GitHub Pages |
 | --- | --- | --- |
@@ -42,13 +42,10 @@ operational. GitHub Pages sites exist for six of them.
 | Corpus feed | [Exios66/Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment) | [exios66.github.io/Enron-Evaluation-Environment](https://exios66.github.io/Enron-Evaluation-Environment/) |
 | Corpus feed | [Exios66/claims-data-eda](https://github.com/Exios66/claims-data-eda) | [exios66.github.io/claims-data-eda](https://exios66.github.io/claims-data-eda/) |
 | Corpus EDA + HF upload helpers | [Exios66/Mailroom-Corpus-EDA](https://github.com/Exios66/Mailroom-Corpus-EDA) | [exios66.github.io/Mailroom-Corpus-EDA](https://exios66.github.io/Mailroom-Corpus-EDA/) |
-| Prompt-experiment loop | [Exios66/llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction) | [exios66.github.io/llm-entity-extraction](https://exios66.github.io/llm-entity-extraction/) |
 | Shared scoring engine | [Exios66/llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | — |
 | LangGraph pipeline | [Exios66/llm-mailroom](https://github.com/Exios66/llm-mailroom) | — |
 | Pixel-art visualizer console | [Exios66/The-Mailroom](https://github.com/Exios66/The-Mailroom) | [exios66.github.io/The-Mailroom](https://exios66.github.io/The-Mailroom/) (pixel console root; **terminal** `/docs/terminal/` pending live publish — [DMR-013](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/18)) |
-| Walking-office-floor mailroom | [Exios66/agent-mailroom](https://github.com/Exios66/agent-mailroom) | — |
 | Local-first LLM sandbox | [Exios66/local-mailroom-sandbox](https://github.com/Exios66/local-mailroom-sandbox) | — |
-| Derived knowledge-graph site | [Exios66/llm-mailroom-graph](https://github.com/Exios66/llm-mailroom-graph) | [exios66.github.io/llm-mailroom-graph](https://exios66.github.io/llm-mailroom-graph/) |
 
 ## The 13-node pipeline (llm-mailroom v0.7.1)
 

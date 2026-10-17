@@ -39,7 +39,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from .models import PipelineRun
-from .pipeline_schema import observation_type_for
+from .pipeline_schema import (
+    RELOADED_ROOT_SPAN,
+    RELOADED_STATUS_STAGES,
+    observation_type_for,
+)
 from .sources import TraceSourceUnavailable
 from .trace_interpreter import interpret_trace
 
@@ -228,19 +232,62 @@ class PhoenixSource:
                 tags = [t.strip() for t in text.split(",") if t.strip()]
         start = _iso(root.get("start_time"))
         end = _iso(root.get("end_time"))
+        t_input = _parse_io(_attr(root, "input.value"))
+        t_output = _parse_io(_attr(root, "output.value"))
+        session_id = _attr(root, "session.id")
+        if root.get("name") == RELOADED_ROOT_SPAN:
+            t_input, t_output, session_id = self._reloaded_io(
+                root, t_input, t_output, session_id
+            )
         return {
             "id": str(trace_id or ""),
             "name": root.get("name") or "phoenix-trace",
             "timestamp": start,
             "updated_at": end or start,
             "latency": _seconds(root.get("start_time"), root.get("end_time")),
-            "session_id": _attr(root, "session.id"),
+            "session_id": session_id,
             "environment": _attr(root, "mailroom.environment"),
             "tags": tags,
             "metadata": {"project": self.project},
-            "input": _parse_io(_attr(root, "input.value")),
-            "output": _parse_io(_attr(root, "output.value")),
+            "input": t_input,
+            "output": t_output,
         }
+
+    @staticmethod
+    def _reloaded_io(
+        root: dict[str, Any],
+        t_input: Any,
+        t_output: Any,
+        session_id: Any,
+    ) -> tuple[Any, Any, Any]:
+        """Fill a mailroom-reloaded ``mailroom.document`` root's trace input,
+        output and session from its ``mailroom.*`` attributes.
+
+        Only attributes the pipeline really set are lifted; explicit
+        ``input.value`` / ``output.value`` always win. ``mailroom.status``
+        maps through RELOADED_STATUS_STAGES (parked -> review).
+        """
+        t_input = dict(t_input or {})
+        for key, attr in (
+            ("doc_id", "mailroom.doc_id"),
+            ("filename", "mailroom.filename"),
+            ("run_id", "mailroom.run_id"),
+        ):
+            value = _attr(root, attr)
+            if value is not None:
+                t_input.setdefault(key, value)
+        t_output = dict(t_output or {})
+        status = _attr(root, "mailroom.status")
+        if status is not None:
+            t_output.setdefault(
+                "stage", RELOADED_STATUS_STAGES.get(str(status).lower(), "processing")
+            )
+        doc_type = _attr(root, "mailroom.doc_type")
+        if doc_type is not None:
+            t_output.setdefault("doc_type", doc_type)
+        if session_id is None:
+            session_id = _attr(root, "mailroom.run_id")
+        return (t_input or None), (t_output or None), session_id
 
     @staticmethod
     def _observation_dict(span: dict[str, Any]) -> dict[str, Any]:

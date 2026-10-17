@@ -20,8 +20,8 @@ modal_profile_default: hermes-agent-jjb
 scaledown_seconds: 120
 warm_once: true
 configs:
-  - config/runs/run-30-contracts-specialist.yaml
-  - config/runs/run-30-merger-specialist.yaml
-  - config/runs/run-30-corporate-records-specialist.yaml
-  - config/runs/run-30-correspondence-specialist.yaml
-  - config/runs/run-30-insurance-claims-specialist.yaml
+  - config/runs/legacy/run-30-contracts-specialist.yaml
+  - config/runs/legacy/run-30-merger-specialist.yaml
+  - config/runs/legacy/run-30-corporate-records-specialist.yaml
+  - config/runs/legacy/run-30-correspondence-specialist.yaml
+  - config/runs/legacy/run-30-insurance-claims-specialist.yaml

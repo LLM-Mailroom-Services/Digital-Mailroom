@@ -1,7 +1,7 @@
 # The-Mailroom
 
-![version](https://img.shields.io/badge/version-0.5.0-blue)
-[![release](https://img.shields.io/badge/release-v0.5.0-blue)](https://github.com/Exios66/The-Mailroom/releases/tag/v0.5.0)
+![version](https://img.shields.io/badge/version-0.5.1-blue)
+[![release](https://img.shields.io/badge/release-v0.5.1-blue)](https://github.com/Exios66/The-Mailroom/releases/tag/v0.5.1)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![data source](https://img.shields.io/badge/data%20source-Langfuse%20only-6C5CE7)
 
@@ -22,8 +22,7 @@ Four surfaces share one display API (`/api/*` + `/ws`):
 The terminal site and the TUI both add a **dataset viewer** (`corpus …`
 commands over `Lucius-Morningstar/mailroom-dataset` — slim windowed
 listing, live per-row `doc_text` + ground truth) and a **constellation
-repo browser** (`repos …` — every mirror package plus the hub copies and
-derived graph sites).
+repo browser** (`repos …` — every mirror package plus the hub copies).
 
 Agent skills (Langfuse / Phoenix / Braintrust / Ollama / Modal / Hugging Face
 plus pixel, Observatory, live floor, schema sync, Pages, TUI, operator desk):
@@ -38,27 +37,25 @@ The-Mailroom is one node of a governed family of repositories sharing one kanban
 board, one discussion log, and one trace contract:
 
 ```
-        ┌─────────────────────────┐         ┌─────────────────────────┐
-        │  llm-entity-extraction  │ breeds  │      llm-mailroom       │
-        │  prompt-experiment loop │ ──────▶ │   the document pipeline │
-        └─────────────────────────┘         └────────────┬────────────┘
-                                                         │ Langfuse traces (US cloud)
-                                                         ▼
-                                        ┌──────────────────────────────┐
-                             YOU ARE    │         THE-MAILROOM         │
-                               HERE ▶   │    pixel-art visual engine   │
-                                        └──────────────────────────────┘
+                                        ┌─────────────────────────┐
+                                        │      llm-mailroom       │
+                                        │   the document pipeline │
+                                        └────────────┬────────────┘
+                                                     │ Langfuse traces (US cloud)
+                                                     ▼
+                                    ┌──────────────────────────────┐
+                         YOU ARE    │         THE-MAILROOM         │
+                           HERE ▶   │    pixel-art visual engine   │
+                                    └──────────────────────────────┘
 ```
 
 | Repository | Role | Relationship to The-Mailroom |
 | --- | --- | --- |
 | [llm-mailroom](https://github.com/Exios66/llm-mailroom) | LangGraph state machine processing legal documents through specialist LLM agents (classify → extract → report → archive); pin `@959bb0bce152` / **0.7.1+** (main after v0.7.1) (package `mailroom` 0.7.1) | **Upstream** — its Langfuse project is this visualizer's sole data source; optional `pip install -e ".[pipeline]"` imports `pipeline.review_resolve` |
-| [llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction) | Prompt-experiment loop (prompt versions × models, paired-bootstrap ablations) | Breeds the pipeline's sorter/specialist prompts; hosts the shared kanban board + governance log for the whole chain |
-| [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Deterministic, field-type-aware scoring engine (`@v0.16.0`) | Upstream governed dependency of both pipeline repos |
+| [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Deterministic, field-type-aware scoring engine (`@v0.16.0`) | Upstream governed dependency of the pipeline |
 | [Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment) | EDA + pipeline-ready correspondence dataset (CMU Enron corpus) | Corpus feed for the pipeline's `correspondence` doc class |
 | [claims-data-eda](https://github.com/Exios66/claims-data-eda) | Insurance-claims candidate-corpus EDA (CMS DE-SynPUF direction) | Candidate corpus feed for the `insurance_claim` doc class |
 | [atticus-investigation](https://github.com/Exios66/atticus-investigation) | LegalBench classification prompt-engineering pipeline | Eval sibling — same methodology family, LegalBench focus |
-| [llm-mailroom-graph](https://exios66.github.io/llm-mailroom-graph/) · [llm-entity-extraction-graph](https://exios66.github.io/llm-entity-extraction-graph/) | Interactive graphify knowledge graphs | Derived sites mapping the pipeline's and the loop's code structure |
 
 Full relationship map: [`llm-mailroom/docs/sister-repos.md`](https://github.com/Exios66/llm-mailroom/blob/main/docs/sister-repos.md).
 
@@ -76,7 +73,7 @@ mailroom-hosted           # → public Observatory on 0.0.0.0 (container-ready)
 mailroom-tui              # typed-command REPL (floor/corpus/repos/inspect)
 pip install -e ".[operator]"  # optional: operator desk (auth / archive / observer)
 pip install -e ".[ui]"        # marker only; React desk still needs Node
-mailroom-observer         # bin watcher (or MAILROOM_OBSERVER=1 on mailroom-web)
+mailroom-observer         # standalone bin watcher — or MAILROOM_OBSERVER=1 on mailroom-web (never both)
 # optional React desk: cd ui && npm install && npm run build  →  /desk
 ```
 

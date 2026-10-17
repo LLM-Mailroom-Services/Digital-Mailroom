@@ -2,6 +2,127 @@
 
 ## [Unreleased]
 
+### Changed — breaking (vendored dojo)
+
+- **Vendored llm-dojo-scoring re-vendored at the `v0.22.0` tag** (`a2862cec`, cut and published
+  2026-10-16; the pre-tag snapshot was `852b052`). Mirrored with the repo's own
+  `_refresh_vendor_from_workspace` (the `sandbox fetch-deps` workspace leg) because the monorepo layout is
+  absent; every vendored-pin claim (`vendor/README.md`, `vendor/llm-dojo-scoring/VENDOR.md`, README,
+  QUICKSTART, SANDBOX-GUIDE, sister-repos, htcondor README, `deploy/modal_job.py`, `pyproject.toml`, the
+  `fetch-deps` fallback pin) now names it. New dojo contract: `Emitter.emit_score` requires provenance, a
+  serving leg that mixes identities is `identity_mixed`, `metric_id_for` is strict. The snapshot also
+  ships the eval-environment prompt lineage API (`llm_dojo_scoring.prompts`: `get_prompt_version`,
+  `list_prompt_versions`, ... and `eval_environment_lineage.json`, 40 versions from eval-environment `bdba24c`).
+
+### Changed — corrected v1 specialist stems (dojo #30)
+
+- `correspondence_specialist_simplified.txt` / `corporate_records_specialist_simplified.txt` now carry the
+  corrected text the dojo ships as `production_prompts` (eval-environment mutations
+  `correspondence_specialist_v7` / `corporate_records_specialist_v6`; sha256 `2b0b81ff…` / `fe13501f…`,
+  6113 / 5865 chars). `eval_environment_lineage.json` rows point at those keys with the new
+  sha256/chars, a `refrozen_at` stamp and a `superseded` block holding the original v1 key, sha256, chars
+  and `frozen_at`; the sibling check verifies both. **Runs that used these stems before this change
+  scored the v1 bytes** (`*_v1`, `eab63b5a…` / `484e64dd…`); the default stem's logged eval-environment
+  key is now `_v7` / `_v6`. The generated archived runbooks were re-rendered to the current key.
+
+### Fixed — dojo v0.22 provenance + `identity_mixed`
+
+- Serving records and fixtures carry `dataset_revision` (+ `split` / `draw_seed` where known) so the
+  dojo's `emit_serving_scorecard` no longer raises `ProvenanceExportError` (4 tests). Job records take
+  them from the run lock (`job.metrics.lock_dataset_provenance`); the serving fixtures carry
+  `FAMILY_HF_REVISION`; token-price USD is labelled `cost_basis=token_price_estimate`. Never derived
+  from the dataset fingerprint. `emit_local_vs_api_scorecard` accepts `provenance=`.
+- `compare_from_records` (`sandbox eval local_vs_api --from-log`, `sandbox matrix`) and
+  `sandbox metrics compare` group rows by full identity (`serving_groups.py`) and compare per comparable
+  group instead of pooling every local/API row into one `identity_mixed` leg. New `--group`; one
+  scorecard per group (`<name>.g<n>`).
+- Scorecard tests now run the real `Emitter` + `LocalManifestSink`; `tests/test_serving_groups.py`
+  covers multi-model logs.
+
+### Changed — scorecards fail loudly
+
+- A scorecard that cannot be emitted with honest provenance now RAISES instead of being reported as
+  "refused": `emit_local_vs_api_scorecard` / `emit_group_scorecards` raise `ScorecardEmissionError`
+  (subclass of the dojo's `ProvenanceExportError`; `.field`, `.group`, sandbox hint) for a missing
+  `dataset_revision` or an incomparable (`identity_mixed`) group. All groups are validated against an
+  in-memory sink before any is written, so a late failure leaves no partial manifest, and
+  `run_local_vs_api_eval` raises before appending its log record. `scores.scorecards_refused` and the
+  `emitted: False` entries are gone. `sandbox` exits 1 with `error: scorecard not emitted: <reason>` on
+  stderr (job runs fail with the same reason). New `sandbox eval local_vs_api --dataset-revision <sha>`
+  (full 40-hex only) supplies a real revision for log/fixture rows that have none; it never overrides a
+  recorded one. Reverses the report-don't-raise policy of the provenance fix above.
+
+### Added
+
+- **Prompt catalog `docs/prompts/`** (generated, deterministic): an index of all 40 eval-environment versions
+  (5 archived, 15 frozen, 20 mutations; 15 roles) and one page per role with, per version oldest -> newest, the
+  metadata, the full memo, what changed against the predecessor (sections, +/- lines, chars delta, dojo notes such
+  as the `sorter_v3` duplicated block, non-monotonic dates), a unified diff, the full text and the exact
+  `--prompt-version` command. The index marks the sandbox default / eval-environment default / latest per role and
+  explains the name collisions (the `sorter_v1` stem and the mailroom `sorter_v0..v14` / `contracts_specialist_v1..v33`
+  registry are not eval-environment keys). `python scripts/render_prompt_catalog.py [--check]`;
+  `tests/test_prompt_catalog.py` fails when the pages drift from the vendored dojo.
+- `sandbox prompts list-versions [--role R] [--lineage L] [--json]` and `sandbox prompts show <key> [--diff <other-key> | --memo | --json]`.
+- The `prompt_versions` seam is wired to the real dojo lineage (`llm_dojo_scoring.prompts.get_prompt_version`);
+  `tests/test_prompt_versions_dojo.py` checks all 40 versions, the sorter `v1..v4` and every specialist mutation
+  against the lineage (and a sibling eval-environment checkout via `EVAL_ENVIRONMENT_ROOT` when present), that every
+  accepted lineage role is a sandbox pipeline role, and that `pipeline_quality` / `pipeline_verdict` are refused.
+  Finding: the lineage lock's `insurance_claims_specialist_v4` / `merger_agreement_specialist_v4` keys are not in
+  eval-environment `bdba24c`; those stems run with `--prompt <stem>`, not `--prompt-version`.
+- **Run with any eval-environment prompt version** (archived `_v0`, frozen `_v1`, every GEPA / manual
+  mutation, sorter included): `sandbox eval <task> --prompt-version [role=]key` (repeatable),
+  `sandbox run ... --prompt-version`, and `prompt.versions` in a run spec. New seam
+  `mailroom_sandbox/prompt_versions.py` (`resolve_prompt(role, key=None) -> (key, text, sha256)`); the
+  dojo lookup is the single function `lookup_prompt_version` (the vendored dojo does not ship the
+  lineage API yet, so a selection fails loudly until it is re-vendored). Unknown key, key/role
+  mismatch, non-pipeline role, sha mismatch, `--prompt` vs `--prompt-version` clash: hard error. The
+  key + sha256 land in the run lock (`prompt_versions`, `source: eval-environment`), `spec_hash`, and
+  every record (`prompt_version`, `prompt_sha256`, `eval_environment_prompt_key`, `prompt_versions`).
+  `serving_groups` now also keys legs and pairs on `prompt_sha256`, so mutations never pool (and the
+  mailroom-text stem `sorter_v1` never pools with eval-environment `sorter_v1`). Default behaviour is
+  unchanged.
+- **SAND-042 repaired specialists frozen.** `insurance_claims_specialist_simplified_v2` and
+  `merger_agreement_specialist_maud_v2` are frozen in eval-environment as
+  `insurance_claims_specialist_v4` and `merger_agreement_specialist_v4`, and pinned under
+  `frozen_successors` in `config/prompts/eval_environment_lineage.json` (sha256 `1ca6e83c…58ea` / 8461
+  chars and `da316691…1946` / 33125 chars). `assert_catalog_sha` and `verify_local_catalog` refuse drift
+  in either stem; `eval_environment_key_for(stem=…)` reports the v4 key on run records; the sibling check
+  reads eval-environment `prompts/mutations.json`. The default v1 stems are unchanged.
+
+## [0.3.0] - 2026-10-15
+
+### Changed — v1 specialist stems re-frozen (Exios66/llm-dojo-scoring#30)
+
+- `config/prompts/correspondence_specialist_simplified.txt` and
+  `config/prompts/corporate_records_specialist_simplified.txt` now mirror the
+  dojo's corrected `production_prompts` v1 text (provenance comment stripped). `eval_environment_lineage.json`
+  rows carry the new `sha256`/`chars` plus `previous_sha256`, `previous_chars` and `refrozen_at`
+  (2026-10-15); `frozen_at` is unchanged. Correspondence `eab63b5a…`→`2b0b81ff…` (6061→6113 chars);
+  corporate-records `484e64dd…`→`fe13501f…` (5801→5865 chars). **Scores on these two stems are not
+  comparable to earlier cards without re-scoring.**
+
+### Fixed — SAND-042 schema-adherence RCA (`docs/SAND42-SCHEMA-ADHERENCE-RCA.md`)
+
+- Vendored `InsuranceClaimExtraction` (`insurer`, `insured_party`, `claim_type`, `damages_description`,
+  `coverage_determination`), `CorporateRecordExtraction` (`entity_name`, `record_type`) and
+  `CorrespondenceExtraction.communication_type` are contract-nullable; `claimed_amount` / `demand_amount`
+  accept currency phrases. Insurance schema-valid 0.26–0.34 was this bug, not the model.
+- Structured-output `intent` hints list the scored vocabulary (were `demand_payment`, `acknowledge`,
+  `coverage_denial`, … — none scorable).
+- `eval/maud_scoring.py`: chunk-merged answers are reduced (non-answers dropped, conflicts counted as
+  `maud_conflicts`) instead of first-chunk-wins; multi-class answers compare as sets; `{q: null}` is unanswered.
+- Vendored llm-dojo-scoring refreshed from v0.15 to the dojo `claude/schema-adherence-rca` branch (label
+  intents, stringified-GT parsing, MAUD catalog + fold/parse fixes, CMS `claim_type` ≡ `health`). Four tests
+  that pinned v0.15 empty-list / Modal serving-kind behavior now pin the dojo contract.
+  **Scores are not comparable to SAND-032…SAND-042 cards without re-scoring.**
+
+### Added
+
+- `tests/test_schema_contract.py` (dojo `contract_violations` over every vendored schema) and
+  `tests/test_specialist_intent_vocab.py`.
+- Candidate stems `insurance_claims_specialist_simplified_v2`, `merger_agreement_specialist_maud_v2`
+  (generated: `scripts/gen_maud_v2_prompt.py [--check]`) and `config/runs/rca/` re-check configs.
+
 ### Added — local-first job traces (pack → upload → prune)
 
 - Endpoint-mode runs (`sandbox run start`, the Modal-vLLM grid and SAND runs) now build a tracer; before this
@@ -228,7 +349,7 @@
 - **Offline diagnosis** of `run-20-correspondence-awq-c8` (fingerprint
   `285f423d3708`): [`docs/archive/extraction-quality-diagnosis.md`](docs/archive/extraction-quality-diagnosis.md)
   (best/worst docs, token evidence, owner-locked 0.25 / 0.50 gates).
-- **FP16 twin YAML** [`config/runs/run-20-correspondence-fp16-c8.yaml`](config/runs/run-20-correspondence-fp16-c8.yaml)
+- **FP16 twin YAML** [`config/runs/legacy/run-20-correspondence-fp16-c8.yaml`](config/runs/legacy/run-20-correspondence-fp16-c8.yaml)
   — same draw, `Qwen/Qwen3-8B`, **not run** (spend/auth blocked). Runbook:
   [`docs/jobs.md`](docs/jobs.md) §AWQ vs FP16 isolation.
 
@@ -259,7 +380,7 @@
 
 ### Added — SAND-018 single-class 20-contract Modal run + full-corpus logged sample (2026-09-25)
 
-- **`config/runs/run-20-contracts-specialist.yaml`** — the runbook's
+- **`config/runs/legacy/run-20-contracts-specialist.yaml`** — the runbook's
   [`docs/modal/benchmark-l4.md`](docs/modal/benchmark-l4.md) L4 Qwen pins (`Qwen/Qwen3-8B`,
   L4, `v0.29.0`, `max_model_len=16384`, scaledown 120, `contracts_specialist_v33`
   local prompt) applied to a **20-contract** single-class run drawn as a seeded
@@ -322,7 +443,7 @@
   class from that local JSONL (offline; merger_agreement ceiling is 152).
 - Corpus loader accepts `split: all`. Class-bucket quotas above availability
   now hard-fail (same as nested sub_buckets). Template:
-  `config/runs/example-per-class.yaml`.
+  `config/runs/examples/example-per-class.yaml`.
 
 ### Added — SAND-001 local SAND board prefix (2026-09-24)
 
@@ -468,7 +589,7 @@
   data, a constant stratum field with >1 requested value (the run-50 trap,
   named), and a draw/limit that drops a requested stratum; the lock records
   `strata_actual` (drawn distribution) so a lock proves what was drawn.
-  Delivered: `config/runs/run-50-subclass.yaml` (13 strata · Service 8, …
+  Delivered: `config/runs/legacy/run-50-subclass.yaml` (13 strata · Service 8, …
   Manufacturing 2 · 50 rows; `preflight --force` locked with `strata_actual`
   matching exactly; old generation archived per DMR-049), spec validation
   (unknown keys / counts length / positive ints), 6 new corpus tests + 3
@@ -496,12 +617,12 @@
   est. **$13.08 ≤ $15** at $0.80/GPU-hr, teardown per cell via
   `deploy/teardown_vllm.sh`, measurement contract (items.jsonl primary,
   engine `/metrics` + log windows secondary, billing per cell). Exemplar
-  specs `config/runs/scale-c1-4xl4-c16.yaml` (bf16 baseline) +
+  specs `config/runs/scale/scale-c1-4xl4-c16.yaml` (bf16 baseline) +
   `scale-d1-awq-4xl4-c16.yaml` (quant-only delta); fleet pinning via
   `MODAL_VLLM_MIN_CONTAINERS=4` (already supported by the deploy app).
 
 - **DMR-063 — 50-doc Modal vLLM scale-out run + teardown safeguards (SHIPPED
-  2026-09-16)**: `config/runs/run-50-modal-hf.yaml` — 50 contract-class rows
+  2026-09-16)**: `config/runs/legacy/run-50-modal-hf.yaml` — 50 contract-class rows
   (19 subclasses; Hub pinned revision), concurrency 16, `max_containers: 4`
   (2–3 warm L4s), `scaledown_seconds: 600`. Result: **49/50 = 98.0 %**,
   0 run errors, 0 timeouts; one out-of-set misclassification
@@ -537,7 +658,7 @@
   base that already carries the `/v1` seam (`.../v1/v1/models` → live 404);
   the probe now normalizes (pinned by `test_engine_probe_url_seam_normalizes_v1_suffix`).
   `test_vendor` stale-pin scan no longer trips on pip-installed venv wheels.
-  First live pilot spec: `config/runs/pilot-sorter-modal-hf.yaml`.
+  First live pilot spec: `config/runs/examples/pilot-sorter-modal-hf.yaml`.
   260 passed / 3 skipped.
 
 - **DMR-058 — full CLI verification sweep + quickstart**: every `sandbox`
@@ -557,7 +678,7 @@
   the package at the repo root; the old `work/name` fallback half-wiped the
   tracked tree before crashing). `run status/resume/cancel --config`
   resolves the embedded `run_id` (previously demanded `--run-id` even with a
-  config). `config/runs/example.yaml` fixture path is CWD-relative again.
+  config). `config/runs/examples/example.yaml` fixture path is CWD-relative again.
   ~6 new network-free tests (230 passed / 1 skipped).
 
 - **HUB-026 — remote-serving integration completeness**: `vllm-remote`

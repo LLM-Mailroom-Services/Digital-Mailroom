@@ -2,7 +2,7 @@
 
 ```
 SAND-NNN     → sandbox-isolated card on governance/TASKS.md
-DMR-NNN      → family card on llm-entity-extraction MESSAGE_BOARD
+DMR-NNN      → family card on the Digital-Mailroom hub board (governance/TASKS.md)
 ```
 
 When filing work:

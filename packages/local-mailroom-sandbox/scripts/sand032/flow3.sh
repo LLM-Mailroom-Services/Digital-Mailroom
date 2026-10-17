@@ -12,7 +12,7 @@ gate() { local d; d=$(python3 -c "print(round($(spent) - $BASE + $1, 4))")
   echo "gate ok: projected delta \$$d for $2"; }
 stopfleet() { modal app stop sandbox-vllm-sand032 -y 2>&1 | tail -1
   python3 scripts/sand032/spend.py close "$(python3 -c 'import json;d=json.load(open("data/runtime/sand032/fleets.json"));o=[k for k,v in d.items() if not v.get("stop_ts")];print(o[-1] if o else "")')" >/dev/null 2>&1; }
-run() { echo "=== $1 ($2) ledger \$$(spent) ==="; scripts/sand032/run_one.sh "config/runs/$1.yaml" $2 2>&1 | tail -2; }
+run() { echo "=== $1 ($2) ledger \$$(spent) ==="; scripts/sand032/run_one.sh "config/runs/sand032/$1.yaml" $2 2>&1 | tail -2; }
 until grep -q '"stopped"' "$LOG/sand032-s6-sorter1000.times" 2>/dev/null; do sleep 10; done
 echo "A fleet down after sorter; ledger \$$(spent)"; sleep 10
 fleet() {  # $1 = first run (deploy); rest = "run cost" warm steps

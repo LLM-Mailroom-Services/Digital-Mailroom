@@ -25,13 +25,13 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 
 ## Configs
 
-- `config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml`
+- `config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml`
 
 ## Notes
 
 - CLI: pass --profile AFTER the subcommand (sandbox health --profile modal-vllm). Never paste unicode ellipsis into commands.
-- Pretty logs: open sandbox watch --web --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml in a second pane (http://127.0.0.1:8765/) BEFORE sandbox run start. start --watch is the CLI session layer only and does not tail Modal dispatch logs.
-- Canonical deploy knobs: set -a; eval "$(sandbox run deploy-env --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml)"; set +a. Then download_model and modal deploy --strategy recreate once.
+- Pretty logs: open sandbox watch --web --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml in a second pane (http://127.0.0.1:8765/) BEFORE sandbox run start. start --watch is the CLI session layer only and does not tail Modal dispatch logs.
+- Canonical deploy knobs: set -a; eval "$(sandbox run deploy-env --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml)"; set +a. Then download_model and modal deploy --strategy recreate once.
 - benchmark-check is skipped (L4 specialist gate). Engine pins are still catalog-asserted against the run YAML.
 - Trace sink is none so preflight is not blocked without Langfuse keys. Family default remains Langfuse when LANGFUSE_* are set; flip spec.trace.sink to langfuse then re-preflight. Keep PHOENIX_TRACING=disabled unless the Phoenix extra is installed.
 
@@ -103,9 +103,9 @@ Extrapolation: linear in N at fixed C if KV stays below cliff. Doubling N ≈ do
 ## Pretty logging
 
 ```bash
-sandbox watch --web --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml
+sandbox watch --web --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml
 # http://127.0.0.1:8765/
-sandbox run start --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml --job-mode endpoint --watch
+sandbox run start --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml --job-mode endpoint --watch
 ```
 
 See `docs/pretty-logging/mailroom-themed-logging.md` and `docs/snippets/pretty_logs.md`.
@@ -175,16 +175,19 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py --strategy recreate
 
-# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+# VLLM_BASE_URL is the FULL base: deploy output + '/v1'
+#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   (without /v1 every chat call 404s — the profile appends /chat/completions)
+# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
-sandbox run preflight --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml --live
-sandbox run start --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml --job-mode endpoint --watch
+sandbox run preflight --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml --live
+sandbox run start --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml --job-mode endpoint --watch
 
 ./deploy/teardown_vllm.sh   # ONLY after this run
 
-sandbox run status --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml
+sandbox run status --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml
 sandbox scorecard --run run-400-sorter-qwen3-14b-awq-a100
 modal billing summary
 ```

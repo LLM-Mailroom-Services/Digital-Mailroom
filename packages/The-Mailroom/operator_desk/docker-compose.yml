@@ -1,21 +1,34 @@
-# Operator-desk sidecar around the existing The-Mailroom visualizer.
-# Pixel console + Observatory stay vanilla (no Node/React UI).
+# Operator-desk production stack around the The-Mailroom visualizer.
+#
+#   cd operator_desk && docker compose up --build   # → http://localhost/desk
+#
+# One front door: nginx on :80 proxies the visualizer (pixel console /,
+# Observatory /live, React desk /desk, /api, /v1, /ws, /ws/pipeline). The
+# visualizer itself publishes no host port.
+#
+# One bin watcher (hub mailroom-issues#118, Option A): the visualizer runs the
+# in-process observer (MAILROOM_OBSERVER=1) and broadcasts moves on
+# /ws/pipeline directly. There is no separate observer container — running
+# both emitted every event twice. The standalone `mailroom-observer` CLI
+# (POST /v1/ops/events) remains for hosts that watch bins elsewhere; set
+# MAILROOM_OBSERVER=0 here if you run it.
+#
 # Langfuse stays the document-display source — this file does not stand up a
 # Langfuse. Point LANGFUSE_HOST at US cloud (default) or at the
 # local-mailroom-sandbox stack (http://host.docker.internal:3000).
 #
 # The stack binds 0.0.0.0, so the operator desk fails closed on local-dev
-# defaults: set these in .env first (compose refuses to start without them):
-#   MAILROOM_OPERATOR_JWT_SECRET      (long random string)
-#   MAILROOM_OPERATOR_ADMIN_PASSWORD  (not "changeme")
-#   MAILROOM_OPERATOR_INGEST_TOKEN    (shared by mailroom + mailroom-observer)
+# defaults. Compose refuses to start until these are set (e.g. in .env):
+#   MAILROOM_OPERATOR_JWT_SECRET      long random string (openssl rand -hex 32)
+#   MAILROOM_OPERATOR_ADMIN_PASSWORD  not "changeme"
 
 services:
   mailroom:
     build:
       context: ..
-      dockerfile: Dockerfile
+      dockerfile: operator_desk/Dockerfile
     container_name: mailroom-visualizer
+    restart: unless-stopped
     environment:
       - MAILROOM_EDITION=${MAILROOM_EDITION:-console}
       - MAILROOM_HOST=0.0.0.0
@@ -24,10 +37,9 @@ services:
       - MAILROOM_OPERATOR_DB=/data/operator.db
       - MAILROOM_OPERATOR_JWT_SECRET=${MAILROOM_OPERATOR_JWT_SECRET:?set MAILROOM_OPERATOR_JWT_SECRET}
       - MAILROOM_OPERATOR_ADMIN_PASSWORD=${MAILROOM_OPERATOR_ADMIN_PASSWORD:?set MAILROOM_OPERATOR_ADMIN_PASSWORD}
-      - MAILROOM_OPERATOR_INGEST_TOKEN=${MAILROOM_OPERATOR_INGEST_TOKEN:?set MAILROOM_OPERATOR_INGEST_TOKEN}
-      # The mailroom-observer sidecar below watches the bins; running the
-      # in-process observer as well emitted every event twice.
-      - MAILROOM_OBSERVER=${MAILROOM_OBSERVER:-0}
+      # Only needed by an external `mailroom-observer` CLI posting events.
+      - MAILROOM_OPERATOR_INGEST_TOKEN=${MAILROOM_OPERATOR_INGEST_TOKEN:-}
+      - MAILROOM_OBSERVER=${MAILROOM_OBSERVER:-1}
       - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-}
       - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:-}
       - LANGFUSE_HOST=${LANGFUSE_HOST:-https://us.cloud.langfuse.com}
@@ -36,47 +48,20 @@ services:
       - MAILROOM_PIPELINE_TOKEN=${MAILROOM_PIPELINE_TOKEN:-}
     volumes:
       - mailroom-data:/data
-    ports:
-      - "8001:8001"
-    command: python -m server.main
-
-  mailroom-observer:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-    container_name: mailroom-observer
-    environment:
-      - MAILROOM_BASE_DIR=/data
-      - MAILROOM_OPERATOR_DB=/data/operator.db
-      - MAILROOM_API_URL=http://mailroom:8001
-      - MAILROOM_OPERATOR_INGEST_TOKEN=${MAILROOM_OPERATOR_INGEST_TOKEN:?set MAILROOM_OPERATOR_INGEST_TOKEN}
-      - MAILROOM_OBSERVER=0
-    volumes:
-      - mailroom-data:/data
-    command: python -m operator_desk.observer
-    depends_on:
-      - mailroom
-
-  mailroom-ui:
-    profiles: ["ui"]
-    build:
-      context: ../ui
-      dockerfile: Dockerfile
-    container_name: mailroom-ui
-    ports:
-      - "5174:80"
-    depends_on:
-      - mailroom
+    expose:
+      - "8001"
 
   nginx:
     image: nginx:alpine
     container_name: mailroom-nginx
+    restart: unless-stopped
     ports:
-      - "80:80"
+      - "${MAILROOM_HTTP_PORT:-80}:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - mailroom
+      mailroom:
+        condition: service_healthy
 
 volumes:
   mailroom-data:

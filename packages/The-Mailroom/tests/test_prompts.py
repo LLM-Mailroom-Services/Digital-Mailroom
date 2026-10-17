@@ -61,19 +61,19 @@ def test_schema_roster_consistency():
     """The schema's specialist mapping must only reference agents on the
     live roster, and every specialist has a vendored production prompt
     (compliance_specialist is removed upstream; the docclass arm was deleted
-    from llm-mailroom, its mirror is kept for llm-entity-extraction)."""
+    from llm-mailroom; the docclass family stays canonical in-package)."""
     from mailroom_ui.docclass_prompts import DOCLASS_PROMPT_VERSIONS
     from mailroom_ui.pipeline_schema import AGENTS, SPECIALIST_BY_DOC_CLASS
 
     for doc_class, specialist in SPECIALIST_BY_DOC_CLASS.items():
         assert specialist in AGENTS, f"{doc_class} -> {specialist} missing from AGENTS"
         assert specialist in PROMPT_TEMPLATES, f"{doc_class} -> {specialist} has no prompt"
-    assert DOCLASS_PROMPT_VERSIONS  # entity-extraction mirror still vendored
+    assert DOCLASS_PROMPT_VERSIONS  # in-package docclass family still present
 
 
 def test_docclass_registry_shape():
-    """Vendored docclass mirror, resynced verbatim from
-    llm-entity-extraction src/prompts_docclass.py (DMR-016): KANBAN-090
+    """Canonical in-package docclass family (DMR-079; formerly mirrored from
+    llm-entity-extraction, DMR-016): KANBAN-090
     family + pilot universe + HUB-041 mailroom v8 sorter + KANBAN-101/103
     specialists + DMR-015 reviewer v2 + DMR-015 mailroom_prompts lineage
     (74)."""

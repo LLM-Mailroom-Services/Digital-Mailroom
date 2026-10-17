@@ -2,7 +2,7 @@
 """Build the pipeline-ready insurance_claim sample from the DE-SynPUF index.
 
 Produces data/cms/pipeline.jsonl -- one row per rendered EOB document in the
-flat streamer-dump shape consumed by llm-entity-extraction eval runners
+flat streamer-dump shape consumed by the mailroom eval runners
 (`expected="insurance_claim"`, `expected_subclass` = claim subtype, GT fields
 aligned to llm-mailroom's InsuranceClaimExtraction schema).
 

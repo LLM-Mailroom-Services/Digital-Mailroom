@@ -31,6 +31,9 @@ def _set_test_env():
     # LLM-assisted intake (HUB-038) is also opt-in-able; tests stay on the
     # deterministic clerk unless a case opts in (patched gate + mock client).
     os.environ["MAILROOM_LLM_INTAKE"] = "0"
+    # Passive provider health (pager input) writes <base_dir>/provider_health.json
+    # on every LLM attempt; test_provider_health.py opts back in.
+    os.environ["MAILROOM_PROVIDER_HEALTH"] = "0"
     # #85 M6a (#98): ModernBERT intake is opt-in; tests stay on the
     # deterministic clerk unless a case injects the fake mailroom_ml module
     # (test_bert_intake.py) — models + Hub bundles are a network hazard.
@@ -63,6 +66,13 @@ def _set_test_env():
     for k in ("LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_HOST",
               "LANGFUSE_BASE_URL", "BRAINTRUST_API_KEY"):
         os.environ.pop(k, None)
+    # Free-quota breaker (llm/quota.py) is a process singleton: start every
+    # test closed so mocked 429s in one test never short-circuit another.
+    from llm.quota import reset_breaker
+
+    reset_breaker()
+    # Triage result cache (llm/result_cache.py) off unless a case opts in.
+    os.environ["MAILROOM_LLM_CACHE"] = "0"
 
 
 @pytest.fixture

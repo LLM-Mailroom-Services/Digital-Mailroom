@@ -324,7 +324,7 @@ def render(e: dict) -> tuple[str, dict]:
 
 
 def pipeline_row(e: dict, source_dataset: str = "cms-de-synpuf-2008-2010-sample1") -> dict:
-    """Flat streamer-dump shape consumed by llm-entity-extraction eval runners."""
+    """Flat streamer-dump shape consumed by the mailroom eval runners."""
     doc, gt = render(e)
     meta = {
         "record_id": e["record_id"],

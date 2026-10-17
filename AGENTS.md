@@ -9,19 +9,20 @@ workspace redirects.
 
 - `packages/llm-dojo-scoring` — scoring engine (dist `llm-dojo-scoring`)
 - `packages/llm-mailroom` — pipeline (dist `mailroom`, `src/` layout)
-- `packages/llm-entity-extraction` — eval loop (flat `agents`/`src`/`config` layout)
 - `packages/The-Mailroom` — visualizer (dist `the-mailroom`)
-- `packages/agent-mailroom` — walking-office-floor mailroom (dist `agent-mailroom`)
 - `packages/local-mailroom-sandbox` — local experiment sandbox (dist `mailroom-sandbox`)
 - `packages/Enron-Evaluation-Environment` — corpus feed (virtual member, no build)
 - `packages/claims-data-eda` — corpus feed (virtual member, no build)
-- `packages/llm-mailroom-graph` — derived graph site (virtual member, no build)
 - `packages/mailroom-corpus-eda` — corpus EDA + centralized HF upload helpers (virtual member, no build)
 
 Most packages carry their own `AGENTS.md` with project-specific conventions —
-read it before changing code inside a package. `llm-dojo-scoring`,
-`agent-mailroom`, and `llm-mailroom-graph` have no AGENTS.md; their READMEs
-carry the conventions.
+read it before changing code inside a package. `llm-dojo-scoring` has no
+AGENTS.md; its README carries the conventions.
+
+**Pruned in DMR-079 (v0.8.0 = the last release containing them):**
+`llm-entity-extraction` and `llm-mailroom-graph` left the monorepo and survive
+only as standalone `Exios66/*` repos (no longer synced); `agent-mailroom` is
+preserved on the branch `feature/agent-mailroom` (cut from tag `v0.8.0`).
 
 ## Specialist subagents — call them, don't impersonate them
 
@@ -45,18 +46,18 @@ list`).
 |---|---|---|---|---|
 | 1 | **Data & databases** | `athena-database-agent` | Dataset selection & integration (HF/Kaggle/Braintrust), schema design, ingestion/transformation pipelines, data QA, ML data preparation, SQL/NoSQL optimization | "We need the Enron correspondence dataset loaded into a SQLite schema for the eval loop — design the schema and write the ingestion script." / "The claims-data-eda CSV has 140k rows with inconsistent date formats — build a transformation pipeline that normalizes dates and deduplicates." / "Run a data QA pass on the mailroom-dataset parquet files: check for missing fields, type violations, and duplicate row hashes." |
 | 2 | **HuggingFace & data science** | `lucius` | HF downloads/uploads/edits, `datasets`/`transformers` pipelines, EDA, statistical analysis, model training/eval, database upkeep | "Download the `Lucius-Morningstar/mailroom-dataset` dataset v9 split and run an EDA: field coverage, class imbalance, doc-length distribution." / "Upload the new `mailroom-dataset` v9 dataset to HF Hub using the centralized helpers in mailroom-corpus-eda." / "Train a lightweight classifier on the docclass labels and report per-class F1 — use the braintrust experiment logger." |
-| 3 | **Prompt engineering** | `prompt-engineer` (project, `.opencode/agents/prompt-engineer.md`) | Run-failure diagnosis, GEPA mutations, prompt A/Bs across the llm-entity-extraction + llm-mailroom surfaces; master diagnostic evaluator and prompt engineer | "v24 left a `term_length` containment dip — diagnose it and produce v25." / "We're stuck at 0.93 on the sorter — what should the next rule be?" / "Candidate v31 didn't beat v30 by much — check the delta against the noise floor and decide if it's plateau territory." / "The contracts specialist is hallucinating on `change_of_control` clauses — reflect on the failure traces and engineer a surgical fix." |
+| 3 | **Prompt engineering** | `prompt-engineer` (project, `.opencode/agents/prompt-engineer.md`) | Run-failure diagnosis, GEPA mutations, prompt A/Bs across the llm-mailroom + llm-dojo-scoring prompt surfaces; master diagnostic evaluator and prompt engineer | "v24 left a `term_length` containment dip — diagnose it and produce v25." / "We're stuck at 0.93 on the sorter — what should the next rule be?" / "Candidate v31 didn't beat v30 by much — check the delta against the noise floor and decide if it's plateau territory." / "The contracts specialist is hallucinating on `change_of_control` clauses — reflect on the failure traces and engineer a surgical fix." |
 | 4 | **Docs & board** | `atom` | READMEs/wikis/changelogs, doc-drift detection, Kanban board upkeep, inter-agent coordination, repo restructuring | "The llm-mailroom README references a `deploy/` dir that no longer exists — fix the drift." / "Update the governance/TASKS.md board to reflect DMR-029 through DMR-037." / "The docs wiki page `Served-Board.md` is out of sync with the actual board-site API — reconcile and push." |
 | 5 | **Software & UI** | `hazel-ui-software-master` | UI/UX, fullstack, HTML/JS/CSS, bug fixes, local network testing, app architecture | "The board-site index.html drag-and-drop broke on Safari — debug and patch." / "Build a local-network test harness for the visualizer so agents can preview pages before deploy." / "Redesign the mailroom-dispatch-board.html filter panel for mobile viewports." |
 | 6 | **Systems & repo hygiene** | `jarvis-systems-maximizer` | Performance triage, memory/CPU hogs, disk usage, cache cleanup, repo bloat, process prioritization | "The repo is 4GB — identify the bloat and suggest what to prune." / "My laptop is sluggish during eval runs — profile the processes and recommend prioritization." / "The `.venv` cache is eating 1.2GB — clean it safely without breaking the workspace." |
 | 7 | **vLLM serving** | `vllm-specialist` (project, `.opencode/agents/vllm-specialist.md`) | `vllm serve` configs, quantization, multi-LoRA, structured outputs, speculative decoding, tensor/data/expert/context parallelism, KV-cache/memory tuning, diagnosing OOMs and throughput regressions | "Set up `vllm serve` for Llama-3-8B on an A10G with AWQ quantization — I need the exact flags for v0.29.0." / "The Modal-hosted vLLM is OOMing on 4096-token prompts — tune the memory budget and `max-model-len`." / "Enable prefix caching and structured JSON output via xgrammar for the contracts extraction endpoint." / "Diagnose why throughput dropped 40% after upgrading from v0.28.0 to v0.29.0 — check if Model Runner V2 is the cause." |
-| 8 | **Modal compute** | `modal-specialist` (project, `.opencode/agents/modal-specialist.md`) | Modal apps (`@app.function`/`@app.cls`/`@app.server`), container Images, Volumes, Secrets, Dicts/Queues, Sandboxes, GPU selection & cost control, scale-to-zero/cold-start tuning, `modal serve`/`deploy`/`run`/`endpoint`, debugging Modal-hosted services | "Deploy `deploy/modal_vllm.py` to Modal with an L4 GPU, `scaledown_window=15min`, and a persistent HF cache volume." / "The Sandbox v2 backend isn't working — check the SDK version and fix the opt-in config." / "Add a `modal.Secret` for `HF_TOKEN` and a `modal.Volume` for the vLLM model cache to the entity extraction deploy app." / "Why is cold-start taking 12 minutes? Tune `startup_timeout` and check if memory snapshots apply." |
+| 8 | **Modal compute** | `modal-specialist` (project, `.opencode/agents/modal-specialist.md`) | Modal apps (`@app.function`/`@app.cls`/`@app.server`), container Images, Volumes, Secrets, Dicts/Queues, Sandboxes, GPU selection & cost control, scale-to-zero/cold-start tuning, `modal serve`/`deploy`/`run`/`endpoint`, debugging Modal-hosted services | "Deploy `deploy/modal_vllm.py` to Modal with an L4 GPU, `scaledown_window=15min`, and a persistent HF cache volume." / "The Sandbox v2 backend isn't working — check the SDK version and fix the opt-in config." / "Add a `modal.Secret` for `HF_TOKEN` and a `modal.Volume` for the vLLM model cache to the llm-mailroom vLLM deploy app." / "Why is cold-start taking 12 minutes? Tune `startup_timeout` and check if memory snapshots apply." |
 | 9 | **Board & repo auditing** | `board-evidence-auditor` (project, `.opencode/agents/board-evidence-auditor.md`) | Verifying board card claims against shipped evidence, auditing modules for incomplete work/TODOs, opening issues and DMR cards for discrepancies, maintaining STATE.md audit trail | "Audit all DMR-011 through DMR-029 cards — verify each claim against actual code and open cards for anything missing." / "The board claims DMR-029 is done, but the deploy file still has `Secret.from_local` — verify and open a defect card." / "Run a repo-wide audit for TODO/FIXME markers in deploy files and document findings in STATE.md." / "Check if the evidence links on done cards actually point to merged PRs, not stale branches." |
 | 10 | **File management & organization** | `archivist-file-organizer` (global, `~/.config/opencode/agents/`) | Repo-layout audits and restructures, directory/file grouping and renames, vendor/snapshot tree upkeep (drift refactors, VENDOR.md pins), symlink/workspace hygiene, duplicate-file detection, junk/orphan sweeps | "Audit the sandbox `vendor/` tree and propose a canonical snapshot layout with verified moves." / "Find and sweep `.orig`/`.rej`/editor-swap junk across the monorepo." / "Renaming `mailroom_ui/` internals — map every reference and prove the tree still resolves." |
 | 11 | **Concise code analysis** | `code-analyst` (global, `~/.config/opencode/agents/`) | Fast structured verdicts on code you point it at: diff review, root-cause tracing, dead-code confirmation, risk maps of unfamiliar modules — output is verdict + file:line evidence, never a book | "Give me a concise risk map of the pipeline retry ladder before I touch the 429 handling." / "Review this diff for silent-behavior changes." / "Is `hf_rows_as_manifest` dead? Show the search proof." |
 | 12 | **Test suite auditing** | `test-suite-auditor` (global, `~/.config/opencode/agents/`) | Auditing suites themselves: dead/weak tests, stub dishonesty (stubs that cannot express real failure modes), unpinned error paths, skip discipline, marker hygiene — the "loud = monitored" enforcement layer | "Which of these loud-error behaviors are actually pinned by tests, and where would a regression slip in green?" / "Audit the stub honesty of the modal-side test doubles." / "Why does deleting the vendor tree turn the drift guard into a skip?" |
 | 13 | **Master governance orchestrator** | `orchestrator-governor` (global, `~/.config/opencode/agents/`, `mode: all`) | Planning + dispatch + governance: reads AGENTS.md + the board first, breaks missions into units, briefs specialists like cards, chains them (never impersonates), holds the card lifecycle, closes with evidence; run as PRIMARY (plan/drive a session) or SUBAGENT (any agent hands it a mission) | "Plan and orchestrate the sandbox sweep — route each specialty and keep the card honest." / "I need a dispatch plan for a data + prompts + deploy mission; which agents in what order?" / "Govern this card to done: dispatch, gates, evidence, close." |
-| 14 | **Codebase exploration** | `explore` | Fast read-only searches ("where is X", "how does Y work") before you edit — never modifies code | "Where is the `vllm` provider wired into the mailroom pipeline?" / "How does the board_state.py sync-issues command map TASKS.md lanes to GitHub labels?" / "Find all files that import `modal` — I need to know what touches the Modal SDK." / "What's the contract between the entity extraction prompts and the mailroom pipeline prompts?" |
+| 14 | **Codebase exploration** | `explore` | Fast read-only searches ("where is X", "how does Y work") before you edit — never modifies code | "Where is the `vllm` provider wired into the mailroom pipeline?" / "How does the board_state.py sync-issues command map TASKS.md lanes to GitHub labels?" / "Find all files that import `modal` — I need to know what touches the Modal SDK." / "What's the contract between the dojo-scoring prompts and the mailroom pipeline prompts?" |
 | 15 | **General multi-step** | `general` | Research/execution spanning several specialties with no single owner; tasks that cut across data + prompts + infra | "Build an end-to-end eval pipeline: pull the dataset from HF, run extraction, score with dojo-scoring, and upload results to Braintrust." / "Set up a new package in the monorepo: create the layout, pyproject.toml, AGENTS.md, CI config, and sync_packages.json entry." / "Investigate why the mailroom pipeline is misclassifying insurance claims — check the data, the prompts, and the scorer in sequence." |
 
 > **Note:** `.opencode/agents/STATE.md` is **not** a callable subagent — it is the board-evidence-auditor's live audit state file. Read it before any audit session to avoid repeating past mistakes, but never invoke it via the Task tool.
@@ -156,7 +157,7 @@ are on before you edit:
 **The five commands every agent must know:**
 
 ```bash
-python scripts/sync_packages.py status                          # drift report (expect 10/10 in sync)
+python scripts/sync_packages.py status                          # drift report (expect 7/7 in sync)
 python scripts/sync_packages.py push --package <name> [--patch] # publish monorepo deltas upstream
 python scripts/sync_packages.py push --all --patch              # the release-train sweep (HUB-005)
 python scripts/sync_vendor.py                                   # refresh sandbox vendor snapshots (+ --check gate)
@@ -171,7 +172,7 @@ python scripts/release_notes.py X.Y.Z                           # render the Git
    GitHub Release body is generated by `release_notes.py X.Y.Z`.
 2. **Standalone package release** (an `Exios66/<name>` repo): cut in that
    package via its own release tooling (e.g. `scripts/release.py --bump` in
-   llm-entity-extraction / The-Mailroom, or an explicit annotated tag), then
+   The-Mailroom, or an explicit annotated tag), then
    **propagate** monorepo-side deltas with `sync_packages.py push` and
    re-baseline the cursor. Bump a consuming pin ONLY at release time of the
    pinned package (`packages/llm-mailroom/src/scripts/bump_dojo_scoring.py`
@@ -199,9 +200,7 @@ Per-package test suites:
 ```bash
 uv run pytest packages/llm-dojo-scoring/tests
 uv run pytest packages/llm-mailroom/src/tests
-uv run pytest packages/llm-entity-extraction/tests
 uv run pytest packages/The-Mailroom/tests
-uv run pytest packages/agent-mailroom/tests
 uv run pytest packages/local-mailroom-sandbox/tests
 uv run pytest packages/claims-data-eda/tests
 uv run pytest packages/Enron-Evaluation-Environment/tests
@@ -245,9 +244,9 @@ blind-config label guard, issue #5 intent hydration).
 `governance/TASKS.md` is the monorepo's task board and the single source of
 truth for cross-agent task state: what is assigned, in progress, needs
 attention, and done. Read it FIRST every session, before any task. It is the
-simplified counterpart of
-`packages/llm-entity-extraction/governance/MESSAGE_BOARD.md` (same laws,
-fewer steps); package-scoped work keeps its own board.
+simplified counterpart of the per-package message boards (same laws, fewer
+steps); package-scoped work keeps its own board. (The
+`llm-entity-extraction` `MESSAGE_BOARD.md` left with that package in DMR-079.)
 
 **DMR namespace (DMR-001, 2026-09-09):** this repo is the standalone
 Digital-Mailroom version, cloned from the original `Exios66/mailroom-dev`
@@ -393,7 +392,7 @@ reconciles the mirrors; the monorepo is the development source of truth.
 is `python scripts/sync_packages.py push --all --patch` — one command fetches
 every upstream tip, lands the monorepo delta as a single fast-forward commit
 per package, and re-baselines the cursors; follow with
-`sync_packages.py status` (expect 10/10 in sync, 0 monorepo-ahead) and
+`sync_packages.py status` (expect 7/7 in sync, 0 monorepo-ahead) and
 commit the cursor file. `patch_push` extracts committed blobs (`git ls-tree -r
 HEAD` + `git cat-file blob`) — uncommitted work never propagates (DMR-028).
 

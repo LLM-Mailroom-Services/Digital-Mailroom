@@ -25,12 +25,12 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 
 ## Configs
 
-- Gate, runs first: `config/runs/sand40-check-5-merger-specialist-awq-2l4.yaml` (`sandbox run card --gate` must pass)
-- `config/runs/sand40-100-correspondence-specialist-awq-2l4.yaml`
-- `config/runs/sand40-100-insurance-claims-specialist-awq-2l4.yaml`
-- `config/runs/sand40-100-corporate-records-specialist-awq-2l4.yaml`
-- `config/runs/sand40-100-contracts-specialist-awq-2l4.yaml`
-- `config/runs/sand40-50-merger-specialist-awq-2l4.yaml`
+- Gate, runs first: `config/runs/sand040/sand40-check-5-merger-specialist-awq-2l4.yaml` (`sandbox run card --gate` must pass)
+- `config/runs/sand040/sand40-100-correspondence-specialist-awq-2l4.yaml`
+- `config/runs/sand040/sand40-100-insurance-claims-specialist-awq-2l4.yaml`
+- `config/runs/sand040/sand40-100-corporate-records-specialist-awq-2l4.yaml`
+- `config/runs/sand040/sand40-100-contracts-specialist-awq-2l4.yaml`
+- `config/runs/sand040/sand40-50-merger-specialist-awq-2l4.yaml`
 
 ## Per-cell posture (live)
 
@@ -95,33 +95,36 @@ export MODAL_VLLM_API_TOKEN="${MODAL_VLLM_API_TOKEN:-$(openssl rand -hex 24)}"
 modal profile activate "${SANDBOX_MODAL_PROFILE_TRACK_A:-hermes-agent-jjb}"
 modal profile current
 
-sandbox run benchmark-check --config config/runs/sand40-100-correspondence-specialist-awq-2l4.yaml
+sandbox run benchmark-check --config config/runs/sand040/sand40-100-correspondence-specialist-awq-2l4.yaml
 
 modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py --strategy recreate
 
-# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+# VLLM_BASE_URL is the FULL base: deploy output + '/v1'
+#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   (without /v1 every chat call 404s — the profile appends /chat/completions)
+# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
 # gate: sand40-check-5-merger-specialist-awq-2l4 must pass before the scored cells
-sandbox run preflight --config config/runs/sand40-check-5-merger-specialist-awq-2l4.yaml --live --force
-sandbox run scrape-metrics --config config/runs/sand40-check-5-merger-specialist-awq-2l4.yaml --label before
-sandbox run start --config config/runs/sand40-check-5-merger-specialist-awq-2l4.yaml --job-mode endpoint --watch
-sandbox run scrape-metrics --config config/runs/sand40-check-5-merger-specialist-awq-2l4.yaml --label after
-if ! sandbox run card --config config/runs/sand40-check-5-merger-specialist-awq-2l4.yaml --gate; then
+sandbox run preflight --config config/runs/sand040/sand40-check-5-merger-specialist-awq-2l4.yaml --live --force
+sandbox run scrape-metrics --config config/runs/sand040/sand40-check-5-merger-specialist-awq-2l4.yaml --label before
+sandbox run start --config config/runs/sand040/sand40-check-5-merger-specialist-awq-2l4.yaml --job-mode endpoint --watch
+sandbox run scrape-metrics --config config/runs/sand040/sand40-check-5-merger-specialist-awq-2l4.yaml --label after
+if ! sandbox run card --config config/runs/sand040/sand40-check-5-merger-specialist-awq-2l4.yaml --gate; then
   echo "gate failed: tearing down without running the scored cells" >&2
   ./deploy/teardown_vllm.sh
   exit 1
 fi
 
 for cfg in \
-  config/runs/sand40-100-correspondence-specialist-awq-2l4.yaml \
-  config/runs/sand40-100-insurance-claims-specialist-awq-2l4.yaml \
-  config/runs/sand40-100-corporate-records-specialist-awq-2l4.yaml \
-  config/runs/sand40-100-contracts-specialist-awq-2l4.yaml \
-  config/runs/sand40-50-merger-specialist-awq-2l4.yaml
+  config/runs/sand040/sand40-100-correspondence-specialist-awq-2l4.yaml \
+  config/runs/sand040/sand40-100-insurance-claims-specialist-awq-2l4.yaml \
+  config/runs/sand040/sand40-100-corporate-records-specialist-awq-2l4.yaml \
+  config/runs/sand040/sand40-100-contracts-specialist-awq-2l4.yaml \
+  config/runs/sand040/sand40-50-merger-specialist-awq-2l4.yaml
 do
   sandbox run preflight --config "$cfg" --live --force
   sandbox run scrape-metrics --config "$cfg" --label before

@@ -30,7 +30,7 @@ producer or the local sandbox. Ports as shipped:
 |---|---|---|---|
 | **The-Mailroom** console (`mailroom-web`) | `Dockerfile` (`python -m server.main`) | `:8001` | Langfuse (read), producer `/v1` (operator writes) |
 | **The-Mailroom** Observatory (`mailroom-hosted`) | `Dockerfile` default CMD | `:7860` (platform `PORT` wins) | same |
-| Operator desk stack | `operator_desk/docker-compose.yml` (`mailroom`, `mailroom-observer`, `nginx`, optional `mailroom-ui`) | `:8001`, `:80`, `:5174` | the visualizer; bins under `/data` |
+| Operator desk stack | `operator_desk/docker-compose.yml` (`mailroom` from `operator_desk/Dockerfile` with the in-process bin watcher + baked `/desk`, `nginx`) | `:80` only | the visualizer; bins under `/data` |
 | llm-mailroom producer | llm-mailroom `deploy/docker-compose.producer.yml` | `:8000` | Langfuse (write), OpenRouter / vLLM / Ollama / llamafile |
 | Local LLM sidecars | llm-mailroom `deploy/docker-compose.{ollama,llamafile}.yml` | `:11434` / `:8080` | producer (`DEFAULT_PROVIDER=ollama\|llamafile`) |
 | Self-hosted Langfuse 3 (+ postgres, clickhouse, redis, minio) | local-mailroom-sandbox `deploy/docker-compose.yml` | `:3000` | producer + this visualizer |

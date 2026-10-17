@@ -21,7 +21,7 @@ from typing import Any, Mapping
 
 from mailroom_sandbox.job.checkpoint import RunStore
 from mailroom_sandbox.paths import repo_root
-from mailroom_sandbox.report_paths import experiment_prefix
+from mailroom_sandbox.report_paths import experiment_prefix, report_folder
 
 _log = logging.getLogger("mailroom_sandbox.job.dated_reports")
 
@@ -84,7 +84,7 @@ def _cell_n(store: RunStore, lock: Mapping[str, Any], items: list) -> int:
 def _dated_reports_root(store: RunStore, root: Path) -> Path:
     lock = store.read_lock() or {}
     prefix = experiment_prefix(store.run_id, lock)
-    return root / "reports" / prefix if prefix else root / "reports"
+    return root / "reports" / report_folder(prefix) if prefix else root / "reports"
 
 
 def cell_stem(store: RunStore, *, lock: Mapping[str, Any] | None = None) -> tuple[str, str] | None:
@@ -160,9 +160,9 @@ def serving_export_path(store: RunStore, *, repo: Path | None = None) -> Path | 
             folder = "probes"
         else:
             folder = f"n={_cell_n(store, lock, store.load_items())}"
-        return root / "reports" / "serving" / prefix / shape / folder / f"{run_id}.serving.json"
+        return root / "reports" / "serving" / report_folder(prefix) / shape / folder / f"{run_id}.serving.json"
     if prefix:
-        return root / "reports" / "serving" / prefix / f"{run_id}.serving.json"
+        return root / "reports" / "serving" / report_folder(prefix) / f"{run_id}.serving.json"
     if mapped is not None:
         folder, _stem = mapped
         return root / "reports" / "serving" / local_report_date() / folder / f"{run_id}.serving.json"

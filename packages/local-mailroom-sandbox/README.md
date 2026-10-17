@@ -73,6 +73,8 @@ sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name
 sandbox watch [--web] [--config config/runs/<name>.yaml]       # mailroom TUI + Modal log tail (see docs/pretty-logging/mailroom-themed-logging.md)
 sandbox run start --config <run.yaml> --job-mode modal --watch   # Modal worker
 sandbox prompts list | show <agent> [--variant X]
+sandbox prompts list-versions [--role R] | show <key> [--diff <other-key> | --memo]   # every eval-environment prompt version
+sandbox eval sorter --prompt-version sorter_v4        # run any version: docs/prompts/
 sandbox metrics compare --runs local,modal,api | --log
 sandbox tunnel --profile vllm-remote plan|up|status|down
 sandbox traces export
@@ -109,19 +111,34 @@ GPU recommended for Qwen 8B.
 | [Layout contract](docs/setting-up/LAYOUT.md) | **Which folder owns what** — the two config trees, frozen surfaces, junk policy |
 | [Agent skills](.cursor/skills/README.md) | Langfuse, Phoenix, Braintrust, Ollama, Modal, Hugging Face |
 
+## Specialist extraction rules
+
+- `config/prompts/corporate_records_specialist_simplified.txt`, line 11:
+  `subsidiary_list` emits `record_type: other`, the parent as `entity_name`,
+  a subsidiary listing in `subject_matter`, and subsidiary names in `keywords`.
+  `filing_number` is null unless an official filing or document number is present;
+  an exhibit ID never qualifies.
+- `config/prompts/correspondence_specialist_simplified.txt`, lines 14 and 33:
+  `communication_type` is null when no registered token fits the visible text;
+  continue extracting sender, recipient, and date from headers. Do not invent a type.
+
+See [prompt guidance](config/prompts/README.md#extraction-rules-in-the-re-frozen-v1-stems)
+for the registered communication types and source links.
+
 ## Layout
 
 ```
 config/profiles/     provider profiles (local-first defaults)
 config/runs/         run specs for `sandbox run` (vllm-local / vllm-remote / modal-vllm)
 config/prompts/      frozen prompt stems (referenced by name from run specs)
+docs/prompts/        catalog of every eval-environment prompt version: memos, changes, diffs, full text (generated)
 config/taxonomy.overlay.yaml
 config/models.yaml   OpenRouter champion → local tag map
 deploy/              Dockerfile + compose + Modal vLLM (modal_vllm.py) + Modal job worker (modal_job.py) + htcondor/ + conda/
 notebooks/           offline env setup + data prep + mock smoke
 data/fixtures/       offline samples (see ATTRIBUTION.md)
 src/mailroom_sandbox/
-vendor/              tracked family snapshots (llm-mailroom v0.7.1 + llm-dojo-scoring v0.15.0; see VENDOR.md)
+vendor/              tracked family snapshots (llm-mailroom v0.7.1 + llm-dojo-scoring v0.22.0 (released 2026-10-16); see VENDOR.md)
 reports/             sandbox experiment log (not a sister-repo mirror)
 governance/          SAND-* board (README / PREFIX / TASKS / archive)
 api-evals/           OpenRouter API cost harness — its own config/runs/ + reports/ and its own CLI
@@ -148,7 +165,6 @@ See [`docs/setting-up/docker-offline.md`](docs/setting-up/docker-offline.md).
 <div align="center">
 
 **[llm-mailroom](https://github.com/Exios66/llm-mailroom)** ·
-**[llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction)** ·
 **[llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring)** ·
 **[The-Mailroom](https://github.com/Exios66/The-Mailroom)**
 

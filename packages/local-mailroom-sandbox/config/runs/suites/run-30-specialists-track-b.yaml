@@ -22,5 +22,5 @@ modal_profile_default: ""
 scaledown_seconds: 120
 warm_once: true
 configs:
-  - config/runs/run-30-merger-specialist.yaml
-  - config/runs/run-30-insurance-claims-specialist.yaml
+  - config/runs/legacy/run-30-merger-specialist.yaml
+  - config/runs/legacy/run-30-insurance-claims-specialist.yaml

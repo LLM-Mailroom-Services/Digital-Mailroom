@@ -153,7 +153,7 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 | `sandbox down` | Stop compose services |
 | `sandbox pull-models` | Pull required Ollama models |
 | `sandbox health` | Probe the active provider |
-| `sandbox fetch-deps` | Optional: refresh the TRACKED vendor snapshots (llm-mailroom v0.7.1 + llm-dojo-scoring v0.15.0) from pinned tags |
+| `sandbox fetch-deps` | Optional: refresh the TRACKED vendor snapshots (llm-mailroom v0.7.1 + llm-dojo-scoring v0.22.0) from pinned tags |
 | `sandbox fetch-deps --visualizer` | Also clone The-Mailroom |
 
 ### Eval commands
@@ -322,7 +322,7 @@ crash-safe checkpoints.
 ### Workflow
 
 ```bash
-# 1. Write a run spec (see config/runs/example.yaml)
+# 1. Write a run spec (see config/runs/examples/example.yaml)
 # 2. Preflight: validate, prepare, lock
 sandbox run preflight --config config/runs/my-run.yaml
 
@@ -533,7 +533,7 @@ from the 27-key GT schema).
 ### Fetch vendored deps
 
 ```bash
-sandbox fetch-deps                        # optional: refresh tracked vendor snapshots (llm-mailroom v0.7.1 + llm-dojo-scoring v0.15.0)
+sandbox fetch-deps                        # optional: refresh tracked vendor snapshots (llm-mailroom v0.7.1 + llm-dojo-scoring v0.22.0)
 sandbox fetch-deps --visualizer           # also clone The-Mailroom
 ```
 

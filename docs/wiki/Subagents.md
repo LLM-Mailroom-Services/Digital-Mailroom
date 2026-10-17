@@ -12,7 +12,7 @@ slice of the card.
 | --- | --- | --- |
 | Data & databases | `athena-database-agent` | datasets (HF/Kaggle/Braintrust), schema design, ingestion/transformation pipelines, data QA, ML data preparation |
 | HuggingFace & data science | `lucius` | HF downloads/uploads/edits, `datasets`/`transformers`, EDA, statistical analysis, model training/eval, database upkeep |
-| Prompt engineering | `prompt-engineer` | run-failure diagnosis, GEPA mutations, prompt A/Bs across the llm-entity-extraction + llm-mailroom surfaces |
+| Prompt engineering | `prompt-engineer` | run-failure diagnosis, GEPA mutations, prompt A/Bs across the llm-mailroom + llm-dojo-scoring prompt surfaces |
 | Docs & board | `atom` | READMEs/wikis/changelogs, doc-drift detection, Kanban board upkeep, inter-agent coordination, repo restructuring |
 | Software & UI | `hazel-ui-software-master` | UI/UX, fullstack, HTML/JS/CSS, bug fixes, local network testing, app architecture |
 | Systems & repo hygiene | `jarvis-systems-maximizer` | performance triage, memory/CPU hogs, disk usage, cache cleanup, repo bloat, process prioritization |

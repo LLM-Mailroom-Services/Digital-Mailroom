@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Sync docs/wiki/ -> https://github.com/LLM-Mailroom-Services/Digital-Mailroom/wiki (DMR-002).
-# Same pattern as packages/llm-entity-extraction/docs/wiki/sync-wiki.sh:
+# Same pattern as the (pruned, DMR-079) llm-entity-extraction docs/wiki/sync-wiki.sh:
 # the wiki source is version-controlled HERE; the GitHub wiki is a mirror.
 #
 # Usage:

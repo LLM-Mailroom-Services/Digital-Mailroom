@@ -63,7 +63,7 @@ Part B (Tasks 10–15) is live execution with explicit spend gates, on the **`ex
 | `src/mailroom_sandbox/job/specialist_posture.py` (modify) | SAND-032 posture rows (generated), concurrency band up to 8 × replicas |
 | `src/mailroom_sandbox/job/benchmark_check.py` (modify) | Allowlists, fp8-KV + env-drift assertions, explicit Modal profile |
 | `src/mailroom_sandbox/cli.py` (modify) | `run deploy-env`, `run dispose`, `run scrape-metrics`, `--modal-profile` |
-| `config/runs/sand032-*.yaml` (create, 15 files) | Ladder, scale-out, sweep, bf16 configs |
+| `config/runs/sand032/sand032-*.yaml` (create, 15 files) | Ladder, scale-out, sweep, bf16 configs |
 | `config/suites/sand032-sweep.yaml` (create) | Stage-3 chain |
 | `governance/TASKS.md` (modify) | SAND-032 card |
 | Tests: `tests/test_modal_vllm.py`, `tests/test_job_spec.py`, `tests/test_deploy_env.py`, `tests/test_job_runner.py`, `tests/test_job_metrics.py`, `tests/test_vllm_metrics.py`, `tests/test_bt_offline.py`, `tests/test_funding.py`, `tests/test_specialist_posture.py`, `tests/test_sand032_configs.py`, `tests/test_corpus.py` | |
@@ -1312,7 +1312,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 9: SAND-032 run configs, posture rows, benchmark gate, governance card
 
 **Files:**
-- Create: `config/runs/sand032-*.yaml` (15 files, table below), `config/suites/sand032-sweep.yaml`
+- Create: `config/runs/sand032/sand032-*.yaml` (15 files, table below), `config/suites/sand032-sweep.yaml`
 - Modify: `src/mailroom_sandbox/job/specialist_posture.py` (SAND-032 rows; concurrency band)
 - Modify: `src/mailroom_sandbox/job/benchmark_check.py` (allowlists; fp8 + drift assertions; `--modal-profile`)
 - Modify: `src/mailroom_sandbox/cli.py` (`--modal-profile` on `common`, passed as `expected_modal_profile`)
@@ -1412,7 +1412,7 @@ trace:
 
 **bf16 arm:** `sand032-s4-corr20-bf16` uses correspondence n=20, model `Qwen/Qwen3-8B`, ctx 16384, quant "", thinking false, kv "", seqs 6, eager true, graphs [], rep 1, conc 8, cap 0.20, wall 2400.
 
-Before writing the table, verify that each `prompt_file` exists in `config/prompts/` (`ls config/prompts | grep -E "specialist_(production|simplified|v33)"`). If a stem differs, use the stem the latest AWQ runs used (`grep -n "file:" config/runs/run-20-*-awq*.yaml`).
+Before writing the table, verify that each `prompt_file` exists in `config/prompts/` (`ls config/prompts | grep -E "specialist_(production|simplified|v33)"`). If a stem differs, use the stem the latest AWQ runs used (`grep -n "file:" config/runs/legacy/run-20-*-awq*.yaml`).
 
 - [ ] **Step 1: Write failing tests** `tests/test_sand032_configs.py`:
 
@@ -1425,7 +1425,7 @@ from mailroom_sandbox.job.spec import load_run_spec
 from mailroom_sandbox.job.specialist_posture import SAND032_RUNS, validate_mapping, SPECIALIST_POSTURE
 from mailroom_sandbox.paths import config_dir
 
-RUNS = sorted((config_dir() / "runs").glob("sand032-*.yaml"))
+RUNS = sorted((config_dir() / "runs" / "sand032").glob("*.yaml"))
 STAGE23 = [p for p in RUNS if p.stem.startswith(("sand032-s2", "sand032-s3"))]
 
 
@@ -1455,7 +1455,7 @@ def test_stage23_pins_fp8_kv_awq(path):
 
 
 def test_merger_uses_merger_specialist():
-    spec = load_run_spec(config_dir() / "runs" / "sand032-s3-merger50.yaml")
+    spec = load_run_spec(config_dir() / "runs" / "sand032" / "sand032-s3-merger50.yaml")
     assert spec.task == "merger_agreement_specialist"
 
 
@@ -1481,7 +1481,7 @@ Expected: FAIL (no configs, no `SAND032_RUNS`).
 
 ```python
 # SAND-032: ladder / scale-out / sweep / bf16 rows, generated from one table so
-# the caps and budgets stay consistent with config/runs/sand032-*.yaml.
+# the caps and budgets stay consistent with config/runs/sand032/sand032-*.yaml.
 _SAND032_AGENTS = {
     "correspondence": ("correspondence_specialist", "correspondence_specialist_production", 2048, 3500, 600),
     "insurance_claim": ("insurance_claims_specialist", "insurance_claims_specialist_simplified", 3072, 5000, 900),
@@ -1554,7 +1554,7 @@ def test_benchmark_check_flags_env_drift(monkeypatch):
     from mailroom_sandbox.job.benchmark_check import check_benchmark_posture
     from mailroom_sandbox.job.deploy_env import spec_env
 
-    spec = load_run_spec(config_dir() / "runs" / "sand032-s2b-corr100-2rep.yaml")
+    spec = load_run_spec(config_dir() / "runs" / "sand032" / "sand032-s2b-corr100-2rep.yaml")
     env = dict(spec_env(spec)); env["MODAL_VLLM_KV_CACHE_DTYPE"] = ""
     rep = check_benchmark_posture(spec=spec, require_hermes=False, env=env)
     assert any("MODAL_VLLM_KV_CACHE_DTYPE" in e for e in rep["errors"])
@@ -1573,13 +1573,13 @@ Change `**Next ID: \`SAND-032\`**` to `**Next ID: \`SAND-033\`**`. Run `pytest t
 - [ ] **Step 7: Run the whole suite**
 
 Run: `pytest -q`
-Expected: all PASS (live tests skipped). Also run `sandbox runbook check` and `for f in config/runs/sand032-*.yaml; do sandbox run preflight --config "$f" || echo "FAIL $f"; done`. Expected: no FAIL lines. Offline preflight needs `data/cache` from `sandbox datasets pull`; if the cache is missing, preflight reports that and it is expected until Task 10.
+Expected: all PASS (live tests skipped). Also run `sandbox runbook check` and `for f in config/runs/sand032/sand032-*.yaml; do sandbox run preflight --config "$f" || echo "FAIL $f"; done`. Expected: no FAIL lines. Offline preflight needs `data/cache` from `sandbox datasets pull`; if the cache is missing, preflight reports that and it is expected until Task 10.
 
 - [ ] **Step 8: Commit and push**
 
 ```bash
 git branch --show-current
-git add config/runs/sand032-*.yaml config/suites/sand032-sweep.yaml src/mailroom_sandbox/job/specialist_posture.py src/mailroom_sandbox/job/benchmark_check.py src/mailroom_sandbox/cli.py governance/TASKS.md tests/test_sand032_configs.py tests/test_specialist_posture.py
+git add config/runs/sand032/sand032-*.yaml config/suites/sand032-sweep.yaml src/mailroom_sandbox/job/specialist_posture.py src/mailroom_sandbox/job/benchmark_check.py src/mailroom_sandbox/cli.py governance/TASKS.md tests/test_sand032_configs.py tests/test_specialist_posture.py
 git commit -m "SAND-032: ladder/scale-out/sweep/bf16 run configs, posture rows, fp8+drift benchmark gate, SAND-032 card
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -1628,7 +1628,7 @@ MODAL_VLLM_MODEL=Qwen/Qwen3-8B modal run deploy/modal_vllm.py::download_model
 
 For each rung `R` in `l0-baseline, l1-nothink, l2-marlin, l3-fp8kv, l4-seqs16, l5-graphs`:
 
-- [ ] **Step 1:** Run the spend preamble with `config/runs/sand032-R.yaml`. Then deploy: `modal deploy deploy/modal_vllm.py`, set `VLLM_BASE_URL` to the printed URL + `/v1`, and run `sandbox run preflight --config … --live` (records the cold boot).
+- [ ] **Step 1:** Run the spend preamble with `config/runs/sand032/sand032-R.yaml`. Then deploy: `modal deploy deploy/modal_vllm.py`, set `VLLM_BASE_URL` to the printed URL + `/v1`, and run `sandbox run preflight --config … --live` (records the cold boot).
 - [ ] **Step 2:** `sandbox run scrape-metrics --config … --label before`, then `sandbox run start --config … --job-mode endpoint --watch`, then `sandbox run scrape-metrics --config … --label after`.
 - [ ] **Step 3:** Write the serving record with the existing `sandbox metrics serving` command (cli.py ~L2387) and export offline rows with `sandbox run export-bt --config …`. Stop the app: `modal app stop sandbox-vllm`.
 - [ ] **Step 4:** Apply the gate, paired on the same 20 doc ids vs L0: ok 20/20; mean score ≥ L0 − 0.02; schema_valid ≥ L0 − 0.05; `gpu_cost_per_document` ≤ the previous kept rung. A failing rung (other than L3) is reverted: the next rung's YAML drops that change. Record every rung, kept or reverted, in `reports/serving/SAND-32/SAND032-LADDER.md`: boot s, wall, p50/p95, measured TTFT, tok/s, KV usage, preemptions, length finishes, score, schema_valid, $/doc, run_span_usd_lower_bound.

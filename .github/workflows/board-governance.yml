@@ -24,9 +24,7 @@ on:
       - "packages/llm-dojo-scoring/llm_dojo_scoring/corpus.py"
       - "packages/llm-dojo-scoring/llm_dojo_scoring/config.py"
       - "packages/llm-dojo-scoring/llm_dojo_scoring/mailroom.py"
-      - "packages/llm-entity-extraction/agents/sorter_agent.py"
       - "packages/llm-mailroom/src/langchain_agents/doc_inventories.py"
-      - "packages/llm-entity-extraction/config/taxonomy.yaml"
       - "packages/The-Mailroom/mailroom_ui/pipeline_schema.py"
       - "packages/local-mailroom-sandbox/data/fixtures/hf/docclass_mini.jsonl"
   pull_request:
@@ -42,9 +40,7 @@ on:
       - "packages/llm-dojo-scoring/llm_dojo_scoring/corpus.py"
       - "packages/llm-dojo-scoring/llm_dojo_scoring/config.py"
       - "packages/llm-dojo-scoring/llm_dojo_scoring/mailroom.py"
-      - "packages/llm-entity-extraction/agents/sorter_agent.py"
       - "packages/llm-mailroom/src/langchain_agents/doc_inventories.py"
-      - "packages/llm-entity-extraction/config/taxonomy.yaml"
       - "packages/The-Mailroom/mailroom_ui/pipeline_schema.py"
       - "packages/local-mailroom-sandbox/data/fixtures/hf/docclass_mini.jsonl"
 

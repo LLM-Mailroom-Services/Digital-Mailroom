@@ -76,7 +76,7 @@ export default function ArchiveBrowser() {
           <option value="contract">Contract</option>
           <option value="corporate_record">Corporate Record</option>
           <option value="correspondence">Correspondence</option>
-          <option value="compliance_filing">Compliance Filing</option>
+          <option value="merger_agreement">Merger Agreement</option>
           <option value="insurance_claim">Insurance Claim</option>
         </select>
       </div>

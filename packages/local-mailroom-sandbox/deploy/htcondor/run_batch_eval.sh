@@ -143,7 +143,7 @@ pip install pyyaml python-dotenv httpx structlog pydantic "openai>=1.30"
 # from llm-mailroom + llm_dojo_scoring) ships as TRACKED snapshots under
 # vendor/ in this package — the sandbox __init__ puts them on sys.path, so no
 # git pip pins are needed (the old mailroom@v0.6.0 / llm-dojo-scoring@v0.12.2
-# installs are gone; llm-entity-extraction never shadows anything).
+# installs are gone; no pruned package can shadow anything).
 # Fallback when the conda env was not built with the langchain stack (README §4).
 pip install "langchain-core>=0.3.0" "langchain-openai>=0.3" "langgraph>=0.2.0" \
     "langgraph-checkpoint-sqlite>=1.0" "sqlalchemy[asyncio]>=2.0" "aiosqlite>=0.19"

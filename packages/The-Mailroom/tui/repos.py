@@ -46,23 +46,6 @@ CONSTELLATION: dict[str, dict[str, str]] = {
                  "importable library replacing project-local scoring code.",
         "homepage": "",
     },
-    "llm-entity-extraction": {
-        "role": "eval",
-        "dist": "llm-entity-extraction",
-        "blurb": "Training & evaluation environment to identify strong LLM "
-                 "candidates for legal document entity extraction, "
-                 "classification, and summarization.",
-        "homepage": "",
-    },
-    "agent-mailroom": {
-        "role": "pipeline",
-        "dist": "agent-mailroom",
-        "blurb": "Self-contained legal-document mailroom: one state machine per "
-                 "document, specialist agents at desks, a hash-chained audit "
-                 "log, and a pixel floor where envelopes fly from reception to "
-                 "the boss.",
-        "homepage": "",
-    },
     "local-mailroom-sandbox": {
         "role": "sandbox",
         "dist": "mailroom-sandbox",
@@ -85,13 +68,6 @@ CONSTELLATION: dict[str, dict[str, str]] = {
                  "from the mailroom-dataset (carrier / inpatient / outpatient / "
                  "PDE strata).",
         "homepage": "",
-    },
-    "llm-mailroom-graph": {
-        "role": "derived",
-        "dist": "llm-mailroom-graph",
-        "blurb": "Interactive graphify knowledge graph of llm-mailroom — a "
-                 "derived artifact site rebuilt from the source repo.",
-        "homepage": "https://exios66.github.io/llm-mailroom-graph/",
     },
     "mailroom-corpus-eda": {
         "role": "corpus",
@@ -125,23 +101,8 @@ CONSTELLATION: dict[str, dict[str, str]] = {
         "role": "hub",
         "dist": "mailroom-hub",
         "blurb": "Monorepo mirror of the LLM-Mailroom constellation — one "
-                 "checkout, one virtualenv, ten packages, zero cross-repo "
+                 "checkout, one virtualenv, seven packages, zero cross-repo "
                  "import friction.",
-        "homepage": "",
-    },
-    "mailroom-dev-graph": {
-        "role": "derived",
-        "dist": "mailroom-dev-graph",
-        "blurb": "Interactive graphify knowledge graph of the mailroom-dev "
-                 "monorepo — 4,870 code symbols, 16,161 edges, 325 communities "
-                 "across 10 packages.",
-        "homepage": "https://exios66.github.io/mailroom-dev-graph/",
-    },
-    "llm-entity-extraction-graph": {
-        "role": "derived",
-        "dist": "llm-entity-extraction-graph",
-        "blurb": "Interactive graphify knowledge graph of llm-entity-extraction "
-                 "— a derived artifact site.",
         "homepage": "",
     },
 }

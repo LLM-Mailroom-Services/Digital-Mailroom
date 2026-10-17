@@ -187,7 +187,7 @@ Existing keys (`exact_match`, `overall_extraction_score`, `n`, …) unchanged.
 
 ## AWQ vs FP16 — prepared, not run
 
-Config: [`config/runs/run-20-correspondence-fp16-c8.yaml`](../../config/runs/run-20-correspondence-fp16-c8.yaml).
+Config: [`config/runs/legacy/run-20-correspondence-fp16-c8.yaml`](../../config/runs/legacy/run-20-correspondence-fp16-c8.yaml).
 Same seed/strata/prompt/concurrency 8; checkpoint `Qwen/Qwen3-8B` (no AWQ).
 Required engine delta: `max_model_len=16384` (L4-bf16 boot cap). **Do not
 start this run** until spend/auth are approved. See

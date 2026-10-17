@@ -33,11 +33,11 @@ account is available; otherwise prefer track-a ∥ track-b for parallel wall.
 
 Ordered configs:
 
-1. `config/runs/run-30-contracts-specialist.yaml`
-2. `config/runs/run-30-merger-specialist.yaml`
-3. `config/runs/run-30-corporate-records-specialist.yaml`
-4. `config/runs/run-30-correspondence-specialist.yaml`
-5. `config/runs/run-30-insurance-claims-specialist.yaml`
+1. `config/runs/legacy/run-30-contracts-specialist.yaml`
+2. `config/runs/legacy/run-30-merger-specialist.yaml`
+3. `config/runs/legacy/run-30-corporate-records-specialist.yaml`
+4. `config/runs/legacy/run-30-correspondence-specialist.yaml`
+5. `config/runs/legacy/run-30-insurance-claims-specialist.yaml`
 
 ## Per-doc-type posture (live)
 
@@ -55,9 +55,9 @@ Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 
 | Run | Agent | Local stem | eval-environment key |
 | --- | --- | --- | --- |
-| `run-30-correspondence-specialist` | `correspondence_specialist` | `correspondence_specialist_simplified` | `correspondence_specialist_v1` |
+| `run-30-correspondence-specialist` | `correspondence_specialist` | `correspondence_specialist_simplified` | `correspondence_specialist_v7` |
 | `run-30-insurance-claims-specialist` | `insurance_claims_specialist` | `insurance_claims_specialist_simplified` | `insurance_claims_specialist_v1` |
-| `run-30-corporate-records-specialist` | `corporate_records_specialist` | `corporate_records_specialist_simplified` | `corporate_records_specialist_v1` |
+| `run-30-corporate-records-specialist` | `corporate_records_specialist` | `corporate_records_specialist_simplified` | `corporate_records_specialist_v6` |
 | `run-30-contracts-specialist` | `contracts_specialist` | `contracts_specialist_v33_simplified` | `contracts_specialist_v1` |
 | `run-30-merger-specialist` | `merger_agreement_specialist` | `merger_agreement_specialist_simplified` | `merger_agreement_specialist_v1` |
 
@@ -111,18 +111,21 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py
 
-# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+# VLLM_BASE_URL is the FULL base: deploy output + '/v1'
+#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   (without /v1 every chat call 404s — the profile appends /chat/completions)
+# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
 sandbox run suite --suite full
 # sandbox run suite --suite full --execute --job-mode endpoint
 for cfg in \
-  config/runs/run-30-contracts-specialist.yaml \
-  config/runs/run-30-merger-specialist.yaml \
-  config/runs/run-30-corporate-records-specialist.yaml \
-  config/runs/run-30-correspondence-specialist.yaml \
-  config/runs/run-30-insurance-claims-specialist.yaml
+  config/runs/legacy/run-30-contracts-specialist.yaml \
+  config/runs/legacy/run-30-merger-specialist.yaml \
+  config/runs/legacy/run-30-corporate-records-specialist.yaml \
+  config/runs/legacy/run-30-correspondence-specialist.yaml \
+  config/runs/legacy/run-30-insurance-claims-specialist.yaml
 do
   sandbox run preflight --config "$cfg" --live
   sandbox run start --config "$cfg" --job-mode endpoint --watch

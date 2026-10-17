@@ -142,12 +142,9 @@ JSON_MODE = False
 PACKAGES: dict[str, str] = {
     "Enron-Evaluation-Environment": "Enron-Evaluation-Environment",
     "The-Mailroom": "The-Mailroom",
-    "agent-mailroom": "agent-mailroom",
     "claims-data-eda": "claims-data-eda",
     "llm-dojo-scoring": "llm-dojo-scoring",
-    "llm-entity-extraction": "llm-entity-extraction",
     "llm-mailroom": "llm-mailroom",
-    "llm-mailroom-graph": "llm-mailroom-graph",
     "local-mailroom-sandbox": "local-mailroom-sandbox",
     "mailroom-corpus-eda": "Mailroom-Corpus-EDA",
 }
@@ -1112,7 +1109,11 @@ def _verify_cmd(package: str) -> list[str] | None:
     """Verify-suite command for a package (DMR-070 --verify-suite).
 
     Default: the package's pytest suite (``packages/<pkg>/tests`` or
-    ``packages/<pkg>/src/tests``). ``SYNC_VERIFY_CMD`` (shlex-split)
+    ``packages/<pkg>/src/tests``) run with the PROJECT interpreter —
+    ``uv run pytest`` when this is a uv workspace (``uv.lock`` or ``.venv``
+    at the repo root; ``sys.executable`` is the host python, which may ship
+    no pytest — DMR-083), else ``[sys.executable, -m pytest]`` so the tool
+    still works outside the workspace. ``SYNC_VERIFY_CMD`` (shlex-split)
     overrides — the hermetic tests inject stubs through it. None when the
     package ships no recognizable tests dir (trivially green).
     """
@@ -1123,7 +1124,9 @@ def _verify_cmd(package: str) -> list[str] | None:
         return shlex.split(override)
     for tests_dir in (f"packages/{package}/tests", f"packages/{package}/src/tests"):
         if (REPO_ROOT / tests_dir).is_dir():
-            return [sys.executable, "-m", "pytest", tests_dir, "-q", "--no-header", "-x"]
+            workspace = (REPO_ROOT / "uv.lock").exists() or (REPO_ROOT / ".venv").exists()
+            runner = ["uv", "run", "pytest"] if workspace else [sys.executable, "-m", "pytest"]
+            return [*runner, tests_dir, "-q", "--no-header", "-x"]
     return None
 
 
@@ -1145,6 +1148,12 @@ def run_verify_suite(package: str, *, dry_run: bool = False) -> tuple[bool, str]
     try:
         proc = subprocess.run(cmd, cwd=str(REPO_ROOT), env=env, text=True,
                               capture_output=True, timeout=3600)
+    except FileNotFoundError:
+        # DMR-083: a workspace marker with no `uv` on PATH is a broken
+        # toolchain, not a crash — refuse like the timeout/red-suite siblings.
+        warn(f"!! {package}: verify-suite runner {cmd[0]!r} not found on PATH — "
+             "refusing to advance (DMR-070 --verify-suite)")
+        return False, "verify-suite runner not found"
     except subprocess.TimeoutExpired:
         warn(f"!! {package}: verify-suite TIMED OUT after 3600s — refusing to advance")
         return False, "verify-suite timed out"

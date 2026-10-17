@@ -1,0 +1,113 @@
+# SAND-042 cell — contracts · n=50 · 2×L4 · client concurrency 16 (8 per replica).
+# The four SAND-042 cells ({1,2}×L4 × concurrency {8,16}) share ONE spec, ONE
+# subclass-stratified 50-document draw per class, and ONE warm fleet per cell
+# (one cold boot per cell, five specialists chained). Only replicas and client
+# concurrency differ, so a cell-to-cell difference cannot come from the engine,
+# the prompt, the decode or the documents.
+#   engine  = SAND-037 frozen L5 (awq_marlin, fp8 KV, CUDA graphs, max_num_seqs 16/replica,
+#             thinking off, max_inputs 32)
+#   data    = mailroom-dataset ground_truth @ ed7576b6, split=all (train+test joined with
+#             ground truth), seed 42, one class bucket stratified over EVERY subclass of
+#             that class (proportional, min 1 per subclass — 50 docs, all sub-types)
+#   prompt  = eval-environment frozen v1 simplified stem ONLY
+#   decode  = max_tokens 8192 + temperature 0.7; WHOLE-DOCUMENT CHUNKED extraction
+#             (43,000-char window / 6,000 overlap) — the old 24,000-char head+tail
+#             cap dropped 62 % of contract text. See docs/SAND42-EXPERIMENT-DESIGN.md §3.7
+#   telemetry = container nvidia-smi series (util/power/temp/mem) under the cell label;
+#             pulled by `sandbox run scrape-metrics` and recorded on the run card
+# Runbook: sandbox runbook show sand42-2l4-c16
+schema: sandbox.run/v1
+run_id: sand42-50-contracts-specialist-awq-2l4-c16
+task: contracts_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    contracts_specialist:
+      source: local
+      file: contracts_specialist_v33_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
+  strata:
+    buckets:
+      - doc_class: contract
+        count: 50
+        sub_buckets:
+          - {subclass: "Consulting Agreements", count: 3}
+          - {subclass: "License_Agreements", count: 3}
+          - {subclass: "Supply", count: 3}
+          - {subclass: "Agency Agreements", count: 2}
+          - {subclass: "Co_Branding", count: 2}
+          - {subclass: "Collaboration", count: 2}
+          - {subclass: "Development", count: 2}
+          - {subclass: "Distributor", count: 2}
+          - {subclass: "Endorsement", count: 2}
+          - {subclass: "Franchise", count: 2}
+          - {subclass: "Hosting", count: 2}
+          - {subclass: "IP", count: 2}
+          - {subclass: "Joint Venture _ Filing", count: 2}
+          - {subclass: "Maintenance", count: 2}
+          - {subclass: "Manufacturing", count: 2}
+          - {subclass: "Marketing", count: 2}
+          - {subclass: "Outsourcing", count: 2}
+          - {subclass: "Service", count: 2}
+          - {subclass: "Sponsorship", count: 2}
+          - {subclass: "Strategic Alliance", count: 2}
+          - {subclass: "Transportation", count: 2}
+          - {subclass: "Affiliate_Agreements", count: 1}
+          - {subclass: "Joint Venture", count: 1}
+          - {subclass: "Non_Compete_Non_Solicit", count: 1}
+          - {subclass: "Promotion", count: 1}
+          - {subclass: "Reseller", count: 1}
+  # 91 of the corpus's 600 contracts carry an EMPTY cuad_clause_labels, so a
+  # plain draw silently shrinks the contracts clause column (5/50 in the first
+  # grid). Drop unscoreable documents BEFORE the draw: every subclass's annotated
+  # supply still covers its requested count, so the strata block is unchanged.
+  require_task_gt: true
+  limit: 50
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 16
+    enable_prefix_caching: true
+    enforce_eager: false
+    quantization: "awq_marlin"
+    revision: ""
+    kv_cache_dtype: "fp8"
+    enable_thinking: false
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16]
+    max_inputs: 32
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 2
+    min_containers: 2
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 16
+  cost_cap_usd: 1.3
+  max_wall_seconds: 4800
+
+trace:
+  sink: none
+  otlp: false
+  environment: sand42
+  tags: [sandbox, job, specialist, qwen3-8b-awq, l4, sand42, 2l4-c16]

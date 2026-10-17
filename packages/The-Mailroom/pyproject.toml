@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "the-mailroom"
-version = "0.5.0"
+version = "0.5.1"
 description = "Pixel-art visualization console for the llm-mailroom multi-agent pipeline — Langfuse is the sole source of truth."
 requires-python = ">=3.11"
 dependencies = [

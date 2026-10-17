@@ -323,11 +323,11 @@ def test_estimate_suite_specialist_defaults():
 
     root = Path(__file__).resolve().parents[1]
     configs = [
-        root / "config/runs/run-30-contracts-specialist.yaml",
-        root / "config/runs/run-30-merger-specialist.yaml",
-        root / "config/runs/run-30-corporate-records-specialist.yaml",
-        root / "config/runs/run-30-correspondence-specialist.yaml",
-        root / "config/runs/run-30-insurance-claims-specialist.yaml",
+        root / "config/runs/legacy/run-30-contracts-specialist.yaml",
+        root / "config/runs/legacy/run-30-merger-specialist.yaml",
+        root / "config/runs/legacy/run-30-corporate-records-specialist.yaml",
+        root / "config/runs/legacy/run-30-correspondence-specialist.yaml",
+        root / "config/runs/legacy/run-30-insurance-claims-specialist.yaml",
     ]
     if not all(p.is_file() for p in configs):
         import pytest

@@ -46,6 +46,39 @@ SHAPE_DIRS: dict[int, str] = {1: "1L4", 2: "2L4"}
 SUITE_STEMS: dict[int, str] = {1: "L4x1-SCORE-COST-CARD", 2: "L4x2-SCORE-COST-CARD"}
 RUNBOOK_FOR_REPLICAS: dict[int, str] = {1: "grid-1l4", 2: "grid-2l4"}
 
+# SAND-042 writes its own study folder so the SAND-37/39/40 tree stays untouched.
+STUDY_BY_PREFIX: tuple[tuple[str, str], ...] = (("sand42-", "SAND42"),)
+
+
+def study_for_run(run_id: str | None) -> str:
+    """Report study folder for a run id (default: the SAND-37 grid tree)."""
+    rid = str(run_id or "")
+    for prefix, study in STUDY_BY_PREFIX:
+        if rid.startswith(prefix):
+            return study
+    return ROOT_REL.name
+
+
+def study_root(run_id: str | None, *, repo: Path | None = None) -> Path:
+    return (repo or repo_root()) / "reports" / study_for_run(run_id)
+
+
+def condition_dir(run_id: str | None, replicas: int) -> str:
+    """Folder for one experimental condition under a study root.
+
+    SAND-042 has five conditions — {1×L4, 2×L4} × {client concurrency 8, 16} plus the
+    2×L4 C32 saturation point (SAND-047) — so
+    its folders are ``1L4-c8`` … ``2L4-c32`` rather than the SAND-037 ``1L4``/``2L4``
+    (which would merge C8 and C16 into one folder).
+    """
+    from mailroom_sandbox.job.specialist_posture import sand42_cell_label
+
+    label = sand42_cell_label(run_id)
+    if label:
+        shape, _, concurrency = label.removeprefix("sand42-").partition("-")
+        return f"{shape.upper()}-{concurrency}"
+    return SHAPE_DIRS.get(int(replicas), f"{int(replicas)}L4")
+
 # Specialist folder and display label, in grid order.
 SPECIALISTS: tuple[tuple[str, str, str], ...] = (
     ("correspondence_specialist", "correspondence", "Correspondence"),
@@ -105,11 +138,10 @@ def _probe_run(run_id: str) -> bool:
 
 def card_dir(task: str, replicas: int, *, repo: Path | None = None, run_id: str | None = None) -> Path:
     folder = _FOLDER.get(task, task)
-    root = (repo or repo_root()) / ROOT_REL
+    root = study_root(run_id, repo=repo)
     if run_id and _probe_run(run_id):
         return root / "probes" / folder
-    shape = SHAPE_DIRS.get(int(replicas), f"{int(replicas)}L4")
-    return root / shape / folder
+    return root / condition_dir(run_id, replicas) / folder
 
 
 def card_paths(run_id: str, task: str, replicas: int, *, repo: Path | None = None) -> dict[str, Path]:
@@ -124,6 +156,65 @@ def suite_paths(replicas: int, *, repo: Path | None = None) -> dict[str, Path]:
 
 
 # ── engine telemetry (vLLM /metrics before/after) ───────────────────────────
+
+
+def _midrun_block(store: RunStore) -> dict[str, Any] | None:
+    """The mid-run KV/queue sample, collapsed for the card.
+
+    Two producers write this artifact under one name:
+      * ``scrape-metrics --label mid`` (periodic from the runbook, or an ad-hoc probe)
+        writes the latest doc plus a ``.series.jsonl`` holding every sample;
+      * ``scripts/sand42/midrun_kv.py fold`` writes the cell-level sampler's aggregate.
+    Both collapse to one shape here: ``replicas`` = the latest sample per replica and
+    ``cell_max`` = the maximum of each gauge over every sample, in the scrape's own bare
+    key names (``kv_cache_usage_perc``, not ``vllm:kv_cache_usage_perc``).
+    """
+    doc = _read_json(store.dir / "vllm_metrics_mid.json") or _read_json(
+        store.dir / "vllm_metrics_midrun.json"
+    )
+    entries: list[dict[str, Any]] = []
+    series_path = store.dir / "vllm_metrics_mid.series.jsonl"
+    if series_path.is_file():
+        for line in series_path.read_text(encoding="utf-8").splitlines():
+            try:
+                entries.append(json.loads(line))
+            except ValueError:
+                continue
+    if not doc and not entries:
+        return None
+
+    gauges = ("kv_cache_usage_perc", "num_requests_running", "num_requests_waiting")
+    latest: dict[str, dict[str, Any]] = {}
+    maxima: dict[str, float] = {}
+
+    def _ingest(rep: Mapping[str, Any], *, is_latest: bool) -> None:
+        for g in gauges:
+            v = rep.get(g)
+            if isinstance(v, (int, float)):
+                maxima[g] = max(maxima.get(g, float("-inf")), float(v))
+
+    # the doc's own cell_max may carry the older `vllm:`-prefixed keys
+    for key, val in (doc or {}).get("cell_max", {}).items():
+        if isinstance(val, (int, float)):
+            maxima[key.removeprefix("vllm:")] = max(
+                maxima.get(key.removeprefix("vllm:"), float("-inf")), float(val)
+            )
+    for rid, rep in ((doc or {}).get("replicas") or {}).items():
+        if isinstance(rep, dict):
+            latest[str(rid)] = rep
+            _ingest(rep, is_latest=True)
+    for entry in entries:                        # oldest → newest: the last write wins
+        for rid, rep in (entry.get("replicas") or {}).items():
+            if isinstance(rep, dict):
+                latest[str(rid)] = rep
+                _ingest(rep, is_latest=True)
+
+    out = dict(doc or {})
+    out["replicas"] = latest
+    out["cell_max"] = {k: round(v, 4) for k, v in maxima.items()}
+    if entries:
+        out["samples"] = int((doc or {}).get("samples") or 0) + len(entries)
+    return out
 
 
 def _engine_block(store: RunStore, replicas: int) -> dict[str, Any]:
@@ -160,7 +251,30 @@ def _engine_block(store: RunStore, replicas: int) -> dict[str, Any]:
         "coverage": after.get("coverage"),
         "replicas": rows,
         "scrape_errors": list(after.get("errors") or []),
+        "gpu": _container_telemetry(store),
+        # Mid-run sample. The before/after scrapes fire at the run's drained edges, where
+        # kv_cache_usage_perc is 0 by construction, so this is the only real KV/queue
+        # reading. Written by `scrape-metrics --label mid` (periodic from the runbook, or
+        # an ad-hoc probe), or by scripts/sand42/midrun_kv.py fold for the cell-level
+        # sampler. Same file name either way so both producers are readable here.
+        "midrun": _midrun_block(store),
     }
+
+
+def _container_telemetry(store: RunStore) -> dict[str, Any]:
+    """SAND-042: nvidia-smi samples taken inside the serving replica(s).
+
+    The Modal container appends one JSON line per sample to a Modal Volume; the
+    runbook's after-scrape pulls it to ``container_telemetry_after.json``. Absent
+    on every pre-SAND-042 run (and on a scrape that could not reach the volume),
+    so the block says so rather than inventing zeros.
+    """
+    from mailroom_sandbox.job.container_telemetry import summarize_samples
+
+    doc = _read_json(store.dir / "container_telemetry_after.json")
+    if not doc:
+        return {"captured": False, "reason": "no container telemetry file for this run"}
+    return summarize_samples(doc)
 
 
 # ── per-run card ─────────────────────────────────────────────────────────────
@@ -275,7 +389,10 @@ def collect_card(
     concurrency = max(1, int(job.get("concurrency") or 1))
     gpu = str(modal.get("gpu") or "L4")
     rate = metrics.gpu_usd_per_hour(gpu)
-    posture = posture_for_run(run_id) or {}
+    # Prefer the knobs frozen at preflight over the live posture table: a later
+    # posture edit must never rewrite what a historical card says the run used.
+    locked_knobs = _d(_d(lock.get("agent_knobs")).get(task))
+    posture = {**(posture_for_run(run_id) or {}), **locked_knobs}
 
     items = store.load_items()
     try:
@@ -290,6 +407,11 @@ def collect_card(
 
     wall = _num(rec.get("wall_seconds"))
     busy_usd = wall * replicas * rate / 3600.0 if wall else None
+    # What the run actually metered: the billed window (the run's own container
+    # telemetry, from metrics.serving_record_from_store) x replicas x GPU rate.
+    # Computed from the run, never scraped from a billing CLI. Falls back to the
+    # busy figure so a pre-telemetry run still shows a number rather than a blank.
+    billed_usd = _num(rec.get("estimated_gpu_cost_usd")) or busy_usd
     ptok = sum(int(i.get("prompt_tokens") or 0) for i in ok_rows)
     ctok = sum(int(i.get("completion_tokens") or 0) for i in ok_rows)
     tot = ptok + ctok
@@ -394,13 +516,18 @@ def collect_card(
             "cold_boot_seconds": _num(rec.get("cold_boot_seconds")),
         },
         "cost": {
+            # Two windows, two questions. `busy` is the GPU $ attributable to the busy
+            # interval; `billed` is what the run metered — its own container-telemetry
+            # window x replicas x rate, computed from the run rather than scraped from
+            # a billing CLI. Per-document figures use `billed`: that is the money spent.
             "busy_gpu_usd": busy_usd,
             "billed_gpu_usd": _num(rec.get("estimated_gpu_cost_usd")),
+            "billed_seconds": _num(rec.get("gpu_seconds")),
             "idle_usd": _num(rec.get("idle_estimated_usd")),
             "idle_seconds": _num(rec.get("idle_container_seconds")),
-            "usd_per_document": busy_usd / n if busy_usd and n else None,
-            "usd_per_ok_document": busy_usd / len(ok_rows) if busy_usd and ok_rows else None,
-            "usd_per_million_tokens": busy_usd / tot * 1e6 if busy_usd and tot else None,
+            "usd_per_document": billed_usd / n if billed_usd and n else None,
+            "usd_per_ok_document": billed_usd / len(ok_rows) if billed_usd and ok_rows else None,
+            "usd_per_million_tokens": billed_usd / tot * 1e6 if billed_usd and tot else None,
         },
         "tokens": {
             "prompt": ptok,
@@ -415,6 +542,11 @@ def collect_card(
             "tokens_per_second": tot / wall if wall and tot else None,
             "tokens_per_second_per_gpu": tot / wall / replicas if wall and tot else None,
             "documents_per_minute": n / wall * 60.0 if wall and n else None,
+            # The per-GPU rate the master card / comparison read: nothing ever
+            # produced this key, so their `documents/min/GPU` row read
+            # "not captured" while the cell card's same-labelled row silently
+            # showed the ABSOLUTE rate (wrong by the replica count).
+            "documents_per_minute_per_gpu": (n / wall * 60.0 / replicas) if wall and n and replicas else None,
         },
         "latency": {
             "mean": statistics.mean(lat_ok) if lat_ok else None,
@@ -520,6 +652,59 @@ def _split_rows(split: Mapping[str, Any] | None) -> list[tuple[str, str]]:
     ]
 
 
+def _gpu_rows(gpu: Any) -> list[tuple[str, str]]:
+    """SAND-042 GPU hardware rows for the card's engine section.
+
+    Absent on every pre-SAND-042 run, so it says so rather than printing zeros —
+    the same honesty rule the engine block follows for a missing scrape.
+    """
+    g = gpu if isinstance(gpu, dict) else {}
+    if not g.get("captured"):
+        return [("**GPU hardware (nvidia-smi)**", NOT_CAPTURED)]
+
+    def stat(key: str, digits: int = 1, suffix: str = "") -> str:
+        block = g.get(key)
+        if not isinstance(block, dict) or block.get("mean") is None:
+            return NOT_CAPTURED
+        return (
+            f"{_f(block['mean'], digits, suffix)} "
+            f"(min {_f(block['min'], digits)} / max {_f(block['max'], digits)})"
+        )
+
+    util = g.get("util_mean_perc")
+    cov = g.get("sampling_coverage_pct")
+    rows = [
+        ("**GPU hardware (nvidia-smi)**", f"{g.get('samples')} samples · {g.get('src')}"),
+        (
+            "GPU utilization",
+            (
+                f"{_f(util, 1, ' %')} mean (p95 {_f(g.get('util_p95_perc'), 1)} / "
+                f"peak {_f(g.get('util_peak_perc'), 1)} / min {_f(g.get('util_min_perc'), 1)})"
+                if util is not None
+                else NOT_CAPTURED
+            ),
+        ),
+        (
+            "Sampling coverage",
+            (
+                f"{_f(cov, 1, ' %')}"
+                + (" — **below the 90% gate (issue #128)**" if cov is not None and cov < 90 else "")
+                if cov is not None
+                else NOT_CAPTURED
+            ),
+        ),
+        ("GPU power draw", stat("power_draw_w", 1, " W")
+            + (f" of {_f(g.get('power_limit_w', {}).get('mean'), 0, ' W')} cap"
+               if isinstance(g.get("power_limit_w"), dict) and g["power_limit_w"].get("mean")
+               else "")),
+        ("GPU memory bandwidth", stat("utilization_memory_perc", 1, " %")),
+        ("GPU SM clock", stat("clocks_sm_mhz", 0, " MHz")),
+        ("GPU temperature", stat("temperature_c", 1, " C")),
+        ("GPU memory used", stat("memory_used_mib", 0, " MiB")),
+    ]
+    return rows
+
+
 def _card_rows(c: Mapping[str, Any]) -> list[tuple[str, str]]:
     """(metric, value) rows in template order; section headers carry an empty value."""
     cond, t, cost, tok = c["conditions"], c["time"], c["cost"], c["tokens"]
@@ -539,7 +724,8 @@ def _card_rows(c: Mapping[str, Any]) -> list[tuple[str, str]]:
         ("Cold boot", _f(t["cold_boot_seconds"], 2, " s")),
         ("**Cost**", ""),
         ("Busy-window GPU $", _usd(cost["busy_gpu_usd"])),
-        ("Billed GPU $ (incl. boot)", _usd(cost["billed_gpu_usd"])),
+        ("Billed GPU $", _usd(cost["billed_gpu_usd"])),
+        ("Billed seconds", _f(cost.get("billed_seconds"), 2, " s")),
         ("Idle $", f"{_usd(cost['idle_usd'])} ({_f(cost['idle_seconds'], 2, ' s')})" if cost["idle_usd"] is not None else NOT_CAPTURED),
         ("Cost per document", _usd(cost["usd_per_document"])),
         ("Cost per ok document", _usd(cost["usd_per_ok_document"])),
@@ -569,6 +755,7 @@ def _card_rows(c: Mapping[str, Any]) -> list[tuple[str, str]]:
         ("Prefix-cache hit per replica", _per_replica(reps, "prefix_cache_hit_rate", _pct)),
         ("Preemptions per replica (this run)", _per_replica(reps, "preemptions", lambda v: _f(v, 0))),
         ("Length-capped finishes per replica (this run)", _per_replica(reps, "length_finishes", lambda v: _f(v, 0))),
+        *(_gpu_rows(eng.get("gpu"))),
         ("**Quality**", ""),
         ("Overall extraction score", f"{_f(q['overall_mean'], 4)} (sd {_f(q['overall_sd'], 3)})" if q["overall_mean"] is not None else NOT_CAPTURED),
         ("Score min / max", f"{_f(q['overall_min'], 4)} / {_f(q['overall_max'], 4)}"),
@@ -595,10 +782,27 @@ def _card_rows(c: Mapping[str, Any]) -> list[tuple[str, str]]:
             ("Clean subset", f"{clause['clean_correct']} / {clause['clean_questions']}"),
             ("Suite field score (mean)", _f(q["suite_overall_mean"], 4)),
         ]
+    # SAND-049: state the paired n in one place. ``n`` counts documents RUN; a delta can only
+    # use documents that produced a score, which is fewer when a document errored or when the
+    # class's task-native metric has no ground truth for it. Reading "Documents | 50" beside
+    # "Errors | 1 / 50" and inferring 49 — or missing it entirely — is how a 44-document paired
+    # delta gets mistaken for a 50-document one.
+    _labeled = clause.get("docs_labeled")
+    _paired = _labeled if isinstance(_labeled, int) else q["ok"]
+    _why = []
+    if q["errors"]:
+        _why.append(f"{q['errors']} error{'s' if q['errors'] != 1 else ''}")
+    if isinstance(_labeled, int) and _labeled < q["ok"]:
+        _why.append(f"{q['ok'] - _labeled} with no ground truth for the class metric")
+    rows += [
+        ("**Paired n**", ""),
+        ("Documents a paired delta can use",
+         f"{_paired} of {q['documents']}" + (f" ({'; '.join(_why)})" if _why else "")),
+    ]
     return rows
 
 
-def render_card_md(c: Mapping[str, Any]) -> str:
+def render_card_md(c: Mapping[str, Any], *, figure: str | None = None) -> str:
     cond = c["conditions"]
     ds = cond["dataset"]
     eng = cond["engine"]
@@ -635,6 +839,8 @@ def render_card_md(c: Mapping[str, Any]) -> str:
     if q["error_kinds"]:
         lines += ["", "## Errors", "", "| Error | Count |", "| --- | ---: |"]
         lines += [f"| {k} | {v} |" for k, v in sorted(q["error_kinds"].items())]
+    if figure:  # SAND-042 run dashboard, living beside the card markdown
+        lines += ["", "## Figure", "", f"![{c['specialist']} run dashboard]({figure})"]
     lines += [
         "",
         "## Per-document results",
@@ -686,7 +892,20 @@ def write_card(
     paths = card_paths(card["run_id"], card["task"], card["conditions"]["replicas"], repo=repo)
     paths["dir"].mkdir(parents=True, exist_ok=True)
     paths["json"].write_text(json.dumps(card, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    paths["md"].write_text(render_card_md(card), encoding="utf-8")
+    figure: str | None = None
+    if study_for_run(card["run_id"]) == "SAND42":
+        # Regenerate the run's dashboard after every scored run, so the figure is
+        # never stale. A missing module or a plotting error must never break the card.
+        try:
+            from mailroom_sandbox.job import sand42_figures
+
+            path = sand42_figures.maybe_write_run_figure(card, paths["dir"])
+            # Link only a figure that is really on disk: a writer that returned a
+            # path without landing the file must not ship a broken relative link.
+            figure = path.name if path is not None and path.is_file() else None
+        except Exception:  # noqa: BLE001
+            _log.warning("SAND-042 run figure failed for %s", card["run_id"], exc_info=True)
+    paths["md"].write_text(render_card_md(card, figure=figure), encoding="utf-8")
     _log.info("SAND-37 card written: %s", paths["md"])
     return paths
 
@@ -797,11 +1016,16 @@ def maybe_write_card(store: RunStore, **kwargs: Any) -> dict[str, Path]:
         SAND40_CELLS,
         SAND40_CHECK_CELLS,
         SAND40_PROBE_CELLS,
+        SAND42_CHECK_RUNS,
+        SAND42_RUNS,
     )
 
     try:
         lock = store.read_lock() or {}
-        if str(lock.get("run_id") or store.run_id) not in (GRID_CELLS | SAND40_CELLS | SAND40_PROBE_CELLS | SAND40_CHECK_CELLS):
+        if str(lock.get("run_id") or store.run_id) not in (
+            GRID_CELLS | SAND40_CELLS | SAND40_PROBE_CELLS | SAND40_CHECK_CELLS
+            | SAND42_RUNS | SAND42_CHECK_RUNS
+        ):
             return {}
         if _d(lock.get("job")).get("mock") or not store.load_items():
             return {}
@@ -823,6 +1047,7 @@ _SUITE_ROWS: tuple[tuple[str, Any], ...] = (
     ("Wall (busy)", lambda c: _f(c["time"]["wall_seconds"], 1, " s")),
     ("**Cost**", None),
     ("Busy-window GPU $", lambda c: _usd(c["cost"]["busy_gpu_usd"], 4)),
+    ("Billed GPU $", lambda c: _usd(c["cost"]["billed_gpu_usd"], 4)),
     ("Cost per document", lambda c: _usd(c["cost"]["usd_per_document"])),
     ("Cost per 1M tokens", lambda c: _usd(c["cost"]["usd_per_million_tokens"], 4)),
     ("**Tokens**", None),
@@ -883,6 +1108,7 @@ def _pooled(cards: list[Mapping[str, Any]], replicas: int) -> dict[str, Any]:
         "tokens_per_second": tokens / wall if wall and tokens else None,
         "tokens_per_second_per_gpu": tokens / wall / replicas if wall and tokens else None,
         "documents_per_minute": docs / wall * 60.0 if wall and docs else None,
+        "documents_per_minute_per_gpu": (docs / wall * 60.0 / replicas) if wall and docs and replicas else None,
     }
 
 

@@ -1,0 +1,273 @@
+{
+  "concurrency": {
+    "occupancy": 2.336769437739387,
+    "parallelism": 18.694155501915095,
+    "slot_utilization": 2.3368
+  },
+  "conditions": {
+    "chunk_chars": 47000,
+    "concurrency": 8,
+    "dataset": {
+      "config": "ground_truth",
+      "fingerprint": "a8953394973e",
+      "repo": "Lucius-Morningstar/mailroom-dataset",
+      "revision": "ed7576b6",
+      "seed": 42,
+      "split": "all"
+    },
+    "engine": {
+      "cuda_graphs": true,
+      "cudagraph_capture_sizes": [
+        1,
+        2,
+        4,
+        8,
+        16
+      ],
+      "kv_cache_dtype": "fp8",
+      "max_inputs": 32,
+      "max_model_len": 32768,
+      "max_num_seqs": 16,
+      "prefix_caching": true,
+      "quantization": "awq_marlin",
+      "thinking": false
+    },
+    "gpu": "L4",
+    "gpu_usd_per_hour": 0.8,
+    "image_tag": "v0.29.0",
+    "length_retries": 1,
+    "max_input_chars": 54000,
+    "max_retries": 2,
+    "max_tokens": 6144,
+    "modal_app": "sandbox-vllm",
+    "model": "Qwen/Qwen3-8B-AWQ",
+    "overlap_chars": 6500,
+    "presence_penalty": 1.0,
+    "prompt": "merger_agreement_specialist_simplified",
+    "replicas": 1,
+    "spec_hash": "d90678b71c629b3cf24655180557a56b4ead7b2aef26c29fbbeaae597fc6ee5b",
+    "temperature": 0.7,
+    "temperature_source": "posture knob",
+    "top_k": 20,
+    "top_p": 0.8
+  },
+  "cost": {
+    "billed_gpu_usd": 0.022346,
+    "busy_gpu_usd": 0.022279111111111114,
+    "idle_seconds": 0.0,
+    "idle_usd": null,
+    "usd_per_document": 0.004455822222222223,
+    "usd_per_million_tokens": 0.04493912625637123,
+    "usd_per_ok_document": 0.004455822222222223
+  },
+  "documents": [
+    {
+      "calls": 9,
+      "completion_tokens": 5153,
+      "error": null,
+      "input_chars": 428218,
+      "item_id": "DOC-45f801408be08af6",
+      "latency_seconds": 334.224137,
+      "ok": true,
+      "prompt_tokens": 109920,
+      "score": 0.0
+    },
+    {
+      "calls": 7,
+      "completion_tokens": 5274,
+      "error": null,
+      "input_chars": 363403,
+      "item_id": "DOC-eb2b56fe30dc35f4",
+      "latency_seconds": 337.460881,
+      "ok": true,
+      "prompt_tokens": 85298,
+      "score": 0.0
+    },
+    {
+      "calls": 8,
+      "completion_tokens": 5651,
+      "error": null,
+      "input_chars": 385868,
+      "item_id": "DOC-ff3ceb691481f1bd",
+      "latency_seconds": 357.26987699999995,
+      "ok": true,
+      "prompt_tokens": 91432,
+      "score": 0.0
+    },
+    {
+      "calls": 7,
+      "completion_tokens": 7288,
+      "error": null,
+      "input_chars": 355072,
+      "item_id": "DOC-23f224263f6974c5",
+      "latency_seconds": 410.76658000000003,
+      "ok": true,
+      "prompt_tokens": 83736,
+      "score": 0.0
+    },
+    {
+      "calls": 8,
+      "completion_tokens": 8179,
+      "error": null,
+      "input_chars": 391109,
+      "item_id": "DOC-386ac6d669b7731c",
+      "latency_seconds": 434.479779,
+      "ok": true,
+      "prompt_tokens": 93831,
+      "score": 0.07692307692307693
+    }
+  ],
+  "engine_telemetry": {
+    "captured": true,
+    "coverage": "replicas observed: 1 of 1",
+    "expected_replicas": 1,
+    "gpu": {
+      "captured": true,
+      "errors": [],
+      "gpus_observed": 73,
+      "label": "sand42-1l4-c8",
+      "memory_total_mib": {
+        "max": 23034.0,
+        "mean": 23034.0,
+        "min": 23034.0,
+        "n": 73,
+        "p95": 23034.0
+      },
+      "memory_used_mib": {
+        "max": 20995.0,
+        "mean": 20991.821917808218,
+        "min": 20763.0,
+        "n": 73,
+        "p95": 20995.0
+      },
+      "power_draw_w": {
+        "max": 73.75,
+        "mean": 70.71013698630138,
+        "min": 30.34,
+        "n": 73,
+        "p95": 73.17
+      },
+      "replicas": {
+        "1791766391.99": {
+          "samples": 0,
+          "util_max_perc": null,
+          "util_mean_perc": null
+        },
+        "1791766799.99": {
+          "samples": 0,
+          "util_max_perc": null,
+          "util_mean_perc": null
+        },
+        "1791767926.27": {
+          "samples": 0,
+          "util_max_perc": null,
+          "util_mean_perc": null
+        },
+        "1791770823.07": {
+          "samples": 73,
+          "util_max_perc": 100.0,
+          "util_mean_perc": 94.1917808219178
+        }
+      },
+      "samples": 73,
+      "sampling_coverage_pct": 100.0,
+      "schema": "sandbox.container-telemetry/v1",
+      "src": "serving-replica nvidia-smi",
+      "temperature_c": {
+        "max": 80.0,
+        "mean": 75.87671232876713,
+        "min": 60.0,
+        "n": 73,
+        "p95": 79.0
+      },
+      "util_max_perc": 100.0,
+      "util_mean_perc": 94.1917808219178,
+      "util_min_perc": 0.0,
+      "util_p95_perc": 100.0,
+      "util_peak_perc": 100.0
+    },
+    "replicas": [
+      {
+        "kv_cache_usage_perc": 0.0,
+        "length_finishes": 0.0,
+        "preemptions": 0.0,
+        "prefix_cache_hit_rate": 0.1103,
+        "replica": "1791770823.07",
+        "requests": 39.0,
+        "ttft_mean_seconds": 5.1423
+      }
+    ],
+    "scrape_errors": []
+  },
+  "generated_at": "2026-10-12T02:17:08+00:00",
+  "latency": {
+    "max": 434.479779,
+    "mean": 374.8402508,
+    "p50": 357.26987699999995,
+    "p95": 434.479779
+  },
+  "n": 5,
+  "quality": {
+    "clause": {
+      "accuracy": 0.013333333333333334,
+      "answered": 53,
+      "clean_correct": 1,
+      "clean_questions": 28,
+      "correct": 1,
+      "coverage": 0.7066666666666667,
+      "kind": "maud",
+      "precision_answered": 0.018867924528301886,
+      "questions": 75
+    },
+    "documents": 5,
+    "error_kinds": {},
+    "errors": 0,
+    "ok": 5,
+    "overall_max": 0.07692307692307693,
+    "overall_mean": 0.015384615384615385,
+    "overall_min": 0.0,
+    "overall_sd": 0.03076923076923077,
+    "parse_errors": 0,
+    "schema_valid_rate": 1.0,
+    "scoring_method": "suite+maud",
+    "suite_overall_mean": null
+  },
+  "run_id": "sand42-check-5-merger-specialist-awq-1l4-c8",
+  "schema": "sandbox.grid-card/v1",
+  "specialist": "Merger Agreements",
+  "task": "merger_agreement_specialist",
+  "throughput": {
+    "documents_per_minute": 2.992339610596872,
+    "tokens_per_second": 4944.960900095755,
+    "tokens_per_second_per_gpu": 4944.960900095755
+  },
+  "time": {
+    "cold_boot_seconds": 0.3,
+    "gpu_seconds": 100.556,
+    "wall_seconds": 100.256
+  },
+  "tokens": {
+    "completion": 31545,
+    "completion_max": 8179,
+    "completion_p95": 8179.0,
+    "completion_share": 0.06362932213441128,
+    "per_document": 99152.4,
+    "prompt": 464217,
+    "split": {
+      "calls": 39.0,
+      "chars_per_token": 4.5,
+      "completion_tokens": 31545.0,
+      "document_tokens": 427482.22222222225,
+      "documents": 5,
+      "instruction_per_call": 941.9173789173783,
+      "instruction_tokens": 36734.77777777775,
+      "method": "fallback",
+      "per_document": {
+        "completion": 6309.0,
+        "document": 85496.44444444445,
+        "instruction": 7346.955555555551
+      }
+    },
+    "total": 495762
+  }
+}

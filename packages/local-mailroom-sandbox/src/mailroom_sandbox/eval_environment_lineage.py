@@ -5,6 +5,18 @@ source of truth for specialist extraction prompts. Sandbox Modal + vLLM
 runs pin the matching local stems under ``config/prompts/``; those files
 must stay byte-identical to the frozen v1 sha256s.
 
+Later frozen versions of a specialist (``frozen_successors`` in the lock, e.g.
+the SAND-042 repaired insurance and merger stems frozen as eval-environment
+``*_v4`` mutations) are byte-pinned the same way. They do not change the
+default v1 stem a run gets; a run opts in by pinning the successor stem.
+
+A specialist's default row may itself be a later eval-environment mutation
+that corrected the original v1 text (dojo #30 re-freeze: the corporate-records
+and correspondence stems carry ``*_v6`` / ``*_v7``). Such a row has a
+``parent_key`` and a ``superseded`` block (the original v1 key, sha256, chars
+and ``frozen_at``), so the v1 identity stays recoverable and is still checked
+against a sibling checkout's manifest.
+
 This module is hermetic: the sha256 lock lives in
 ``config/prompts/eval_environment_lineage.json``. A sibling eval-environment
 checkout is optional (``EVAL_ENVIRONMENT_ROOT`` or ``../eval-environment``).
@@ -55,6 +67,27 @@ def specialist_rows() -> dict[str, dict[str, Any]]:
     return {str(agent): dict(row) for agent, row in rows.items()}
 
 
+def successor_rows() -> list[dict[str, Any]]:
+    """Frozen post-v1 specialist versions (eval-environment mutations), each with ``agent``."""
+    rows = load_catalog().get("frozen_successors") or []
+    return [dict(row) for row in rows]
+
+
+def superseded_rows() -> list[dict[str, Any]]:
+    """Original v1 identities (key, sha256, chars, frozen_at) of re-frozen default rows."""
+    out: list[dict[str, Any]] = []
+    for agent, row in specialist_rows().items():
+        old = row.get("superseded")
+        if isinstance(old, dict):
+            out.append(dict(old, agent=agent, superseded_by=row.get("eval_environment_key")))
+    return out
+
+
+def _all_rows() -> list[dict[str, Any]]:
+    v1 = [dict(row, agent=name) for name, row in specialist_rows().items()]
+    return v1 + successor_rows()
+
+
 def catalog_agents() -> tuple[str, ...]:
     return tuple(sorted(specialist_rows()))
 
@@ -78,14 +111,14 @@ def lookup(
     rows = specialist_rows()
     needle = stem or key
     if needle:
-        for name, row in rows.items():
+        for row in _all_rows():
             if needle in {
                 str(row.get("sandbox_stem")),
                 str(row.get("eval_environment_key")),
             }:
-                if agent and agent != name:
+                if agent and agent != row["agent"]:
                     continue
-                return dict(row, agent=name)
+                return row
         return None
     if agent and agent in rows:
         return dict(rows[agent], agent=agent)
@@ -128,7 +161,7 @@ def agents_for_variant(variant: str) -> list[str]:
 
 
 def assert_catalog_sha(agent: str, stem: str, text: str) -> None:
-    """Refuse a catalog stem whose bytes drifted from the frozen v1 lock."""
+    """Refuse a catalog stem whose bytes drifted from its frozen lock row."""
     row = lookup(agent=agent, stem=stem)
     if not row:
         return
@@ -154,7 +187,8 @@ def local_stem_sha256(stem: str) -> str:
 def verify_local_catalog(*, require_opening: bool = True) -> list[str]:
     """Return errors if sandbox catalog stems drifted from the JSON lock."""
     errors: list[str] = []
-    for agent, row in specialist_rows().items():
+    for row in _all_rows():
+        agent = row["agent"]
         stem = str(row["sandbox_stem"])
         path = prompts_dir() / f"{stem}.txt"
         if not path.is_file():
@@ -222,7 +256,25 @@ def verify_sibling_catalog(sibling: Path | None = None) -> list[str]:
     except (OSError, json.JSONDecodeError) as exc:
         return [f"could not read {manifest_path}: {exc}"]
     versions: Mapping[str, Any] = manifest.get("versions") or {}
+    mutation_rows: list[dict[str, Any]] = []
     for agent, row in specialist_rows().items():
+        row = dict(row, agent=agent)
+        if row.get("parent_key"):
+            # Default row is a later mutation: verify it (and its bytes) against
+            # the sibling's mutations.json, and the superseded v1 identity
+            # against the manifest.
+            mutation_rows.append(row)
+            old = row.get("superseded")
+            if isinstance(old, dict):
+                v1_meta = versions.get(str(old.get("eval_environment_key"))) if isinstance(versions, dict) else None
+                if not isinstance(v1_meta, dict):
+                    errors.append(f"{agent}: sibling manifest missing superseded {old.get('eval_environment_key')}")
+                elif str(v1_meta.get("sha256") or "") != str(old.get("sha256")):
+                    errors.append(
+                        f"{agent}: superseded {old.get('eval_environment_key')} sha256={old.get('sha256')} "
+                        f"!= sibling manifest sha256={v1_meta.get('sha256')}"
+                    )
+            continue
         key = str(row["eval_environment_key"])
         meta = versions.get(key) if isinstance(versions, dict) else None
         if not isinstance(meta, dict):
@@ -244,5 +296,50 @@ def verify_sibling_catalog(sibling: Path | None = None) -> list[str]:
             errors.append(
                 f"{agent}: sibling {key}.md sha256={md_sha} "
                 f"!= sandbox {row['sandbox_stem']}.txt sha256={local_sha}"
+            )
+    errors.extend(_verify_sibling_mutations(root, mutation_rows + successor_rows()))
+    return errors
+
+
+def _verify_sibling_successors(root: Path) -> list[str]:
+    """Frozen-successor rows only (the SAND-042 ``*_v4`` stems)."""
+    return _verify_sibling_mutations(root, successor_rows())
+
+
+def _verify_sibling_mutations(root: Path, rows: list[dict[str, Any]]) -> list[str]:
+    """Mutation rows (successors, re-frozen defaults) live in the sibling's ``prompts/mutations.json``."""
+    if not rows:
+        return []
+    path = root / "prompts" / "mutations.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"could not read {path}: {exc}"]
+    registered = {str(m.get("key")): m for m in data.get("mutations") or []}
+    errors: list[str] = []
+    for row in rows:
+        key = str(row["eval_environment_key"])
+        meta = registered.get(key)
+        if meta is None:
+            errors.append(f"{row['agent']}: sibling mutations.json missing {key}")
+            continue
+        if str(meta.get("parent")) != str(row.get("parent_key")):
+            errors.append(
+                f"{row['agent']}: sibling {key} parent={meta.get('parent')} "
+                f"!= catalog parent_key={row.get('parent_key')}"
+            )
+        if str(meta.get("sha256")) != str(row["sha256"]):
+            errors.append(
+                f"{row['agent']}: sandbox catalog sha256={row['sha256']} "
+                f"!= sibling {key} sha256={meta.get('sha256')}"
+            )
+        # The recorded sha256 is metadata; the frozen bytes are ``text``.
+        text = meta.get("text")
+        if not isinstance(text, str):
+            errors.append(f"{row['agent']}: sibling {key} has no mutation text")
+        elif _sha(text) != str(row["sha256"]):
+            errors.append(
+                f"{row['agent']}: sibling {key} text sha256={_sha(text)} "
+                f"!= sandbox catalog sha256={row['sha256']}"
             )
     return errors

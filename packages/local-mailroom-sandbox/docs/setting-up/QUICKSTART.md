@@ -33,7 +33,7 @@ Optional extras, only when you need them:
 | `[notebooks]` | Jupyter + pandas/matplotlib | `sandbox up --compose-profile jupyter` |
 
 The family code is **already vendored and tracked** (`vendor/llm-mailroom`
-v0.7.1, `vendor/llm-dojo-scoring` v0.15.0) — a fresh checkout runs offline.
+v0.7.1, `vendor/llm-dojo-scoring` v0.22.0) — a fresh checkout runs offline.
 
 ## 1. The command surface at a glance
 
@@ -150,14 +150,14 @@ Live versions: drop `--mock` (needs a running provider + model):
 ## 8. Spec-driven jobs (`sandbox run`)
 
 ```bash
-sandbox run preflight  --config config/runs/example.yaml          # resolve + validate + lock
-sandbox run preflight  --config config/runs/example.yaml --dry-run # plan only
-sandbox run preflight  --config config/runs/example.yaml --mock    # dataset lock incl. sha256
-sandbox run start      --config config/runs/example.yaml --mock    # run per-item w/ checkpoints
-sandbox run status     --config config/runs/example.yaml           # run_id resolves from the yaml
+sandbox run preflight  --config config/runs/examples/example.yaml          # resolve + validate + lock
+sandbox run preflight  --config config/runs/examples/example.yaml --dry-run # plan only
+sandbox run preflight  --config config/runs/examples/example.yaml --mock    # dataset lock incl. sha256
+sandbox run start      --config config/runs/examples/example.yaml --mock    # run per-item w/ checkpoints
+sandbox run status     --config config/runs/examples/example.yaml           # run_id resolves from the yaml
 sandbox run status     --run-id fixture-sorter-smoke --watch
-sandbox run resume     --config config/runs/example.yaml --mock
-sandbox run cancel     --config config/runs/example.yaml
+sandbox run resume     --config config/runs/examples/example.yaml --mock
+sandbox run cancel     --config config/runs/examples/example.yaml
 sandbox run list
 sandbox run --profile modal-vllm start --config config/runs/x.yaml --job-mode modal --mock
 ```
@@ -215,7 +215,7 @@ modal app logs -f sandbox-vllm
 ```bash
 pip install -e ".[dev]" && sandbox datasets prepare \
   && sandbox pilot --mock && sandbox eval sorter --mock \
-  && sandbox run preflight --config config/runs/example.yaml --mock
+  && sandbox run preflight --config config/runs/examples/example.yaml --mock
 ```
 
 **Local Ollama (default profile):**

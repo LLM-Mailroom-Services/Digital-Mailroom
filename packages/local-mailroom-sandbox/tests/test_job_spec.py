@@ -250,7 +250,7 @@ def test_spec_hash_unchanged_for_yamls_without_sand032_knobs():
     from mailroom_sandbox.job.spec import load_run_spec, spec_hash
     from mailroom_sandbox.paths import config_dir
 
-    spec = load_run_spec(config_dir() / "runs" / "run-50-correspondence-specialist-awq.yaml")
+    spec = load_run_spec(config_dir() / "runs" / "legacy" / "run-50-correspondence-specialist-awq.yaml")
     assert spec_hash(spec) == "88a40670a6e7e5f007883e67331498670c1f978c11d049a43a07448740ea366d"
 
 
@@ -258,7 +258,7 @@ def test_spec_hash_changes_when_sand032_knob_set():
     from mailroom_sandbox.job.spec import load_run_spec, spec_hash
     from mailroom_sandbox.paths import config_dir
 
-    spec = load_run_spec(config_dir() / "runs" / "run-50-correspondence-specialist-awq.yaml")
+    spec = load_run_spec(config_dir() / "runs" / "legacy" / "run-50-correspondence-specialist-awq.yaml")
     before = spec_hash(spec)
     spec.engine.vllm.kv_cache_dtype = "fp8"
     assert spec_hash(spec) != before

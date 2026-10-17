@@ -16,11 +16,10 @@ Usage:
     python scripts/sync_prompts.py --dry-run    # show what would change
     python scripts/sync_prompts.py --force      # always create a new version
     python scripts/sync_prompts.py --agent sorter
-    python scripts/sync_prompts.py --docclass   # sync the entity-repo docclass
+    python scripts/sync_prompts.py --docclass   # sync the in-package docclass
                                                 # family instead (name = the
                                                 # version key verbatim, from
-                                                # llm-entity-extraction
-                                                # src/prompts_docclass.py)
+                                                # mailroom_ui/docclass_prompts.py)
 """
 
 from __future__ import annotations
@@ -66,7 +65,7 @@ def _current_production(client, name: str) -> str | None:
 
 def sync_one(client, agent_name: str, template: str, *, force: bool, dry_run: bool, docclass: bool = False) -> str:
     if docclass:
-        # Entity-repo contract: prompt name = the version key verbatim.
+        # Docclass-family contract: prompt name = the version key verbatim.
         name = agent_name
     else:
         from mailroom_ui.prompt_registry import prompt_name
@@ -88,8 +87,8 @@ def main() -> int:
     parser.add_argument("--force", action="store_true", help="Always create a new prompt version.")
     parser.add_argument("--agent", help="Only sync one agent (e.g. sorter).")
     parser.add_argument("--docclass", action="store_true",
-                        help="Sync the llm-entity-extraction docclass family "
-                             "(mailroom_ui/docclass_prompts.py) instead of the "
+                        help="Sync the docclass prompt family "
+                             "(canonical in-package copy, mailroom_ui/docclass_prompts.py) instead of the "
                              "agent roster; prompt name = version key verbatim.")
     args = parser.parse_args()
 

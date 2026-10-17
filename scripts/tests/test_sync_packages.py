@@ -541,8 +541,8 @@ class TestResolutionLadder(SyncScriptTest):
 
 class TestSeverityAndDirty(SyncScriptTest):
     def test_j_multi_package_severity_law(self):
-        # second package (llm-mailroom-graph) stays in sync -> fast path
-        origin2 = self.upstreams / "llm-mailroom-graph.git"
+        # second package (claims-data-eda) stays in sync -> fast path
+        origin2 = self.upstreams / "claims-data-eda.git"
         src2 = self.tmp / "src2"
         git(self.tmp, "init", "--bare", "-b", "main", str(origin2), check=True)
         git(self.tmp, "clone", str(origin2), str(src2), check=True)
@@ -550,7 +550,7 @@ class TestSeverityAndDirty(SyncScriptTest):
         git(src2, "add", "-A", check=True)
         git(src2, "commit", "-m", "base2", check=True)
         git(src2, "push", "origin", "main", check=True)
-        git(self.mono, "subtree", "add", "--prefix=packages/llm-mailroom-graph",
+        git(self.mono, "subtree", "add", "--prefix=packages/claims-data-eda",
             str(origin2), "main", check=True)
         self.diverge()  # llm-dojo-scoring now conflicts
         res = self.run_script("pull", "--all", "--json", env_extra=self.origin_env)
@@ -561,19 +561,19 @@ class TestSeverityAndDirty(SyncScriptTest):
             rec = json.loads(line)
             recs[rec["package"]] = rec
         self.assertEqual(set(recs), {
-            "Enron-Evaluation-Environment", "The-Mailroom", "agent-mailroom",
-            "claims-data-eda", "llm-dojo-scoring", "llm-entity-extraction",
-            "llm-mailroom", "llm-mailroom-graph", "local-mailroom-sandbox",
+            "Enron-Evaluation-Environment", "The-Mailroom",
+            "claims-data-eda", "llm-dojo-scoring",
+            "llm-mailroom", "local-mailroom-sandbox",
             "mailroom-corpus-eda",
         })
         self.assertEqual(recs[PKG]["error_class"], "conflict")
         self.assertEqual(recs[PKG]["exit_code"], 3)
         self.assertFalse(recs[PKG]["cursor_updated"])
-        self.assertEqual(recs["llm-mailroom-graph"]["error_class"], "ok")
-        self.assertTrue(recs["llm-mailroom-graph"]["cursor_updated"])
-        self.assertEqual(recs["agent-mailroom"]["error_class"], "network")
+        self.assertEqual(recs["claims-data-eda"]["error_class"], "ok")
+        self.assertTrue(recs["claims-data-eda"]["cursor_updated"])
+        self.assertEqual(recs["llm-mailroom"]["error_class"], "network")
         # cursor advanced ONLY for the fast-path package
-        self.assertEqual(set(self.read_manifest().get("packages", {})), {"llm-mailroom-graph"})
+        self.assertEqual(set(self.read_manifest().get("packages", {})), {"claims-data-eda"})
 
     def test_k_allow_dirty_conflict_leaves_merge_in_place(self):
         self.diverge()
@@ -863,6 +863,66 @@ class TestVerifySuiteGate(SyncScriptTest):
         self.assertTrue(rec["ok"])
         self.assertIn("resolution_divergences", rec)
         self.assertEqual(rec["resolution_divergences"], [])
+
+
+class TestVerifyCmdInterpreter(unittest.TestCase):
+    """DMR-083: the default verify command runs the package suite with the
+    PROJECT interpreter. On this host ``sys.executable`` is a homebrew
+    python3.15 with no pytest, so the shipped default refused a good tree
+    (exit 5 / error_class verify / "No module named pytest"); in a uv
+    workspace (``uv.lock`` or ``.venv`` at the repo root) it must be
+    ``uv run pytest``. ``SYNC_VERIFY_CMD`` still wins; a plain checkout
+    still falls back to ``sys.executable -m pytest``."""
+
+    def test_o_verify_cmd_interpreter_selection(self):
+        mod = _load_sync_module()
+        root = Path(tempfile.mkdtemp(prefix="dmr083-verify-"))
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        (root / "packages" / PKG / "tests").mkdir(parents=True)
+        saved_root = mod.REPO_ROOT
+        mod.REPO_ROOT = root
+        self.addCleanup(setattr, mod, "REPO_ROOT", saved_root)
+        suite = [f"packages/{PKG}/tests", "-q", "--no-header", "-x"]
+        clean_env = {k: v for k, v in os.environ.items() if k != "SYNC_VERIFY_CMD"}
+
+        with mock.patch.dict(os.environ, clean_env, clear=True):
+            # no workspace marker → this checkout's own interpreter
+            self.assertEqual(mod._verify_cmd(PKG), [sys.executable, "-m", "pytest", *suite])
+            # uv workspace → the project interpreter (the DMR-083 defect)
+            (root / "uv.lock").write_text("")
+            self.assertEqual(mod._verify_cmd(PKG), ["uv", "run", "pytest", *suite])
+            # either marker qualifies (a .venv-only checkout)
+            (root / "uv.lock").unlink()
+            (root / ".venv").mkdir()
+            self.assertEqual(mod._verify_cmd(PKG), ["uv", "run", "pytest", *suite])
+            # the override outranks the interpreter rule
+            os.environ["SYNC_VERIFY_CMD"] = "stub-suite --flag"
+            self.assertEqual(mod._verify_cmd(PKG), ["stub-suite", "--flag"])
+
+    def test_o2_verify_suite_missing_runner_refuses_cleanly(self):
+        """DMR-083 D1: a workspace marker with no `uv` on PATH is a broken
+        toolchain — `run_verify_suite` returns the refusal tuple its callers
+        already map to E_VERIFY, never an uncaught FileNotFoundError."""
+        mod = _load_sync_module()
+        root = Path(tempfile.mkdtemp(prefix="dmr083-nouv-"))
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        (root / "packages" / PKG / "tests").mkdir(parents=True)
+        (root / "uv.lock").write_text("")
+        empty_bin = root / "empty-bin"  # a PATH with no `uv` in it
+        empty_bin.mkdir()
+        saved_root = mod.REPO_ROOT
+        mod.REPO_ROOT = root
+        self.addCleanup(setattr, mod, "REPO_ROOT", saved_root)
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("SYNC_VERIFY_CMD", "PATH")}
+        env["PATH"] = str(empty_bin)
+
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertEqual(mod._verify_cmd(PKG),
+                             ["uv", "run", "pytest", f"packages/{PKG}/tests",
+                              "-q", "--no-header", "-x"])
+            self.assertEqual(mod.run_verify_suite(PKG),
+                             (False, "verify-suite runner not found"))
 
 
 class TestSilentNoOpGuard(unittest.TestCase):

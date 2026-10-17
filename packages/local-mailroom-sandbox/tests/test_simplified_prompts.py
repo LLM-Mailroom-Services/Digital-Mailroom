@@ -150,6 +150,62 @@ def test_correspondence_simplified_uses_hub_intent_tokens():
     assert "demand_payment" not in text
 
 
+def test_subsidiary_list_requires_an_official_filing_number():
+    """An exhibit ID must not become a subsidiary schedule's filing number."""
+    text = load_variant("corporate_records_specialist_simplified")
+    brief = next(line for line in text.splitlines() if line.startswith("- subsidiary_list:"))
+
+    for rule in (
+        "record_type other (subsidiary schedule)",
+        "entity_name as parent",
+        "subject_matter listing subsidiaries",
+        "keywords subsidiary names",
+        "filing_number null unless an official filing or document number is present",
+        "never use an exhibit ID",
+    ):
+        assert rule in brief
+    assert "filing_number if exhibit id present" not in text.lower()
+
+
+def test_unregistered_correspondence_type_preserves_header_extraction():
+    text = load_variant("correspondence_specialist_simplified")
+    brief = next(line for line in text.splitlines() if line.startswith("- other:"))
+
+    assert "communication_type null when none of the registered tokens fit" in brief
+    assert "after reading the text" in brief
+    assert "still fill sender/recipient/date from headers" in brief
+    assert "communication_type other" not in text
+
+
+def test_correspondence_field_allows_null_or_exactly_the_registered_tokens():
+    text = load_variant("correspondence_specialist_simplified")
+    field = next(
+        line for line in text.splitlines() if line.startswith("- communication_type (")
+    )
+
+    assert "null when no registered token fits; otherwise exactly one Hub token:" in field
+    tokens = field.split("Hub token:", 1)[1].split(".", 1)[0]
+    assert {token.strip() for token in tokens.split(",")} == {
+        "email", "letter", "memo", "notice", "demand", "attorney_demand",
+        "press_release", "meeting_request",
+    }
+    assert "Do not invent a type." in field
+
+
+@pytest.mark.parametrize(
+    "token",
+    (
+        "email", "letter", "memo", "notice", "demand", "attorney_demand",
+        "press_release", "meeting_request",
+    ),
+)
+def test_registered_correspondence_subclasses_keep_their_communication_type(token):
+    """The null fallback must leave each recognized type's mapping intact."""
+    text = load_variant("correspondence_specialist_simplified")
+    brief = next(line for line in text.splitlines() if line.startswith(f"- {token}:"))
+    assert brief.startswith(f"- {token}: communication_type {token};")
+
+
 def test_contracts_simplified_is_pared_cuad_not_obligation_dump():
     text = load_variant("contracts_specialist_v33_simplified")
     vendor = load_variant("contracts_specialist_v33")
@@ -176,7 +232,11 @@ def test_simplified_prompts_stay_pared_vs_vendor_contracts_dump():
     for simplified, vendor in VENDOR_COUNTERPART.items():
         s = load_variant(simplified)
         v = load_variant(vendor)
-        assert s != v, simplified
+        # Vendor llm-mailroom promoted the sha256-locked frozen v1 text into its
+        # code defaults (issues #4-#8), so a non-contracts simplified stem may equal
+        # its vendor counterpart; contracts v33 (the length problem) must still diverge.
+        if simplified.startswith("contracts_"):
+            assert s != v, simplified
         assert len(s) < 12_000, simplified
     contracts_s = load_variant("contracts_specialist_v33_simplified")
     contracts_v = load_variant("contracts_specialist_v33")

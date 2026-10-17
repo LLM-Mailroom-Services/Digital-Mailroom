@@ -1,0 +1,9 @@
+{
+  "cell": "2l4-c8",
+  "deploy_ts": 1791857860.0,
+  "ready_ts": 1791858294.0,
+  "gpu": "L4",
+  "replicas": 2,
+  "source": "wall clock (deploy \u2192 ready \u2192 teardown)",
+  "teardown_ts": 1791862591.0
+}

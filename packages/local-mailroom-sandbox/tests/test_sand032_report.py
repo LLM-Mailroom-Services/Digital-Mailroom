@@ -22,7 +22,7 @@ def test_load_uses_grouped_serving_records_for_metrics_and_cost(tmp_path, monkey
     monkeypatch.setattr(report, "SERVING", serving_path)
 
     run_id = "sand032-l0-baseline"
-    configs = tmp_path / "config" / "runs"
+    configs = tmp_path / "config" / "runs" / "sand032"
     configs.mkdir(parents=True)
     (configs / f"{run_id}.yaml").write_text(yaml.safe_dump({
         "engine": {"modal": {"max_containers": 2}},

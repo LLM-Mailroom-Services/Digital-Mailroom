@@ -117,3 +117,7 @@ tmp/
 temp/
 data/mailroom.db-shm
 data/mailroom.db-wal
+
+# SAND-042 report write lock (runtime)
+reports/SAND42/.report.lock
+reports/SAND42/.*.tmp*

@@ -25,16 +25,16 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../../config/runbooks/catalog.
 
 ## Configs
 
-- `config/runs/grid-20-correspondence-specialist-awq-2l4.yaml`
-- `config/runs/grid-20-insurance-claims-specialist-awq-2l4.yaml`
-- `config/runs/grid-20-corporate-records-specialist-awq-2l4.yaml`
-- `config/runs/grid-20-contracts-specialist-awq-2l4.yaml`
-- `config/runs/grid-20-merger-specialist-awq-2l4.yaml`
-- `config/runs/grid-50-correspondence-specialist-awq-2l4.yaml`
-- `config/runs/grid-50-insurance-claims-specialist-awq-2l4.yaml`
-- `config/runs/grid-50-corporate-records-specialist-awq-2l4.yaml`
-- `config/runs/grid-50-contracts-specialist-awq-2l4-rerun.yaml`
-- `config/runs/grid-50-merger-specialist-awq-2l4.yaml`
+- `config/runs/sand037/grid-20-correspondence-specialist-awq-2l4.yaml`
+- `config/runs/sand037/grid-20-insurance-claims-specialist-awq-2l4.yaml`
+- `config/runs/sand037/grid-20-corporate-records-specialist-awq-2l4.yaml`
+- `config/runs/sand037/grid-20-contracts-specialist-awq-2l4.yaml`
+- `config/runs/sand037/grid-20-merger-specialist-awq-2l4.yaml`
+- `config/runs/sand037/grid-50-correspondence-specialist-awq-2l4.yaml`
+- `config/runs/sand037/grid-50-insurance-claims-specialist-awq-2l4.yaml`
+- `config/runs/sand037/grid-50-corporate-records-specialist-awq-2l4.yaml`
+- `config/runs/sand037/grid-50-contracts-specialist-awq-2l4-rerun.yaml`
+- `config/runs/sand037/grid-50-merger-specialist-awq-2l4.yaml`
 
 ## Per-cell posture (live)
 
@@ -57,7 +57,7 @@ Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 
 - Reports: each run brackets start with vLLM /metrics scrapes and writes reports/SAND-37/2L4/<specialist>/<run_id>.card.md + .card.json (score, cost, tokens, throughput, latency, per-replica engine telemetry, errors, per-document rows). The after step writes the finalized reports/SAND-37/2L4/L4x2-SCORE-COST-CARD.md + .json from those cards; commit the SAND-37 tree.
 - Spend: likely ≈ $0.55 GPU at 2 × $0.80/hr (≈ 18 min warm, from the S3 walls, plus one cold boot of ~2–4 min on each replica); the ten cost caps sum to $8.20 and are the abort guard. Needs spend approval before deploy.
-- Canonical deploy knobs: set -a; eval "$(sandbox run deploy-env --config config/runs/grid-20-correspondence-specialist-awq-2l4.yaml)"; set +a. The export block below is identical.
+- Canonical deploy knobs: set -a; eval "$(sandbox run deploy-env --config config/runs/sand037/grid-20-correspondence-specialist-awq-2l4.yaml)"; set +a. The export block below is identical.
 - MIN=MAX=2 pins both replicas warm from deploy to teardown; per-replica admission is 16 at client concurrency 32.
 - Decode is max_tokens 8192 at temperature 0.7 from the posture row; do not raise max_tokens mid-grid. Record any LengthFinishReasonError count as a finding.
 - grid-50-contracts-specialist-awq-2l4 (plain awq, temperature 0.1) stays as committed history; the -rerun id is the aligned cell.
@@ -103,27 +103,30 @@ export MODAL_VLLM_API_TOKEN="${MODAL_VLLM_API_TOKEN:-$(openssl rand -hex 24)}"
 modal profile activate "${SANDBOX_MODAL_PROFILE_TRACK_A:-hermes-agent-jjb}"
 modal profile current
 
-sandbox run benchmark-check --config config/runs/grid-20-correspondence-specialist-awq-2l4.yaml
+sandbox run benchmark-check --config config/runs/sand037/grid-20-correspondence-specialist-awq-2l4.yaml
 
 modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py --strategy recreate
 
-# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+# VLLM_BASE_URL is the FULL base: deploy output + '/v1'
+#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   (without /v1 every chat call 404s — the profile appends /chat/completions)
+# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
 for cfg in \
-  config/runs/grid-20-correspondence-specialist-awq-2l4.yaml \
-  config/runs/grid-20-insurance-claims-specialist-awq-2l4.yaml \
-  config/runs/grid-20-corporate-records-specialist-awq-2l4.yaml \
-  config/runs/grid-20-contracts-specialist-awq-2l4.yaml \
-  config/runs/grid-20-merger-specialist-awq-2l4.yaml \
-  config/runs/grid-50-correspondence-specialist-awq-2l4.yaml \
-  config/runs/grid-50-insurance-claims-specialist-awq-2l4.yaml \
-  config/runs/grid-50-corporate-records-specialist-awq-2l4.yaml \
-  config/runs/grid-50-contracts-specialist-awq-2l4-rerun.yaml \
-  config/runs/grid-50-merger-specialist-awq-2l4.yaml
+  config/runs/sand037/grid-20-correspondence-specialist-awq-2l4.yaml \
+  config/runs/sand037/grid-20-insurance-claims-specialist-awq-2l4.yaml \
+  config/runs/sand037/grid-20-corporate-records-specialist-awq-2l4.yaml \
+  config/runs/sand037/grid-20-contracts-specialist-awq-2l4.yaml \
+  config/runs/sand037/grid-20-merger-specialist-awq-2l4.yaml \
+  config/runs/sand037/grid-50-correspondence-specialist-awq-2l4.yaml \
+  config/runs/sand037/grid-50-insurance-claims-specialist-awq-2l4.yaml \
+  config/runs/sand037/grid-50-corporate-records-specialist-awq-2l4.yaml \
+  config/runs/sand037/grid-50-contracts-specialist-awq-2l4-rerun.yaml \
+  config/runs/sand037/grid-50-merger-specialist-awq-2l4.yaml
 do
   sandbox run preflight --config "$cfg" --live
   sandbox run scrape-metrics --config "$cfg" --label before

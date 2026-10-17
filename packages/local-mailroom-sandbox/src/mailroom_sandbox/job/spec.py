@@ -18,7 +18,12 @@ from mailroom_sandbox.paths import data_dir
 
 _log = logging.getLogger("mailroom_sandbox.job.spec")
 
-FAMILY_HF_REVISION = "ed7576b676343e0b402ec5412cded301e629bdee"  # v9.1 mailroom-dataset Hub tip (pin SHA; HF tag v9.1 pending, #58)
+# Canonical Hub tag ``v9.1`` (2026-09-27). This commit only records the tag;
+# the parquet row set is ``FAMILY_HF_DATA_REVISION`` (mailroom-issues#196
+# Phase B). SAND-032 run YAMLs keep the data SHA they were measured against.
+FAMILY_HF_TAG = "v9.1"
+FAMILY_HF_REVISION = "bc9eab280044befb51e19dda3071d290a8677f42"
+FAMILY_HF_DATA_REVISION = "ed7576b676343e0b402ec5412cded301e629bdee"
 HF_DEFAULT_REPO = "Lucius-Morningstar/mailroom-dataset"
 # Full corpus row count at FAMILY_HF_REVISION (train+test; mailroom-ml pin).
 FAMILY_CORPUS_SIZE = 3302
@@ -117,6 +122,13 @@ class DatasetSpec(BaseModel):
     #         see corpus.strata_field / select_rows for semantics.
     strata: dict[str, Any] | None = None
     exclude_expected: list[str] | None = None
+    # Drop documents whose class's task-native metric has no ground truth to score
+    # against (a contract with empty cuad_clause_labels, a merger with empty
+    # maud_clause_labels) BEFORE the draw. Such a document can never be scored, so
+    # drawing it costs a GPU pass and deflates the paired n — the SAND-042 contracts
+    # column was computed on 45 of 50 documents for exactly this reason. Off by
+    # default: synthetic fixtures and other studies draw deliberately unlabeled rows.
+    require_task_gt: bool = False
     columns: dict[str, str] | None = None
     expected_fields: list[str] | None = None
     local_path: str | None = None  # file:// or absolute path (offline)
@@ -491,9 +503,16 @@ class RunSpec(BaseModel):
 
     @model_validator(mode="after")
     def _prompt_map(self) -> "RunSpec":
-        allowed = {"default", "agents"}
+        allowed = {"default", "agents", "versions"}
         if not set(self.prompt).issubset(allowed):
             raise ValueError(f"prompt section allows only {sorted(allowed)}")
+        if "versions" in self.prompt:
+            # eval-environment prompt versions (any archived / frozen / mutation key),
+            # {role: key} or a list of "role=key" / bare keys. Format only here (no
+            # dojo needed to load a spec); preflight resolves + verifies against the dojo.
+            from mailroom_sandbox.prompt_versions import check_spec_prompt
+
+            self.prompt = {**self.prompt, "versions": check_spec_prompt(self.prompt)}
         return self
 
     @model_validator(mode="after")
@@ -536,6 +555,9 @@ def prompt_resolution_map(spec: RunSpec) -> dict[str, Any]:
         normalized["default"] = _strip_none(dict(PromptRef(**default)))
     for agent, ref in agents.items():
         normalized.setdefault("agents", {})[agent] = _strip_none(dict(PromptRef(**ref)))
+    # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.
+    if spec.prompt.get("versions"):
+        normalized["versions"] = dict(sorted(dict(spec.prompt["versions"]).items()))
     return normalized if normalized else {"default": {"source": "code-default"}}
 
 

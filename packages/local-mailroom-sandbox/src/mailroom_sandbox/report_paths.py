@@ -125,3 +125,14 @@ def experiment_prefix(run_id: str | None, metadata: Mapping[str, Any] | None = N
             return f"SAND-{int(match.group(1))}"
 
     return report_group_for_legacy_run_id(run_id)
+
+
+# SAND-042's report *group* canonicalises to ``SAND-42``, but its *study* folder is
+# ``reports/SAND42`` (``grid_cards.study_for_run``). Folder-path writers map the group
+# to the study folder so one experiment keeps one tree instead of two.
+_FOLDER_ALIAS = {"SAND-42": "SAND42"}
+
+
+def report_folder(prefix: str | None) -> str | None:
+    """Folder name for a report group — SAND-042's study folder drops the hyphen."""
+    return _FOLDER_ALIAS.get(prefix, prefix) if prefix else prefix

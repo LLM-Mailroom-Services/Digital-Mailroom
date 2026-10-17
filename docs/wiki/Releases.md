@@ -105,19 +105,16 @@ change what every release carries, never hand-type a release body.
 | Package | Pin | Consumed by |
 | --- | --- | --- |
 | llm-mailroom | v0.7.1 | sandbox `fetch-deps` / `[pipeline]` extra |
-| llm-dojo-scoring | v0.19.1 | llm-mailroom, llm-entity-extraction, sandbox |
-| llm-entity-extraction | v0.21.0 | sandbox `[evals]` extra |
+| llm-dojo-scoring | v0.19.1 | llm-mailroom, sandbox |
 
 ## Deploy surfaces
 
 - Deploy configs inside each package (`Dockerfile`, `nixpacks.toml`,
   `railway.json`) stay standalone-repo aware — build images from the
   package directory as before.
-- GitHub Pages sites: [llm-entity-extraction](https://exios66.github.io/llm-entity-extraction/),
-  [The-Mailroom](https://exios66.github.io/The-Mailroom/) (pixel console
+- GitHub Pages sites: [The-Mailroom](https://exios66.github.io/The-Mailroom/) (pixel console
   root; the terminal console will live under `/docs/terminal/` once
-  `publish_pages.sh` lands — that URL **404s today**; track [DMR-013](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/18)),
-  [llm-mailroom-graph](https://exios66.github.io/llm-mailroom-graph/).
+  `publish_pages.sh` lands — that URL **404s today**; track [DMR-013](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/18)).
 - **The served Kanban board — Vercel:** https://digital-mailroom-theta.vercel.app
   (project `digital-mailroom`, deploy root `board-site/`). It is its own deploy
   surface with its own `vercel.json`, a `GITHUB_TOKEN` production secret,

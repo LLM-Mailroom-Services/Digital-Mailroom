@@ -59,7 +59,7 @@ is the evidence the caller uses to write the missing pins.
   mirrors an independent `Exios66/<name>` repo. Never hand-edit a mirror and
   never push to a standalone repo directly.
 - **Propagation is one tool:** `scripts/sync_packages.py` (repo root):
-  `status` (drift report — expect 10/10 in sync), `push --package <name>
+  `status` (drift report — expect 7/7 in sync), `push --package <name>
   --patch` (content-only deltas) or `push --package <name>` WITHOUT `--patch`
   (deletion-bearing deltas — `--patch` refuses them, exit 5), `push --all
   --patch` (the release-train sweep), `pull`/`snapshot` for imports and
@@ -73,7 +73,7 @@ is the evidence the caller uses to write the missing pins.
   `scripts/release_chain.py cut X.Y.Z --apply --tag` + `scripts/release_notes.py
   X.Y.Z` (runbook `docs/wiki/Releases.md`). Standalone package release = cut
   in the `Exios66/<name>` repo via its own tooling (e.g.
-  `scripts/release.py --bump` in llm-entity-extraction / The-Mailroom), then
+  `scripts/release.py --bump` in The-Mailroom), then
   **propagate** with `sync_packages.py push` and re-baseline the cursor.
   Bump a consuming pin ONLY at release time of the pinned package
   (`packages/llm-mailroom/src/scripts/bump_dojo_scoring.py` for the dojo

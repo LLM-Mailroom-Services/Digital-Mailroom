@@ -47,8 +47,7 @@ page, instant), one-time slim catalog for search/stats, and per-row live
 `doc_text`/ground-truth fetches (LRU-capped). `tui/repos.py` +
 `terminal/js/data.js` carry the constellation manifest (every package the
 monorepo mirrors upstream — contract-tested against `packages_sync.json` —
-plus the hub copies `mailroom-dev`/`mailroom-hub`/`LLM-Postal` and the
-derived graph sites). The static site bundles a slim catalog
+plus the hub copies `mailroom-dev`/`mailroom-hub`/`LLM-Postal`). The static site bundles a slim catalog
 (`scripts/export_corpus_catalog.py` → `site/data/corpus.json`, 3,302 rows)
 so listing/search/stats work offline; `corpus show` fetches rows live
 (datasets-server CORS is verified for the Pages origin).
@@ -188,6 +187,16 @@ selects between `LangfuseSource`, `PhoenixSource` (local Arize Phoenix via
 Langfuse-shaped dicts `interpret_trace` consumes; unmapped spans degrade to
 unknown staging per the breakage map), and `MultiSource` (fan-out reads,
 per-trace isolation, aggregated health).
+
+mailroom-reloaded (the CrewAI-Flows pipeline) is read through the same
+Phoenix source: its `mailroom.document` root and `mailroom.node.<node>` spans
+map to stations via `RELOADED_NODE_STAGES` in `pipeline_schema.py`, and the
+root's `mailroom.status` / `mailroom.doc_id` / `mailroom.filename` /
+`mailroom.run_id` / `mailroom.doc_type` attributes fill the trace input,
+output and session (`parked` shows on the REVIEW siding; consecutive repeated
+`sort` / `extract` spans fold into the retry stages). Only attributes the
+pipeline actually set are lifted. Set `MAILROOM_PHOENIX_PROJECT` to the
+mailroom-reloaded project (eval runs use `eval-<run_id>`).
 
 Debug surfaces for agents: pixel-console ring at
 `window.__MAILROOM_DEBUG__` (`dump()` / `export()`, enabled verbosely by

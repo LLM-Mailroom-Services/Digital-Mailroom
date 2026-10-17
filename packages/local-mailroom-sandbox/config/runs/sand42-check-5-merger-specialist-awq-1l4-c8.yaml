@@ -1,0 +1,84 @@
+# SAND-042 merger probe leg — merger · n=5 · 1×L4 · client concurrency 8.
+# Measures the CHUNKED whole-document merger path's real wall before the four scored
+# conditions commit ~2 GPU-hours per merger cell. Same engine, prompt, decode, chunking
+# and gates as the SAND-042 1L4-c8 merger condition, at n=5.
+#
+# The five documents are a STRICT SUBSET of the condition's 50: every sub-quota below is
+# <= its 1L4-c8 counterpart (all_cash 2<=18, other 2<=18, all_stock 1<=8) and the
+# sampler's per-subclass draw is a seeded prefix, so a smaller quota is a prefix of the
+# larger one.
+#   engine  = SAND-037 frozen L5 (awq_marlin, fp8 KV, CUDA graphs, max_num_seqs 16,
+#             thinking off, max_inputs 32) — identical to the 1L4-c8 condition
+#   prompt  = eval-environment frozen v1 simplified stem ONLY
+#   decode  = max_tokens 6144 / temp 0.7 / top_p 0.8 / presence 1.0, one length re-sample;
+#             WHOLE-DOCUMENT CHUNKED extraction (47,000-char window / 6,500 overlap)
+#   telemetry = in-container nvidia-smi series under the cell label sand42-1l4-c8
+# Not a benchmark cell: it is excluded from the condition cards and the comparison.
+# Runbook: sandbox runbook show sand42-smoke
+schema: sandbox.run/v1
+run_id: sand42-check-5-merger-specialist-awq-1l4-c8
+task: merger_agreement_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    merger_agreement_specialist:
+      source: local
+      file: merger_agreement_specialist_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
+  strata:
+    buckets:
+      - doc_class: merger_agreement
+        count: 5
+        sub_buckets:
+          - {subclass: "all_cash", count: 2}
+          - {subclass: "other", count: 2}
+          - {subclass: "all_stock", count: 1}
+  limit: 5
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 16
+    enable_prefix_caching: true
+    enforce_eager: false
+    quantization: "awq_marlin"
+    revision: ""
+    kv_cache_dtype: "fp8"
+    enable_thinking: false
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16]
+    max_inputs: 32
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 1
+    min_containers: 1
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 8
+  cost_cap_usd: 0.60
+  max_wall_seconds: 3600
+
+trace:
+  sink: none
+  otlp: false
+  environment: sand42
+  tags: [sandbox, job, specialist, qwen3-8b-awq, l4, sand42, probe, merger, 1l4-c8]

@@ -11,8 +11,6 @@ checkouts:
     monorepo_relative: "."
   llm-mailroom:
     monorepo_relative: "packages/llm-mailroom"
-  llm-entity-extraction:
-    monorepo_relative: "packages/llm-entity-extraction"
   local-mailroom-sandbox:
     monorepo_relative: "packages/local-mailroom-sandbox"
     standalone: true

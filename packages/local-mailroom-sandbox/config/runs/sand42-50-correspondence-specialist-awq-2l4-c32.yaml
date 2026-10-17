@@ -1,0 +1,91 @@
+# SAND-042 cell — correspondence · n=50 · 2×L4 · client concurrency 32 (16 per replica).
+# SAND-046 saturation extension. The paired grid ({1,2}×L4 × concurrency {8,16})
+# shares ONE spec, ONE subclass-stratified 50-document draw per class and ONE warm
+# fleet per cell. This cell adds a THIRD concurrency level (32) at the engine's
+# admission ceiling: 16 in flight per replica = max_num_seqs, which is the same
+# per-replica load 1L4-c16 already ran. Only replicas and client concurrency differ
+# from the paired cells, so a cell-to-cell difference cannot come from the engine,
+# the prompt, the decode or the documents.
+#   engine  = SAND-037 frozen L5 (awq_marlin, fp8 KV, CUDA graphs, max_num_seqs 16/replica,
+#             thinking off, max_inputs 32)
+#   data    = mailroom-dataset ground_truth @ ed7576b6, split=all (train+test joined with
+#             ground truth), seed 42, one class bucket stratified over EVERY subclass of
+#             that class (proportional, min 1 per subclass — 50 docs, all sub-types)
+#   prompt  = eval-environment frozen v1 simplified stem ONLY
+#   decode  = max_tokens 8192 via start-time SANDBOX_AGENT_KNOBS; temperature stays 0.1
+#             (json_object class: never hit a cap; same sampling as every SAND-032 run)
+#   telemetry = container nvidia-smi series (util/power/temp/mem) under the cell label;
+#             pulled by `sandbox run scrape-metrics` and recorded on the run card
+# Runbook: sandbox runbook show sand42-2l4-c32
+schema: sandbox.run/v1
+run_id: sand42-50-correspondence-specialist-awq-2l4-c32
+task: correspondence_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    correspondence_specialist:
+      source: local
+      file: correspondence_specialist_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
+  strata:
+    buckets:
+      - doc_class: correspondence
+        count: 50
+        sub_buckets:
+          - {subclass: "email", count: 24}
+          - {subclass: "memo", count: 5}
+          - {subclass: "notice", count: 5}
+          - {subclass: "demand", count: 4}
+          - {subclass: "letter", count: 4}
+          - {subclass: "press_release", count: 4}
+          - {subclass: "meeting_request", count: 3}
+          - {subclass: "attorney_demand", count: 1}
+  limit: 50
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 16
+    enable_prefix_caching: true
+    enforce_eager: false
+    quantization: "awq_marlin"
+    revision: ""
+    kv_cache_dtype: "fp8"
+    enable_thinking: false
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16]
+    max_inputs: 32
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 2
+    min_containers: 2
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 32
+  cost_cap_usd: 0.65
+  max_wall_seconds: 2400
+
+trace:
+  sink: none
+  otlp: false
+  environment: sand42
+  tags: [sandbox, job, specialist, qwen3-8b-awq, l4, sand42, 2l4-c32]

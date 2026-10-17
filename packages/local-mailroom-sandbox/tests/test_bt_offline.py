@@ -64,7 +64,7 @@ def test_cli_export_then_guarded_dispose(tmp_path, monkeypatch, capsys):
     from mailroom_sandbox.job import spec as spec_mod
     from mailroom_sandbox.paths import config_dir
 
-    cfg = config_dir() / "runs" / "run-50-correspondence-specialist-awq.yaml"
+    cfg = config_dir() / "runs" / "legacy" / "run-50-correspondence-specialist-awq.yaml"
     runs = tmp_path / "runs"
     monkeypatch.setattr(spec_mod, "runs_root", lambda: runs)
     monkeypatch.setattr(paths, "runtime_dir", lambda: tmp_path)

@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from mailroom_sandbox.overlay import list_profiles, load_profile
@@ -53,6 +54,33 @@ def main(argv: list[str] | None = None) -> int:
     except FileNotFoundError as exc:
         print(f"command unavailable: {exc}", file=sys.stderr)
         return 1
+    except _prompt_selection_error() as exc:
+        print(f"error: prompt version: {_one_line(exc)}", file=sys.stderr)
+        return 1
+    except _provenance_errors() as exc:
+        # A scorecard that cannot carry honest provenance is a hard failure,
+        # never a skipped/"refused" entry: one clear line, exit 1.
+        print(f"error: scorecard not emitted: {_one_line(exc)}", file=sys.stderr)
+        return 1
+
+
+def _provenance_errors() -> tuple[type[BaseException], ...]:
+    """The dojo's provenance error, imported lazily (the dojo path is resolved at runtime)."""
+    try:
+        from llm_dojo_scoring.scorecard_honesty import ProvenanceExportError
+    except ImportError:  # dojo not importable: nothing to translate
+        return ()
+    return (ProvenanceExportError,)
+
+
+def _prompt_selection_error() -> type[BaseException]:
+    from mailroom_sandbox.prompt_versions import PromptSelectionError
+
+    return PromptSelectionError
+
+
+def _one_line(exc: BaseException) -> str:
+    return " ".join(str(exc).split())
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -97,7 +125,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser(
         "fetch-deps",
-        help="Refresh tracked vendor snapshots (llm-mailroom v0.7.1, llm-dojo-scoring v0.15.0) from pinned tags",
+        help="Refresh tracked vendor snapshots (llm-mailroom v0.7.1, llm-dojo-scoring v0.22.0) from pinned tags",
         parents=[shared],
     )
     p.add_argument("--visualizer", action="store_true", help="Also clone The-Mailroom (Langfuse observer)")
@@ -278,6 +306,40 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="from_log",
         help="For local_vs_api / sorter_vs_modernbert: compare experiment_log.jsonl instead of fixtures",
+    )
+    p.add_argument(
+        "--group",
+        default=None,
+        help=(
+            "local_vs_api --from-log: the log is grouped by full identity (model / prompt / task / "
+            "dataset) and each comparable local-vs-API group is compared and emitted separately; "
+            "with several groups pick the headline one by 1-based index or unique label substring"
+        ),
+    )
+    p.add_argument(
+        "--prompt-version",
+        action="append",
+        default=[],
+        dest="prompt_versions",
+        metavar="[ROLE=]KEY",
+        help=(
+            "Run with an eval-environment prompt version (archived _v0, frozen _v1 or any "
+            "GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, "
+            "or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come "
+            "from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline "
+            "lacks is an error. Default (no flag) is unchanged."
+        ),
+    )
+    p.add_argument(
+        "--dataset-revision",
+        default=None,
+        dest="dataset_revision",
+        metavar="SHA",
+        help=(
+            "local_vs_api: the full 40-hex Hub commit sha the scored rows came from, for log/fixture "
+            "rows that carry no dataset_revision. A scorecard without a real revision is a hard error "
+            "(exit 1); this fills the gap, it never overrides a revision a record already has"
+        ),
     )
     p.set_defaults(handler=_cmd_eval)
 
@@ -534,10 +596,19 @@ def build_parser() -> argparse.ArgumentParser:
     plug_list = prom_sub.add_parser("list", parents=[shared])
     plug_list.set_defaults(handler=_cmd_prompts_list)
     plug_show = prom_sub.add_parser("show", parents=[shared])
-    plug_show.add_argument("name", help="agent name (or --all)")
-    plug_show.add_argument("--variant", default=None, help="local variant stem")
+    plug_show.add_argument("name", help="agent name, or an eval-environment prompt version key (sorter_v3)")
+    plug_show.add_argument("--variant", default=None, help="agent: local variant stem")
     plug_show.add_argument("--json", action="store_true")
+    plug_show.add_argument("--diff", default=None, metavar="OTHER_KEY", help="version key: unified diff from <key> to OTHER_KEY")
+    plug_show.add_argument("--memo", action="store_true", help="version key: memo + what changed, no text")
     plug_show.set_defaults(handler=_cmd_prompts_show)
+    plug_lv = prom_sub.add_parser(
+        "list-versions", parents=[shared], help="every eval-environment prompt version (archived / frozen / mutation)"
+    )
+    plug_lv.add_argument("--role", default=None, help="only this role (e.g. sorter)")
+    plug_lv.add_argument("--lineage", default=None, choices=["archived", "frozen", "mutation"])
+    plug_lv.add_argument("--json", action="store_true")
+    plug_lv.set_defaults(handler=_cmd_prompts_list_versions)
     prom.set_defaults(handler=_cmd_prompts_help)
 
     mp = sub.add_parser("metrics", help="serving metrics compare (local vs Modal vs API)", parents=[shared])
@@ -731,6 +802,20 @@ def _run_parser(sub, shared):
     common.add_argument("--job-mode", dest="mode", choices=["endpoint", "modal"], default=None)
     common.add_argument("--max-items", type=int, default=None)
     common.add_argument(
+        "--prompt-version",
+        action="append",
+        default=[],
+        dest="prompt_versions",
+        metavar="[ROLE=]KEY",
+        help=(
+            "Run with an eval-environment prompt version (archived _v0, frozen _v1 or any "
+            "GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, "
+            "or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come "
+            "from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline "
+            "lacks is an error. Default (no flag) is unchanged."
+        ),
+    )
+    common.add_argument(
         "--suite",
         default=None,
         help="suite id/alias (track-a|track-b|full) for suite / benchmark-check",
@@ -786,18 +871,45 @@ def _run_parser(sub, shared):
         parents=[common],
         help="sample vLLM /metrics per replica into the run dir (SAND-032)",
     )
-    scrape_p.add_argument("--label", choices=["before", "after"], required=True)
+    scrape_p.add_argument(
+        "--label",
+        choices=["before", "after", "mid"],
+        required=True,
+        help=(
+            "before|after bracket the run (they fire at its drained edges, where the KV "
+            "gauge is 0 by construction); mid is a point sample taken WHILE the run is "
+            "working — the only label that can see KV/queue pressure"
+        ),
+    )
     scrape_p.set_defaults(handler=_cmd_run_scrape_metrics)
     card_p = run_sub.add_parser(
         "card",
         parents=[common],
-        help="SAND-037 score & cost card: --config (one run) or --runbook grid-1l4|grid-2l4 (suite)",
+        help=(
+            "score & cost card: --config (one run) or --runbook "
+            "grid-1l4|grid-2l4|sand42-<cell>|sand42|sand42-noise-floor"
+        ),
     )
     card_p.add_argument(
         "--runbook",
         default=None,
-        choices=["grid-1l4", "grid-2l4"],
-        help="write the finalized L4x1 / L4x2 suite card from the per-run cards",
+        choices=[
+            "grid-1l4",
+            "grid-2l4",
+            "sand42-1l4-c8",
+            "sand42-1l4-c16",
+            "sand42-2l4-c8",
+            "sand42-2l4-c16",
+            "sand42-2l4-c32",
+            "sand42",
+            "sand42-noise-floor",
+        ],
+        help=(
+            "grid-1l4|grid-2l4: the finalized L4x1 / L4x2 suite card. "
+            "sand42-<cell>: one SAND-042 condition card. "
+            "sand42: all five conditions + comparison + master cost card + master report. "
+            "sand42-noise-floor: the noise-floor memo."
+        ),
     )
     card_p.add_argument(
         "--master",
@@ -1013,9 +1125,11 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # instead (DMR-057/070): tags can lag removals — the v0.7.1 tag predates the
 # five-class taxonomy removal (59c47401), so a tag-based refresh of
 # llm-mailroom would resurrect the deleted docclass-era files.
+# llm-dojo-scoring v0.22.0 is tagged (released 2026-10-16, commit a2862cec),
+# so the standalone fallback resolves the tag with no silent downgrade.
 _VENDOR_PINS: tuple[tuple[str, str, str], ...] = (
     ("llm-mailroom", "v0.7.1", "https://github.com/Exios66/llm-mailroom.git"),
-    ("llm-dojo-scoring", "v0.15.0", "https://github.com/Exios66/llm-dojo-scoring.git"),
+    ("llm-dojo-scoring", "v0.22.0", "https://github.com/Exios66/llm-dojo-scoring.git"),
 )
 
 
@@ -1585,6 +1699,9 @@ def _cmd_eval(args: argparse.Namespace) -> int:
     exp = args.experiment_name or f"sandbox_{args.task}"
     console.run_banner(run_id=exp, task=args.task, subtitle="sandbox eval")
     console.phase("EVAL", "mock" if mock else args.profile or "local")
+    if getattr(args, "dataset_revision", None) and args.task != "local_vs_api":
+        raise SystemExit("error: --dataset-revision only applies to `eval local_vs_api`")
+    _select_prompt_versions(args)
     kwargs = {
         "mock": mock,
         "sample": args.sample,
@@ -1613,6 +1730,8 @@ def _cmd_eval(args: argparse.Namespace) -> int:
         result = runners.run_local_vs_api_eval(
             prompt_version=args.prompt,
             from_log=bool(getattr(args, "from_log", False)),
+            group=getattr(args, "group", None),
+            dataset_revision=getattr(args, "dataset_revision", None),
             **kwargs,
         )
     elif args.task == "sorter_vs_modernbert":
@@ -1637,6 +1756,35 @@ def _cmd_eval(args: argparse.Namespace) -> int:
     console.complete(state="done", summary=summary or exp)
     _print(result)
     return 0
+
+
+def _select_prompt_versions(args) -> None:
+    """Resolve ``--prompt-version`` for an eval and make it the process's active selection."""
+    from mailroom_sandbox import prompt_versions as pv
+
+    items = getattr(args, "prompt_versions", None)
+    if not items:
+        pv.clear_active_selection()
+        return
+    selection = pv.resolve_selection(items)
+    pv.check_no_stem_conflict(selection.keys, getattr(args, "prompt", None))
+    from mailroom_sandbox.eval.agents import SPECS
+
+    task = args.task
+    if task in SPECS:
+        unused = sorted(set(selection.keys) - {task})
+    elif task in {"pipeline", "extract", "chained"}:
+        unused = []
+    elif task == "sorter_vs_modernbert":
+        unused = sorted(set(selection.keys) - {"sorter"})
+    else:
+        unused = sorted(selection.keys)
+    if unused:
+        raise pv.PromptSelectionError(
+            f"task {task!r} does not use the prompt(s) for {unused}; a selection that would "
+            "not run is refused"
+        )
+    pv.set_active_selection(selection)
 
 
 def _cmd_matrix(args: argparse.Namespace) -> int:
@@ -1895,27 +2043,100 @@ def _cmd_run_deploy_env(args) -> int:
 
 
 def _cmd_run_scrape_metrics(args) -> int:
-    """SAND-032: per-replica vLLM /metrics snapshot (measured TTFT, KV, preemptions)."""
+    """SAND-032/042: per-replica vLLM /metrics snapshot + container GPU telemetry.
+
+    ``--label before`` also records the window start so the ``after``/``mid`` passes can
+    slice the cell's nvidia-smi series to this run alone. ``mid`` is the same scrape while
+    the run is in flight: the before/after pair brackets the run and therefore reads
+    ``kv_cache_usage_perc`` as 0 (a pre-allocated cache with no live sequences), so mid is
+    the only label that can see KV/queue pressure at all.
+    """
+    from mailroom_sandbox.job import container_telemetry
     from mailroom_sandbox.job import spec as spec_mod
     from mailroom_sandbox.job import vllm_metrics
+    from mailroom_sandbox.job.specialist_posture import sand42_cell_label
 
     if not getattr(args, "config", None):
         print("ERROR: --config required", file=sys.stderr)
         return 2
     spec = spec_mod.load_run_spec(args.config)
+    run_id = spec_mod.resolve_run_id(spec)
+    dest = spec_mod.runs_root() / run_id
     expected = spec.engine.modal.max_containers if spec.engine.modal else 1
     result = vllm_metrics.scrape(
         spec_mod.engine_base_url(spec),
         os.environ.get("VLLM_API_KEY", "").strip(),
         expected=expected,
     )
-    dest = spec_mod.runs_root() / spec_mod.resolve_run_id(spec) / f"vllm_metrics_{args.label}.json"
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
-    print(f"{result['coverage']} → {dest}")
+    dest.mkdir(parents=True, exist_ok=True)
+    # Preserve the exporter output verbatim (every family), one section per replica;
+    # the JSON keeps only the summarized fields the cards render.
+    raws = result.pop("raw", None) or {}
+    target = dest / f"vllm_metrics_{args.label}.json"
+    target.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
+    if args.label == "mid":
+        # A mid sample is a POINT reading of instantaneous gauges (kv_cache_usage_perc,
+        # num_requests_running/waiting), so the run's interesting value is the maximum
+        # across the series. Append each one; the card collapses them.
+        reps = result.get("replicas") if isinstance(result.get("replicas"), dict) else {}
+        series = {
+            str(rid): {k: v for k, v in (rep if isinstance(rep, dict) else {}).items()
+                       if k in ("kv_cache_usage_perc", "num_requests_running",
+                                "num_requests_waiting", "preemptions")}
+            for rid, rep in reps.items()
+        }
+        with (dest / "vllm_metrics_mid.series.jsonl").open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"at": result.get("at"), "replicas": series}) + "\n")
+    if raws:
+        blob = "\n".join(
+            f"# replica process_start_time_seconds={key}\n{text.rstrip()}\n"
+            for key, text in sorted(raws.items())
+        )
+        (dest / f"vllm_metrics_{args.label}.txt").write_text(blob, encoding="utf-8")
+    print(f"{result['coverage']} → {target}")
     for err in result.get("errors") or []:
         print(f"WARN: scrape error: {err}", file=sys.stderr)
+
+    _capture_container_telemetry(
+        container_telemetry, dest, label=args.label, cell=sand42_cell_label(run_id)
+    )
     return 0
+
+
+def _capture_container_telemetry(module, dest: Path, *, label: str, cell: str) -> None:
+    """SAND-042: mark the window on ``before``; pull and slice the series on ``after``."""
+    if not cell:
+        return  # not a SAND-042 run: no container series to claim
+    if label == "before":
+        (dest / "container_telemetry_window.json").write_text(
+            json.dumps({"cell": cell, "start": time.time()}, indent=2), encoding="utf-8"
+        )
+        return
+    window = {}
+    window_path = dest / "container_telemetry_window.json"
+    if window_path.is_file():
+        try:
+            window = json.loads(window_path.read_text(encoding="utf-8"))
+        except ValueError:
+            window = {}
+    doc = module.pull(cell, start=window.get("start"), end=time.time())
+    out = dest / f"container_telemetry_{label}.json"
+    out.write_text(json.dumps(doc, indent=2, sort_keys=True), encoding="utf-8")
+    summary = module.summarize_samples(doc)
+    if summary.get("captured"):
+        util = summary.get("util_mean_perc")
+        print(
+            f"gpu telemetry ({cell}): {summary['samples']} samples, "
+            f"util mean {util:.1f}% max {summary['util_max_perc']:.1f}% → {out}"
+            if util is not None
+            else f"gpu telemetry ({cell}): {summary['samples']} samples → {out}"
+        )
+    else:
+        print(
+            f"WARN: gpu telemetry not captured for {cell}: {summary.get('reason')}",
+            file=sys.stderr,
+        )
+
 
 
 def _cmd_run_card(args) -> int:
@@ -1923,10 +2144,15 @@ def _cmd_run_card(args) -> int:
     from mailroom_sandbox.job import grid_cards
 
     if getattr(args, "record_metered", None):
-        from mailroom_sandbox.job.grid_master import record_metered
-
         study, metered, billed = args.record_metered
-        print(f"metered spend → {record_metered(study, float(metered), float(billed))}")
+        if study.replace("-", "").upper().startswith("SAND42"):
+            from mailroom_sandbox.job import sand42_cards
+
+            print(f"metered spend → {sand42_cards.write_metered(study, float(metered), float(billed))}")
+        else:
+            from mailroom_sandbox.job.grid_master import record_metered
+
+            print(f"metered spend → {record_metered(study, float(metered), float(billed))}")
         if not getattr(args, "master", False):
             return 0
     if getattr(args, "master", False):
@@ -1944,7 +2170,32 @@ def _cmd_run_card(args) -> int:
             print("reader PDF skipped: Chrome not found (set SANDBOX_CHROME); READER-REPORT.pdf is now stale")
         return 0
     if getattr(args, "runbook", None):
-        replicas = 1 if args.runbook == "grid-1l4" else 2
+        runbook = str(args.runbook)
+        if runbook.startswith("sand42"):
+            from mailroom_sandbox.job import sand42_cards
+
+            # Two parallel fleets, the sequential driver and the handoff all rebuild
+            # these files from one tree; serialize them or the master/comparison
+            # (and figures/) can be torn mid-write.
+            with sand42_cards.report_lock():
+                if runbook == "sand42":
+                    for label, path in sand42_cards.write_all().items():
+                        print(f"{label} → {path}")
+                    return 0
+                if runbook == "sand42-noise-floor":
+                    print(f"noise floor → {sand42_cards.write_noise_floor()['md']}")
+                    return 0
+                cell = runbook.removeprefix("sand42-")
+                if cell not in sand42_cards.CELLS:
+                    print(
+                        f"ERROR: unknown SAND-042 cell {cell!r} "
+                        f"(want one of {sorted(sand42_cards.CELLS)}, sand42, sand42-noise-floor)",
+                        file=sys.stderr,
+                    )
+                    return 2
+                print(f"suite card → {sand42_cards.write_cell(cell)['md']}")
+                return 0
+        replicas = 1 if runbook == "grid-1l4" else 2
         paths = grid_cards.write_suite(replicas)
         print(f"suite card → {paths['md']}")
         return 0
@@ -2361,7 +2612,15 @@ def _run_load_spec(args) -> tuple[object, Path]:
         raise SystemExit("run commands need --config <run.yaml>")
     from mailroom_sandbox.job.spec import load_run_spec
 
-    return load_run_spec(config), Path(config).resolve()
+    spec = load_run_spec(config)
+    cli_versions = getattr(args, "prompt_versions", None)
+    if cli_versions:
+        # --prompt-version wins per role over the spec's prompt.versions; the merged
+        # selection is part of spec_hash, so the lock names it.
+        from mailroom_sandbox.prompt_versions import merge_into_spec_prompt
+
+        spec.prompt = merge_into_spec_prompt(spec.prompt, cli_versions)
+    return spec, Path(config).resolve()
 
 
 def _run_id_required(args) -> str:
@@ -2374,6 +2633,11 @@ def _run_id_required(args) -> str:
     if not run_id:
         raise SystemExit("--run-id <id> is required here (or pass --config <run.yaml>)")
     return run_id
+
+
+# Preflight refusals are exit 3 — an operator must decide (re-lock, or name the
+# takeover). Any other non-prepared status is exit 1: something is broken.
+_REFUSAL_STATUSES = {"drift_refused", "foreign_store_refused"}
 
 
 def _cmd_run_preflight(args) -> int:
@@ -2393,7 +2657,7 @@ def _cmd_run_preflight(args) -> int:
     _print(report)
     if report.get("status") == "prepared":
         return 0
-    return 3 if report.get("status") == "drift_refused" else 1
+    return 3 if report.get("status") in _REFUSAL_STATUSES else 1
 
 
 def _cmd_run_start(args) -> int:
@@ -2430,7 +2694,7 @@ def _cmd_run_start(args) -> int:
     )
     if report.get("status") != "prepared":
         _print(report)
-        return 3 if report.get("status") == "drift_refused" else 1
+        return 3 if report.get("status") in _REFUSAL_STATUSES else 1
     run_id = report["run_id"]
     if getattr(args, "dry_run", False):
         _print({"run_id": run_id, "state": "dry_run"})
@@ -2672,7 +2936,7 @@ def _cmd_run_resume(args) -> int:
         )
         if report.get("status") != "prepared":
             _print(report)
-            return 3 if report.get("status") == "drift_refused" else 1
+            return 3 if report.get("status") in _REFUSAL_STATUSES else 1
     if _job_mode(store) == "modal":
         from mailroom_sandbox.job import remote as job_remote
 
@@ -2819,7 +3083,43 @@ def _cmd_runbook_write(args) -> int:
 
 
 def _cmd_prompts_help(args):
-    print("Use: sandbox prompts list | sandbox prompts show <agent> [--variant X]")
+    print(
+        "Use: sandbox prompts list | sandbox prompts show <agent> [--variant X]\n"
+        "     sandbox prompts list-versions [--role R] [--lineage archived|frozen|mutation] [--json]\n"
+        "     sandbox prompts show <version-key> [--diff <other-key> | --memo | --json]"
+    )
+    return 0
+
+
+def _cmd_prompts_list_versions(args) -> int:
+    from mailroom_sandbox import prompt_catalog as catalog
+
+    try:
+        rows = catalog.list_versions(role=args.role, lineage=args.lineage)
+    except KeyError as exc:
+        print(f"error: {exc.args[0]}", file=sys.stderr)
+        return 2
+    if getattr(args, "json", False):
+        _print(rows)
+    else:
+        print(catalog.format_version_table(rows))
+    return 0
+
+
+def _show_prompt_version(args) -> int:
+    from mailroom_sandbox import prompt_catalog as catalog
+
+    if args.diff and args.memo:
+        print("error: --diff and --memo are mutually exclusive", file=sys.stderr)
+        return 2
+    try:
+        if getattr(args, "json", False):
+            _print(catalog.version_json(args.name))
+            return 0
+        sys.stdout.write(catalog.show_version(args.name, memo_only=args.memo, diff_against=args.diff))
+    except KeyError as exc:
+        print(f"error: {exc.args[0]}", file=sys.stderr)
+        return 2
     return 0
 
 
@@ -2835,6 +3135,10 @@ def _cmd_prompts_show(args) -> int:
     from mailroom_sandbox.prompt_registry import FAMILY_B_KEYS, agent_prompt_names, resolve_prompt
 
     name = args.name
+    from mailroom_sandbox.prompt_catalog import is_version_key
+
+    if is_version_key(name) or getattr(args, "diff", None) or getattr(args, "memo", False):
+        return _show_prompt_version(args)
     if name not in agent_prompt_names():
         print(
             f"error: unknown agent {name!r} — have {sorted(agent_prompt_names())} "
@@ -2871,11 +3175,11 @@ def _cmd_metrics_help(args):
 
 
 _DEFAULT_SPECIALIST_SUITE = (
-    "config/runs/run-30-contracts-specialist.yaml",
-    "config/runs/run-30-merger-specialist.yaml",
-    "config/runs/run-30-corporate-records-specialist.yaml",
-    "config/runs/run-30-correspondence-specialist.yaml",
-    "config/runs/run-30-insurance-claims-specialist.yaml",
+    "config/runs/legacy/run-30-contracts-specialist.yaml",
+    "config/runs/legacy/run-30-merger-specialist.yaml",
+    "config/runs/legacy/run-30-corporate-records-specialist.yaml",
+    "config/runs/legacy/run-30-correspondence-specialist.yaml",
+    "config/runs/legacy/run-30-insurance-claims-specialist.yaml",
 )
 
 
@@ -3091,21 +3395,12 @@ def _cmd_metrics_compare(args) -> int:
                 )
                 return 1
             lock = store.read_lock() or {}
-            items = store.load_items()
-            engine = lock.get("engine") or {}
-            modal = (engine.get("modal") or {}) if isinstance(engine, dict) else {}
-            gpu = str(modal.get("gpu") or "").split(":")[0] or None
-            rec = metrics.record_from_run(
-                run_id=run_id,
-                spec_hash=store.spec_hash() or "",
-                task=lock.get("task", "?"),
-                profile=lock.get("profile", "?"),
-                model=(lock.get("engine") or {}).get("model") or "?",
-                prompt_version=str((lock.get("prompt") or {}).get("default", {}).get("source") or "code-default"),
-                dataset_fingerprint=(lock.get("dataset") or {}).get("sha256", "") or "",
-                items=items,
-                gpu=gpu,
-            )
+            # Use the same source as the cards: the run's own container-telemetry
+            # window x replicas x rate. Calling record_from_run directly leaves
+            # billed_window_seconds unset, which falls back to the latency SUM —
+            # a busy-time lower bound the cost doc itself warns OVERCOUNTS at
+            # concurrency > 1 (it read 1.91 USD against 0.27 USD of real spend).
+            rec = metrics.serving_record_from_store(store)
             records.append(rec)
     result = metrics.compare(records)
     if getattr(args, "json", False):

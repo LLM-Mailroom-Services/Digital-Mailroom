@@ -61,7 +61,7 @@ except Exception as exc:  # pragma: no cover — dojo pin always ships this modu
     _warn_once(
         "dojo-constants-fallback",
         "llm-dojo-scoring tracing constants unavailable — using local constants; "
-        "scores may be aliased differently than the pinned v0.15.0 surface",
+        "scores may be aliased differently than the pinned v0.22.0 surface",
         exc,
     )
     PIPELINE_TRACE = "document-pipeline"

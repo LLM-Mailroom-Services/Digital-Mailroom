@@ -15,88 +15,15 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "agent-mailroom",
     "claims-data-eda",
     "enron-evaluation-environment",
     "llm-dojo-scoring",
-    "llm-entity-extraction",
-    "llm-mailroom-graph",
     "mailroom",
     "mailroom-corpus-eda",
     "mailroom-hub",
     "mailroom-sandbox",
     "the-mailroom",
 ]
-
-[[package]]
-name = "agent-mailroom"
-version = "0.2.0"
-source = { editable = "packages/agent-mailroom" }
-dependencies = [
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "llm-dojo-scoring" },
-    { name = "pydantic" },
-    { name = "python-dotenv" },
-    { name = "python-multipart" },
-    { name = "pyyaml" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.optional-dependencies]
-auth = [
-    { name = "bcrypt" },
-    { name = "pyjwt" },
-]
-dev = [
-    { name = "httpx" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-]
-embeddings = [
-    { name = "scipy" },
-    { name = "sentence-transformers" },
-]
-observability = [
-    { name = "langfuse" },
-]
-pdf = [
-    { name = "pypdf" },
-]
-phoenix = [
-    { name = "arize-phoenix" },
-]
-tui = [
-    { name = "rich" },
-]
-vision = [
-    { name = "pymupdf" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "arize-phoenix", marker = "extra == 'phoenix'", specifier = ">=4.0" },
-    { name = "bcrypt", marker = "extra == 'auth'", specifier = ">=4.0" },
-    { name = "fastapi", specifier = ">=0.110" },
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
-    { name = "langfuse", marker = "extra == 'observability'", specifier = ">=3.0" },
-    { name = "llm-dojo-scoring", editable = "packages/llm-dojo-scoring" },
-    { name = "pydantic", specifier = ">=2.0" },
-    { name = "pyjwt", marker = "extra == 'auth'", specifier = ">=2.8" },
-    { name = "pymupdf", marker = "extra == 'vision'", specifier = ">=1.24" },
-    { name = "pypdf", marker = "extra == 'pdf'", specifier = ">=4.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
-    { name = "python-dotenv", specifier = ">=1.0" },
-    { name = "python-multipart", specifier = ">=0.0.9" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "rich", marker = "extra == 'tui'", specifier = ">=13.0" },
-    { name = "scipy", marker = "extra == 'embeddings'", specifier = ">=1.10" },
-    { name = "sentence-transformers", marker = "extra == 'embeddings'", specifier = ">=3.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.29" },
-]
-provides-extras = ["pdf", "vision", "observability", "phoenix", "tui", "auth", "embeddings", "dev"]
 
 [[package]]
 name = "aiofile"
@@ -2867,20 +2794,6 @@ wheels = [
 ]
 
 [[package]]
-name = "langchain"
-version = "1.3.18"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "langchain-core" },
-    { name = "langgraph" },
-    { name = "pydantic" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/31/e9/0e5425e522b624d7c5c0911957b467b82890b36b0099bf727951f2ee3059/langchain-1.3.18.tar.gz", hash = "sha256:74ce99294f6f2c82ee64c3df39daa6a22085ee1449a718065b3604a88d78bf4d", size = 637052, upload-time = "2026-08-27T17:33:12.702Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f7/04/374f6014ed6959dbdab92962c2b09e4d0223ed6a82f65694870b46d2c13f/langchain-1.3.18-py3-none-any.whl", hash = "sha256:f29cbef985848e5cfff5398f3c8c1568994a3a6f2a8f4fa720df30b6e0668b9c", size = 148007, upload-time = "2026-08-27T17:33:11.23Z" },
-]
-
-[[package]]
 name = "langchain-core"
 version = "1.6.1"
 source = { registry = "https://pypi.org/simple" }
@@ -3069,7 +2982,7 @@ wheels = [
 
 [[package]]
 name = "llm-dojo-scoring"
-version = "0.19.1"
+version = "0.22.0"
 source = { editable = "packages/llm-dojo-scoring" }
 dependencies = [
     { name = "jellyfish" },
@@ -3095,6 +3008,10 @@ all = [
     { name = "python-dotenv" },
     { name = "sentence-transformers" },
 ]
+catalog = [
+    { name = "huggingface-hub" },
+    { name = "pyarrow" },
+]
 dev = [
     { name = "pytest" },
     { name = "pytest-mock" },
@@ -3117,6 +3034,7 @@ tracing = [
 [package.metadata]
 requires-dist = [
     { name = "arize-phoenix", marker = "extra == 'tracing'", specifier = ">=4.0" },
+    { name = "huggingface-hub", marker = "extra == 'catalog'", specifier = ">=0.23" },
     { name = "jellyfish", specifier = ">=1.0" },
     { name = "jellyfish", marker = "extra == 'jellyfish'", specifier = ">=1.0" },
     { name = "langfuse", marker = "extra == 'tracing'", specifier = ">=2.50" },
@@ -3128,6 +3046,7 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp-proto-http", marker = "extra == 'tracing'", specifier = ">=1.20" },
     { name = "opentelemetry-sdk", marker = "extra == 'tracing'", specifier = ">=1.20" },
     { name = "pandas", specifier = ">=2.0.0" },
+    { name = "pyarrow", marker = "extra == 'catalog'", specifier = ">=15.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.14" },
     { name = "python-dateutil", specifier = ">=2.8.2" },
@@ -3137,124 +3056,7 @@ requires-dist = [
     { name = "sentence-transformers", marker = "extra == 'embeddings'", specifier = ">=3.0" },
     { name = "structlog", specifier = ">=24.0" },
 ]
-provides-extras = ["embeddings", "jellyfish", "tracing", "dev", "all"]
-
-[[package]]
-name = "llm-entity-extraction"
-version = "0.21.0"
-source = { editable = "packages/llm-entity-extraction" }
-dependencies = [
-    { name = "langchain-core" },
-    { name = "langchain-openai" },
-    { name = "llm-dojo-scoring" },
-    { name = "openai" },
-    { name = "python-dotenv" },
-    { name = "pyyaml" },
-    { name = "requests" },
-    { name = "structlog" },
-]
-
-[package.optional-dependencies]
-all = [
-    { name = "arize-phoenix" },
-    { name = "braintrust" },
-    { name = "huggingface-hub" },
-    { name = "ipykernel" },
-    { name = "langfuse" },
-    { name = "matplotlib" },
-    { name = "modal" },
-    { name = "nbclient" },
-    { name = "nbformat" },
-    { name = "numpy" },
-    { name = "openpyxl" },
-    { name = "opentelemetry-exporter-otlp-proto-http" },
-    { name = "opentelemetry-sdk" },
-    { name = "pdf2image" },
-    { name = "pillow" },
-    { name = "sentence-transformers" },
-]
-datasets = [
-    { name = "huggingface-hub" },
-    { name = "pdf2image" },
-    { name = "pillow" },
-]
-deploy = [
-    { name = "modal" },
-]
-dev = [
-    { name = "arize-phoenix" },
-    { name = "langfuse" },
-    { name = "opentelemetry-exporter-otlp-proto-http" },
-    { name = "opentelemetry-sdk" },
-    { name = "pytest" },
-    { name = "pytest-mock" },
-]
-embeddings = [
-    { name = "sentence-transformers" },
-]
-evals = [
-    { name = "braintrust" },
-]
-notebooks = [
-    { name = "ipykernel" },
-    { name = "nbclient" },
-    { name = "nbformat" },
-]
-pdf = [
-    { name = "huggingface-hub" },
-    { name = "pdf2image" },
-    { name = "pillow" },
-]
-reporting = [
-    { name = "matplotlib" },
-    { name = "numpy" },
-    { name = "openpyxl" },
-]
-tracing = [
-    { name = "arize-phoenix" },
-    { name = "langfuse" },
-    { name = "opentelemetry-exporter-otlp-proto-http" },
-    { name = "opentelemetry-sdk" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "arize-phoenix", marker = "extra == 'tracing'", specifier = ">=4.0" },
-    { name = "braintrust", marker = "extra == 'evals'", specifier = ">=0.31" },
-    { name = "huggingface-hub", marker = "extra == 'datasets'", specifier = ">=0.24" },
-    { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=6.29" },
-    { name = "langchain-core", specifier = ">=1.0" },
-    { name = "langchain-openai", specifier = ">=0.3" },
-    { name = "langfuse", marker = "extra == 'tracing'", specifier = ">=3.0" },
-    { name = "llm-dojo-scoring", editable = "packages/llm-dojo-scoring" },
-    { name = "llm-entity-extraction", extras = ["datasets"], marker = "extra == 'pdf'", editable = "packages/llm-entity-extraction" },
-    { name = "llm-entity-extraction", extras = ["tracing"], marker = "extra == 'dev'", editable = "packages/llm-entity-extraction" },
-    { name = "llm-entity-extraction", extras = ["tracing", "evals", "datasets", "reporting", "embeddings", "notebooks", "deploy"], marker = "extra == 'all'", editable = "packages/llm-entity-extraction" },
-    { name = "matplotlib", marker = "extra == 'reporting'", specifier = ">=3.9.0" },
-    { name = "modal", marker = "extra == 'deploy'", specifier = "==1.5.5" },
-    { name = "nbclient", marker = "extra == 'notebooks'", specifier = ">=0.10" },
-    { name = "nbformat", marker = "extra == 'notebooks'", specifier = ">=5.10" },
-    { name = "numpy", marker = "extra == 'reporting'", specifier = ">=1.26.0" },
-    { name = "openai", specifier = ">=1.60" },
-    { name = "openpyxl", marker = "extra == 'reporting'", specifier = ">=3.1" },
-    { name = "opentelemetry-exporter-otlp-proto-http", marker = "extra == 'tracing'", specifier = ">=1.20" },
-    { name = "opentelemetry-sdk", marker = "extra == 'tracing'", specifier = ">=1.20" },
-    { name = "pdf2image", marker = "extra == 'datasets'", specifier = ">=1.17" },
-    { name = "pillow", marker = "extra == 'datasets'", specifier = ">=10.4.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-    { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.14" },
-    { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "requests", specifier = ">=2.32.0" },
-    { name = "sentence-transformers", marker = "extra == 'embeddings'", specifier = ">=3.0" },
-    { name = "structlog", specifier = ">=24.0" },
-]
-provides-extras = ["tracing", "evals", "datasets", "reporting", "embeddings", "notebooks", "deploy", "dev", "all", "pdf"]
-
-[[package]]
-name = "llm-mailroom-graph"
-version = "0.1.0"
-source = { virtual = "packages/llm-mailroom-graph" }
+provides-extras = ["embeddings", "jellyfish", "tracing", "dev", "catalog", "all"]
 
 [[package]]
 name = "logfire-api"
@@ -3377,7 +3179,7 @@ wheels = [
 
 [[package]]
 name = "mailroom"
-version = "0.7.1"
+version = "0.8.0"
 source = { editable = "packages/llm-mailroom" }
 dependencies = [
     { name = "aiosqlite" },
@@ -3421,6 +3223,9 @@ deploy = [
 ]
 dev = [
     { name = "httpx" },
+    { name = "ipykernel" },
+    { name = "nbclient" },
+    { name = "nbformat" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-mock" },
@@ -3446,16 +3251,19 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "huggingface-hub", marker = "extra == 'bert'", specifier = ">=0.30" },
+    { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=6.29" },
     { name = "ipywidgets", marker = "extra == 'notebooks'", specifier = ">=8.1" },
     { name = "jellyfish", specifier = ">=1.0" },
     { name = "jupyterlab", marker = "extra == 'notebooks'", specifier = ">=4.0" },
     { name = "langchain-core", specifier = ">=0.3.0" },
     { name = "langchain-openai", specifier = ">=0.3" },
-    { name = "langfuse", specifier = ">=2.50" },
+    { name = "langfuse", specifier = ">=4.9,<5" },
     { name = "langgraph", specifier = ">=0.2.0" },
     { name = "langgraph-checkpoint-sqlite", specifier = ">=1.0" },
     { name = "llm-dojo-scoring", editable = "packages/llm-dojo-scoring" },
-    { name = "modal", marker = "extra == 'deploy'", specifier = "==1.5.5" },
+    { name = "modal", marker = "extra == 'deploy'", specifier = "==1.6.1" },
+    { name = "nbclient", marker = "extra == 'dev'", specifier = ">=0.10" },
+    { name = "nbformat", marker = "extra == 'dev'", specifier = ">=5.9" },
     { name = "onnxruntime", marker = "extra == 'bert'", specifier = ">=1.30" },
     { name = "openai", specifier = ">=1.30" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.20" },
@@ -3529,19 +3337,16 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "mailroom-hub"
-version = "0.7.0"
+version = "0.8.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]
 dev = [
-    { name = "agent-mailroom" },
     { name = "huggingface-hub" },
     { name = "ipykernel" },
     { name = "ipywidgets" },
     { name = "jupyterlab" },
-    { name = "langchain" },
     { name = "llm-dojo-scoring" },
-    { name = "llm-entity-extraction" },
     { name = "mailroom" },
     { name = "mailroom-sandbox" },
     { name = "nbclient" },
@@ -3559,14 +3364,11 @@ dev = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "agent-mailroom", editable = "packages/agent-mailroom" },
     { name = "huggingface-hub", specifier = ">=1.29" },
     { name = "ipykernel", specifier = ">=6.29" },
     { name = "ipywidgets", specifier = ">=8.1" },
     { name = "jupyterlab", specifier = ">=4.0" },
-    { name = "langchain", specifier = ">=0.3" },
     { name = "llm-dojo-scoring", editable = "packages/llm-dojo-scoring" },
-    { name = "llm-entity-extraction", editable = "packages/llm-entity-extraction" },
     { name = "mailroom", editable = "packages/llm-mailroom" },
     { name = "mailroom-sandbox", editable = "packages/local-mailroom-sandbox" },
     { name = "nbclient", specifier = ">=0.10" },
@@ -3582,7 +3384,7 @@ dev = [
 
 [[package]]
 name = "mailroom-sandbox"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/local-mailroom-sandbox" }
 dependencies = [
     { name = "httpx" },
@@ -3610,6 +3412,7 @@ all = [
     { name = "langchain-openai" },
     { name = "langfuse" },
     { name = "langgraph" },
+    { name = "markdown-it-py" },
     { name = "matplotlib" },
     { name = "modal" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
@@ -3629,10 +3432,22 @@ deploy = [
     { name = "modal" },
 ]
 dev = [
+    { name = "aiosqlite" },
+    { name = "greenlet" },
     { name = "huggingface-hub" },
+    { name = "langchain-core" },
+    { name = "langchain-openai" },
+    { name = "langgraph" },
+    { name = "markdown-it-py" },
+    { name = "pdfplumber" },
+    { name = "pillow" },
     { name = "pyarrow" },
+    { name = "pypdf" },
     { name = "pytest" },
     { name = "pytest-mock" },
+    { name = "requests" },
+    { name = "sqlalchemy" },
+    { name = "watchdog" },
 ]
 hf = [
     { name = "huggingface-hub" },
@@ -3667,7 +3482,7 @@ pipeline = [
 [package.metadata]
 requires-dist = [
     { name = "aiosqlite", marker = "extra == 'pipeline'", specifier = ">=0.20" },
-    { name = "braintrust", marker = "extra == 'observability'", specifier = ">=0.42,<0.43" },
+    { name = "braintrust", marker = "extra == 'observability'", specifier = ">=0.42,<0.46" },
     { name = "greenlet", marker = "extra == 'pipeline'", specifier = ">=3.0" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=0.24" },
@@ -3679,9 +3494,11 @@ requires-dist = [
     { name = "langfuse", marker = "extra == 'observability'", specifier = ">=4.0,<5" },
     { name = "langgraph", marker = "extra == 'pipeline'", specifier = ">=0.2" },
     { name = "mailroom-sandbox", extras = ["dev", "deploy", "hf", "observability", "notebooks", "pipeline"], marker = "extra == 'all'", editable = "packages/local-mailroom-sandbox" },
+    { name = "mailroom-sandbox", extras = ["pipeline"], marker = "extra == 'dev'", editable = "packages/local-mailroom-sandbox" },
+    { name = "markdown-it-py", marker = "extra == 'dev'", specifier = ">=3.0" },
     { name = "matplotlib", specifier = ">=3.8" },
     { name = "matplotlib", marker = "extra == 'notebooks'", specifier = ">=3.8" },
-    { name = "modal", marker = "extra == 'deploy'", specifier = "==1.5.5" },
+    { name = "modal", marker = "extra == 'deploy'", specifier = "==1.6.1" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "openai", specifier = ">=1.30" },
     { name = "openpyxl", specifier = ">=3.1" },
@@ -3905,7 +3722,7 @@ wheels = [
 
 [[package]]
 name = "modal"
-version = "1.5.5"
+version = "1.6.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -3922,9 +3739,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "watchfiles" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b9/a5/9e322043716e511b7f6c9120804f33b92e21a818bf4709b2d98b3c76d665/modal-1.5.5.tar.gz", hash = "sha256:30df363ed1898cc3d91a09ff3f95c38ab043f6b6294011b01085312c6a0ac777", size = 870356, upload-time = "2026-08-28T19:51:34.881Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/65/ba/2b36899ea5633bf101e6ba6f7e95a4da3e4b1f57f52bd0ba8f4cfd12e808/modal-1.6.1.tar.gz", hash = "sha256:ff17768f67a65595aa7882e893e6cb78e2e001b3653aa52cfe98d4051d8d9e9e", size = 942670, upload-time = "2026-10-03T16:05:05.428Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/04/19/b3dca8baec119126058b12ca620e44022e4d08a091956668bd04180c89a7/modal-1.5.5-py3-none-any.whl", hash = "sha256:8d10d3ee09818aaba1973b73ce2521ab8961b63a29b5b52e3ff0d25e7a74808e", size = 985163, upload-time = "2026-08-28T19:51:32.404Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/3c/6b7d9a15dab9af2833ce674bbc72b5654d4099d5b088f1cc1eda3f8249ca/modal-1.6.1-py3-none-any.whl", hash = "sha256:f408ef88563003a83e491a6be09d4221eaa6e038fa4faa2ad8b15b25afe949a4", size = 1063454, upload-time = "2026-10-03T16:05:02.554Z" },
 ]
 
 [[package]]
@@ -4793,18 +4610,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/66/f3/5a20387de9bcd0607871bfc2198ee0e15836da7baa4592ccd7f24c27c986/pathable-0.6.0.tar.gz", hash = "sha256:6404b8b82aef5ff0fd478934137128b99b12212ba35afdde5525ca4f8388ea58", size = 18970, upload-time = "2026-05-19T18:15:11.911Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a2/e8/6d75ffd9784bce2e93d1ae4415649427e39a53bb172d4672b2b59c6f0a7b/pathable-0.6.0-py3-none-any.whl", hash = "sha256:82c4ca6c98c502ad12e0d4e9779b6210afee93c38990988c8c5d1b49bdcdf566", size = 18983, upload-time = "2026-05-19T18:15:10.728Z" },
-]
-
-[[package]]
-name = "pdf2image"
-version = "1.17.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pillow" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/00/d8/b280f01045555dc257b8153c00dee3bc75830f91a744cd5f84ef3a0a64b1/pdf2image-1.17.0.tar.gz", hash = "sha256:eaa959bc116b420dd7ec415fcae49b98100dda3dd18cd2fdfa86d09f112f6d57", size = 12811, upload-time = "2024-01-07T20:33:01.965Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/62/33/61766ae033518957f877ab246f87ca30a85b778ebaad65b7f74fa7e52988/pdf2image-1.17.0-py3-none-any.whl", hash = "sha256:ecdd58d7afb810dffe21ef2b1bbc057ef434dabbac6c33778a38a3f7744a27e2", size = 11618, upload-time = "2024-01-07T20:32:59.957Z" },
 ]
 
 [[package]]
@@ -6581,14 +6386,14 @@ wheels = [
 
 [[package]]
 name = "synchronicity"
-version = "0.12.5"
+version = "0.12.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5d/1c/f51dc54bbd302991026a53f9790735540e0e9e1184e9d5939f02446aa5bc/synchronicity-0.12.5.tar.gz", hash = "sha256:94d96b1d85698e3056b96a793b8c0949af6584e4a7d877fabdeb5385efe230aa", size = 60745, upload-time = "2026-06-18T21:06:23.545Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ee/5f/9f6f7df5919f0d085013b96b9cb99b622b974fe722a04c126c10497bba8b/synchronicity-0.12.6.tar.gz", hash = "sha256:ac971eadb64c95938816b8d6125d6e28473982f3256789a35bdbe02025e1ce17", size = 62425, upload-time = "2026-10-02T15:41:43.739Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/06/74/ad9b99520f70c0bc3318e582e359d360cfc0f7afd7bf368a7f24013cece7/synchronicity-0.12.5-py3-none-any.whl", hash = "sha256:fdbbb10d437bc08a6b0f814fc66fddd1b58ffed314533d42f1ab555801e781af", size = 41107, upload-time = "2026-06-18T21:06:22.505Z" },
+    { url = "https://files.pythonhosted.org/packages/4e/9c/8408129632f2cbd70018cff4a7eb78cc105b141de233b699feeda15d44c9/synchronicity-0.12.6-py3-none-any.whl", hash = "sha256:bc2bab6dde31f6bd9389912cef573b7fa7a5cb4a120ec786275e3284f06473ae", size = 41971, upload-time = "2026-10-02T15:41:42.672Z" },
 ]
 
 [[package]]
@@ -6625,7 +6430,7 @@ wheels = [
 
 [[package]]
 name = "the-mailroom"
-version = "0.4.0"
+version = "0.5.1"
 source = { editable = "packages/The-Mailroom" }
 dependencies = [
     { name = "fastapi" },

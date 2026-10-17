@@ -7,7 +7,7 @@ PY="${SANDBOX_PY:-$ROOT/../local-mailroom-sandbox/.venv/bin/python}"
 RT="$ROOT/data/runtime/sand032"; LOG="$RT/logs"
 spent() { python3 -c 'import json;print(json.load(open("data/runtime/sand032/spend.json"))["spent_usd"])'; }
 step() { echo "=== $1 (spent \$$(python3 scripts/sand032/spend.py write >/dev/null; spent)) ==="; }
-run() { scripts/sand032/run_one.sh "config/runs/$1.yaml" "$2" ${3:-} 2>&1 | tail -2; }
+run() { scripts/sand032/run_one.sh "config/runs/sand032/$1.yaml" "$2" ${3:-} 2>&1 | tail -2; }
 gate() {  # projected total must stay <= $4.50 (spec §Stage 3)
   local proj; proj=$(python3 -c "print(round($(spent) + $1, 4))")
   if python3 -c "import sys; sys.exit(0 if $proj > 4.50 else 1)"; then

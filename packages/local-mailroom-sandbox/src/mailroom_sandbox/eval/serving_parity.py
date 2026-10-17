@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
+from llm_dojo_scoring.scorecard_honesty import COST_BASIS_TOKEN_PRICE
 from llm_dojo_scoring.serving import (
     CANONICAL_SERVING_KEYS,
     classify_serving_kind,
@@ -178,6 +179,10 @@ def to_dojo_serving_record(
     n = _as_int(out.get("n")) or (len(items) if items else None) or 1
     out["n"] = n
     if cost is not None:
+        if _as_float(_first(out, "estimated_cost_usd", "cost_usd")) is None:
+            # Estimated here from tokens x the sandbox/dojo price table. A
+            # recorded cost keeps whatever basis the record carries (or none).
+            out.setdefault("cost_basis", COST_BASIS_TOKEN_PRICE)
         out["estimated_cost_usd"] = float(cost)
         if n:
             out.setdefault("cost_per_document", round(float(cost) / n, 8))

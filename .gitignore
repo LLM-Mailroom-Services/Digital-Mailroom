@@ -20,19 +20,12 @@ htmlcov/
 # Environment / secrets — never commit real credentials.
 .env
 *.env.local
-packages/llm-entity-extraction/config/environments/.env
-packages/llm-entity-extraction/config/environments/braintrust.env
-packages/llm-entity-extraction/config/environments/braintrust-sandbox.env
-packages/llm-entity-extraction/config/environments/langfuse.env
-packages/llm-entity-extraction/config/environments/*.env.local
 
-# Hub #183: stale repo-root copy of the entity-extraction scores manifest (canonical:
-# packages/llm-entity-extraction/reports/scores_manifest.jsonl).
+# Hub #183: stale repo-root copy of the entity-extraction scores manifest (the
+# canonical copy lived in packages/llm-entity-extraction, pruned by DMR-079).
 reports/scores_manifest.jsonl
 
 # Local run artifacts (regenerated locally)
-packages/llm-entity-extraction/data/manifests/*
-!packages/llm-entity-extraction/data/manifests/README.md
 packages/llm-dojo-scoring/reports/
 packages/llm-dojo-scoring/*.report.md
 packages/llm-dojo-scoring/*_plots/
@@ -49,7 +42,6 @@ packages/The-Mailroom/site/
 packages/local-mailroom-sandbox/data/*
 # Sandbox fixtures are tracked (the package .gitignore ignores runtime data).
 !packages/local-mailroom-sandbox/data/fixtures/
-packages/agent-mailroom/data/
 packages/Enron-Evaluation-Environment/data/
 packages/claims-data-eda/data/
 
@@ -57,10 +49,6 @@ packages/claims-data-eda/data/
 # (Regenerated locally by their packages; affected tests carry skip guards.)
 packages/The-Mailroom/docs/demos/
 packages/The-Mailroom/docs/screenshots/
-packages/llm-entity-extraction/docs/posit/
-packages/llm-entity-extraction/docs/posit-src/
-packages/llm-entity-extraction/docs/data/
-packages/llm-entity-extraction/reports/experiment_log.jsonl
 packages/llm-mailroom/docs/reports/
 packages/llm-mailroom/docs/examples/
 

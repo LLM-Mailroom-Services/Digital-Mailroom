@@ -276,8 +276,8 @@ def test_grid_shell_relocks_1l4_and_leaves_decode_to_posture():
     assert "grid-20-merger-specialist-awq-1l4-rerun.yaml" in sh
     assert "SANDBOX_AGENT_KNOBS" not in sh  # decode comes from the posture row at start
     sh2 = render_shell("grid-2l4")
-    assert "config/runs/grid-50-contracts-specialist-awq-2l4-rerun.yaml" in sh2
-    assert "config/runs/grid-50-contracts-specialist-awq-2l4.yaml" not in sh2
+    assert "config/runs/sand037/grid-50-contracts-specialist-awq-2l4-rerun.yaml" in sh2
+    assert "config/runs/sand037/grid-50-contracts-specialist-awq-2l4.yaml" not in sh2
 
 
 def test_grid_family_renders():

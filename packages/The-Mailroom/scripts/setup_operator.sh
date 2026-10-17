@@ -15,5 +15,5 @@ python -m operator_desk
 
 echo "=== Setup complete. ==="
 echo "  mailroom-web            # visualizer + /v1/auth /v1/archive /v1/ops /ws/pipeline"
-echo "  mailroom-observer       # optional standalone bin watcher (or MAILROOM_OBSERVER=1)"
+echo "  mailroom-observer       # optional standalone bin watcher (or MAILROOM_OBSERVER=1; never both)"
 echo "  docker compose -f operator_desk/docker-compose.yml up --build"

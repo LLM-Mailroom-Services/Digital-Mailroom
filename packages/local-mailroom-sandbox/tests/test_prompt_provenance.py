@@ -50,13 +50,15 @@ def test_resolve_catalog_stem_logs_eval_environment_key():
                 "correspondence_specialist": {
                     "source": "local",
                     "file": "correspondence_specialist_simplified",
-                    "sha256": "eab63b5afd29906b1ad3aca2d7698bf5c15d4b7f4ce9ade3b744be535d18d4f3",
+                    "sha256": "2b0b81ff98920b9207627707443e2b023db39212fda5bdcba7bfbded39fa38b6",
                 }
             }
         },
     )
-    assert label == "correspondence_specialist_v1"
-    assert sha == "eab63b5afd29906b1ad3aca2d7698bf5c15d4b7f4ce9ade3b744be535d18d4f3"
+    # The default correspondence stem carries the corrected text frozen in
+    # eval-environment as mutation _v7 (it was _v1 before the dojo #30 re-freeze).
+    assert label == "correspondence_specialist_v7"
+    assert sha == "2b0b81ff98920b9207627707443e2b023db39212fda5bdcba7bfbded39fa38b6"
 
 
 def test_resolve_explicit_simplified_stem_is_eval_environment_v1():

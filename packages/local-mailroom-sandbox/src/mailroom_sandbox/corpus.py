@@ -589,14 +589,50 @@ def _draw_buckets(
     return [r for r in rows if _stable_key(r) in keep]
 
 
+#: class -> the ground-truth field its task-native metric scores against.
+_TASK_GT_FIELD = {
+    "contract": "cuad_clause_labels",
+    "merger_agreement": "maud_clause_labels",
+}
+
+
+def _has_task_gt(row: dict[str, Any]) -> bool:
+    """False when the class's task-native metric has no ground truth to score against.
+
+    The CUAD clause metric is undefined for a contract whose ``cuad_clause_labels`` is
+    empty, so that document cannot contribute to the metric in ANY arm: drawing it buys a
+    GPU pass that scores nothing and silently shrinks the paired n (SAND-042 drew five such
+    contracts out of 50, so the contracts clause column was computed on 45 documents while
+    every other class had 50). 91 of the corpus's 600 contracts, and 0 of its 152 merger
+    agreements, are in that state.
+    """
+    field = _TASK_GT_FIELD.get(str(row.get("expected_doc_class") or ""))
+    if field is None:
+        return True
+    value = (row.get("expected_fields") or {}).get(field)
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            return False
+    return bool(value)
+
+
 def select_rows(
     rows: list[dict[str, Any]],
     *,
     strata: dict[str, Any] | None,
     sample_seed: int | None,
     limit: int | None,
+    require_task_gt: bool = False,
 ) -> list[dict[str, Any]]:
     """Deterministic selection: canonical sort, per-stratum sub-seed draws, union, limit."""
+    # Opt-in (``dataset.require_task_gt``): a document whose class's task-native metric has
+    # no ground truth can never be scored, so including it costs a GPU pass and deflates
+    # the paired n without adding information. The strata guard below still hard-fails if a
+    # requested stratum cannot be filled from what remains.
+    if require_task_gt:
+        rows = [r for r in rows if _has_task_gt(r)]
     rows = sorted(rows, key=_stable_key)
     strata = strata or {}
     if "buckets" in strata:
@@ -654,7 +690,13 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
     for r in rows:
         r.setdefault("source_revision", source_meta.get("revision", ""))
         r["expected_fields"] = r.get("expected_fields") or _derive_expected_fields(r)
-    chosen = select_rows(rows, strata=spec.strata, sample_seed=spec.sample_seed, limit=spec.limit)
+    chosen = select_rows(
+        rows,
+        strata=spec.strata,
+        sample_seed=spec.sample_seed,
+        limit=spec.limit,
+        require_task_gt=bool(getattr(spec, "require_task_gt", False)),
+    )
     # …and refuse a draw/limit that dropped a requested stratum AFTER it.
     strata_draw_guard(chosen, spec.strata)
 

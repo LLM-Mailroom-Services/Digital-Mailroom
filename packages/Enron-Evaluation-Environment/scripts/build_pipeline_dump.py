@@ -2,7 +2,7 @@
 """Build the pipeline-ready Enron correspondence dump.
 
 Stratified sample of the full-corpus index -> ``data/enron/pipeline.jsonl``
-(gitignored, regenerable), the handoff artifact for llm-entity-extraction's
+(gitignored, regenerable), the handoff artifact for the mailroom-dataset
 docclass surface. Row shape is the flat streamer-dump shape:
 
     {filename, doc_text, prompt, expected, expected_subclass, metadata}

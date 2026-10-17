@@ -1,27 +1,28 @@
-"""Vendored mirror of llm-entity-extraction's docclass prompt family.
+"""Canonical in-package copy of the docclass prompt family (DMR-079).
 
-Byte-synced mirror of ``src/prompts_docclass.py::DOCCLASS_PROMPT_VERSIONS``
-(KANBAN-090 lineage + pilot-universe variants authored for the
+This file is the source of truth for ``DOCCLASS_PROMPT_VERSIONS``; the
+llm-entity-extraction repo that originally authored it was pruned from the
+monorepo and is no longer a sync source. Lineage (KANBAN-090 + pilot-universe variants authored for the
 docclass-merged/docclass-pilot GT alignment, 2026-08-24):
 
     74 keys = the full vendored registry: KANBAN-090 family + pilot
     universe + HUB-041 mailroom v8 sorter + KANBAN-101/103 specialists +
     DMR-015 reviewer v2 + the 14-key DMR-015 mailroom_prompts lineage.
-    Regenerated verbatim from src/prompts_docclass.py 2026-09-10.
+    Last regenerated verbatim from the former upstream 2026-09-10; edit here now.
 
     Compliance-filing arm removed from llm-mailroom 2026-09-15 (59c47401);
-    mirror frozen — regenerate from the 5-class entity surface per DMR-046.
+    family frozen — no upstream left to regenerate from (DMR-046/DMR-079).
     The compliance-specialist keys below (docclass_v0/v1, pilot, and
-    mailroom_prompts lineages) remain as frozen entity-side lineage only
-    (KANBAN-090 / DMR-016 mirror); they must never be regenerated from or
-    deployed into llm-mailroom, whose docclass arm was deleted in
+    mailroom_prompts lineages) remain as frozen docclass lineage only
+    (KANBAN-090 / DMR-016); they must never be deployed into
+    llm-mailroom, whose docclass arm was deleted in
     59c47401.
 
 Langfuse contract: prompt name = the version key VERBATIM, type text,
-labeled ``production``. Registration IS deployment upstream - this mirror
-follows the same rule via ``scripts/sync_prompts.py --docclass``.
+labeled ``production``. Registration IS deployment - this module follows
+the same rule via ``scripts/sync_prompts.py --docclass``.
 
-Live override: MAILROOM_DOCLASS_PROMPTS JSON wins over this vendored mirror.
+Live override: MAILROOM_DOCLASS_PROMPTS JSON wins over the in-package copy.
 """
 
 import json

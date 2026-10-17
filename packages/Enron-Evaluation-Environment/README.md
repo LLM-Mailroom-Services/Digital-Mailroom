@@ -50,7 +50,7 @@ downstream; nothing flows back without a versioned handoff.
 |---|---|---|
 | [`llm-mailroom`](https://github.com/Exios66/llm-mailroom) | Multi-agent legal-document intake pipeline; owns the doc-class taxonomy (`correspondence`, `contract`, `merger_agreement`, `corporate_record`, …) this repo labels against | ⬆️ Upstream taxonomy governor |
 | **Enron-Evaluation-Environment** (this repo) | Full-corpus EDA + stratified `correspondence` dataset production for the CMU Enron corpus | — |
-| [`llm-entity-extraction`](https://github.com/Exios66/llm-entity-extraction) | Training & eval environment for legal-document entity extraction / classification / summarization; consumes `data/enron/pipeline.jsonl` via `build_docclass_merged.py` + the sorter's subclass dimension | ⬇️ Primary downstream consumer |
+| [`mailroom-corpus-eda`](https://github.com/Exios66/mailroom-corpus-eda) | Corpus EDA + centralized HF upload helpers; builds the `mailroom-dataset` family from the rows this repo produces | ⬇️ Primary downstream consumer |
 | [`llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring) | Scoring environment + Langfuse dataset mirror (`mailroom-enron-correspondence`) | ⬇️ Downstream scoring mirror |
 | [`claims-data-eda`](https://github.com/Exios66/claims-data-eda) | Sibling **insurance-claims** data-production node (CMS DE-SynPUF) — feeds the mailroom's `insurance_claim` doc class | ↔️ Sibling node |
 | [`atticus-investigation`](https://github.com/Exios66/atticus-investigation) | LegalBench prompt-engineering evaluation pipeline (prompt versions × models via OpenRouter + Braintrust) | ↔️ Adjacent evaluation environment |
@@ -194,8 +194,7 @@ correspondence type.
 
 `data/enron/pipeline.jsonl` (gitignored, regenerable) — the flat
 streamer-dump format consumed by
-[`llm-entity-extraction`](https://github.com/Exios66/llm-entity-extraction)'s
-doc-class eval runners:
+the `mailroom-corpus-eda` dataset builds and mailroom eval runners:
 
 ```jsonc
 {
@@ -268,8 +267,9 @@ crash the Hub viewer), stages an honest manifest + dataset card into
 gitignored `data/hf_export/`, uploads via `huggingface_hub`, then verifies the
 Hub LFS sha256 against the local file (`VERIFY: GREEN`). Agents: load
 [`.opencode/skills/hf-dataset-publish/SKILL.md`](.opencode/skills/hf-dataset-publish/SKILL.md)
-before publishing. Row-compatible sibling implementation:
-[`llm-entity-extraction/scripts/datasets/publish_enron_correspondence.py`](https://github.com/Exios66/llm-entity-extraction).
+before publishing. Historically row-compatible with the pruned `llm-entity-extraction`
+publisher (standalone repo only, last in monorepo release v0.8.0); this
+script is now the canonical publisher.
 
 ## 🧩 Key Design Decisions
 
@@ -304,7 +304,7 @@ before publishing. Row-compatible sibling implementation:
 │       └── explore_subclasses.py       # Subclass discovery & edge-case analysis
 ├── reports/
 │   ├── eda/                            # Committed EDA output (final_report, findings, 12 figures)
-│   └── pipeline/README.md              # Wiring into llm-entity-extraction
+│   └── pipeline/README.md              # Wiring into the mailroom pipeline
 └── .opencode/skills/hf-dataset-publish/SKILL.md   # Agent runbook for the Hub upload
 ```
 
@@ -326,7 +326,7 @@ pytest tests/ -v                         # 87/87 validation pass
 <div align="center">
 
 **[llm-mailroom](https://github.com/Exios66/llm-mailroom)** ·
-**[llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction)** ·
+**[mailroom-corpus-eda](https://github.com/Exios66/mailroom-corpus-eda)** ·
 **[llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring)** ·
 **[claims-data-eda](https://github.com/Exios66/claims-data-eda)** ·
 **[atticus-investigation](https://github.com/Exios66/atticus-investigation)**

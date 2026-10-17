@@ -23,12 +23,9 @@ body:
         - tooling (scripts/, CI workflows)
         - enron-evaluation-environment
         - the-mailroom
-        - agent-mailroom
         - claims-data-eda
         - llm-dojo-scoring
-        - llm-entity-extraction
         - llm-mailroom
-        - llm-mailroom-graph
         - local-mailroom-sandbox
         - mailroom-corpus-eda
     validations:

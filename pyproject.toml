@@ -1,7 +1,7 @@
 [project]
 name = "mailroom-hub"
-version = "0.7.0"
-description = "Monorepo for the LLM-Mailroom constellation: pipeline (llm-mailroom), eval loop (llm-entity-extraction), scoring engine (llm-dojo-scoring), corpus EDA (mailroom-corpus-eda), and visualizer (The-Mailroom)"
+version = "0.9.0"
+description = "Core Digital Mailroom monorepo: pipeline (llm-mailroom), scoring engine (llm-dojo-scoring), local sandbox (local-mailroom-sandbox), corpus EDA (mailroom-corpus-eda), and visualizer (The-Mailroom)"
 readme = "README.md"
 requires-python = ">=3.11"
 
@@ -13,9 +13,6 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "pytest-mock>=3.12",
-    # langfuse 4.x's langchain integration hard-imports `langchain`; the
-    # llm-entity-extraction tracing tests monkeypatch that handler.
-    "langchain>=0.3",
     # llm-mailroom notebook suite headless re-execution (nbclient kernel).
     "nbformat>=5.10",
     "nbclient>=0.10",
@@ -33,22 +30,17 @@ dev = [
     "squarify>=0.4",
     "huggingface_hub>=1.29",
     # Workspace members, editable in the shared venv. Virtual members
-    # (Enron-Evaluation-Environment, claims-data-eda, llm-mailroom-graph,
-    # mailroom-corpus-eda) are `package = false` and not installable; their
+    # (Enron-Evaluation-Environment, claims-data-eda, mailroom-corpus-eda) are `package = false` and not installable; their
     # script deps (pandas/numpy/matplotlib/...) ride in transitively via the
     # members below.
-    "agent-mailroom",
     "llm-dojo-scoring",
-    "llm-entity-extraction",
     "mailroom",
     "mailroom-sandbox",
     "the-mailroom",
 ]
 
 [tool.uv.sources]
-agent-mailroom = { workspace = true }
 llm-dojo-scoring = { workspace = true }
-llm-entity-extraction = { workspace = true }
 mailroom = { workspace = true }
 mailroom-sandbox = { workspace = true }
 the-mailroom = { workspace = true }

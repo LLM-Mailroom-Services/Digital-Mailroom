@@ -191,15 +191,17 @@ def test_empty_list_both_empty_scores_one():
     expected = {"sender": "Dana Alvarez", "additional_recipients": []}
     predicted = {"sender": "Dana Alvarez", "additional_recipients": []}
     result = score_extraction("correspondence", CORRESPONDENCE_TYPES, predicted, expected)
-    assert result.field_scores["additional_recipients"] == 1.0
+    # Dojo empty-field contract: correct emptiness is not a scored event.
+    assert "additional_recipients" not in result.field_scores
     assert result.overall_score == 1.0
 
 
-def test_spurious_items_on_empty_list_zero_that_field_like_a_miss():
-    """Empty-list GT + invented items → list F1 0.0, same as missing a populated field.
+def test_spurious_items_on_empty_list_are_not_in_overall():
+    """Empty-list GT + invented items: not an overall event (dojo >= v0.16).
 
-    ``overall_extraction_score`` therefore punishes prompt-discipline on empty
-    *lists* as hard as an extraction miss. Empty *scalars* (None/\"\") do not.
+    The dojo empty-field contract keeps emptiness out of ``overall_score``;
+    spurious fill is charged in the PRF / empty-field-credit layer instead
+    (see the next test).
     """
     expected = {"sender": "Dana Alvarez", "additional_recipients": []}
     predicted = {
@@ -207,12 +209,12 @@ def test_spurious_items_on_empty_list_zero_that_field_like_a_miss():
         "additional_recipients": ["cc@example.com"],
     }
     result = score_extraction("correspondence", CORRESPONDENCE_TYPES, predicted, expected)
-    assert result.field_scores["additional_recipients"] == 0.0
-    assert result.overall_score == 0.5
+    assert "additional_recipients" not in result.field_scores
+    assert result.overall_score == 1.0
 
 
 def test_extraction_f1_skips_empty_lists_so_spurious_cc_is_not_fn():
-    """PRF events skip empty lists; overall still includes them (see previous test)."""
+    """PRF events skip empty lists; overall skips them too (see previous test)."""
     expected = {"sender": "Dana Alvarez", "additional_recipients": []}
     predicted = {
         "sender": "Dana Alvarez",

@@ -1,0 +1,83 @@
+# SAND-042 live smoke leg — corporate records · n=5 · 1×L4 · client concurrency 8.
+# Same engine, prompts, decode and gates as the SAND-042 1L4-c8 condition, at n=5, to
+# prove the deploy env, the stratified draw, the scored path and the in-container GPU
+# telemetry all work BEFORE the four scored conditions spend.
+#
+# The five documents are a STRICT SUBSET of the condition's 50: every sub-quota below
+# is <= its 1L4-c8 counterpart (charter_amendment 3<=8, articles_of_incorporation
+# 1<=7, indenture 1<=6) and the sampler's per-subclass draw is a seeded prefix, so a
+# smaller quota is a prefix of the larger one.
+#   engine  = SAND-037 frozen L5 (awq_marlin, fp8 KV, CUDA graphs, max_num_seqs 16,
+#             thinking off, max_inputs 32) — identical to the 1L4-c8 condition
+#   prompt  = eval-environment frozen v1 simplified stem ONLY
+#   decode  = max_tokens 8192; temperature stays 0.1 (json_object class)
+#   telemetry = in-container nvidia-smi series under the cell label sand42-1l4-c8
+# Not a benchmark cell: it is excluded from the condition cards and the comparison.
+# Runbook: sandbox runbook show sand42-smoke
+schema: sandbox.run/v1
+run_id: sand42-check-5-corporate-records-awq-1l4-c8
+task: corporate_records_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    corporate_records_specialist:
+      source: local
+      file: corporate_records_specialist_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
+  strata:
+    buckets:
+      - doc_class: corporate_record
+        count: 5
+        sub_buckets:
+          - {subclass: "charter_amendment", count: 3}
+          - {subclass: "articles_of_incorporation", count: 1}
+          - {subclass: "indenture", count: 1}
+  limit: 5
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 16
+    enable_prefix_caching: true
+    enforce_eager: false
+    quantization: "awq_marlin"
+    revision: ""
+    kv_cache_dtype: "fp8"
+    enable_thinking: false
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16]
+    max_inputs: 32
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 1
+    min_containers: 1
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 8
+  cost_cap_usd: 0.20
+  max_wall_seconds: 1800
+
+trace:
+  sink: none
+  otlp: false
+  environment: sand42
+  tags: [sandbox, job, specialist, qwen3-8b-awq, l4, sand42, smoke, 1l4-c8]

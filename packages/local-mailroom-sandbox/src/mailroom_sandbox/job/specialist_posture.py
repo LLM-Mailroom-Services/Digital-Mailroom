@@ -589,7 +589,7 @@ SPECIALIST_LIMIT_BY_RUN: dict[str, int] = {
 
 # ── SAND-032: ladder / scale-out / sweep / bf16 rows ─────────────────────────
 # Generated from one table so caps/limits stay consistent with
-# config/runs/sand032-*.yaml. max_tokens mirrors config/taxonomy.overlay.yaml
+# config/runs/sand032/sand032-*.yaml. max_tokens mirrors config/taxonomy.overlay.yaml
 # (the runtime source of generation budgets — no run-scoped override), and
 # tokens_assumed comes from the latest measured 20-doc AWQ runs.
 _SAND032_AGENTS: dict[str, tuple[str, str, int, int, int]] = {
@@ -826,9 +826,9 @@ AGENT_GENERATION_BUDGETS: dict[str, dict[str, int]] = {
         "max_input_chars": int(row["max_input_chars"]),
     }
     for run_id, row in SPECIALIST_POSTURE.items()
-    # SAND-032 / grid / SAND-040 rows mirror overlay budgets; keep them out of
-    # this last-writer-wins map so pre-existing agent budgets are unchanged.
-    if not run_id.startswith(("sand032-", "grid-", "sand40-"))
+    # SAND-032 / grid / SAND-040 / SAND-042 rows mirror overlay budgets; keep them
+    # out of this last-writer-wins map so pre-existing agent budgets are unchanged.
+    if not run_id.startswith(("sand032-", "grid-", "sand40-", "sand42-"))
 }
 
 
@@ -952,6 +952,281 @@ def validate_mapping(mapping: Mapping[str, Any] | None = None) -> list[str]:
         if int(row["max_wall_seconds"]) < 60:
             errors.append(f"{run_id}: max_wall_seconds too small")
     return errors
+
+
+# ── SAND-042: paired concurrency × fleet grid on the SAND-037 aligned spec ────
+# Five cells = {1×L4, 2×L4} × {client concurrency 8, 16} plus the 2×L4 C32
+# saturation point (SAND-047), one warm fleet each
+# (one cold boot per cell), five specialists per cell, n=50 per specialist on ONE
+# shared subclass-stratified draw, so every cell scores the identical 250
+# documents (paired). Client concurrency is split equally across replicas:
+# 2×L4 C8 = 4 per replica, 2×L4 C16 = 8 per replica (the SAND-042 operator rule),
+# so on 2×L4 the cell label is the per-replica load.
+#
+# The spec is the SAND-037 aligned grid unchanged — frozen L5 engine (awq_marlin,
+# fp8 KV, CUDA graphs [1,2,4,8,16], max_num_seqs 16/replica, thinking off,
+# max_inputs 32), v1 simplified stems, decode 8192, temperature 0.7 on the
+# JSON-schema classes (contracts, merger) and the vendored 0.1 elsewhere. What
+# SAND-042 adds is the measurement layer (container GPU telemetry: nvidia-smi
+# util/power/temp/mem sampled inside the serving replica) and two postures
+# SAND-037 never ran (C16 at all, and C8 on 2×L4 — SAND-037 ran C32 there).
+#
+# The 2×L4 cells are NOT a per-replica-load twin of the 1×L4 cells (C8/2 = 4,
+# C16/2 = 8 per replica); the matched-load pairs are 1×L4 C8 vs 2×L4 C16 and
+# 1×L4 C16 vs 2×L4 C32 (8 and 16 per replica each). See
+# docs/SAND42-EXPERIMENT-DESIGN.md §3.
+#
+# C32 is the admitted amendment (SAND-047): 32 total = 16 per replica = the
+# engine's own ``max_num_seqs``, i.e. the admission ceiling, and the exact
+# per-replica load 1l4-c16 already ran — so 1l4-c16 vs 2l4-c32 is the
+# matched-load scale-out pair AT saturation, and it replicates SAND-037's 2×L4
+# C32 point. It was added after the four-cell grid landed, so it is the only
+# cell whose row order postdates the others (the two original matched-load pairs
+# keep the {8,16} concurrency arm). Its caps are the 2-replica row of
+# ``_SAND42_CAPS`` — caps are keyed by replicas, not concurrency.
+SAND42_N = 50
+SAND42_CELLS_BY_ID: dict[str, tuple[int, int]] = {
+    # cell id: (replicas, client concurrency)
+    "1l4-c8": (1, 8),
+    "1l4-c16": (1, 16),
+    "2l4-c8": (2, 8),
+    "2l4-c16": (2, 16),
+    "2l4-c32": (2, 32),
+}
+# v1 simplified stems + decode 8192. Written out literally (not inherited from the
+# grid table) so a future grid edit can never leak a production/v2/MAUD stem into
+# SAND-042; ``_assert_sand42_prompts`` enforces the ``_simplified`` suffix.
+_SAND42_AGENTS: dict[str, tuple[str, str, int, int, int]] = {
+    # doc_class: (agent, prompt_file, max_tokens, prompt_tok, completion_tok)
+    "correspondence": ("correspondence_specialist", "correspondence_specialist_simplified", 8192, 3500, 800),
+    "insurance_claim": ("insurance_claims_specialist", "insurance_claims_specialist_simplified", 8192, 4500, 1200),
+    "corporate_record": ("corporate_records_specialist", "corporate_records_specialist_simplified", 8192, 5000, 1500),
+    "merger_agreement": ("merger_agreement_specialist", "merger_agreement_specialist_simplified", 8192, 10000, 2500),
+    "contract": ("contracts_specialist", "contracts_specialist_v33_simplified", 8192, 8000, 2500),
+}
+
+
+def _assert_sand42_prompts(agents: dict[str, tuple[str, str, int, int, int]]) -> None:
+    """SAND-042 is the v1 simplified stem family, nothing else."""
+    bad = {cls: row[1] for cls, row in agents.items() if not row[1].endswith("_simplified")}
+    if bad:
+        raise ValueError(f"SAND-042 prompts must all be *_simplified stems; got {bad}")
+
+
+_assert_sand42_prompts(_SAND42_AGENTS)
+
+# Long-document classes. ``_input_chars_for`` sizes ``max_input_chars`` from an
+# ASSUMED prompt length (``1.25 x prompt_tokens``), which is right for short classes
+# but wrong for contracts: it yields 24,000 chars while the real SAND-042 draw runs to
+# 300,768 chars. Measured on that draw, the cap silently dropped **62 % of all
+# contract text** — and, per the truncation marker in ``base_agent.truncate_input``,
+# the omitted span is the middle, which is where the operative clauses live.
+#
+# Contracts therefore run the pipeline's own chunked pass (overlapping
+# paragraph-aware windows + deterministic merge: list fields union with dedupe,
+# scalars keep the first non-null, confidence takes the max) instead of a head+tail
+# truncation. ``extract_chunked`` falls through to plain single-pass ``extract`` when
+# the document fits one window, so small-document output is unchanged.
+#
+# Sizing: every request must fit the 32K window, because ``extract_chunked`` skips a
+# failed chunk *silently*. The context-fit guard (2.4 chars/token + 4,000 system
+# tokens) therefore allows 49,382 chars beside the 8,192 output cap; ``chunk_window``
+# then holds each window to ``budget - overlap`` so a chunk plus its overlap tail
+# still fits. Measured cost: 50 -> 85 calls, 1.09M input tokens (~2.8x), ~$0.26 and
+# ~18 min — inside the existing $0.90 / 4800 s abort cap, so the cap does not move.
+#
+# Merger is here too, on the operator's instruction: its defect is far worse — 50/50
+# documents exceed the cap, 93 % of text is dropped, and a run saw 7 % of each
+# 270k-505k-char agreement. This cell measured the consequence directly: MAUD accuracy
+# 0.0 with 0-1 of 13-17 questions answered, extraction F1 0.0, plus degenerate
+# `No-Shop: Yes` x 22 repetition and 3/50 (6 %) LengthFinishReasonError hard failures.
+# Those are not merger-quality measurements. Merger therefore takes the SAND-040
+# optimised posture (see below) rather than a head+tail truncation.
+_SAND42_CHUNKED: dict[str, dict[str, Any]] = {
+    "contract": {"max_input_chars": 49_000, "chunk_chars": 43_000, "overlap_chars": 6_000},
+    # Merger adopts the SAND-040 optimised long-document posture verbatim — the most
+    # efficient method this repo has for whole-document merger extraction, and the one
+    # the A100-era merger cards converged on (95 % util, ~$0.004/doc):
+    #   chunked whole-document windows (47k / 6.5k overlap), Qwen3 non-thinking
+    #   sampling (0.7 / top_p 0.8 / top_k 20 / presence 1.0) to suppress the runaway
+    #   repetition this cell just measured (`No-Shop: Yes` x 22), a 6144 output cap,
+    #   and ONE re-sample on LengthFinishReasonError — which is what produced the
+    #   3/50 (6 %) hard failures at 8192 with no retry.
+    # Fits the 32K window exactly: 54000/2.4 + 6144 + 4000 = 32644 <= 32768.
+    "merger_agreement": {
+        "max_input_chars": 54_000,
+        "chunk_chars": 47_000,
+        "overlap_chars": 6_500,
+        "max_tokens": 6_144,
+        "top_p": 0.8,
+        "top_k": 20,
+        "presence_penalty": 1.0,
+        "length_retries": 1,
+    },
+}
+
+_SAND42_CLASS_SLUG: dict[str, str] = {
+    "correspondence": "correspondence",
+    "insurance_claim": "insurance-claims",
+    "corporate_record": "corporate-records",
+    "contract": "contracts",
+    "merger_agreement": "merger",
+}
+# Abort guards (not estimates). 1×L4 mirrors the SAND-037 C8 n=50 caps; 2×L4 bills
+# two GPUs so its caps are ~1.5×; the C16 legs carry extra headroom on the long
+# classes because a wider batch lengthens the tail on contracts and merger.
+# Merger's cap is derived from the MEASURED probe (2026-10-12): 5 merger agreements
+# = 1,702,602 chars took 438 s warm on one L4, so the 18,160,427-char draw is
+# 438 x 10.66 = 4,671 s ~= 1.30 h ~= $1.04 of GPU. The cap is that with ~55 %
+# headroom; the pre-probe $1.25 / 5400 s guard would have aborted a legitimate run.
+_SAND42_CAPS: dict[int, dict[str, float]] = {
+    1: {"correspondence": 0.45, "insurance_claim": 0.55, "corporate_record": 0.55,
+        "contract": 0.90, "merger_agreement": 1.70},
+    2: {"correspondence": 0.65, "insurance_claim": 0.85, "corporate_record": 0.85,
+        "contract": 1.30, "merger_agreement": 2.55},
+}
+_SAND42_WALLS: dict[str, int] = {
+    "correspondence": 2400, "insurance_claim": 2400, "corporate_record": 2400,
+    "contract": 4800, "merger_agreement": 7200,
+}
+
+
+def sand42_run_id(cell: str, doc_class: str) -> str:
+    """Run id for one SAND-042 cell × specialist (cell ∈ ``SAND42_CELLS_BY_ID``)."""
+    if cell not in SAND42_CELLS_BY_ID:
+        raise KeyError(f"unknown SAND-042 cell {cell!r}")
+    return f"sand42-50-{_SAND42_CLASS_SLUG[doc_class]}-specialist-awq-{cell}"
+
+
+SAND42_RUNS: frozenset[str] = frozenset(
+    sand42_run_id(cell, dc) for cell in SAND42_CELLS_BY_ID for dc in _SAND42_AGENTS
+)
+for _cell, (_rep, _conc) in SAND42_CELLS_BY_ID.items():
+    for _cls, (_agent, _prompt, _mt, _pt, _ct) in _SAND42_AGENTS.items():
+        _rid = sand42_run_id(_cell, _cls)
+        _chunk = _SAND42_CHUNKED.get(_cls)
+        _mt_eff = int(_chunk.get("max_tokens") or _mt) if _chunk else _mt
+        SPECIALIST_POSTURE[_rid] = {
+            "task": _agent,
+            "doc_class": _cls,
+            "agent": _agent,
+            "prompt_file": _prompt,
+            "concurrency": _conc,
+            "replicas": _rep,
+            "max_num_seqs": 16,
+            "max_model_len": 32768,
+            "max_tokens": _mt_eff,
+            "max_input_chars": (
+                _chunk["max_input_chars"] if _chunk else _input_chars_for(_mt, _pt, 32768)
+            ),
+            "cost_cap_usd": _SAND42_CAPS[_rep][_cls],
+            "max_wall_seconds": _SAND42_WALLS[_cls],
+            "tokens_assumed": {"prompt": _pt, "completion": _ct},
+            "sec_per_doc": {"low": 10.0, "likely": 40.0, "high": 180.0},
+            "rationale": (
+                f"SAND-042 paired grid cell ({_rep}×L4, client concurrency {_conc}"
+                + (f", {_conc // _rep} per replica" if _rep > 1 else "")
+                + ") — SAND-037 aligned spec, v1 simplified stem, decode 8192"
+                + (", whole-document chunked extract (no truncation)" if _chunk else "")
+            ),
+        }
+        _temp = GRID_TEMPERATURE_BY_CLASS.get(_cls)
+        if _temp is not None:
+            SPECIALIST_POSTURE[_rid]["temperature"] = _temp
+        if _chunk:
+            # chunk_chars / overlap_chars plus any optimised sampling knobs
+            # (top_p, top_k, presence_penalty, length_retries).
+            for _key, _val in _chunk.items():
+                if _key != "max_input_chars":
+                    SPECIALIST_POSTURE[_rid][_key] = _val
+        SPECIALIST_LIMIT_BY_RUN[_rid] = SAND42_N
+
+SAND42_TWO_GPU_RUNS: frozenset[str] = frozenset(
+    sand42_run_id(cell, dc)
+    for cell, (rep, _conc) in SAND42_CELLS_BY_ID.items()
+    if rep == 2
+    for dc in _SAND42_AGENTS
+)
+SAND42_ONE_GPU_RUNS: frozenset[str] = SAND42_RUNS - SAND42_TWO_GPU_RUNS
+
+# Noise-floor leg: a second identical run of one cell on the same 50 documents, so
+# the run-to-run SD of the difference is re-measured on the SAND-042 draw before
+# any delta is quoted (docs/SAND42-EXPERIMENT-DESIGN.md §4).
+SAND42_NOISE_FLOOR_RUN = "sand42-noisefloor-correspondence-awq-1l4-c8"
+SPECIALIST_POSTURE[SAND42_NOISE_FLOOR_RUN] = {
+    **SPECIALIST_POSTURE[sand42_run_id("1l4-c8", "correspondence")],
+    "rationale": (
+        "SAND-042 noise-floor leg — same 50 correspondence documents and settings as "
+        f"{sand42_run_id('1l4-c8', 'correspondence')}; the per-document score "
+        "differences between the two are the run-to-run noise floor for every "
+        "SAND-042 delta"
+    ),
+}
+SPECIALIST_LIMIT_BY_RUN[SAND42_NOISE_FLOOR_RUN] = SAND42_N
+
+# Smoke leg: 5 corporate records drawn as a STRICT SUBSET of the 1L4-c8 condition's
+# 50 (each sub-quota <= its 50-draw quota, and a smaller quota is a seeded prefix of
+# the larger one). Same engine, prompt, decode and gates as the condition, at n=5, to
+# prove the deploy env, the draw, the scored path and the GPU telemetry before the
+# four scored conditions spend. Not a benchmark cell.
+SAND42_CHECK_RUN = "sand42-check-5-corporate-records-awq-1l4-c8"
+SPECIALIST_POSTURE[SAND42_CHECK_RUN] = {
+    "task": "corporate_records_specialist",
+    "doc_class": "corporate_record",
+    "agent": "corporate_records_specialist",
+    "prompt_file": "corporate_records_specialist_simplified",
+    "concurrency": 8,
+    "replicas": 1,
+    "max_num_seqs": 16,
+    "max_model_len": 32768,
+    "max_tokens": 8192,
+    "max_input_chars": _input_chars_for(8192, 5000, 32768),
+    "cost_cap_usd": 0.20,
+    "max_wall_seconds": 1800,
+    "tokens_assumed": {"prompt": 5000, "completion": 1500},
+    "sec_per_doc": {"low": 10.0, "likely": 40.0, "high": 180.0},
+    "rationale": (
+        "SAND-042 live smoke leg — 5 corporate records, a strict subset of the "
+        "1L4-c8 condition's 50-document draw"
+    ),
+}
+SPECIALIST_LIMIT_BY_RUN[SAND42_CHECK_RUN] = 5
+
+# Merger probe leg: 5 merger agreements drawn as a STRICT SUBSET of the 1L4-c8
+# condition's 50. It exists to MEASURE the chunked whole-document path's real wall
+# before the four scored conditions commit ~2 GPU-hours per merger cell — the
+# extrapolation from the truncated run's throughput was not good enough to spend on.
+# It inherits the condition's knobs wholesale (chunking, 6144 cap, sampling, length
+# re-sample), so it cannot drift from the path it is measuring; only the caps differ.
+SAND42_CHECK_MERGER_RUN = "sand42-check-5-merger-specialist-awq-1l4-c8"
+SPECIALIST_POSTURE[SAND42_CHECK_MERGER_RUN] = {
+    **SPECIALIST_POSTURE[sand42_run_id("1l4-c8", "merger_agreement")],
+    "cost_cap_usd": 0.60,
+    "max_wall_seconds": 3600,
+    "rationale": (
+        "SAND-042 merger probe — 5 merger agreements, a strict subset of the 1L4-c8 "
+        "condition's 50-document draw, measuring the chunked whole-document wall"
+    ),
+}
+SPECIALIST_LIMIT_BY_RUN[SAND42_CHECK_MERGER_RUN] = 5
+SAND42_CHECK_RUNS: frozenset[str] = frozenset({SAND42_CHECK_RUN, SAND42_CHECK_MERGER_RUN})
+# It rides the same pinned single-L4 fleet as the C8 condition.
+SAND42_ONE_GPU_RUNS = SAND42_ONE_GPU_RUNS | SAND42_CHECK_RUNS | {SAND42_NOISE_FLOOR_RUN}
+
+
+def sand42_cell_label(run_id: str | None) -> str:
+    """Telemetry volume label for a SAND-042 cell (one deploy = one series).
+
+    Every run in a cell derives the same label, so the scraper finds the cell's
+    time series whichever of the five configs it is pointed at.
+    """
+    rid = str(run_id or "")
+    if not rid.startswith("sand42-"):
+        return ""
+    for cell in SAND42_CELLS_BY_ID:
+        if rid.endswith(f"-{cell}"):
+            return f"sand42-{cell}"
+    return ""
 
 
 # ── SAND-040: 2×L4 · C32 scale run on one 32K deploy ──────────────────────────

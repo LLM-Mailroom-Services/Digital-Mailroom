@@ -91,8 +91,8 @@ checked version.
   (network-free, stubbed `modal`) — keep them green and extend them for new
   knobs. Run `uv run pytest packages/llm-mailroom/src/tests` (one package
   per pytest invocation).
-- Docs to keep current: `packages/llm-mailroom/docs/local-models.md`,
-  `deploy/README.md`, `packages/local-mailroom-sandbox/docs/providers.md`.
+- Docs to keep current: `packages/llm-mailroom/docs/pipeline-reference-llm-mailroom/local-models.md`,
+  `deploy/README.md`, `packages/local-mailroom-sandbox/docs/setting-up/providers.md`.
 - **Offline-capability law:** OpenRouter stays the primary backend. vLLM is
   an explicit opt-in (`DEFAULT_PROVIDER=vllm` + `VLLM_BASE_URL`); never flip
   it in shared `.env` files or committed configs, and never commit tokens.
@@ -126,7 +126,7 @@ checked version.
   mirrors an independent `Exios66/<name>` repo. Never hand-edit a mirror and
   never push to a standalone repo directly.
 - **Propagation is one tool:** `scripts/sync_packages.py` (repo root):
-  `status` (drift report — expect 10/10 in sync), `push --package <name>
+  `status` (drift report — expect 7/7 in sync), `push --package <name>
   --patch` (content-only deltas) or `push --package <name>` WITHOUT `--patch`
   (deletion-bearing deltas — `--patch` refuses them, exit 5), `push --all
   --patch` (the release-train sweep), `pull`/`snapshot` for imports and
@@ -140,7 +140,7 @@ checked version.
   `scripts/release_chain.py cut X.Y.Z --apply --tag` + `scripts/release_notes.py
   X.Y.Z` (runbook `docs/wiki/Releases.md`). Standalone package release = cut
   in the `Exios66/<name>` repo via its own tooling (e.g.
-  `scripts/release.py --bump` in llm-entity-extraction / The-Mailroom), then
+  `scripts/release.py --bump` in The-Mailroom), then
   **propagate** with `sync_packages.py push` and re-baseline the cursor.
   Bump a consuming pin ONLY at release time of the pinned package
   (`packages/llm-mailroom/src/scripts/bump_dojo_scoring.py` for the dojo

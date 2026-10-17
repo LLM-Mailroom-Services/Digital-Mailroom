@@ -10,7 +10,7 @@ from mailroom_sandbox.job.specialist_posture import (
 )
 from mailroom_sandbox.paths import config_dir
 
-ALL = sorted((config_dir() / "runs").glob("sand032-*.yaml"))
+ALL = sorted((config_dir() / "runs" / "sand032").glob("*.yaml"))
 SORTER = [p for p in ALL if "sorter" in p.stem]
 RUNS = [p for p in ALL if p not in SORTER]  # specialist runs
 STAGE23 = [p for p in RUNS if p.stem.startswith(("sand032-s2", "sand032-s3"))]
@@ -56,8 +56,8 @@ def test_stage23_share_one_serving_block():
 
 
 def test_scale_out_arms_differ_only_in_replicas_and_concurrency():
-    a = load_run_spec(config_dir() / "runs" / "sand032-s2a-corr100-1rep.yaml")
-    b = load_run_spec(config_dir() / "runs" / "sand032-s2b-corr100-2rep.yaml")
+    a = load_run_spec(config_dir() / "runs" / "sand032" / "sand032-s2a-corr100-1rep.yaml")
+    b = load_run_spec(config_dir() / "runs" / "sand032" / "sand032-s2b-corr100-2rep.yaml")
     assert a.engine.vllm == b.engine.vllm
     assert (a.engine.modal.max_containers, b.engine.modal.max_containers) == (1, 2)
     assert (a.job.concurrency, b.job.concurrency) == (8, 16)
@@ -75,12 +75,12 @@ def test_ladder_is_cumulative_one_knob_per_rung():
 
 
 def test_merger_uses_merger_specialist():
-    spec = load_run_spec(config_dir() / "runs" / "sand032-s3-merger50.yaml")
+    spec = load_run_spec(config_dir() / "runs" / "sand032" / "sand032-s3-merger50.yaml")
     assert spec.task == "merger_agreement_specialist"
 
 
 def test_bf16_arm_is_16k_unquantized():
-    spec = load_run_spec(config_dir() / "runs" / "sand032-s4-corr20-bf16.yaml")
+    spec = load_run_spec(config_dir() / "runs" / "sand032" / "sand032-s4-corr20-bf16.yaml")
     assert spec.engine.model == "Qwen/Qwen3-8B"
     assert spec.engine.vllm.quantization == ""
     assert spec.engine.vllm.max_model_len == 16384
@@ -117,7 +117,7 @@ def test_benchmark_gate_passes_with_rendered_env(monkeypatch, path):
 def test_benchmark_check_flags_env_drift(monkeypatch):
     from mailroom_sandbox.job.deploy_env import spec_env
 
-    spec = load_run_spec(config_dir() / "runs" / "sand032-s2b-corr100-2rep.yaml")
+    spec = load_run_spec(config_dir() / "runs" / "sand032" / "sand032-s2b-corr100-2rep.yaml")
     env = dict(spec_env(spec))
     env["MODAL_VLLM_KV_CACHE_DTYPE"] = ""
     rep = _gate(monkeypatch, spec, env)
@@ -127,7 +127,7 @@ def test_benchmark_check_flags_env_drift(monkeypatch):
 def test_benchmark_check_requires_fp8_on_stage23(monkeypatch):
     from mailroom_sandbox.job.deploy_env import spec_env
 
-    spec = load_run_spec(config_dir() / "runs" / "sand032-s3-corr50.yaml")
+    spec = load_run_spec(config_dir() / "runs" / "sand032" / "sand032-s3-corr50.yaml")
     spec.engine.vllm.kv_cache_dtype = ""
     rep = _gate(monkeypatch, spec, spec_env(spec))
     assert any("kv_cache_dtype must be fp8" in e for e in rep["errors"])
@@ -137,7 +137,7 @@ def test_benchmark_check_wrong_modal_profile(monkeypatch):
     from mailroom_sandbox.job import benchmark_check as bc
     from mailroom_sandbox.job.deploy_env import spec_env
 
-    spec = load_run_spec(config_dir() / "runs" / "sand032-l0-baseline.yaml")
+    spec = load_run_spec(config_dir() / "runs" / "sand032" / "sand032-l0-baseline.yaml")
     monkeypatch.setattr(bc, "active_modal_profile_name", lambda: "hermes-agent-jjb")
     monkeypatch.setattr(bc, "_modal_cli_ok", lambda: {"ok": True, "version": "stub"})
     rep = bc.check_benchmark_posture(spec=spec, require_hermes=False,
@@ -173,7 +173,7 @@ def test_cli_benchmark_check_passes_modal_profile(monkeypatch, capsys):
 
     monkeypatch.setattr(bc, "check_benchmark_posture", fake_check)
     rc = main(["run", "benchmark-check", "--config",
-               str(config_dir() / "runs" / "sand032-l0-baseline.yaml"), "--modal-profile", "exios66"])
+               str(config_dir() / "runs" / "sand032" / "sand032-l0-baseline.yaml"), "--modal-profile", "exios66"])
     assert rc == 0 and seen["profile"] == "exios66"
 
 

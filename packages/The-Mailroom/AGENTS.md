@@ -58,7 +58,7 @@ python -m pytest tests/ -q     # whole suite (never hits real Langfuse)
 python -m server.main          # FastAPI web server on :8001 (also: mailroom-web)
 mailroom-hosted                # Observatory on 0.0.0.0 (public /live UI)
 mailroom-tui                   # TUI console (planned, M4)
-mailroom-observer              # optional operator bin watcher (or MAILROOM_OBSERVER=1)
+mailroom-observer              # optional standalone bin watcher (or MAILROOM_OBSERVER=1; never both)
 pip install -e ".[operator]"   # bcrypt / PyJWT / watchdog / PyMuPDF
 python -m operator_desk        # migrate operator SQLite
 scripts/setup_operator.sh      # bins + migrate (no npm)
@@ -107,7 +107,8 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
 - `operator_desk/` — operator submodule (not a display source): JWT auth
   (`/v1/auth`), local archive index (`/v1/archive`), Langfuse-backed ops
   (`/v1/ops`), `/ws/pipeline`, and `mailroom-observer` (in-process via
-  `MAILROOM_OBSERVER=1`, or standalone POST to `/v1/ops/events`). Mounted
+  `MAILROOM_OBSERVER=1` — the operator compose default — or standalone POST to
+  `/v1/ops/events`; never both on the same bins). Mounted
   from `server/main.py` via `mount_operator`. Never imports `api.main`.
   Extra `[operator]`; default `[dev]` uses stdlib password/JWT fallbacks.
   Optional React desk lives in `ui/` (extra `[ui]` is a marker; Node is

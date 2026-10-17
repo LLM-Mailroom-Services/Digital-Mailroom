@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Publish the CLEANED ENRON CORRESPONDENCE corpus to the Hugging Face Hub.
 
-Local port of llm-entity-extraction's ``publish_enron_correspondence.py``
+Local port of the (now pruned) llm-entity-extraction ``publish_enron_correspondence.py``
 (KANBAN-074 pattern): consumes the full-corpus index built by
 ``scripts/build_corpus_index.py`` (CMU maildir -> one JSONL row per parsed
 message, 517,390 rows, deterministic order), labels every row with the SHARED
@@ -156,8 +156,7 @@ Built by [`Enron-Evaluation-Environment`](https://github.com/Exios66/Enron-Evalu
 `scripts/publish_hf_dataset.py` ({built_utc}) from its full-corpus index
 (`build_corpus_index.py`, {parseable}/{total} messages parseable, sorted
 maildir walk — rebuilds byte-identical); row-compatible with
-[`llm-entity-extraction`](https://github.com/Exios66/llm-entity-extraction)'s
-KANBAN-074 publisher (same schema, labeler, and split rule). Source: CMU Enron
+the original `llm-entity-extraction` KANBAN-074 publisher (same schema, labeler, and split rule). Source: CMU Enron
 Email Dataset (cleaned maildir). Distribution restrictions: the Enron corpus is
 released for RESEARCH use — treat personally identifying content accordingly.
 Subclass labels: heuristic ruleset documented + regression-tested in the

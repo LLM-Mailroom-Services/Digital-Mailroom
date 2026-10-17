@@ -18,9 +18,9 @@ modal_profile_default: exios66
 scaledown_seconds: 120
 warm_once: true
 configs:
-  - config/runs/sand032-s3-corr50.yaml
-  - config/runs/sand032-s3-insurance50.yaml
-  - config/runs/sand032-s3-corporate50.yaml
-  - config/runs/sand032-s3-merger50.yaml
-  - config/runs/sand032-s3-contracts50.yaml
-  - config/runs/sand032-s3-corr50-repeat.yaml
+  - config/runs/sand032/sand032-s3-corr50.yaml
+  - config/runs/sand032/sand032-s3-insurance50.yaml
+  - config/runs/sand032/sand032-s3-corporate50.yaml
+  - config/runs/sand032/sand032-s3-merger50.yaml
+  - config/runs/sand032/sand032-s3-contracts50.yaml
+  - config/runs/sand032/sand032-s3-corr50-repeat.yaml

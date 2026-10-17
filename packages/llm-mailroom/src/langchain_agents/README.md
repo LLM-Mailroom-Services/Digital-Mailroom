@@ -1,6 +1,6 @@
 # Vendored LangChain Agents
 
-This directory contains **vendored LangChain agents** adapted for the LLM-Mailroom pipeline. These agents originate from `github.com/Exios66/llm-entity-extraction` (verified against commit `3a03d5c`, 2026-08-10 — issue #10 alignment check: `CONTRACT_SUBTYPES`, `_SUBTYPE_ALIASES`, `SUBTYPE_EQUIVALENCES`, `SORTER_SCHEMA`, `DOC_CLASSES`, and the `sorter_v5`/`contracts_specialist_v11` prompts are byte-identical to upstream) and have been integrated with mailroom-specific plumbing (`MAILROOM PATCH` markers).
+This directory contains **vendored LangChain agents** adapted for the LLM-Mailroom pipeline. These agents originate from `github.com/Exios66/llm-entity-extraction` (now a standalone repo, retired from the monorepo in DMR-079) (verified against commit `3a03d5c`, 2026-08-10 — issue #10 alignment check: `CONTRACT_SUBTYPES`, `_SUBTYPE_ALIASES`, `SUBTYPE_EQUIVALENCES`, `SORTER_SCHEMA`, `DOC_CLASSES`, and the `sorter_v5`/`contracts_specialist_v11` prompts are byte-identical to upstream) and have been integrated with mailroom-specific plumbing (`MAILROOM PATCH` markers).
 
 ## What's here
 
@@ -19,12 +19,12 @@ Why vendored: the `sorter_v5` / `contracts_specialist_v11` prompts are eval-vali
 | `sorter_agent.py` | `SorterAgent` — `doc_type` + `contract_subtype` + confidence + reasoning. |
 | `specialist_agents.py` | `ContractsSpecialist` — `ContractExtraction`-shaped dicts. |
 | `classifier.py` | Shared classification utilities (subtype normalization, confidence derivation). |
-| `prompts.py` | Versioned prompts (`sorter_v5`, `contracts_specialist_v11`) — bypass `llm/prompts.py:get_managed_prompt` (no Langfuse prompt linking); generations still auto-traced via the `langfuse.openai` patch. |
+| `prompts.py` | Versioned prompt *history* (`sorter_v0…v14`, `contracts_specialist_v1…v33`) for eval pins. Production aliases: `"sorter"` → `sorter_v14`; specialist names rebound to frozen v1. Mailroom wrappers call `get_managed_prompt`. |
 | `env_utils.py` | Environment variable helpers for vendored agents. |
 | `openrouter_utils.py` | OpenRouter-specific model resolution. |
 | `mock.py` | Mock utilities for testing vendored agents. |
 
-The one behavioral difference from native agents: prompts are hardcoded/versioned here instead of Langfuse-managed (`mailroom-<agent>`). Structured output, tracing, and retry behavior otherwise match the native path — see `agents/README.md` and `docs/agents.md` for the full architecture.
+The one behavioral difference from native agents: eval versions are keyed in `PROMPT_VERSIONS`. Production classify/extract goes through mailroom wrappers + `get_managed_prompt` (`mailroom-<agent>`). Structured output, tracing, and retry behavior otherwise match the native path — see `agents/README.md` and `docs/agents.md` for the full architecture.
 
 ## Adding a New Vendored Agent
 

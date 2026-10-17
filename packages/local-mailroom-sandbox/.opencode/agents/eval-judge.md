@@ -7,7 +7,7 @@ tags:
 - evals
 - metrics
 - reporting
-home_package: llm-entity-extraction
+home_package: local-mailroom-sandbox
 roster_id: eval-judge
 ---
 

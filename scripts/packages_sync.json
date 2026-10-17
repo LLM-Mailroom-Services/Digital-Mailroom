@@ -9,15 +9,9 @@
     },
     "The-Mailroom": {
       "branch": "main",
-      "synced_at": "2026-10-05T04:35:52Z",
-      "synced_sha": "d7b388ef562b3ecb40a833358ad48086d51bc7cd",
+      "synced_at": "2026-10-16T21:27:49Z",
+      "synced_sha": "d5358650e42d8e8843c215cde1eebb8c9acebbed",
       "url": "https://github.com/Exios66/The-Mailroom.git"
-    },
-    "agent-mailroom": {
-      "branch": "main",
-      "synced_at": "2026-10-05T04:35:51Z",
-      "synced_sha": "e511c7738aa2dfcde1dd75f442fbd2fe32424d95",
-      "url": "https://github.com/Exios66/agent-mailroom.git"
     },
     "claims-data-eda": {
       "branch": "main",
@@ -27,38 +21,26 @@
     },
     "llm-dojo-scoring": {
       "branch": "main",
-      "synced_at": "2026-10-05T04:30:31Z",
-      "synced_sha": "f6ae6ecea0f2230079730a6ab5d01f6c3290287e",
+      "synced_at": "2026-10-16T23:41:47Z",
+      "synced_sha": "5431881cc74813bd770d710bf825e28fb6b048f6",
       "url": "https://github.com/Exios66/llm-dojo-scoring.git"
-    },
-    "llm-entity-extraction": {
-      "branch": "main",
-      "synced_at": "2026-10-05T04:35:50Z",
-      "synced_sha": "775b0ed6ef31ea71a0c5a3899e99d902579674ba",
-      "url": "https://github.com/Exios66/llm-entity-extraction.git"
     },
     "llm-mailroom": {
       "branch": "main",
-      "synced_at": "2026-10-05T04:35:05Z",
-      "synced_sha": "ceec589a65a1c16fd429b3e85270a3e907d5d376",
+      "synced_at": "2026-10-16T23:45:34Z",
+      "synced_sha": "0fd60717677e8917a80138fda0caf4bf3c959e5f",
       "url": "https://github.com/Exios66/llm-mailroom.git"
-    },
-    "llm-mailroom-graph": {
-      "branch": "main",
-      "synced_at": "2026-09-16T22:08:02Z",
-      "synced_sha": "7f4baf3c34ad2b34fd94c5163a9b622c676d0ba9",
-      "url": "https://github.com/Exios66/llm-mailroom-graph.git"
     },
     "local-mailroom-sandbox": {
       "branch": "main",
-      "synced_at": "2026-10-05T04:31:22Z",
-      "synced_sha": "62a71e994f74974b271923500f76747deefa48f6",
+      "synced_at": "2026-10-16T23:44:33Z",
+      "synced_sha": "ee9c5952b68f09215ffc8d371b6553cf6dcb1123",
       "url": "https://github.com/Exios66/local-mailroom-sandbox.git"
     },
     "mailroom-corpus-eda": {
       "branch": "main",
-      "synced_at": "2026-10-05T04:35:53Z",
-      "synced_sha": "2a62002364d0017ccc542cd75d10fa86e5d92189",
+      "synced_at": "2026-10-16T21:27:10Z",
+      "synced_sha": "c50531604ba2950765c4ab86a10b59a879ee764c",
       "url": "https://github.com/Exios66/Mailroom-Corpus-EDA.git"
     }
   },

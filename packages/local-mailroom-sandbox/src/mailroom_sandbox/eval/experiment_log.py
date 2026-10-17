@@ -29,6 +29,15 @@ def new_record(**fields: Any) -> dict[str, Any]:
         "git": git_snapshot(),
     }
     record.update(fields)
+    # An active eval-environment prompt-version selection is part of the record's
+    # identity (key + sha256 + per-role map), so mutations never share a group.
+    from mailroom_sandbox.prompt_versions import active_selection
+
+    selection = active_selection()
+    if selection and selection.label_for(str(record.get("task") or "")) is not None:
+        label = selection.label_for(str(record.get("task") or ""))
+        if record.get("prompt_version") in (None, label[0], "mailroom-default"):
+            selection.stamp(record)
     from mailroom_sandbox.eval.scoring import attach_serving_identity
 
     return attach_serving_identity(record)
@@ -48,7 +57,7 @@ def regenerate_markdown(jsonl: Path | None = None) -> Path:
     lines = [
         "# Sandbox experiment log",
         "",
-        "Local-variant runs only. Not a mirror of llm-entity-extraction.",
+        "Local-variant runs only. Not a mirror of the hub experiment logs.",
         "",
         f"{len(records)} record(s).",
         "",

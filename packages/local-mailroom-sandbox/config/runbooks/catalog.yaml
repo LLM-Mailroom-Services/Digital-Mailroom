@@ -172,6 +172,7 @@ generated_docs:
     baseline: archived-experiments/qwen/STALE/baseline.md
     improved: specialists/contracts/improved.md
     grid: archived-experiments/qwen/qwen3-8b/grid.md
+    sand42: sand42/family.md
   runbooks:
     l4-qwen3-8b: archived-experiments/qwen/STALE/l4-qwen3-8b.md
     l4-qwen3-8b-track-a: archived-experiments/qwen/STALE/l4-qwen3-8b-track-a.md
@@ -191,6 +192,13 @@ generated_docs:
     sand39-1l4-n50: archived-experiments/qwen/qwen3-8b/1L4/sand39-1l4-n50.md
     sand40-probe: tuning/sand40-probe.md
     sand40: archived-experiments/qwen/qwen3-8b/sand40.md
+    sand42-1l4-c8: sand42/1l4-c8.md
+    sand42-1l4-c16: sand42/1l4-c16.md
+    sand42-2l4-c8: sand42/2l4-c8.md
+    sand42-2l4-c16: sand42/2l4-c16.md
+    sand42-2l4-c32: sand42/2l4-c32.md
+    sand42-smoke: sand42/smoke.md
+    sand42-noise-floor: sand42/noise-floor.md
 
 runbooks:
   l4-qwen3-8b:
@@ -278,7 +286,7 @@ runbooks:
       Qwen3-8B pins, 20 contract docs from split=all seed 42.
     serving: baseline
     configs:
-      - config/runs/run-20-contracts-specialist.yaml
+      - config/runs/legacy/run-20-contracts-specialist.yaml
     modal_profile: track-a
     assert_engine: true
     steps:
@@ -303,7 +311,7 @@ runbooks:
     serving: awq-16k
     modal_matrix: Qwen/Qwen3-8B-AWQ
     configs:
-      - config/runs/run-20-contracts-awq.yaml
+      - config/runs/legacy/run-20-contracts-awq.yaml
     modal_profile: track-a
     deploy_strategy: recreate
     assert_engine: true
@@ -333,7 +341,7 @@ runbooks:
     serving: awq-14b-a100
     modal_matrix: Qwen/Qwen3-14B-AWQ
     configs:
-      - config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml
+      - config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml
     modal_profile: track-a
     deploy_strategy: recreate
     assert_engine: true
@@ -353,13 +361,13 @@ runbooks:
       - teardown
       - after
     after:
-      - sandbox run status --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml
+      - sandbox run status --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml
       - sandbox scorecard --run run-400-sorter-qwen3-14b-awq-a100
       - modal billing summary
     notes:
       - "CLI: pass --profile AFTER the subcommand (sandbox health --profile modal-vllm). Never paste unicode ellipsis into commands."
-      - "Pretty logs: open sandbox watch --web --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml in a second pane (http://127.0.0.1:8765/) BEFORE sandbox run start. start --watch is the CLI session layer only and does not tail Modal dispatch logs."
-      - "Canonical deploy knobs: set -a; eval \"$(sandbox run deploy-env --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml)\"; set +a. Then download_model and modal deploy --strategy recreate once."
+      - "Pretty logs: open sandbox watch --web --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml in a second pane (http://127.0.0.1:8765/) BEFORE sandbox run start. start --watch is the CLI session layer only and does not tail Modal dispatch logs."
+      - "Canonical deploy knobs: set -a; eval \"$(sandbox run deploy-env --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml)\"; set +a. Then download_model and modal deploy --strategy recreate once."
       - "benchmark-check is skipped (L4 specialist gate). Engine pins are still catalog-asserted against the run YAML."
       - "Trace sink is none so preflight is not blocked without Langfuse keys. Family default remains Langfuse when LANGFUSE_* are set; flip spec.trace.sink to langfuse then re-preflight. Keep PHOENIX_TRACING=disabled unless the Phoenix extra is installed."
     appendix: |
@@ -431,9 +439,9 @@ runbooks:
       ## Pretty logging
 
       ```bash
-      sandbox watch --web --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml
+      sandbox watch --web --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml
       # http://127.0.0.1:8765/
-      sandbox run start --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml --job-mode endpoint --watch
+      sandbox run start --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml --job-mode endpoint --watch
       ```
 
       See `docs/pretty-logging/mailroom-themed-logging.md` and `docs/snippets/pretty_logs.md`.
@@ -466,7 +474,7 @@ runbooks:
     serving: awq-32k
     modal_matrix: Qwen/Qwen3-8B-AWQ
     configs:
-      - config/runs/run-20-contracts-awq-c8.yaml
+      - config/runs/legacy/run-20-contracts-awq-c8.yaml
     modal_profile: track-a
     deploy_strategy: recreate
     assert_engine: true
@@ -493,7 +501,7 @@ runbooks:
     serving: awq-32k
     modal_matrix: Qwen/Qwen3-8B-AWQ
     configs:
-      - config/runs/run-20-correspondence-awq.yaml
+      - config/runs/legacy/run-20-correspondence-awq.yaml
     modal_profile: track-a
     deploy_strategy: recreate
     assert_engine: true
@@ -517,7 +525,7 @@ runbooks:
     serving: awq-32k
     modal_matrix: Qwen/Qwen3-8B-AWQ
     configs:
-      - config/runs/run-20-correspondence-awq-c8.yaml
+      - config/runs/legacy/run-20-correspondence-awq-c8.yaml
     modal_profile: track-a
     deploy_strategy: recreate
     assert_engine: true
@@ -540,7 +548,7 @@ runbooks:
       Qwen/Qwen3-8B bf16 at 16384. PREPARED ONLY until spend/auth are approved.
     serving: baseline
     configs:
-      - config/runs/run-20-correspondence-fp16-c8.yaml
+      - config/runs/legacy/run-20-correspondence-fp16-c8.yaml
     modal_profile: track-a
     deploy_strategy: recreate
     assert_engine: true
@@ -633,11 +641,11 @@ runbooks:
       (often 4×L4) and short-doc max_num_seqs=256. GPU cells pending spend.
     serving: scale-short-doc
     configs:
-      - config/runs/scale-c1-4xl4-c16.yaml
-      - config/runs/scale-d1-awq-4xl4-c16.yaml
-      - config/runs/scale-e1-fp8-l4-4xl4-c16.yaml
-      - config/runs/scale-f1-qwen35-9b-fp8-4xl4-c16.yaml
-      - config/runs/scale-g1-qwen35-35b-tp2-1xl4x2-c16.yaml
+      - config/runs/scale/scale-c1-4xl4-c16.yaml
+      - config/runs/scale/scale-d1-awq-4xl4-c16.yaml
+      - config/runs/scale/scale-e1-fp8-l4-4xl4-c16.yaml
+      - config/runs/scale/scale-f1-qwen35-9b-fp8-4xl4-c16.yaml
+      - config/runs/scale/scale-g1-qwen35-35b-tp2-1xl4x2-c16.yaml
     modal_profile: track-a
     deploy_strategy: recreate
     assert_engine: false
@@ -665,16 +673,16 @@ runbooks:
       temperature 0.7. Deploy once, short classes first, teardown after the last cell.
     serving: grid-awq-1l4
     configs:
-      - config/runs/grid-20-correspondence-specialist-awq-1l4.yaml
-      - config/runs/grid-20-insurance-claims-specialist-awq-1l4.yaml
-      - config/runs/grid-20-corporate-records-specialist-awq-1l4.yaml
-      - config/runs/grid-20-contracts-specialist-awq-1l4.yaml
-      - config/runs/grid-20-merger-specialist-awq-1l4-rerun.yaml
-      - config/runs/grid-50-correspondence-specialist-awq-1l4.yaml
-      - config/runs/grid-50-insurance-claims-specialist-awq-1l4.yaml
-      - config/runs/grid-50-corporate-records-specialist-awq-1l4.yaml
-      - config/runs/grid-50-contracts-specialist-awq-1l4.yaml
-      - config/runs/grid-50-merger-specialist-awq-1l4.yaml
+      - config/runs/sand037/grid-20-correspondence-specialist-awq-1l4.yaml
+      - config/runs/sand037/grid-20-insurance-claims-specialist-awq-1l4.yaml
+      - config/runs/sand037/grid-20-corporate-records-specialist-awq-1l4.yaml
+      - config/runs/sand037/grid-20-contracts-specialist-awq-1l4.yaml
+      - config/runs/sand037/grid-20-merger-specialist-awq-1l4-rerun.yaml
+      - config/runs/sand037/grid-50-correspondence-specialist-awq-1l4.yaml
+      - config/runs/sand037/grid-50-insurance-claims-specialist-awq-1l4.yaml
+      - config/runs/sand037/grid-50-corporate-records-specialist-awq-1l4.yaml
+      - config/runs/sand037/grid-50-contracts-specialist-awq-1l4.yaml
+      - config/runs/sand037/grid-50-merger-specialist-awq-1l4.yaml
     modal_profile: track-a
     deploy_strategy: recreate
     assert_engine: true
@@ -700,7 +708,7 @@ runbooks:
     notes:
       - "Reports: each run brackets start with vLLM /metrics scrapes and writes reports/SAND-37/1L4/<specialist>/<run_id>.card.md + .card.json (score, cost, tokens, throughput, latency, per-replica engine telemetry, errors, per-document rows). The after step writes the finalized reports/SAND-37/1L4/L4x1-SCORE-COST-CARD.md + .json from those cards; commit the SAND-37 tree."
       - "Spend: likely ≈ $0.80 GPU at $0.80/hr (≈ 1 h warm: S3 per-L4 throughput on the same engine, scaled by the 0.7× S2a measured at C8 on one L4); the ten cost caps sum to $5.70 and are the abort guard. Needs spend approval before deploy."
-      - "Canonical deploy knobs: set -a; eval \"$(sandbox run deploy-env --config config/runs/grid-20-correspondence-specialist-awq-1l4.yaml)\"; set +a. The export block below is identical (runbook check enforces it) and benchmark-check fails on any shell drift."
+      - "Canonical deploy knobs: set -a; eval \"$(sandbox run deploy-env --config config/runs/sand037/grid-20-correspondence-specialist-awq-1l4.yaml)\"; set +a. The export block below is identical (runbook check enforces it) and benchmark-check fails on any shell drift."
       - "Decode is max_tokens 8192 at temperature 0.7, applied from the specialist_posture grid row via SANDBOX_AGENT_KNOBS at start; do not export SANDBOX_AGENT_KNOBS by hand and do not raise max_tokens. A LengthFinishReasonError at 8192 is a runaway loop, not a long answer (longest successful output on record: 4,055 tokens)."
       - "preflight --force archives any earlier generation of the same run_id (the serialized grid-50-contracts-specialist-awq-1l4 attempt, locked on the old spec) and re-locks; start then resumes the fresh lock."
       - "grid-20-merger-specialist-awq-1l4 and its -retry leg stay as committed history; the -rerun id is the aligned cell."
@@ -716,16 +724,16 @@ runbooks:
       replica count and concurrency differ.
     serving: grid-awq-2l4
     configs:
-      - config/runs/grid-20-correspondence-specialist-awq-2l4.yaml
-      - config/runs/grid-20-insurance-claims-specialist-awq-2l4.yaml
-      - config/runs/grid-20-corporate-records-specialist-awq-2l4.yaml
-      - config/runs/grid-20-contracts-specialist-awq-2l4.yaml
-      - config/runs/grid-20-merger-specialist-awq-2l4.yaml
-      - config/runs/grid-50-correspondence-specialist-awq-2l4.yaml
-      - config/runs/grid-50-insurance-claims-specialist-awq-2l4.yaml
-      - config/runs/grid-50-corporate-records-specialist-awq-2l4.yaml
-      - config/runs/grid-50-contracts-specialist-awq-2l4-rerun.yaml
-      - config/runs/grid-50-merger-specialist-awq-2l4.yaml
+      - config/runs/sand037/grid-20-correspondence-specialist-awq-2l4.yaml
+      - config/runs/sand037/grid-20-insurance-claims-specialist-awq-2l4.yaml
+      - config/runs/sand037/grid-20-corporate-records-specialist-awq-2l4.yaml
+      - config/runs/sand037/grid-20-contracts-specialist-awq-2l4.yaml
+      - config/runs/sand037/grid-20-merger-specialist-awq-2l4.yaml
+      - config/runs/sand037/grid-50-correspondence-specialist-awq-2l4.yaml
+      - config/runs/sand037/grid-50-insurance-claims-specialist-awq-2l4.yaml
+      - config/runs/sand037/grid-50-corporate-records-specialist-awq-2l4.yaml
+      - config/runs/sand037/grid-50-contracts-specialist-awq-2l4-rerun.yaml
+      - config/runs/sand037/grid-50-merger-specialist-awq-2l4.yaml
     modal_profile: track-a
     deploy_strategy: recreate
     assert_engine: true
@@ -750,7 +758,7 @@ runbooks:
     notes:
       - "Reports: each run brackets start with vLLM /metrics scrapes and writes reports/SAND-37/2L4/<specialist>/<run_id>.card.md + .card.json (score, cost, tokens, throughput, latency, per-replica engine telemetry, errors, per-document rows). The after step writes the finalized reports/SAND-37/2L4/L4x2-SCORE-COST-CARD.md + .json from those cards; commit the SAND-37 tree."
       - "Spend: likely ≈ $0.55 GPU at 2 × $0.80/hr (≈ 18 min warm, from the S3 walls, plus one cold boot of ~2–4 min on each replica); the ten cost caps sum to $8.20 and are the abort guard. Needs spend approval before deploy."
-      - "Canonical deploy knobs: set -a; eval \"$(sandbox run deploy-env --config config/runs/grid-20-correspondence-specialist-awq-2l4.yaml)\"; set +a. The export block below is identical."
+      - "Canonical deploy knobs: set -a; eval \"$(sandbox run deploy-env --config config/runs/sand037/grid-20-correspondence-specialist-awq-2l4.yaml)\"; set +a. The export block below is identical."
       - "MIN=MAX=2 pins both replicas warm from deploy to teardown; per-replica admission is 16 at client concurrency 32."
       - "Decode is max_tokens 8192 at temperature 0.7 from the posture row; do not raise max_tokens mid-grid. Record any LengthFinishReasonError count as a finding."
       - "grid-50-contracts-specialist-awq-2l4 (plain awq, temperature 0.1) stays as committed history; the -rerun id is the aligned cell."
@@ -769,11 +777,11 @@ runbooks:
       SAND-39 column of the master score & cost card.
     serving: grid-awq-1l4
     configs:
-      - config/runs/grid-50-correspondence-specialist-awq-1l4.yaml
-      - config/runs/grid-50-insurance-claims-specialist-awq-1l4.yaml
-      - config/runs/grid-50-corporate-records-specialist-awq-1l4.yaml
-      - config/runs/grid-50-contracts-specialist-awq-1l4.yaml
-      - config/runs/grid-50-merger-specialist-awq-1l4.yaml
+      - config/runs/sand037/grid-50-correspondence-specialist-awq-1l4.yaml
+      - config/runs/sand037/grid-50-insurance-claims-specialist-awq-1l4.yaml
+      - config/runs/sand037/grid-50-corporate-records-specialist-awq-1l4.yaml
+      - config/runs/sand037/grid-50-contracts-specialist-awq-1l4.yaml
+      - config/runs/sand037/grid-50-merger-specialist-awq-1l4.yaml
     modal_profile: track-a
     deploy_strategy: recreate
     assert_engine: true
@@ -816,8 +824,8 @@ runbooks:
       $0.30–$0.80 GPU. Do not start until that spend is approved.
     serving: grid-awq-2l4-64k
     configs:
-      - config/runs/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml
-      - config/runs/sand40-probe-20-merger-specialist-awq-2l4-64k.yaml
+      - config/runs/sand040/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml
+      - config/runs/sand040/sand40-probe-20-merger-specialist-awq-2l4-64k.yaml
     modal_profile: track-a
     deploy_strategy: recreate
     assert_engine: true
@@ -837,8 +845,8 @@ runbooks:
       - teardown
       - after
     after:
-      - sandbox run card --config config/runs/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml
-      - sandbox run card --config config/runs/sand40-probe-20-merger-specialist-awq-2l4-64k.yaml
+      - sandbox run card --config config/runs/sand040/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml
+      - sandbox run card --config config/runs/sand040/sand40-probe-20-merger-specialist-awq-2l4-64k.yaml
     notes:
       - "Spend gate: about $0.30–$0.80 at 2 × $0.80/GPU-hr, plus one cold boot. Cost caps are $0.80 (contracts) and $1.00 (merger) and are the abort guard. Needs spend approval before deploy. Modal credentials for the Hermes account are on the operator machine."
       - "Sample: each probe is the seed-42 prefix of the scored n=50 cell (contracts → grid-50-contracts-specialist-awq-2l4-rerun; merger → grid-50-merger-specialist-awq-2l4). The n=20 set is a subset of those 50 documents."
@@ -858,13 +866,13 @@ runbooks:
       one length re-sample), after a 5-agreement chunk gate.
     serving: grid-awq-2l4
     gate:
-      config: config/runs/sand40-check-5-merger-specialist-awq-2l4.yaml
+      config: config/runs/sand040/sand40-check-5-merger-specialist-awq-2l4.yaml
     configs:
-      - config/runs/sand40-100-correspondence-specialist-awq-2l4.yaml
-      - config/runs/sand40-100-insurance-claims-specialist-awq-2l4.yaml
-      - config/runs/sand40-100-corporate-records-specialist-awq-2l4.yaml
-      - config/runs/sand40-100-contracts-specialist-awq-2l4.yaml
-      - config/runs/sand40-50-merger-specialist-awq-2l4.yaml
+      - config/runs/sand040/sand40-100-correspondence-specialist-awq-2l4.yaml
+      - config/runs/sand040/sand40-100-insurance-claims-specialist-awq-2l4.yaml
+      - config/runs/sand040/sand40-100-corporate-records-specialist-awq-2l4.yaml
+      - config/runs/sand040/sand40-100-contracts-specialist-awq-2l4.yaml
+      - config/runs/sand040/sand40-50-merger-specialist-awq-2l4.yaml
     modal_profile: track-a
     deploy_strategy: recreate
     assert_engine: true
@@ -893,6 +901,346 @@ runbooks:
       - "Cards land in reports/SAND-37/2L4/<specialist>/ (scale cells) and reports/SAND-37/probes/merger_agreement/ (gate). The after step regenerates reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md; its SAND-40 column switches from pending to measured. Commit the SAND-37 tree."
       - "Record the teardown spend check (Metered Cost / Billed Cost) with sandbox run card --record-metered SAND-40 <metered> <billed> --master."
       - "Teardown follows the last cell. Do not leave the two-replica fleet warm: min_containers=2 bills both GPUs until teardown."
+
+  # ── SAND-042: paired concurrency × fleet grid (4 cells) ────────────────────
+  # Four cells = {1×L4, 2×L4} × {client concurrency 8, 16}. Each cell is ONE
+  # warm fleet (one cold boot), five specialists chained at n=50, all five on the
+  # SAME subclass-stratified 50-document draw, so every cell scores the identical
+  # 250 documents and every cell-to-cell delta is paired.
+  # Design, metric contract and acceptance: docs/SAND42-EXPERIMENT-DESIGN.md.
+  sand42-1l4-c8:
+    family: sand42
+    title: SAND-042 — 1×L4 · client concurrency 8 · n=50 × 5 specialists (paired)
+    summary: >
+      One warm L4 serving the SAND-037 frozen L5 engine (awq_marlin, fp8 KV, CUDA
+      graphs, max_num_seqs 16, thinking off, max_inputs 32) at client concurrency 8.
+      Five specialists, n=50 each, on ONE subclass-stratified draw (every doc
+      sub-type of every class represented, proportional, min 1). v1 simplified
+      stems only. Deploy once, chain all five, teardown after the last. Container
+      GPU telemetry (nvidia-smi util/power/temp/mem) is sampled inside the serving
+      replica for the whole cell and pulled onto each run card.
+    serving: grid-awq-1l4
+    configs:
+      - config/runs/sand42-50-correspondence-specialist-awq-1l4-c8.yaml
+      - config/runs/sand42-50-insurance-claims-specialist-awq-1l4-c8.yaml
+      - config/runs/sand42-50-corporate-records-specialist-awq-1l4-c8.yaml
+      - config/runs/sand42-50-contracts-specialist-awq-1l4-c8.yaml
+      - config/runs/sand42-50-merger-specialist-awq-1l4-c8.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    midrun_metrics: true
+    extra_env:
+      MODAL_VLLM_TELEMETRY_LABEL: sand42-1l4-c8
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - midrun_metrics
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --runbook sand42-1l4-c8
+      - sandbox metrics compare --runs sand42-50-correspondence-specialist-awq-1l4-c8,sand42-50-insurance-claims-specialist-awq-1l4-c8,sand42-50-corporate-records-specialist-awq-1l4-c8,sand42-50-contracts-specialist-awq-1l4-c8,sand42-50-merger-specialist-awq-1l4-c8
+    notes:
+      - "Reports: each run writes reports/SAND42/1L4-c8/<specialist>/<run_id>.card.md + .card.json; the after step writes reports/SAND42/1L4-c8/SAND42-1L4-C8-SCORE-COST-CARD.md + .json from those cards. Commit the SAND42 tree."
+      - "Spend (estimate): short classes ~5 min each; contracts ~18 min / ~$0.26 (chunked, 50->85 calls); merger ~1.3 h / ~$1.04 (chunked, MEASURED by the 5-document probe: 438 s warm for 1,702,602 chars, scaled 10.66x to the full 18,160,427-char draw). The five cost caps sum to $4.15 and are the abort guard. Needs spend approval before deploy."
+      - "Canonical deploy knobs: set -a; eval \"$(sandbox run deploy-env --config config/runs/sand42-50-correspondence-specialist-awq-1l4-c8.yaml)\"; set +a. MODAL_VLLM_TELEMETRY_LABEL is part of that block (one label per cell)."
+      - "Decode: max_tokens 8192 at temperature 0.7 for contracts, 6144 for merger (SAND-040 optimised: top_p 0.8 / presence 1.0 / one length re-sample), 0.1 elsewhere. Contracts and merger run WHOLE-DOCUMENT CHUNKED extraction — the old head+tail cap dropped 62 % of contract and 93 % of merger text, and merger MAUD accuracy measured 0.0 on that truncated arm with 3/50 hard length failures. Do not raise max_tokens."
+      - "MIN=MAX=1 pins the single replica warm from deploy to teardown, so the whole cell pays one cold boot."
+      - "Pairing: the five draws are identical to the other three cells (same strata block, same seed 42, same revision). Do not edit the dataset block of one cell without the others."
+
+  sand42-1l4-c16:
+    family: sand42
+    title: SAND-042 — 1×L4 · client concurrency 16 · n=50 × 5 specialists (paired)
+    summary: >
+      The concurrency-16 twin of sand42-1l4-c8: identical engine, prompts, decode,
+      documents and one-cold-boot chaining; only the client concurrency differs
+      (8 → 16 on the same single L4). This is the cell that shows whether an L4
+      has batching headroom above C8, at the same GPU count.
+    serving: grid-awq-1l4
+    configs:
+      - config/runs/sand42-50-correspondence-specialist-awq-1l4-c16.yaml
+      - config/runs/sand42-50-insurance-claims-specialist-awq-1l4-c16.yaml
+      - config/runs/sand42-50-corporate-records-specialist-awq-1l4-c16.yaml
+      - config/runs/sand42-50-contracts-specialist-awq-1l4-c16.yaml
+      - config/runs/sand42-50-merger-specialist-awq-1l4-c16.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    midrun_metrics: true
+    extra_env:
+      MODAL_VLLM_TELEMETRY_LABEL: sand42-1l4-c16
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - midrun_metrics
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --runbook sand42-1l4-c16
+      - sandbox metrics compare --runs sand42-50-correspondence-specialist-awq-1l4-c16,sand42-50-insurance-claims-specialist-awq-1l4-c16,sand42-50-corporate-records-specialist-awq-1l4-c16,sand42-50-contracts-specialist-awq-1l4-c16,sand42-50-merger-specialist-awq-1l4-c16
+    notes:
+      - "Reports: reports/SAND42/1L4-c16/<specialist>/<run_id>.card.* then the after step writes reports/SAND42/1L4-c16/SAND42-1L4-C16-SCORE-COST-CARD.md + .json."
+      - "Spend (estimate): short classes ~5 min each; contracts ~18 min / ~$0.26 (chunked, 50->85 calls); merger ~1.3 h / ~$1.04 (chunked, MEASURED by the 5-document probe: 438 s warm for 1,702,602 chars, scaled 10.66x to the full 18,160,427-char draw). The five cost caps sum to $4.15 and are the abort guard. Needs spend approval before deploy."
+      - "C16 on one L4 is the only posture here that exceeds the SAND-037 grid's C8; per-replica admission stays max_num_seqs 16, so C16 is exactly the admission cap. Watch vLLM preemptions and the KV-cache usage scrape on the long classes."
+      - "Decode: max_tokens 8192 at temperature 0.7 for contracts, 6144 for merger (SAND-040 optimised: top_p 0.8 / presence 1.0 / one length re-sample), 0.1 elsewhere. Contracts and merger run WHOLE-DOCUMENT CHUNKED extraction — the old head+tail cap dropped 62 % of contract and 93 % of merger text, and merger MAUD accuracy measured 0.0 on that truncated arm with 3/50 hard length failures. Do not raise max_tokens."
+      - "Pairing: identical draws to the other three cells. Compare against sand42-1l4-c8 (same GPU count, different concurrency) — that pair isolates concurrency alone."
+
+  sand42-2l4-c8:
+    family: sand42
+    title: SAND-042 — 2×L4 · client concurrency 8 (4 per replica) · n=50 × 5 specialists (paired)
+    summary: >
+      Two replicas (MIN=MAX=2, one warm fleet, one cold boot per replica) at client
+      concurrency 8 split equally — 4 in flight per replica. Same engine, prompts,
+      decode and documents as the 1×L4 cells. The 2×L4 cells are not a
+      per-replica-load twin of the 1×L4 cells (C8/2 = 4); the matched-load pairs
+      in this grid are 1×L4 C8 vs 2×L4 C16 and 1×L4 C16 vs 2×L4 C32 (8 and 16
+      per replica each).
+    serving: grid-awq-2l4
+    configs:
+      - config/runs/sand42-50-correspondence-specialist-awq-2l4-c8.yaml
+      - config/runs/sand42-50-insurance-claims-specialist-awq-2l4-c8.yaml
+      - config/runs/sand42-50-corporate-records-specialist-awq-2l4-c8.yaml
+      - config/runs/sand42-50-contracts-specialist-awq-2l4-c8.yaml
+      - config/runs/sand42-50-merger-specialist-awq-2l4-c8.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    midrun_metrics: true
+    extra_env:
+      MODAL_VLLM_TELEMETRY_LABEL: sand42-2l4-c8
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - midrun_metrics
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --runbook sand42-2l4-c8
+      - sandbox metrics compare --runs sand42-50-correspondence-specialist-awq-2l4-c8,sand42-50-insurance-claims-specialist-awq-2l4-c8,sand42-50-corporate-records-specialist-awq-2l4-c8,sand42-50-contracts-specialist-awq-2l4-c8,sand42-50-merger-specialist-awq-2l4-c8
+    notes:
+      - "Reports: reports/SAND42/2L4-c8/<specialist>/<run_id>.card.* then the after step writes reports/SAND42/2L4-c8/SAND42-2L4-C8-SCORE-COST-CARD.md + .json."
+      - "Spend (estimate): as the 1xL4 cell, billed on two GPUs; merger ~39 min wall at the same ~1.30 GPU-hours. The five cost caps sum to $6.20 and are the abort guard. Needs spend approval before deploy."
+      - "Client concurrency is split equally across replicas: 8 → 4 per replica. Modal round-robins, so per-replica load is 4; measure the split with the per-replica /metrics scrape (SAND-040 saw bursty affinity at C32)."
+      - "MIN=MAX=2 keeps both replicas warm across all five classes. Teardown only after the fifth: two warm replicas bill two GPUs."
+      - "Decode: max_tokens 8192 at temperature 0.7 for contracts, 6144 for merger (SAND-040 optimised: top_p 0.8 / presence 1.0 / one length re-sample), 0.1 elsewhere. Contracts and merger run WHOLE-DOCUMENT CHUNKED extraction — the old head+tail cap dropped 62 % of contract and 93 % of merger text, and merger MAUD accuracy measured 0.0 on that truncated arm with 3/50 hard length failures. Do not raise max_tokens."
+
+  sand42-2l4-c16:
+    family: sand42
+    title: SAND-042 — 2×L4 · client concurrency 16 (8 per replica) · n=50 × 5 specialists (paired)
+    summary: >
+      Two replicas at client concurrency 16 split equally — 8 in flight per
+      replica, which is the same per-replica load as 1×L4 C8. That pair
+      (1×L4 C8 vs 2×L4 C16) is the grid's clean matched-load scale-out contrast:
+      same per-replica load, double the GPUs.
+    serving: grid-awq-2l4
+    configs:
+      - config/runs/sand42-50-correspondence-specialist-awq-2l4-c16.yaml
+      - config/runs/sand42-50-insurance-claims-specialist-awq-2l4-c16.yaml
+      - config/runs/sand42-50-corporate-records-specialist-awq-2l4-c16.yaml
+      - config/runs/sand42-50-contracts-specialist-awq-2l4-c16.yaml
+      - config/runs/sand42-50-merger-specialist-awq-2l4-c16.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    midrun_metrics: true
+    extra_env:
+      MODAL_VLLM_TELEMETRY_LABEL: sand42-2l4-c16
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - midrun_metrics
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --runbook sand42-2l4-c16
+      - sandbox metrics compare --runs sand42-50-correspondence-specialist-awq-2l4-c16,sand42-50-insurance-claims-specialist-awq-2l4-c16,sand42-50-corporate-records-specialist-awq-2l4-c16,sand42-50-contracts-specialist-awq-2l4-c16,sand42-50-merger-specialist-awq-2l4-c16
+    notes:
+      - "Reports: reports/SAND42/2L4-c16/<specialist>/<run_id>.card.* then the after step writes reports/SAND42/2L4-c16/SAND42-2L4-C16-SCORE-COST-CARD.md + .json."
+      - "Spend (estimate): as the 1xL4 cell, billed on two GPUs; merger ~39 min wall at the same ~1.30 GPU-hours. The five cost caps sum to $6.20 and are the abort guard. Needs spend approval before deploy."
+      - "Client concurrency is split equally across replicas: 16 → 8 per replica. This is the matched-load twin of sand42-1l4-c8 (8 per replica on one GPU)."
+      - "MIN=MAX=2 keeps both replicas warm across all five classes; teardown only after the fifth."
+      - "Decode: max_tokens 8192 at temperature 0.7 for contracts, 6144 for merger (SAND-040 optimised: top_p 0.8 / presence 1.0 / one length re-sample), 0.1 elsewhere. Contracts and merger run WHOLE-DOCUMENT CHUNKED extraction — the old head+tail cap dropped 62 % of contract and 93 % of merger text, and merger MAUD accuracy measured 0.0 on that truncated arm with 3/50 hard length failures. Do not raise max_tokens."
+
+  sand42-2l4-c32:
+    family: sand42
+    title: SAND-042 — 2×L4 · client concurrency 32 (16 per replica, at the admission ceiling) · n=50 × 5 specialists (paired)
+    summary: >
+      Two replicas at client concurrency 32 split equally — 16 in flight per
+      replica, which is exactly the engine's max_num_seqs, i.e. the scheduler's
+      admission ceiling: any further request queues instead of running. That
+      makes this cell the saturation point of the grid, and 1×L4 C16 vs 2×L4 C32
+      the matched-load scale-out pair AT saturation (16 per replica each). It
+      also reproduces SAND-037's 2×L4 C32 point on the paired 250-document draw,
+      so it is the bridge tying the grid back to the only earlier C32
+      measurement.
+    serving: grid-awq-2l4
+    configs:
+      - config/runs/sand42-50-correspondence-specialist-awq-2l4-c32.yaml
+      - config/runs/sand42-50-insurance-claims-specialist-awq-2l4-c32.yaml
+      - config/runs/sand42-50-corporate-records-specialist-awq-2l4-c32.yaml
+      - config/runs/sand42-50-contracts-specialist-awq-2l4-c32.yaml
+      - config/runs/sand42-50-merger-specialist-awq-2l4-c32.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    midrun_metrics: true
+    extra_env:
+      MODAL_VLLM_TELEMETRY_LABEL: sand42-2l4-c32
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - midrun_metrics
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --runbook sand42-2l4-c32
+      - sandbox metrics compare --runs sand42-50-correspondence-specialist-awq-2l4-c32,sand42-50-insurance-claims-specialist-awq-2l4-c32,sand42-50-corporate-records-specialist-awq-2l4-c32,sand42-50-contracts-specialist-awq-2l4-c32,sand42-50-merger-specialist-awq-2l4-c32
+    notes:
+      - "Reports: reports/SAND42/2L4-c32/<specialist>/<run_id>.card.* then the after step writes reports/SAND42/2L4-c32/SAND42-2L4-C32-SCORE-COST-CARD.md + .json. This cell supplies the FIFTH section of reports/SAND42/SAND42-MASTER-REPORT.md and a fifth column in the comparison tables."
+      - "Added last (SAND-047): the original grid pins client concurrency to {8,16}. C32 joins the 2×L4 arm only, because it is the 2×L4 saturation point (16/replica = max_num_seqs) and precisely the per-replica load sand42-1l4-c16 already ran. It is the grid's only concurrency above 16."
+      - "Spend (estimate): the five cost caps are the 2-replica row of the same table (sum $6.20) and are the abort guard — caps are keyed by replicas, not concurrency, and saturation should raise per-request latency while total throughput plateaus, not raise the cost of scoring the same 250 documents. Needs spend approval before deploy."
+      - "Client concurrency is split equally across replicas: 32 → 16 per replica. At the ceiling per-replica queueing is expected, so read num_requests_waiting and preemptions on BOTH replicas: SAND-037 saw one replica hold 16 running + 7 queued while the other ran 6, so an even split is not guaranteed."
+      - "MIN=MAX=2 keeps both replicas warm across all five classes; teardown only after the fifth."
+      - "Decode: max_tokens 8192 at temperature 0.7 for contracts, 6144 for merger (SAND-040 optimised: top_p 0.8 / presence 1.0 / one length re-sample), 0.1 elsewhere. Contracts and merger run WHOLE-DOCUMENT CHUNKED extraction — the old head+tail cap dropped 62 % of contract and 93 % of merger text, and merger MAUD accuracy measured 0.0 on that truncated arm with 3/50 hard length failures. Do not raise max_tokens."
+
+  sand42-smoke:
+    family: sand42
+    title: SAND-042 live smoke — 5 corporate records on 1×L4 · C8 (pre-spend check)
+    summary: >
+      Five corporate records, a strict subset of the 1L4-c8 condition's 50-document
+      draw, on the same engine, prompt, decode and gates as that condition. Proves
+      the deploy env, the stratified draw, the scored path and the in-container GPU
+      telemetry (nvidia-smi util / power / temperature / memory) actually work
+      BEFORE the four scored conditions spend. Not a benchmark cell: it is excluded
+      from the condition cards and the comparison.
+    serving: grid-awq-1l4
+    configs:
+      - config/runs/sand42-check-5-corporate-records-awq-1l4-c8.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    midrun_metrics: true
+    extra_env:
+      MODAL_VLLM_TELEMETRY_LABEL: sand42-1l4-c8
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - midrun_metrics
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --config config/runs/sand42-check-5-corporate-records-awq-1l4-c8.yaml
+    notes:
+      - "Profile: set SANDBOX_MODAL_PROFILE_TRACK_A to the wallet you want (the catalog default is hermes-agent-jjb; exios66 is also configured locally)."
+      - "Spend (estimate): one cold boot (~2-4 min) + a few minutes warm for 5 documents ≈ $0.05-0.15 at $0.80/GPU-hr; cost_cap_usd 0.20 is the abort guard."
+      - "GPU telemetry check: the after-scrape must print `gpu telemetry (sand42-1l4-c8): N samples, util mean ... max ...`. If it warns `gpu telemetry not captured`, the sampler or the volume read is broken — fix that before spending on the conditions."
+      - "Report: reports/SAND42/1L4-c8/corporate_records/<run_id>.card.md + .card.json, with engine_telemetry.gpu carrying the util / power / temperature / memory series."
+
+  sand42-noise-floor:
+    family: sand42
+    title: SAND-042 noise floor — correspondence re-run on the same 50 documents (1×L4 · C8)
+    summary: >
+      One extra correspondence cell on the identical 50 documents and identical
+      settings as sand42-1l4-c8, under a different run id. The spread of the
+      per-document score differences between the two runs is the run-to-run noise
+      floor for every SAND-042 delta, re-measured on the SAND-042 draw (the
+      SAND-037/39 floor in docs/BENCHMARK-PROGRAM.md §3 was measured on a
+      different draw). One class, ~6 min, well under $0.20.
+    serving: grid-awq-1l4
+    configs:
+      - config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    midrun_metrics: true
+    extra_env:
+      MODAL_VLLM_TELEMETRY_LABEL: sand42-1l4-c8
+    blocked: false
+    blocked_reason: spend approved 2026-10-12 (operator) — this leg now rides the sand42-1l4-c8 re-run's boot; keep the flag for the next unreviewed leg
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - midrun_metrics
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --config config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml
+      - sandbox run card --runbook sand42-noise-floor
+    notes:
+      - "Spend approved 2026-10-12 (operator): the flag was blocking the generated script only, never the config. Still preferred INSIDE the sand42-1l4-c8 re-run's boot rather than as its own cold boot — that leg's script appends this config last, and the mid-run sampler folds its samples into the sand42-1l4-c8 cell."
+      - "Prefer running it inside the sand42-1l4-c8 deploy rather than as its own cold boot: append this config to that runbook's configs list and drop the blocked flag."
+      - "Reports: the card lands beside the C8 cell at reports/SAND42/1L4-c8/correspondence/. The after step writes reports/SAND42/SAND42-NOISE-FLOOR.md with the paired SD_diff and the n it implies."
 
 anti_patterns:
   - anti: Independent sandbox run start per config

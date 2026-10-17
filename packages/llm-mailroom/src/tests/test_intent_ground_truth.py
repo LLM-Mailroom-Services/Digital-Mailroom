@@ -60,7 +60,7 @@ def test_taxonomy_field_types_include_purpose_gist():
     classes = {c["key"]: c for c in tax["doc_classes"]}
     for key in LABELED:
         ft = classes[key]["field_types"]
-        assert ft["intent"] == "name"
+        assert ft["intent"] == "label"
         assert ft["subject_matter"] == "free_text"
         assert ft["keywords"] in ("entity_list:name", "entity_list:free_text")
 
@@ -79,13 +79,18 @@ def test_intent_controlled_vocabulary_and_normalization():
         assert len(set(labels)) == len(labels)
     assert normalize_intent("correspondence", "demand letter") == "payment_demand"
     assert normalize_intent("correspondence", "attorney demand") == "payment_demand"
+    assert normalize_intent("correspondence", "demand_payment") == "payment_demand"
     assert normalize_intent("corporate_record", "bylaws") == "governance_rules"
     assert normalize_intent("corporate_record", "board resolution") == "corporate_action_approval"
     assert normalize_intent("insurance_claim", "claim approved") == "coverage_determination"
+    assert normalize_intent("insurance_claim", "coverage_denial") == "coverage_determination"
     assert normalize_intent("insurance_claim", "initial fnol") == "claim_filing"
     assert normalize_intent("correspondence", "totally made up purpose") == ""
     assert normalize_intent("contract", "anything") == ""
     assert normalize_intent(None, "anything") == ""
+    # The result is always a member of the class's own vocabulary.
+    assert normalize_intent("correspondence", "coverage_denial") == ""
+    assert normalize_intent("insurance_claim", "demand_payment") == ""
 
 
 def test_manifest_purpose_gist_labels_are_grounded():

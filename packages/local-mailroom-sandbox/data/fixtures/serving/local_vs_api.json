@@ -1,5 +1,5 @@
 {
-  "note": "Synthetic fixture timings for the importable local_vs_api suite. Not live measurements. GPU fields are local-only; API side omits them. Local Ollama cost stays null (no price table).",
+  "note": "Synthetic fixture timings for the importable local_vs_api suite. Not live measurements. `dataset_revision` is the pinned family Hub snapshot the sandbox evaluates against (`job.spec.FAMILY_HF_REVISION`, guarded by tests/test_serving_fixtures_provenance.py); the dojo refuses to emit a scorecard without it and never derives it from the fingerprint. GPU fields are local-only; API side omits them. Local Ollama cost stays null (no price table).",
   "local": {
     "serving_kind": "local",
     "provider": "ollama",
@@ -9,6 +9,7 @@
     "task": "sorter",
     "prompt_version": "mailroom-default",
     "dataset_fingerprint": "fixture-serving-v0",
+    "dataset_revision": "bc9eab280044befb51e19dda3071d290a8677f42",
     "base_url": "http://localhost:11434/v1",
     "ttft_seconds": 0.4,
     "e2e_latency_seconds": 2.4,
@@ -31,6 +32,7 @@
     "task": "sorter",
     "prompt_version": "mailroom-default",
     "dataset_fingerprint": "fixture-serving-v0",
+    "dataset_revision": "bc9eab280044befb51e19dda3071d290a8677f42",
     "base_url": "https://openrouter.ai/api/v1",
     "ttft_seconds": 0.15,
     "e2e_latency_seconds": 0.9,

@@ -54,7 +54,7 @@ EXTRA_SCAN_FILES = (
     REPO_ROOT / "packages/llm-mailroom/notebooks/pipeline_lab.py",
     REPO_ROOT / "packages/llm-mailroom/notebooks/_build_extension_notebooks.py",
     REPO_ROOT / "packages/llm-mailroom/docs/agents.md",
-    REPO_ROOT / "packages/llm-mailroom/docs/local-models.md",
+    REPO_ROOT / "packages/llm-mailroom/docs/pipeline-reference-llm-mailroom/local-models.md",
     REPO_ROOT / "packages/llm-mailroom/docs/testing.md",
 )
 

@@ -25,11 +25,11 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 
 ## Configs
 
-- `config/runs/scale-c1-4xl4-c16.yaml`
-- `config/runs/scale-d1-awq-4xl4-c16.yaml`
-- `config/runs/scale-e1-fp8-l4-4xl4-c16.yaml`
-- `config/runs/scale-f1-qwen35-9b-fp8-4xl4-c16.yaml`
-- `config/runs/scale-g1-qwen35-35b-tp2-1xl4x2-c16.yaml`
+- `config/runs/scale/scale-c1-4xl4-c16.yaml`
+- `config/runs/scale/scale-d1-awq-4xl4-c16.yaml`
+- `config/runs/scale/scale-e1-fp8-l4-4xl4-c16.yaml`
+- `config/runs/scale/scale-f1-qwen35-9b-fp8-4xl4-c16.yaml`
+- `config/runs/scale/scale-g1-qwen35-35b-tp2-1xl4x2-c16.yaml`
 
 ## Notes
 

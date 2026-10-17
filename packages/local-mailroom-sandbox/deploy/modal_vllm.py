@@ -48,7 +48,7 @@ All deploy knobs are env-driven below. Prefer the catalog row in
     modal run deploy/modal_vllm.py::download_model
     modal deploy deploy/modal_vllm.py --strategy recreate
 
-Do **not** edit ``config/runs/run-30-*-specialist.yaml`` for swaps — those
+Do **not** edit ``config/runs/legacy/run-30-*-specialist.yaml`` for swaps — those
 YAMLs pin the default Qwen+L4 suite. Copy a YAML if an alternate scorecard
 needs matching ``engine.model`` / ``engine.modal.gpu``.
 
@@ -63,7 +63,7 @@ no ASGI wrapper.
 
 Pinned / verified 2026-09-16:
 
-* Modal Python SDK **1.5.5** (2026-08-28).
+* Modal Python SDK **1.6.1** (pinned in the ``deploy`` extra).
 * vLLM **v0.29.0** — ``vllm/vllm-openai:v0.29.0`` (newest stable).
 * ``.entrypoint([])`` clears the image's vLLM entrypoint so Modal can run
   our ``serve()`` function without flag leakage.
@@ -97,8 +97,16 @@ if not APP_NAME.startswith("sandbox-vllm"):
         "(e.g. sandbox-vllm-sand032) so it never collides with other apps"
     )
 SERVER_PORT = 8000                  # Modal web_server port (vLLM subprocess)
-HF_CACHE_VOLUME_NAME = "sandbox-hf-cache"
-VLLM_CACHE_VOLUME_NAME = "sandbox-vllm-cache"
+# Cache Volumes are WRITTEN on a cold boot (HF weights; vLLM compile artifacts),
+# so two concurrently-served fleets must never mount the same one — that is a
+# real write collision. Scope them to the app name so a second fleet (a distinct
+# MODAL_VLLM_APP_NAME, e.g. from the parallel-cell launcher) gets its own caches,
+# while the default app keeps the historical names so its warm cache survives.
+# In-container GPU telemetry stays on the SHARED telemetry volume: its files are
+# already namespaced per cell by MODAL_VLLM_TELEMETRY_LABEL.
+_VOLUME_SUFFIX = "" if APP_NAME == "sandbox-vllm" else f"-{APP_NAME.removeprefix('sandbox-vllm-')}"
+HF_CACHE_VOLUME_NAME = f"sandbox-hf-cache{_VOLUME_SUFFIX}"
+VLLM_CACHE_VOLUME_NAME = f"sandbox-vllm-cache{_VOLUME_SUFFIX}"
 HF_CACHE_MOUNT = "/root/.cache/huggingface"
 VLLM_CACHE_MOUNT = "/root/.cache/vllm"
 
@@ -180,6 +188,14 @@ CONFIG_ENV_KEYS = (
     "MODAL_VLLM_HF_OVERRIDES",
     "MODAL_VLLM_REVISION",
     "MODAL_VLLM_API_TOKEN",
+    # SAND-042 in-container GPU telemetry. Without these the sampler still runs,
+    # but it writes to the `unlabelled` folder and every replica's series collides
+    # (socket.gethostname() is literally "modal" inside a container).
+    "MODAL_VLLM_TELEMETRY",
+    "MODAL_VLLM_TELEMETRY_LABEL",
+    "MODAL_VLLM_TELEMETRY_INTERVAL",
+    "MODAL_VLLM_TELEMETRY_COMMIT_EVERY",
+    "MODAL_VLLM_TELEMETRY_VOLUME",
     # HF_TOKEN deliberately absent: it lives in the named Modal secret
     # `huggingface-secret` (below). Modal applies function secrets in list
     # order — LAST WINS on duplicate keys — so a locally-exported HF_TOKEN
@@ -246,6 +262,68 @@ def _truthy(value: str) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
+# ── SAND-042: in-container GPU hardware telemetry ────────────────────────────
+# The A100 cost cards reported GPU utilization / power / temperature / memory
+# sampled from the serving replica; every L4 card said "nvidia-smi not sampled".
+# Modal allows exactly one @modal.web_server per function (a second decorator
+# raises "Cannot set `webhook_config` twice"), so a second HTTP port for a
+# /telemetry route is not available. Instead serve() appends one nvidia-smi sample
+# per interval to a Modal Volume; the operator-side scraper pulls it
+# (mailroom_sandbox.job.container_telemetry). Commit every COMMIT_EVERY samples so
+# the operator sees a live series; teardown commits the tail.
+TELEMETRY_ENABLED = _truthy(os.environ.get("MODAL_VLLM_TELEMETRY", "1"))
+TELEMETRY_VOLUME_NAME = os.environ.get(
+    "MODAL_VLLM_TELEMETRY_VOLUME", "sandbox-vllm-telemetry"
+)
+TELEMETRY_MOUNT = "/telemetry"
+TELEMETRY_LABEL = os.environ.get("MODAL_VLLM_TELEMETRY_LABEL", "unlabelled")
+TELEMETRY_INTERVAL = float(os.environ.get("MODAL_VLLM_TELEMETRY_INTERVAL", "5.0") or 5.0)
+# 2 samples (~10 s at the 5 s interval): a volume commit is what makes samples
+# visible to the operator-side read, so a long commit interval leaves a short run
+# (a 5-document smoke) with almost nothing to read.
+TELEMETRY_COMMIT_EVERY = max(
+    1, int(os.environ.get("MODAL_VLLM_TELEMETRY_COMMIT_EVERY", "2") or 2)
+)
+TELEMETRY_QUERY = (
+    "index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,"
+    # L4-comparable extras (present on every NVIDIA datacentre GPU, so the same query
+    # is valid on an A100): memory-BANDWIDTH utilisation (explains why more concurrency
+    # stops helping once the GPU is saturated), the power cap (normalises power draw —
+    # L4 is 72 W, A100 250 W), and the SM clock (throttling evidence).
+    "utilization.memory,power.limit,clocks.sm"
+)
+# The serving container appends its own nvidia-smi samples here.
+telemetry_cache = modal.Volume.from_name(TELEMETRY_VOLUME_NAME, create_if_missing=True)
+
+
+def _telemetry_replica_key() -> str:
+    """A per-container key for the telemetry filename.
+
+    ``socket.gethostname()`` is literally ``"modal"`` in every container, so two
+    replicas would collide in one file. vLLM's ``process_start_time_seconds`` is
+    unique per replica and is the same key the /metrics scrape groups by, so the
+    GPU series joins to the engine rows. Falls back to a uuid if the local scrape
+    fails (the sampler must never block serving).
+    """
+    try:
+        import httpx
+
+        text = httpx.get(f"http://127.0.0.1:{SERVER_PORT}/metrics", timeout=5.0).text
+        for line in text.splitlines():
+            if line.startswith("process_start_time_seconds"):
+                value = line.rsplit(" ", 1)[-1].strip()
+                if value:
+                    # str(float) — byte-identical to the key vllm_metrics.group_replicas
+                    # uses, so the GPU series joins to the /metrics replica rows.
+                    return str(float(value))
+    except Exception:  # noqa: BLE001 — attribution is best-effort
+        pass
+    import uuid
+
+    return uuid.uuid4().hex[:12]
+
+
+
 # SAND-032: fail at import (deploy time), not at vLLM boot on a billed GPU.
 if DEFAULT_CHAT_TEMPLATE_KWARGS:
     try:
@@ -264,6 +342,128 @@ if CUDAGRAPH_CAPTURE_SIZES and _truthy(ENFORCE_EAGER):
 def _maybe_concurrent(fn):
     """Wrap serve() in @modal.concurrent only when MODAL_VLLM_MAX_INPUTS > 0."""
     return modal.concurrent(max_inputs=MAX_INPUTS)(fn) if MAX_INPUTS > 0 else fn
+
+
+def _nvidia_smi_sample() -> dict:
+    """One nvidia-smi query → ``{"t": epoch, "gpus": [...]}``.
+
+    Never raises: a GPU-less image or a missing binary records the error in the
+    sample so the operator-side summary can report "not captured" honestly.
+    """
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", f"--query-gpu={TELEMETRY_QUERY}", "--format=csv,noheader,nounits"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        ).stdout
+    except Exception as exc:  # noqa: BLE001 — telemetry must never kill the server
+        return {"t": time.time(), "gpus": [], "error": f"{type(exc).__name__}: {str(exc)[:120]}"}
+
+    def cell(value: str):
+        text = value.strip()
+        if text.lower() in {"", "n/a", "[n/a]", "na"}:
+            return None
+        try:
+            return float(text)
+        except ValueError:
+            return None
+
+    gpus = []
+    for line in out.strip().splitlines():
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) < 7:
+            continue
+
+        def at(idx: int):
+            return cell(parts[idx]) if len(parts) > idx else None
+
+        gpus.append(
+            {
+                "index": parts[0],
+                "name": parts[1],
+                "utilization_gpu_perc": at(2),
+                "memory_used_mib": at(3),
+                "memory_total_mib": at(4),
+                "temperature_c": at(5),
+                "power_draw_w": at(6),
+                # Padded, not required: a container running an older query still
+                # parses, it just reports these as not captured.
+                "utilization_memory_perc": at(7),
+                "power_limit_w": at(8),
+                "clocks_sm_mhz": at(9),
+            }
+        )
+    return {"t": time.time(), "gpus": gpus}
+
+
+_TELEMETRY_COMMIT_WARNED = False
+
+
+def _commit_telemetry_volume() -> str | None:
+    """Best-effort volume commit; returns the message to print on the first failure.
+
+    The handle's ``commit`` is not always usable in-container — observed on the
+    2026-10-12 merger probe as ``AttributeError: 'tuple' object has no attribute
+    'commit'``, because the container runs Modal's injected runtime rather than the
+    pinned client. It does not cost us visibility: Modal commits volume writes itself,
+    and the operator-side read has seen every sample (73/73 on that probe). So a
+    failure here must never fail the sampler, and must not warn once per commit.
+    """
+    global _TELEMETRY_COMMIT_WARNED
+    try:
+        telemetry_cache.commit()
+        return None
+    except Exception as exc:  # noqa: BLE001
+        if _TELEMETRY_COMMIT_WARNED:
+            return None
+        _TELEMETRY_COMMIT_WARNED = True
+        return (
+            f"telemetry: explicit volume commit unavailable ({type(exc).__name__}: "
+            f"{exc}); relying on Modal's own commit"
+        )
+
+
+def _start_telemetry_sampler() -> None:
+    """Daemon thread: append nvidia-smi samples to the telemetry volume.
+
+    One file per container (``<label>/<process_start_time_seconds>.jsonl``) so the
+    scraper can tell replicas apart the way the /metrics scrape does.
+    """
+    import threading
+    from pathlib import Path
+
+    label_dir = Path(TELEMETRY_MOUNT) / TELEMETRY_LABEL
+    try:
+        label_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"telemetry: cannot create {label_dir}: {exc}")
+        return
+    target = label_dir / f"{_telemetry_replica_key()}.jsonl"
+
+    def _loop() -> None:
+        written = 0
+        while True:
+            sample = _nvidia_smi_sample()
+            try:
+                with target.open("a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(sample) + "\n")
+                written += 1
+                if written % TELEMETRY_COMMIT_EVERY == 0:
+                    message = _commit_telemetry_volume()
+                    if message:
+                        print(message)
+            except Exception as exc:  # noqa: BLE001
+                print(f"telemetry: write failed ({type(exc).__name__}: {exc})")
+            time.sleep(max(1.0, TELEMETRY_INTERVAL))
+
+    threading.Thread(target=_loop, name="gpu-telemetry", daemon=True).start()
+    print(
+        f"telemetry: sampling every {TELEMETRY_INTERVAL}s → "
+        f"{target} (volume {TELEMETRY_VOLUME_NAME})"
+    )
+    sys.stdout.flush()
 
 
 def _server_env() -> dict[str, str]:
@@ -380,7 +580,11 @@ def _wait_for_port(port: int, timeout: int = 600) -> bool:
 
 @app.function(
     gpu=GPU,
-    volumes={HF_CACHE_MOUNT: hf_cache, VLLM_CACHE_MOUNT: vllm_cache},
+    volumes={
+        HF_CACHE_MOUNT: hf_cache,
+        VLLM_CACHE_MOUNT: vllm_cache,
+        TELEMETRY_MOUNT: telemetry_cache,
+    },
     secrets=_config_secrets(),
     timeout=STARTUP_TIMEOUT_SECONDS,
     scaledown_window=SCALEDOWN_SECONDS,
@@ -440,6 +644,10 @@ def serve() -> None:
 
     print(f"vLLM ready on port {SERVER_PORT} (pid={vllm_proc.pid})")
     sys.stdout.flush()
+
+    # SAND-042: sample GPU hardware telemetry for as long as the container lives.
+    if TELEMETRY_ENABLED:
+        _start_telemetry_sampler()
 
     # Return — Modal keeps container alive and routes to port (standard pattern)
 

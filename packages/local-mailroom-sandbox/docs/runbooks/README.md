@@ -49,6 +49,16 @@ Source of truth: [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.
 - [`sand40-probe`](tuning/sand40-probe.md) — SAND-40 validation probe (executed 2026-10-01) — n=20 contracts and merger on 2×L4 · 64K YaRN
 - [`sand40`](archived-experiments/qwen/qwen3-8b/sand40.md) — SAND-40 scale run — four specialists n=100 + † merger n=50 · 2×L4 · C32 · one 32K deploy
 
+## SAND-042 paired concurrency × fleet grid (n=50, five specialists)
+
+- [`sand42-1l4-c8`](sand42/1l4-c8.md) — SAND-042 — 1×L4 · client concurrency 8 · n=50 × 5 specialists (paired)
+- [`sand42-1l4-c16`](sand42/1l4-c16.md) — SAND-042 — 1×L4 · client concurrency 16 · n=50 × 5 specialists (paired)
+- [`sand42-2l4-c8`](sand42/2l4-c8.md) — SAND-042 — 2×L4 · client concurrency 8 (4 per replica) · n=50 × 5 specialists (paired)
+- [`sand42-2l4-c16`](sand42/2l4-c16.md) — SAND-042 — 2×L4 · client concurrency 16 (8 per replica) · n=50 × 5 specialists (paired)
+- [`sand42-2l4-c32`](sand42/2l4-c32.md) — SAND-042 — 2×L4 · client concurrency 32 (16 per replica, at the admission ceiling) · n=50 × 5 specialists (paired)
+- [`sand42-smoke`](sand42/smoke.md) — SAND-042 live smoke — 5 corporate records on 1×L4 · C8 (pre-spend check)
+- [`sand42-noise-floor`](sand42/noise-floor.md) — SAND-042 noise floor — correspondence re-run on the same 50 documents (1×L4 · C8)
+
 ## Anti-patterns
 
 | Anti-pattern | Cost | Instead |

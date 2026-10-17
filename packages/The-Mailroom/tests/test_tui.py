@@ -412,18 +412,20 @@ def test_repos_manifest_covers_every_synced_package():
 
 def test_repos_manifest_covers_hub_and_derived():
     names = {r["name"] for r in repos_mod.all_repos()}
-    for expected in ("mailroom-dev", "mailroom-hub", "LLM-Postal",
-                     "mailroom-dev-graph", "llm-entity-extraction-graph",
-                     "llm-mailroom-graph"):
+    for expected in ("mailroom-dev", "mailroom-hub", "LLM-Postal"):
         assert expected in names
+    for pruned in ("llm-entity-extraction", "agent-mailroom",
+                   "llm-mailroom-graph", "llm-entity-extraction-graph",
+                   "mailroom-dev-graph"):
+        assert pruned not in names
 
 
 def test_repos_urls_consistent():
     for r in repos_mod.all_repos():
         repo = repos_mod.CONSTELLATION[r["name"]].get("repo", r["name"])
         assert r["url"] == f"https://github.com/Exios66/{repo}"
-        assert r["role"] in ("pipeline", "visualizer", "scoring", "eval",
-                             "sandbox", "corpus", "derived", "hub")
+        assert r["role"] in ("pipeline", "visualizer", "scoring",
+                             "sandbox", "corpus", "hub")
         assert r["blurb"]
 
 

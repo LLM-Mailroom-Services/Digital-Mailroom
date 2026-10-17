@@ -80,3 +80,55 @@ def test_clean_subset_counts_only_single_subquestion_items():
     s = score_maud({"maud_clauses": ["Type of Consideration: All Cash", "No-Shop: Yes"]}, GT)
     assert (s["maud_clean_questions"], s["maud_clean_correct"]) == (1, 1)
     assert s["maud_clean_accuracy"] == 1.0
+
+
+def test_chunk_merged_answers_are_not_first_wins():
+    """SAND-042 RCA: the preamble chunk's guess must not beat the clause chunk."""
+    from mailroom_sandbox.eval.maud_scoring import score_maud
+
+    gt = {"No-Shop": {"answer": "Yes"}, "Breach of No Shop": {"answer": "No"}}
+    pred = {"maud_clauses": [
+        "No-Shop: not specified", "Breach of No Shop: Yes",  # chunk 1
+        "No-Shop: Yes", "Breach of No Shop: No",             # chunk 4
+    ]}
+    out = score_maud(pred, gt)
+    assert out["maud_correct"] == 1          # No-Shop recovered
+    assert out["maud_conflicts"] == 1        # Breach of No Shop: Yes vs No
+    assert out["maud_accuracy"] == 0.5
+
+
+def test_multi_class_answer_order_insensitive_and_null_mapping():
+    from mailroom_sandbox.eval.maud_scoring import score_maud
+
+    q = "Accuracy of Target R&W Closing Condition"
+    gt = {q: {"answer": "General R&Ws, Capitalization R&Ws"}, "No-Shop": {"answer": "Yes"}}
+    out = score_maud({"maud_clauses": {q: "Capitalization R&Ws, General R&Ws", "No-Shop": None}}, gt)
+    assert out["maud_correct"] == 1
+    assert out["maud_answered"] == 1
+
+
+def test_unordered_match_only_for_multi_select_questions():
+    from mailroom_sandbox.eval.maud_scoring import MULTI_CLASS_QUESTIONS, same_answer
+
+    rw = "Accuracy of Target R&W Closing Condition"
+    assert rw in MULTI_CLASS_QUESTIONS
+    assert "No-Shop" not in MULTI_CLASS_QUESTIONS
+    assert same_answer("Capitalization R&Ws, General R&Ws", "General R&Ws, Capitalization R&Ws", rw)
+    # order is meaningful for a single-answer question
+    assert not same_answer("A, then B", "then B, A", "No-Shop")
+    assert not same_answer("A, then B", "then B, A")
+
+
+def test_catalog_none_is_an_answer_not_a_placeholder():
+    from mailroom_sandbox.eval.maud_scoring import is_non_answer, score_maud
+
+    cor = "Agreement provides for matching rights in connection with COR"
+    assert not is_non_answer("None", cor)
+    assert is_non_answer("None", "No-Shop")
+    assert is_non_answer("not specified", cor)
+    # a chunk saying "None" vs one saying "3 business days" is a real conflict
+    gt = {cor: {"answer": "None"}}
+    out = score_maud({"maud_clauses": [f"{cor}: None", f"{cor}: 3 business days"]}, gt)
+    assert out["maud_conflicts"] == 1 and out["maud_correct"] == 0
+    out = score_maud({"maud_clauses": [f"{cor}: None"]}, gt)
+    assert out["maud_correct"] == 1 and out["maud_answered"] == 1

@@ -26,7 +26,7 @@ pip install -e ".[operator]"     # bcrypt, PyJWT, watchdog, PyMuPDF
 scripts/setup_operator.sh
 mailroom-web                     # mounts the desk on :8001
 MAILROOM_OBSERVER=1 mailroom-web # in-process bin watcher
-mailroom-observer                # standalone → POST /v1/ops/events
+mailroom-observer                # standalone → POST /v1/ops/events (not with MAILROOM_OBSERVER=1)
 ```
 
 Default admin is `admin` / `changeme` until `MAILROOM_OPERATOR_ADMIN_PASSWORD`
@@ -38,11 +38,27 @@ inbox upload then require a reviewer (or admin) token. Never reuse
 download / preview / verify and `POST /v1/ops/events` need reviewer+ (the
 ingest token counts as admin).
 
-Compose (visualizer + observer + nginx, no local Langfuse, no React UI):
+Compose — the production operator stack (one front door, one watcher):
 
 ```bash
-docker compose -f operator_desk/docker-compose.yml up --build
+cd operator_desk
+export MAILROOM_OPERATOR_JWT_SECRET="$(openssl rand -hex 32)"
+export MAILROOM_OPERATOR_ADMIN_PASSWORD='<strong-password>'
+docker compose up --build        # → http://localhost/desk
 ```
+
+- `mailroom` builds `operator_desk/Dockerfile`: the visualizer with the
+  `[operator]` extra and the React desk baked in at `ui/dist` (Node is a
+  build stage only). It publishes no host port.
+- `nginx` is the only published port (`${MAILROOM_HTTP_PORT:-80}`) and
+  proxies `/`, `/live`, `/desk`, `/api`, `/v1`, `/ws`, `/ws/pipeline`.
+- The in-process bin watcher runs in `mailroom` (`MAILROOM_OBSERVER=1`); there
+  is no observer sidecar (mailroom-issues#118). Run the standalone
+  `mailroom-observer` CLI only where the bins live on another host, and set
+  `MAILROOM_OBSERVER=0` on the visualizer if you do.
+- Compose refuses to start without the JWT secret and admin password. No
+  local Langfuse is started.
+- The hosted Observatory image (root `Dockerfile`) is unchanged.
 
 See `operator_desk/README.md` and `.env.example` (`MAILROOM_OPERATOR_*`).
 

@@ -16,14 +16,32 @@ Syncing: `scripts/sync_prompts.py` pushes the local templates up to Langfuse,
 so code and the managed prompts never drift.
 """
 
+import os
+import time
+
 import structlog
 
 logger = structlog.get_logger(__name__)
 
 PROMPT_PREFIX = "mailroom"
 
-# (agent_name, label) -> fetched prompt object (None when unavailable)
-_prompt_cache: dict[tuple[str, str], object | None] = {}
+# (agent_name, label) -> (fetched_at, prompt object). Misses (None) are never
+# stored, and entries expire after ``MAILROOM_PROMPT_CACHE_TTL`` seconds so a
+# long-running watcher picks up a re-labelled `production` prompt.
+_prompt_cache: dict[tuple[str, str], tuple[float, object]] = {}
+_now = time.monotonic
+# (agent_name, label) -> time of the last failed fetch. The SDK retries a miss
+# (~2 s), so a never-synced prompt or a Langfuse outage must not pay that on
+# every LLM call; the local fallback is served until this short TTL lapses.
+_miss_cache: dict[tuple[str, str], float] = {}
+MISS_TTL = 30.0
+
+
+def prompt_cache_ttl() -> float:
+    try:
+        return float(os.environ.get("MAILROOM_PROMPT_CACHE_TTL", "60"))
+    except ValueError:
+        return 60.0
 
 
 def prompt_name(agent_name: str) -> str:
@@ -64,18 +82,28 @@ def get_managed_prompt(
     `default_text` (rendered with `variables`) when unavailable.
     """
     cache_key = (agent_name, label)
-    if cache_key not in _prompt_cache:
+    cached = _prompt_cache.get(cache_key)
+    if cached is not None and _now() - cached[0] >= prompt_cache_ttl():
+        cached = None
+    prompt_obj = cached[1] if cached is not None else None
+    missed_at = _miss_cache.get(cache_key)
+    recently_missed = missed_at is not None and _now() - missed_at < MISS_TTL
+    if prompt_obj is None and not recently_missed:
         client = _client()
-        prompt_obj = None
         if client is not None:
             try:
                 prompt_obj = client.get_prompt(prompt_name(agent_name), label=label)
             except Exception:
                 logger.warning("prompt_fetch_failed", agent=agent_name, label=label, exc_info=True)
                 prompt_obj = None
-        _prompt_cache[cache_key] = prompt_obj
+        if prompt_obj is not None:
+            _prompt_cache[cache_key] = (_now(), prompt_obj)
+            _miss_cache.pop(cache_key, None)
+        else:
+            _prompt_cache.pop(cache_key, None)
+            if client is not None:
+                _miss_cache[cache_key] = _now()
 
-    prompt_obj = _prompt_cache[cache_key]
     if prompt_obj is not None:
         try:
             compiled = prompt_obj.compile(**variables) if variables else prompt_obj.prompt
@@ -107,13 +135,13 @@ def _bound_prompt_versions() -> dict[str, str]:
     return {
         "sorter": "sorter_v14",
         "sorter_reviewer": "production",
-        # Must match prompt_templates() below — the sync source uses v33
-        # (DMR-052: the catalog previously claimed v32 while v33 shipped).
-        "contracts_specialist": "contracts_specialist_v33",
-        "merger_agreement_specialist": "production",
-        "corporate_records_specialist": "production",
-        "correspondence_specialist": "production",
-        "insurance_claims_specialist": "production",
+        # Specialists: sandbox / eval-environment frozen v1. Entity-extraction
+        # contracts_specialist_v33 remains an eval pin only. Sorter stays v14.
+        "contracts_specialist": "frozen_v1",
+        "merger_agreement_specialist": "frozen_v1",
+        "corporate_records_specialist": "frozen_v1",
+        "correspondence_specialist": "frozen_v1",
+        "insurance_claims_specialist": "frozen_v1",
         "boss": "production",
         "reporter": "production",
         "pdf_transcriber": "production",
@@ -153,19 +181,20 @@ def prompt_templates() -> dict[str, str]:
         sorter_reviewer,
     )
 
+    from llm.frozen_v1 import load_specialist_v1
+
     return {
-        # The sorter/contracts specialist are the vendored LangChain agents
-        # (llm-entity-extraction); their local templates are the eval-validated
-        # lineage plus the mailroom production mutation (sorter_v14 /
-        # contracts_specialist_v33). Lane A/B + insurance were previously
-        # missing from this registry and so never synced to Langfuse.
+        # Sorter: best classify prompt this pipeline has (V12 CUAD-subtype
+        # lineage + mailroom doctrine). Specialists: frozen v1 stems from
+        # the sandbox / eval-environment lineage — LangGraph extract nodes
+        # and Langfuse `mailroom-<agent>` production share these bytes.
         "sorter": _langchain_prompt("sorter_v14"),
         "sorter_reviewer": sorter_reviewer.REVIEWER_SYSTEM_PROMPT,
-        "contracts_specialist": _langchain_prompt("contracts_specialist_v33"),
-        "merger_agreement_specialist": merger_agreement_specialist.SYSTEM_PROMPT,
-        "corporate_records_specialist": corporate_records_specialist.SYSTEM_PROMPT,
-        "correspondence_specialist": correspondence_specialist.SYSTEM_PROMPT,
-        "insurance_claims_specialist": insurance_claims_specialist.SYSTEM_PROMPT,
+        "contracts_specialist": load_specialist_v1("contracts_specialist"),
+        "merger_agreement_specialist": load_specialist_v1("merger_agreement_specialist"),
+        "corporate_records_specialist": load_specialist_v1("corporate_records_specialist"),
+        "correspondence_specialist": load_specialist_v1("correspondence_specialist"),
+        "insurance_claims_specialist": load_specialist_v1("insurance_claims_specialist"),
         "boss": boss.BOSS_SYSTEM_PROMPT,
         "reporter": reporter.COMPILE_SYSTEM_PROMPT,
         "pdf_transcriber": pdf_transcriber.SYSTEM_PROMPT,

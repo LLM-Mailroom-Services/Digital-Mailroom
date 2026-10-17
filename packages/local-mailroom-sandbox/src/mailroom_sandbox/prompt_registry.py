@@ -228,6 +228,15 @@ def prompt_lock_block(prompt_map: dict[str, Any], *, offline: bool = False) -> d
         if agent not in known:
             raise KeyError(f"unknown pipeline agent override {agent!r}; have {sorted(known)}")
         agents[agent] = resolve_prompt(agent, PromptRef(**ref), offline=offline)
+    versions = prompt_map.get("versions")
+    if versions:
+        # eval-environment versions (archived / frozen / mutation): resolved from the
+        # dojo lineage only, locked as ``source: eval-environment`` with text + sha256.
+        from mailroom_sandbox.prompt_versions import check_spec_prompt, resolve_selection
+
+        check_spec_prompt(prompt_map)  # versions vs agents overlap
+        selection = resolve_selection(versions)  # unknown key / role mismatch / non-pipeline role raise
+        agents.update(selection.lock_agents())
     return {"default": default_resolved, "agents": agents, "known_agents": sorted(known)}
 
 

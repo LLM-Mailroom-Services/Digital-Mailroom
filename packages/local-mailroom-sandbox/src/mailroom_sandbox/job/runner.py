@@ -16,7 +16,7 @@ from typing import Any, Callable
 from mailroom_sandbox.eval import experiment_log
 from mailroom_sandbox.eval import runners as eval_runners  # noqa: F401
 from mailroom_sandbox.job.checkpoint import RunStore, utc_now
-from mailroom_sandbox.job.metrics import record_from_run
+from mailroom_sandbox.job.metrics import lock_dataset_provenance, record_from_run
 from mailroom_sandbox.eval.prompt_provenance import (
     resolve_logged_prompt_version,
     stamp_prompt_provenance,
@@ -335,10 +335,22 @@ def _run_whole_run(
         )
         record.setdefault("spec_hash", store.spec_hash() or "")
         record.setdefault("dataset_fingerprint", _fingerprint(store))
+        # The dojo refuses a serving scorecard without dataset_revision; the
+        # lock is the only truthful source (never derived from the fingerprint).
+        for key, value in lock_dataset_provenance(store.read_lock()).items():
+            record.setdefault(key, value)
         record.setdefault("prompt_version", logged or default_ref)
         if sha:
             record.setdefault("prompt_sha256", sha)
-        stamp_prompt_provenance(record, record["prompt_version"], record.get("prompt_sha256"))
+        # a locked eval-environment selection IS the record's prompt identity
+        from mailroom_sandbox.prompt_versions import selection_from_lock
+
+        locked = selection_from_lock(lock_prompt)
+        if locked and locked.label_for(task) is not None:
+            record["prompt_version"], record["prompt_sha256"] = locked.label_for(task)
+        stamp_prompt_provenance(
+            record, record["prompt_version"], record.get("prompt_sha256"), prompt_lock=lock_prompt
+        )
         record.setdefault("run_id", store.run_id)
     store.write_checkpoint(state="done", cursor=processed, total=processed, remote=None)
     store.append_event("done", "info", cursor=processed, ok_count=processed)
@@ -454,6 +466,11 @@ def _apply_prompt_overrides(store: RunStore) -> None:
     from mailroom_sandbox.prompt_registry import apply_runtime_overrides
 
     prompt_lock = store.read_prompt_lock() or {}
+    # eval-environment prompt versions: remember the locked selection so every
+    # record the delegated runners write is stamped with its key + sha256.
+    from mailroom_sandbox.prompt_versions import selection_from_lock, set_active_selection
+
+    set_active_selection(selection_from_lock(prompt_lock))
     texts = {}
     must_apply = {}
     for agent, ref in (prompt_lock.get("agents") or {}).items():
@@ -586,6 +603,7 @@ def _build_record(
         model=model,
         prompt_version=prompt_version,
         dataset_fingerprint=_fingerprint(store),
+        dataset_provenance=lock_dataset_provenance(lock),
         items=items,
         scores=scores or None,
         gpu=_lock_gpu(store),
@@ -598,6 +616,11 @@ def _build_record(
         record["cold_boot_seconds"] = cold_boot_seconds
     if prompt_sha:
         record["prompt_sha256"] = prompt_sha
+    from mailroom_sandbox.prompt_versions import selection_from_lock
+
+    selection = selection_from_lock(store.read_prompt_lock())
+    if selection:
+        selection.stamp(record)  # selected eval-environment key + sha256 + per-role map
     return record
 
 

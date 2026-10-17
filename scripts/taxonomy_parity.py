@@ -19,8 +19,6 @@ Strict surfaces (must equal the canonical five):
 - ``docs/v7-taxonomy.md`` stated live + v7-represented class blocks
 - dojo HF-corpus class universe (``corpus.py`` ``CORPUS_DOC_TYPES`` — pinned
   to ``Lucius-Morningstar/mailroom-dataset``)
-- entity-repo pilot class universe (``PILOT_CLASS_KEYS`` — the docclass GT
-  surface)
 - sandbox docclass fixture (``docclass_mini.jsonl`` ``doc_type`` values)
 
 Structural surfaces (documented compat/retirement remnants — must CONTAIN the
@@ -31,7 +29,6 @@ contract``, and may only add classes from the retired roster):
   ``RETIRED_DOC_CLASS_KEYS``
 - dojo ``mailroom.py`` ``LIVE_DOC_TYPES`` / ``RETIRED_DOC_TYPES`` /
   ``EXTRACT_CLASS_ALIASES``
-- entity-repo ``sorter_agent.py`` ``DOC_CLASSES`` / ``DOCCLASS_CLASS_KEYS``
 
 Subclass parity layer (HUB-041): per live class, the canonical Hub
 ``expected_subclass`` vocabulary (pinned from the mailroom-corpus v8 GT,
@@ -44,9 +41,6 @@ whose extras are tolerated only from documented rosters:
   must EQUAL the canonical set for the four non-contract classes; contract
   stays folder-style spellings and is only required non-empty)
 - dojo ``mailroom.py`` ``HUB_SUBCLASS_INVENTORIES``
-- entity-repo ``config/taxonomy.yaml`` ``subclasses:`` blocks
-- entity-repo ``sorter_agent.py`` per-class subclass lists
-  (``SUBCLASS_DIMENSIONS`` members)
 - The-Mailroom ``pipeline_schema.py`` ``DOC_SUBCLASS_BY_CLASS``
 - llm-mailroom ``doc_inventories.py`` ``_DOJO_SORTER_SUBCLASSES`` (fallback
   catalog) + ``INSURANCE_CLAIM_TYPES`` (extract claim_type inventory — the
@@ -95,8 +89,6 @@ V7_TAXONOMY_DOC = "docs/v7-taxonomy.md"
 DOJO_CORPUS = "packages/llm-dojo-scoring/llm_dojo_scoring/corpus.py"
 DOJO_CONFIG = "packages/llm-dojo-scoring/llm_dojo_scoring/config.py"
 DOJO_MAILROOM = "packages/llm-dojo-scoring/llm_dojo_scoring/mailroom.py"
-ENTITY_SORTER = "packages/llm-entity-extraction/agents/sorter_agent.py"
-ENTITY_TAXONOMY = "packages/llm-entity-extraction/config/taxonomy.yaml"
 THE_MAILROOM_SCHEMA = "packages/The-Mailroom/mailroom_ui/pipeline_schema.py"
 SANDBOX_FIXTURE = "packages/local-mailroom-sandbox/data/fixtures/hf/docclass_mini.jsonl"
 
@@ -152,15 +144,6 @@ CORPORATE_FULL_ENUM_EXTRAS = frozenset({
 INSURANCE_EXTRACT_EXTRAS = frozenset({
     "liability", "health", "life", "workers_comp",
 })
-
-#: entity sorter per-class subclass list variable names (agents/sorter_agent.py).
-ENTITY_SORTER_SUBCLASS_VARS = {
-    "merger_agreement": "MERGER_SUBCLASSES",
-    "corporate_record": "CORPORATE_RECORD_SUBCLASSES",
-    "correspondence": "CORRESPONDENCE_SUBCLASSES",
-    "insurance_claim": "INSURANCE_CLAIM_SUBCLASSES",
-}
-
 
 class Drift(Exception):
     """One parity violation, with the surface it was found on."""
@@ -510,28 +493,6 @@ def check_dojo_mailroom(source: str, canon: set[str]) -> list[str]:
     return problems
 
 
-def check_entity_sorter(source: str, canon: set[str]) -> list[str]:
-    values = module_assigns(source)
-    pilot = values.get("PILOT_CLASS_KEYS")
-    if pilot is None:
-        raise Drift(f"{ENTITY_SORTER}: PILOT_CLASS_KEYS not found / not a literal list")
-    problems = check_equal(f"{ENTITY_SORTER} (pilot class universe)", pilot, canon)
-    base = values.get("DOC_CLASSES") or []
-    if not base:
-        raise Drift(f"{ENTITY_SORTER}: DOC_CLASSES not found / not a literal list")
-    extended = values.get("DOCCLASS_CLASSES")
-    if not isinstance(extended, list):
-        raise Drift(
-            f"{ENTITY_SORTER}: DOCCLASS_CLASSES not resolvable as a literal "
-            "concatenation — sorter surface changed shape?"
-        )
-    keys = [d.get("key") for d in extended if isinstance(d, dict)]
-    problems += check_structural(
-        f"{ENTITY_SORTER} DOCCLASS_CLASS_KEYS", keys, canon, KNOWN_EXTRACT_ALIASES
-    )
-    return problems
-
-
 def check_sandbox_fixture(source: str, canon: set[str]) -> list[str]:
     allowed = canon | {"unknown"}
     problems = []
@@ -552,55 +513,6 @@ def check_sandbox_fixture(source: str, canon: set[str]) -> list[str]:
 
 
 # --- HUB-041 subclass layer ---------------------------------------------------
-
-
-def parse_entity_taxonomy_subclasses(source: str) -> dict[str, list[str]]:
-    """Subclass keys per doc class from entity ``config/taxonomy.yaml``.
-
-    Reads each doc-class entry's optional ``subclasses:`` block (items shaped
-    ``- {key: x, label: ...}`` or ``- key: x``). A class without a block is
-    simply absent from the result (contract declares its CUAD dimension in a
-    comment; the sorter CONTRACT_SUBTYPE_KEYS carry it).
-    """
-    import re
-
-    result: dict[str, list[str]] = {}
-    current: str | None = None
-    in_doc_classes = False
-    in_subclasses = False
-    subclasses_indent = 0
-    for raw in source.splitlines():
-        if not raw.strip() or raw.lstrip().startswith("#"):
-            continue
-        indent = len(raw) - len(raw.lstrip())
-        stripped = raw.strip()
-        if indent == 0:
-            in_doc_classes = stripped == "doc_classes:"
-            current = None
-            in_subclasses = False
-            continue
-        if not in_doc_classes:
-            continue
-        if stripped.startswith("- "):
-            body = stripped[2:].strip()
-            if in_subclasses and indent > subclasses_indent:
-                match = re.match(r"\{?\s*key:\s*([A-Za-z0-9_]+)", body)
-                if match and current:
-                    result[current].append(match.group(1))
-                    continue
-            match = re.match(r"key:\s*([A-Za-z0-9_]+)", body)
-            if match:
-                current = match.group(1)
-                result.setdefault(current, [])
-                in_subclasses = False
-            continue
-        if current and stripped == "subclasses:":
-            in_subclasses = True
-            subclasses_indent = indent
-            continue
-        if in_subclasses and indent <= subclasses_indent:
-            in_subclasses = False
-    return result
 
 
 def _subclass_keys(got) -> list[str]:
@@ -705,28 +617,6 @@ def check_dojo_subclass_catalogs(
     return problems
 
 
-def check_entity_subclass_surfaces(sorter_source: str, taxonomy_source: str) -> list[str]:
-    problems: list[str] = []
-    values = module_assigns(sorter_source)
-    for doc_class, var in sorted(ENTITY_SORTER_SUBCLASS_VARS.items()):
-        extras = CORPORATE_FULL_ENUM_EXTRAS if doc_class == "corporate_record" else frozenset()
-        problems += check_subclass_coverage(
-            f"{ENTITY_SORTER} {var}", doc_class, values.get(var), extras
-        )
-    blocks = parse_entity_taxonomy_subclasses(taxonomy_source)
-    for doc_class in sorted(HUB_SUBCLASSES):
-        if not blocks.get(doc_class):
-            # No subclasses block (contract declares its CUAD dimension in a
-            # comment; the sorter CONTRACT_SUBTYPE_KEYS carry it) — skip.
-            continue
-        extras = CORPORATE_FULL_ENUM_EXTRAS if doc_class == "corporate_record" else frozenset()
-        problems += check_subclass_coverage(
-            f"{ENTITY_TAXONOMY} subclasses[{doc_class}]", doc_class,
-            blocks[doc_class], extras,
-        )
-    return problems
-
-
 def check_mailroom_subclass_surfaces(inventories_source: str, schema_source: str) -> list[str]:
     problems: list[str] = []
     inv = module_assigns(inventories_source)
@@ -790,7 +680,6 @@ def run_checks(root: Path) -> list[str]:
     problems += check_dojo_corpus(read(root, DOJO_CORPUS), canon)
     problems += check_dojo_config(read(root, DOJO_CONFIG), canon)
     problems += check_dojo_mailroom(read(root, DOJO_MAILROOM), canon)
-    problems += check_entity_sorter(read(root, ENTITY_SORTER), canon)
     problems += check_sandbox_fixture(read(root, SANDBOX_FIXTURE), canon)
     # HUB-041 subclass layer: per-class Hub GT vocabulary vs every catalog.
     dojo_config_values = module_assigns(read(root, DOJO_CONFIG))
@@ -803,9 +692,6 @@ def run_checks(root: Path) -> list[str]:
         ]
     problems += check_dojo_subclass_catalogs(
         read(root, DOJO_CORPUS), read(root, DOJO_MAILROOM), dojo_config_values
-    )
-    problems += check_entity_subclass_surfaces(
-        read(root, ENTITY_SORTER), read(root, ENTITY_TAXONOMY)
     )
     problems += check_mailroom_subclass_surfaces(
         read(root, MAILROOM_DOC_INVENTORIES), read(root, THE_MAILROOM_SCHEMA)

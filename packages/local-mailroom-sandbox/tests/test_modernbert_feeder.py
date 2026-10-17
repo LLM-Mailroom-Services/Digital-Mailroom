@@ -82,6 +82,7 @@ def test_benchmark_check_contracts_spec(monkeypatch):
         Path(__file__).resolve().parents[1]
         / "config"
         / "runs"
+        / "legacy"
         / "run-30-contracts-specialist.yaml"
     )
     report = check_benchmark_posture(spec=spec, require_hermes=True)
@@ -112,6 +113,7 @@ def test_benchmark_check_merger_spec_uses_dedicated_specialist(monkeypatch):
         Path(__file__).resolve().parents[1]
         / "config"
         / "runs"
+        / "legacy"
         / "run-30-merger-specialist.yaml"
     )
     assert spec.task == "merger_agreement_specialist"
@@ -135,6 +137,7 @@ def test_benchmark_check_scaledown_drift_fails(monkeypatch):
         Path(__file__).resolve().parents[1]
         / "config"
         / "runs"
+        / "legacy"
         / "run-30-contracts-specialist.yaml"
     )
     bad = spec.model_copy(

@@ -68,7 +68,7 @@ modal deploy deploy/modal_vllm.py                # prints the URL
 
 export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
 export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
-sandbox run benchmark-check --config config/runs/run-30-contracts-specialist.yaml
+sandbox run benchmark-check --config config/runs/legacy/run-30-contracts-specialist.yaml
 sandbox health --profile modal-vllm              # 401 = token mismatch
 ```
 

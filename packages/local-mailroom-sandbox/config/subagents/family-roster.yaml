@@ -12,9 +12,6 @@ packages:
   llm-mailroom:
     role: pipeline package
     family_roster_dest: config/subagents/family-roster.yaml
-  llm-entity-extraction:
-    role: prompt experiment loop
-    family_roster_dest: config/subagents/family-roster.yaml
   local-mailroom-sandbox:
     role: experiment harness
     family_roster_dest: config/subagents/family-roster.yaml
@@ -36,8 +33,8 @@ harnesses:
 subagents:
   - id: prompt-engineer
     title: Prompt Engineer (GEPA)
-    home_package: llm-entity-extraction
-    packages: [llm-entity-extraction, local-mailroom-sandbox, digital-mailroom, eval-environment]
+    home_package: local-mailroom-sandbox
+    packages: [local-mailroom-sandbox, digital-mailroom, eval-environment]
     family_source: llm-entity-extraction @ 42c54929
     tags: [prompts, evals, gepa]
     harnesses: [cursor, opencode, opencode-global]
@@ -50,8 +47,8 @@ subagents:
 
   - id: eval-judge
     title: Eval Judge
-    home_package: llm-entity-extraction
-    packages: [llm-entity-extraction, local-mailroom-sandbox, digital-mailroom]
+    home_package: local-mailroom-sandbox
+    packages: [local-mailroom-sandbox, digital-mailroom]
     family_source: llm-entity-extraction @ 42c54929
     tags: [evals, metrics, reporting]
     harnesses: [cursor, opencode, opencode-global]
@@ -64,8 +61,8 @@ subagents:
 
   - id: experiment-log-sync
     title: Experiment Log Sync
-    home_package: llm-entity-extraction
-    packages: [llm-entity-extraction, local-mailroom-sandbox, digital-mailroom, eval-environment]
+    home_package: local-mailroom-sandbox
+    packages: [local-mailroom-sandbox, digital-mailroom, eval-environment]
     family_source: llm-entity-extraction @ 42c54929
     tags: [observability, reporting]
     harnesses: [cursor, opencode, opencode-global]
@@ -187,7 +184,7 @@ subagents:
   - id: adversarial-reviewer
     title: Adversarial Reviewer
     home_package: local-mailroom-sandbox
-    packages: [local-mailroom-sandbox, digital-mailroom, llm-mailroom, llm-entity-extraction, eval-environment]
+    packages: [local-mailroom-sandbox, digital-mailroom, llm-mailroom, eval-environment]
     tags: [meta, review, verification]
     harnesses: [cursor, opencode, opencode-global]
     opencode:

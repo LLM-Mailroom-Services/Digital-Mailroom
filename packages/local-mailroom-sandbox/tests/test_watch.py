@@ -133,7 +133,7 @@ def test_cli_watch_once_renders_single_frame(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(spec_mod, "runs_root", lambda: tmp_path)
     ledger = tmp_path / "ledger.json"
     ledger.write_text(json.dumps({"spent_usd": 0.42}))
-    rc = main(["watch", "--config", str(config_dir() / "runs" / "sand032-l0-baseline.yaml"),
+    rc = main(["watch", "--config", str(config_dir() / "runs" / "sand032" / "sand032-l0-baseline.yaml"),
                "--once", "--no-logs", "--ledger", str(ledger)])
     out = strip_ansi(capsys.readouterr().out)
     assert rc == 0
@@ -148,7 +148,7 @@ def test_cli_watch_follow_file_tracks_current_config(tmp_path, monkeypatch, caps
 
     monkeypatch.setattr(spec_mod, "runs_root", lambda: tmp_path)
     follow = tmp_path / "current"
-    follow.write_text(str(config_dir() / "runs" / "sand032-s3-merger50.yaml") + "\n")
+    follow.write_text(str(config_dir() / "runs" / "sand032" / "sand032-s3-merger50.yaml") + "\n")
     rc = main(["watch", "--follow", str(follow), "--once", "--no-logs"])
     out = strip_ansi(capsys.readouterr().out)
     assert rc == 0 and "sand032-s3-merger50" in out and "SWEEP" in out
@@ -342,7 +342,7 @@ def test_cli_watch_defaults_to_sand032_follow(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(spec_mod, "runs_root", lambda: tmp_path / "runs")
     monkeypatch.setattr(paths, "runtime_dir", lambda: tmp_path)
     (tmp_path / "sand032").mkdir()
-    (tmp_path / "sand032" / "current").write_text(str(config_dir() / "runs" / "sand032-l2-marlin.yaml"))
+    (tmp_path / "sand032" / "current").write_text(str(config_dir() / "runs" / "sand032" / "sand032-l2-marlin.yaml"))
     rc = main(["watch", "--once", "--no-logs"])
     assert rc == 0 and "sand032-l2-marlin" in strip_ansi(capsys.readouterr().out)
 

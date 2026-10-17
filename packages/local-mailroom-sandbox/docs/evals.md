@@ -21,7 +21,8 @@ sandbox eval pipeline --mock          # connected: class + stage + extract + rou
 sandbox eval chained --mock           # sorter → extract only
 sandbox eval legalbench --mock
 sandbox eval local_vs_api --mock  # fixture timings; no OPENROUTER_API_KEY
-sandbox eval local_vs_api --from-log  # pair experiment_log local vs API-key rows
+sandbox eval local_vs_api --from-log  # pair experiment_log local vs API-key rows (per comparable group)
+sandbox eval local_vs_api --from-log --group 2   # several groups: pick the headline one (index or label)
 sandbox eval sorter_vs_modernbert --mock  # LLM sorter vs ModernBERT accuracy+cost
 sandbox metrics compare --runs local,modal,api
 sandbox metrics compare --fixture   # Grant cost-compare parity (offline)
@@ -40,6 +41,46 @@ local Ollama cost stays `None` without a price table. The suite returns a
 scoring **table** (every T0/T1 metric, missing as `None`), a **scorecard**
 (identity + cost calculations), and markdown for the experiment log.
 Sorter headlines stay `accuracy` + `f1_macro`.
+
+### Serving provenance and comparable groups (dojo v0.22)
+
+The dojo refuses to emit a serving scorecard without a provenance stamp
+(`dataset_revision`, `prompt_id`, `serving_kind`, `model_id`; USD metrics also
+`cost_basis`) and treats a comparison leg that pools runs differing on
+serving kind / model / prompt / task / dataset fingerprint / revision / split /
+draw seed as `identity_mixed`.
+
+* **Records carry the stamp.** Job-run records (`record_from_run`) take
+  `dataset_revision` (the lock's resolved Hub sha), `split` and `draw_seed`
+  (`sample_seed`) from the run lock via `job.metrics.lock_dataset_provenance`;
+  a local `file` dataset has no Hub revision and gets none. Token-price USD is
+  labelled `cost_basis=token_price_estimate`. The committed serving fixtures
+  carry `dataset_revision = job.spec.FAMILY_HF_REVISION`. `dataset_revision` is
+  never derived from the dataset fingerprint (the fingerprint maps to
+  `draw_seed`). Isolated fixture evals and old log rows have no Hub revision, so
+  their scorecard emission **fails loudly**: `emit_local_vs_api_scorecard` /
+  `emit_group_scorecards` raise `ScorecardEmissionError` (a dojo
+  `ProvenanceExportError` carrying `field`, `group` and a sandbox hint), nothing
+  is written or logged (every group is validated before any is emitted), and
+  `sandbox eval` / `sandbox matrix` / a job run exit non-zero with one line,
+  e.g. `error: scorecard not emitted: local_vs_api group 2 (...): ... dataset_revision
+  ... pin a Hub revision or pass --dataset-revision <40-hex Hub sha>`. There is no
+  "refused" entry, no skip and no fabricated stamp. Supply the real revision with
+  `sandbox eval local_vs_api --dataset-revision <40-hex sha>` (or
+  `provenance={"local": {...}, "api": {...}}`); it fills a gap but never
+  contradicts a revision a record already carries, and a branch name or short sha
+  is rejected. An incomparable (`identity_mixed`) group raises too.
+* **`--from-log` / `sandbox matrix` group before comparing.** Rows are grouped
+  by full identity and a local-side leg is paired with an API-side leg only when
+  they measured the same thing (`mailroom_sandbox.serving_groups`, as dojo
+  `pair_comparable_runs`). Each comparable pair is one entry in `groups`; each
+  is emitted as `<name>.g<n>`. With several groups the headline `scores` stay
+  empty until `--group <n|label>` selects one; legs with no counterpart are
+  listed under `unpaired`. The run's own `local_vs_api` comparison records in the
+  log are skipped.
+* **`sandbox metrics compare`** pairs per group too (`pairwise` keys
+  `local_vs_api`, or `local_vs_api[n]` when several); a bucket that pools unlike
+  runs is flagged `identity_mixed` and incomparable legs are listed.
 
 ## Isolated vs connected
 
@@ -63,7 +104,7 @@ are listed in `config/components.yaml` and skipped.
 ## Experiment log
 
 `reports/experiment_log.jsonl` is **sandbox-local**. It is not a mirror of
-llm-entity-extraction. Each record carries profile, provider, `serving_kind`
+the monorepo hub's experiment logs. Each record carries profile, provider, `serving_kind`
 (`local` | `modal` | `api`), model, prompt version, dataset fingerprint, scores +
 bootstrap CI when available, tracing backend, tags, session id, and a git
 snapshot. Mixed local + API-key matrix runs attach a `local_vs_api` block
@@ -125,7 +166,7 @@ Hub or local — when the preflight prepared any. An empty lock (serving-only
 specs) falls back to the runner's fixture defaults. Per-item tasks
 (`sorter`, `legalbench`) always score the locked rows row-by-row. Example:
 a spec with a Hub `dataset:` block and `task: pipeline` scores the live
-corpus subset through the connected graph (see `config/runs/example.yaml`'s
+corpus subset through the connected graph (see `config/runs/examples/example.yaml`'s
 commented Hub block).
 
 ## Adding a new eval task (the extension point, DMR-056)
@@ -205,6 +246,56 @@ are the eval-environment frozen v1 catalog (`*_v1` keys, sha256-locked in
 Isolated specialist evals and Modal + vLLM job runs inject that text —
 see [`config/prompts/README.md`](../config/prompts/README.md). Further catalog
 re-freezes land in eval-environment, not this repo.
+
+### Any eval-environment prompt version (`--prompt-version`)
+
+The full catalog — all 40 versions (archived `_v0`, frozen `_v1`, 20 mutations) with
+memos, what changed between versions, diffs and the exact text — is in
+[`docs/prompts/`](prompts/README.md) (generated from the vendored dojo lineage by
+`python scripts/render_prompt_catalog.py`; `--check` fails when it drifts). Browse it
+from the CLI with `sandbox prompts list-versions [--role R]` and
+`sandbox prompts show <key> [--diff <other-key> | --memo]`.
+
+Run an eval or job with any archived (`_v0`), frozen (`_v1`) or mutation
+(`correspondence_specialist_v3`, `contracts_specialist_v2`, `sorter_v3`, ...) prompt:
+
+```bash
+sandbox eval correspondence_specialist --prompt-version correspondence_specialist=correspondence_specialist_v3
+sandbox eval sorter --prompt-version sorter_v3          # bare key: role inferred (<role>_v<N>)
+sandbox eval pipeline --prompt-version sorter_v3 --prompt-version contracts_specialist_v2
+sandbox run start --config run.yaml --prompt-version correspondence_specialist_v7
+```
+
+or in the run spec (`prompt.versions`, a `{role: key}` map or a list of `role=key` /
+bare keys; the CLI flag wins per role):
+
+```yaml
+prompt:
+  versions:
+    sorter: sorter_v3
+    correspondence_specialist: correspondence_specialist_v3
+```
+
+* Texts come from the dojo lineage (`llm_dojo_scoring.prompts.get_prompt_version`)
+  through ONE function, `prompt_versions.lookup_prompt_version`. They never come
+  from the vendored mailroom registry (`PROMPT_VERSIONS` also has `sorter_v0..v14`:
+  same names, other texts) or from `config/prompts/*.txt` (the stem `sorter_v1` is
+  the mailroom text, not eval-environment `sorter_v1`).
+* An unknown key, a key whose role differs from the one named, a role the pipeline
+  lacks (`pipeline_quality_v1`), a text whose sha256 differs from the dojo's, two
+  versions for one role, `--prompt` + `--prompt-version` for one role, or a selection
+  the task would not use is an error (exit 1, one `error: prompt version: ...` line;
+  a job fails preflight with the reason). Nothing falls back to a default.
+* The selected key + sha256 are stamped in the run lock (`prompt.agents.<role>` with
+  `source: eval-environment`, and `prompt_versions`), are part of `spec_hash` (another
+  mutation drifts the lock), and ride on every record: `prompt_version` = the key,
+  `prompt_sha256`, `eval_environment_prompt_key`, `prompt_versions` (`{role: {key,
+  sha256}}`). A pipeline-level task logs the whole selection (`keyA+keyB` + a digest).
+* `prompt_version` and `prompt_sha256` are grouping identity (`serving_groups`):
+  different mutations form different legs and never pair, and one name with
+  different bytes (eval-env `sorter_v1` vs the mailroom stem) never pools.
+* No flag = today's default (the `*_simplified` stems; correspondence / corporate
+  records are bytes-equal to eval-environment `_v7` / `_v6`).
 
 ## Component gates
 

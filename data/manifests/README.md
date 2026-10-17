@@ -25,7 +25,6 @@ Manifests typically contain:
 
 | Package | Manifest Location |
 | :--- | :--- |
-| `llm-entity-extraction` | `packages/llm-entity-extraction/data/manifests/` |
 | `llm-mailroom` | `packages/llm-mailroom/data/` — HF pilot manifests |
 | `local-mailroom-sandbox` | `packages/local-mailroom-sandbox/data/runtime/` |
 

@@ -35,12 +35,6 @@ ___ ___ ___ ___ ___ ___ ___ ___ ___
     { name: 'llm-dojo-scoring', role: 'scoring', dist: 'llm-dojo-scoring',
       url: 'https://github.com/Exios66/llm-dojo-scoring',
       blurb: 'Dedicated scoring, error-analysis, visualization, and interpretation suite for LLM document pipelines — a single importable library.' },
-    { name: 'llm-entity-extraction', role: 'eval', dist: 'llm-entity-extraction',
-      url: 'https://github.com/Exios66/llm-entity-extraction',
-      blurb: 'Training & evaluation environment to identify strong LLM candidates for legal document entity extraction, classification, and summarization.' },
-    { name: 'agent-mailroom', role: 'pipeline', dist: 'agent-mailroom',
-      url: 'https://github.com/Exios66/agent-mailroom',
-      blurb: 'Self-contained legal-document mailroom: one state machine per document, specialist agents at desks, a hash-chained audit log, and a pixel floor where envelopes fly from reception to the boss.' },
     { name: 'local-mailroom-sandbox', role: 'sandbox', dist: 'mailroom-sandbox',
       url: 'https://github.com/Exios66/local-mailroom-sandbox',
       blurb: 'Sandbox for developing & testing the LLM mailroom pipeline with offline/localized models.' },
@@ -50,10 +44,6 @@ ___ ___ ___ ___ ___ ___ ___ ___ ___
     { name: 'claims-data-eda', role: 'corpus', dist: 'claims-data-eda',
       url: 'https://github.com/Exios66/claims-data-eda',
       blurb: 'Exploratory data analysis of real insurance-claim samples from the mailroom-dataset (carrier / inpatient / outpatient / PDE strata).' },
-    { name: 'llm-mailroom-graph', role: 'derived', dist: 'llm-mailroom-graph',
-      url: 'https://github.com/Exios66/llm-mailroom-graph',
-      homepage: 'https://exios66.github.io/llm-mailroom-graph/',
-      blurb: 'Interactive graphify knowledge graph of llm-mailroom — a derived artifact site rebuilt from the source repo.' },
     { name: 'mailroom-corpus-eda', role: 'corpus', dist: 'mailroom-corpus-eda',
       url: 'https://github.com/Exios66/Mailroom-Corpus-EDA',
       blurb: 'Dedicated repository for the full HF LLM-Mailroom corpus exploratory data analysis + the centralized Hub upload helpers (mailroom-dataset dataset family).' },
@@ -65,14 +55,7 @@ ___ ___ ___ ___ ___ ___ ___ ___ ___
       blurb: 'Monorepo mirror of Exios66/mailroom-dev under the mailroom-hub release name (CHANGELOG + release chain + vX.Y.Z tags).' },
     { name: 'LLM-Postal', role: 'hub', dist: 'mailroom-hub',
       url: 'https://github.com/Exios66/LLM-Postal',
-      blurb: 'Monorepo mirror of the LLM-Mailroom constellation — one checkout, one virtualenv, ten packages, zero cross-repo import friction.' },
-    { name: 'mailroom-dev-graph', role: 'derived', dist: 'mailroom-dev-graph',
-      url: 'https://github.com/Exios66/mailroom-dev-graph',
-      homepage: 'https://exios66.github.io/mailroom-dev-graph/',
-      blurb: 'Interactive graphify knowledge graph of the mailroom-dev monorepo — 4,870 code symbols, 16,161 edges, 325 communities across 9 packages.' },
-    { name: 'llm-entity-extraction-graph', role: 'derived', dist: 'llm-entity-extraction-graph',
-      url: 'https://github.com/Exios66/llm-entity-extraction-graph',
-      blurb: 'Interactive graphify knowledge graph of llm-entity-extraction — a derived artifact site.' },
+      blurb: 'Monorepo mirror of the LLM-Mailroom constellation — one checkout, one virtualenv, seven packages, zero cross-repo import friction.' },
   ],
   about: [
     '## whoami — the operator desk',
@@ -356,8 +339,8 @@ SYNOPSIS
 
 DESCRIPTION
     Lists the standalone Exios66 repositories that make up the
-    constellation: pipeline, visualizer, scoring, eval, sandbox,
-    corpus feeds, derived graph sites, and the hub monorepo.
+    constellation: pipeline, visualizer, scoring, sandbox,
+    corpus feeds, and the hub monorepo.
     'open' jumps to a repo page in a new tab.
 
 EXAMPLES

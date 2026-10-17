@@ -43,3 +43,13 @@ def pytest_collection_modifyitems(config, items):
 def _isolated_beacon_dir(tmp_path, monkeypatch):
     """Runs started in tests publish mailroom beacons — keep them out of ~/.mailroom/jobs."""
     monkeypatch.setenv("MAILROOM_BEACON_DIR", str(tmp_path / "_beacons"))
+
+
+@pytest.fixture(autouse=True)
+def _no_leaked_prompt_selection():
+    """The active eval-environment prompt selection is process-wide; never leak it across tests."""
+    from mailroom_sandbox import prompt_versions
+
+    prompt_versions.clear_active_selection()
+    yield
+    prompt_versions.clear_active_selection()

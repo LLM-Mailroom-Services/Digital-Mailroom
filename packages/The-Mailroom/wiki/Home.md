@@ -9,10 +9,8 @@
 The-Mailroom is one node of a governed family sharing one kanban board and one
 trace contract: **[llm-mailroom](https://github.com/Exios66/llm-mailroom)** is
 the upstream pipeline whose Langfuse project is this visualizer's sole data
-source; **[llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction)**
-is the prompt-experiment loop that breeds its sorter/specialist prompts (and
-hosts the shared governance board); **[llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring)**
-is the pinned scoring engine behind both (`@v0.16.0`); **llm-mailroom** itself
+source; **[llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring)**
+is the pinned scoring engine behind the pipeline (`@v0.16.0`); **llm-mailroom** itself
 is pinned here as dist `mailroom` `@959bb0bce152` / **0.7.1+** (main after v0.7.1) (optional extra `[pipeline]`); **[Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment)**
 and **[claims-data-eda](https://github.com/Exios66/claims-data-eda)** feed its
 corpus classes; **[atticus-investigation](https://github.com/Exios66/atticus-investigation)**

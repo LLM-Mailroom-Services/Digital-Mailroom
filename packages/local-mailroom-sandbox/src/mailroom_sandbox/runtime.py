@@ -262,6 +262,13 @@ def activate(
 
         patched_prompts = patch_managed_prompt(prompt_variant)
 
+    # eval-environment prompt versions selected for this process (CLI / job lock):
+    # apply their texts (loud when a role cannot be patched).
+    from mailroom_sandbox.prompt_versions import apply_selection
+
+    if apply_selection():
+        patched_prompts = True
+
     activation = Activation(
         profile_name=name,
         taxonomy_path=taxonomy_path,

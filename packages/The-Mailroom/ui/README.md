@@ -33,8 +33,7 @@ pip install -e ".[ui]"
 Ingest still happens on llm-mailroom `:8000`. This desk does not accept uploads
 and does not fabricate envelopes.
 
-Compose profile (after `npm run build` or the UI image):
-
-```bash
-docker compose -f operator_desk/docker-compose.yml --profile ui up --build
-```
+Production: `operator_desk/docker-compose.yml` bakes `ui/dist` into the
+visualizer image (`operator_desk/Dockerfile`) and serves it at
+`http://localhost/desk` behind nginx. `ui/Dockerfile` is only a standalone
+dev image (serves `/desk/`, proxies `/api` `/v1` `/ws` to `mailroom:8001`).

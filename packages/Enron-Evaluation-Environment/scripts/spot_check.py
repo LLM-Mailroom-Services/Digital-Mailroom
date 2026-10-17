@@ -13,7 +13,7 @@ Columns: ``filename``, ``subclass`` (heuristic), ``evidence``, ``subject``,
 
 After review, the corrected CSV is the authoritative subclass GT subset for
 the ``attorney_demand``/``demand``/... dimensions (feed it back into
-llm-entity-extraction's docclass eval as per-class GT where needed).
+the mailroom docclass eval as per-class GT where needed).
 
 Usage:
     python scripts/spot_check.py

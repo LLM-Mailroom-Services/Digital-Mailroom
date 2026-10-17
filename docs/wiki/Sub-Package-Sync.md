@@ -48,12 +48,12 @@ python scripts/sync_packages.py snapshot [--package <name>] [--force]  # re-base
   one-liner is `python scripts/sync_packages.py push --all --patch` — one
   command fetches every upstream tip, lands the monorepo delta as a single
   fast-forward commit per package, and re-baselines the cursors. Follow with
-  `sync_packages.py status` (expect 10/10 in sync, 0 monorepo-ahead) and
+  `sync_packages.py status` (expect 7/7 in sync, 0 monorepo-ahead) and
   commit the cursor file. `patch_push` extracts committed blobs (`git ls-tree
   -r HEAD` + `git cat-file blob`) — uncommitted work never propagates
   (DMR-028).
 - After a pull, **re-apply monorepo-side prunes** the merge may resurrect
-  (e.g. `packages/llm-entity-extraction/docs/{data,posit,posit-src}/` are
+  (historical example: `packages/llm-entity-extraction/docs/{data,posit,posit-src}/` were
   gitignored-heavy-asset paths; gitignore does not apply to tracked files,
   so `git rm -r --cached` + tree removal is the fix — HUB-004).
 

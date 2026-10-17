@@ -86,7 +86,7 @@ def test_full_suite_is_union_of_tracks():
 def test_run_30_merger_task_is_dedicated_specialist():
     from mailroom_sandbox.job.spec import load_run_spec
 
-    spec = load_run_spec(ROOT / "config/runs/run-30-merger-specialist.yaml")
+    spec = load_run_spec(ROOT / "config/runs/legacy/run-30-merger-specialist.yaml")
     assert spec.task == "merger_agreement_specialist"
     agents = spec.prompt.get("agents") or {}
     pin = agents.get("merger_agreement_specialist") or {}
@@ -98,7 +98,7 @@ def test_run_30_merger_task_is_dedicated_specialist():
 def test_example_per_class_uses_full_corpus_split():
     from mailroom_sandbox.job.spec import load_run_spec
 
-    spec = load_run_spec(ROOT / "config/runs/example-per-class.yaml")
+    spec = load_run_spec(ROOT / "config/runs/examples/example-per-class.yaml")
     assert spec.dataset.split == "all"
     buckets = spec.dataset.strata["buckets"]
     assert [b["doc_class"] for b in buckets] == [

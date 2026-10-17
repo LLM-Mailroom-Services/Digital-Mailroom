@@ -10,11 +10,19 @@ network or an install to score runs.
 - Upstream: https://github.com/Exios66/llm-dojo-scoring
 - Pin: **workspace snapshot — see monorepo** (tracks `packages/llm-dojo-scoring`
   in the Digital-Mailroom monorepo — the development source of truth;
-  hub#62 doctrine).
+  hub#62 doctrine). Current snapshot: upstream dojo tag **v0.22.0**
+  (`a2862cec`, released 2026-10-16) — the pin is the tag itself, and the
+  tree is re-vendored from the monorepo workspace so the two stay
+  byte-identical.
 - Lineage: upstream tag `v0.15.0` (`9db1417b`) was the last tagged pin; the
-  vendored tree now mirrors the monorepo workspace snapshot of **v0.19.1**
-  (`f6ae6ece`, 2026-10-05) so the drift guard stays byte-identical. The
-  `v0.15.0` string is retained here as historical lineage (sandbox pin test).
+  vendored tree mirrors the monorepo workspace snapshot, refreshed with the
+  DMR-061 emitter counters on 2026-09-14, the SAND-042 schema-adherence
+  line (v0.3.0), and the v0.22.0 fixes (strict `metric_id_for`,
+  required emitter provenance, `identity_mixed` serving legs) and the
+  eval-environment prompt lineage (`llm_dojo_scoring.prompts.lineage` +
+  `prompts/eval_environment_lineage.json`, 40 versions, eval-environment
+  `bdba24c`) so the drift
+  guard stays byte-identical.
 - Layout: upstream package dir relocated under `src/` (mirrors
   `vendor/llm-mailroom/src`); upstream `tests/`, `examples/`, `docs/` are not
   vendored.

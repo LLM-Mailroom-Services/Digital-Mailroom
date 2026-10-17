@@ -19,6 +19,19 @@ from typing import Iterable
 
 import yaml
 
+from .lineage import (
+    LINEAGE_SOURCE,
+    PromptVersion,
+    clear_lineage_cache,
+    default_prompt_version,
+    diff_prompt_versions,
+    get_prompt_version,
+    latest_prompt_version,
+    list_prompt_versions,
+    prompt_chain,
+    prompt_roles,
+)
+
 __all__ = [
     "PromptRecord",
     "FAMILIES",
@@ -26,6 +39,16 @@ __all__ = [
     "get_prompt",
     "list_prompts",
     "clear_prompt_cache",
+    # eval-environment prompt lineage (llm_dojo_scoring.prompts.lineage)
+    "PromptVersion",
+    "LINEAGE_SOURCE",
+    "list_prompt_versions",
+    "get_prompt_version",
+    "prompt_roles",
+    "prompt_chain",
+    "latest_prompt_version",
+    "default_prompt_version",
+    "diff_prompt_versions",
 ]
 
 FAMILIES = ("production", "docclass", "production_prompts")
@@ -51,6 +74,7 @@ class PromptRecord:
     notes: str = ""
     template: str | None = None
     sha256: str = ""
+    source_commit: str = ""
 
     @property
     def key(self) -> tuple[str, str]:
@@ -98,6 +122,7 @@ def _record_from_row(row: dict) -> PromptRecord:
         notes=str(row.get("notes") or ""),
         template=template,
         sha256=str(row.get("sha256") or ""),
+        source_commit=str(row.get("source_commit") or ""),
     )
 
 
@@ -110,8 +135,9 @@ def _catalog() -> tuple[PromptRecord, ...]:
 
 
 def clear_prompt_cache() -> None:
-    """Drop the loaded catalog (test isolation)."""
+    """Drop the loaded catalog and eval-environment lineage (test isolation)."""
     _catalog.cache_clear()
+    clear_lineage_cache()
 
 
 def list_prompts(

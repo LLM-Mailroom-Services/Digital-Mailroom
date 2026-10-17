@@ -2,151 +2,89 @@
 
 # 🚀 Deployment Configuration
 
-**Deployment configuration for the llm-mailroom package.**
+**Compose files, Modal app, and Space payload for llm-mailroom.**
 
 </div>
 
 ---
+
+Operator manuals for this folder are published on the GitBook site (pages listed in [`docs/SUMMARY.md`](../docs/SUMMARY.md) — a page not listed there is not on the site):
+
+| Guide | Covers |
+|:---|:---|
+| [Docker deployment](../docs/pipeline-reference-llm-mailroom/deployment/docker-deployment.md) | Compose matrix (Modes B / Mixed / A-ollama / A-llamafile / M / G), producer image, BERT build args |
+| [Modal + vLLM](../docs/pipeline-reference-llm-mailroom/deployment/modal-vllm.md) | `mailroom-vllm` serve, pipeline cutover, multi-tier Mode G GPUs |
+| [Deployment](../docs/pipeline-reference-llm-mailroom/deployment/README.md) | Laptop Python install, Railway, Hugging Face Spaces, backup |
+
+This README is an index of files in `deploy/`. Keep the operator recipes on the GitBook pages so they stay in sync.
 
 ## Structure
 
 | Path | Contents |
 |:---|:---|
 | [`space/`](space/) | HuggingFace Space deployment |
-| `modal_vllm.py` | Modal+vLLM serving app (optional local-model cutover; see below) |
-| `docker-compose.yml` | Base compose — app + watcher services (Modes A/B/mixed/M share it) |
-| `docker-compose.ollama.yml` | Mode-A overlay: local **Ollama** sidecar (offline LLM) |
-| `docker-compose.llamafile.yml` | Mode-A overlay: local **llamafile** sidecar (offline LLM) |
+| `modal_vllm.py` | Modal + vLLM serving app (`mailroom-vllm`) |
+| `docker-compose.yml` | Base compose — `app` + optional `watcher` (Modes A / B / mixed / M) |
+| `docker-compose.ollama.yml` | Mode A overlay: local Ollama sidecar |
+| `docker-compose.llamafile.yml` | Mode A overlay: local llamafile sidecar |
+| `docker-compose.full.yml` | Mode G — app, ops-monitor, watchdog, postgres, LiteLLM gateway, optional Phoenix |
+| `docker-compose.producer.yml` | The-Mailroom REVIEW pairing (reachable producer) |
 | `llamafile/` | llamafile sidecar image (pinned binary) + entrypoint |
 | `models/` | Host staging for weights (GGUF / ModernBERT bundle) — never committed |
-| `docker-compose.producer.yml` | The-Mailroom REVIEW pairing (unchanged contract) |
 
-## Docker Compose — deployment matrix
+`MAILROOM_API_TOKEN` is **required** on every compose `app` service (the container binds `0.0.0.0`; audit L-2 refuses an off-loopback bind without a live bearer token). Secrets come from the host `.env` via `--env-file`. Never bake tokens into images.
 
-One image, three offline/online postures, selected by env + optional overlay:
-
-| Mode | LLM source | Provider env | BERT intake | Invocation |
-|:---|:---|:---|:---|:---|
-| **B** — API | OpenRouter | `DEFAULT_PROVIDER=openrouter` + `OPENROUTER_API_KEY` | off | `docker compose -f deploy/docker-compose.yml --env-file .env up -d --build` |
-| **Mixed** (dev default) | OpenRouter | as B | on (`MAILROOM_BERT_INTAKE=1`) | base file |
-| **A-ollama** | Ollama sidecar | `DEFAULT_PROVIDER=ollama` + `OLLAMA_BASE_URL=http://ollama:11434/v1` | on | base + `-f deploy/docker-compose.ollama.yml` |
-| **A-llamafile** | llamafile sidecar | `DEFAULT_PROVIDER=llamafile` + `LLAMAFILE_BASE_URL=http://llamafile:8080/v1` | on | base + `-f deploy/docker-compose.llamafile.yml` |
-| **M** — Modal vLLM (remote GPU) | Modal app | `DEFAULT_PROVIDER=vllm` + `VLLM_BASE_URL=<modal.run>/v1` + `VLLM_API_KEY` | free | `modal deploy deploy/modal_vllm.py` + base file env |
-
-```bash
-# Mode A (fully offline) with Ollama:
-docker compose --profile local-llm \
-  -f deploy/docker-compose.yml -f deploy/docker-compose.ollama.yml \
-  --env-file .env up -d --build
-docker compose --profile local-llm \
-  -f deploy/docker-compose.yml -f deploy/docker-compose.ollama.yml \
-  exec ollama ollama pull qwen3:7b        # once; needs network
-
-# Mode A with llamafile (see § llamafile below for model prep):
-LLAMAFILE_MODEL=/models/llamafile/qwen3-7b-instruct-q4_k_m.gguf \
-docker compose --profile local-llm \
-  -f deploy/docker-compose.yml -f deploy/docker-compose.llamafile.yml \
-  --env-file .env up -d --build
-```
-
-`MAILROOM_API_TOKEN` is **required** by the compose app service (the
-container binds `0.0.0.0`; audit L-2 refuses an off-loopback bind without a
-live bearer token). The API embeds the inbox watcher
-(`MAILROOM_EMBED_WATCHER=1`); a `watcher` service is provided for
-watcher-only deployments with `MAILROOM_EMBED_WATCHER=0` (watcher.lock is an
-flock — exactly one intake authority per `/data`). Overlay runs pass
-`--profile local-llm` so the sidecar's `profiles:` gate matches its
-`depends_on` (compose validates against active profiles).
-
-## Llamafile (Mozilla — single-file OpenAI-compatible server)
-
-Prefer llamafile over Ollama when you want a zero-daemon, single-binary
-GGUF server pinned to an exact release. The sidecar image bakes the pinned
-binary (`deploy/llamafile/Dockerfile`, `LLAMAFILE_VERSION`, default 0.10.4);
-the **GGUF weights are bind-mounted** from `deploy/models/llamafile/` (`:ro`)
-— see `deploy/models/README.md`. Serve flags (entrypoint): `--server`,
-`--jinja`, `--ctx-size`, `--mlock`, `-np 1`, `--gpu` (default `disable` =
-CPU; `auto|nvidia|amd|apple|vulkan` on GPU hosts). The served model id is
-the `--alias` value (`LLAMAFILE_ALIAS`), which must match
-`taxonomy.yaml: llamafile_model_map:`.
-
-Resource notes (CPU, no GPU anywhere in this stack): qwen3 **7B Q4_K_M ≈
-4.7 GB** weights (≈ 6–8 GB RSS with a 16k-token KV cache), **14B ≈ 8.5 GB**
-(≈ 11–13 GB RSS). A 7B-class model is the practical ceiling on a 16 GB
-laptop; 27B-class only on GPU hosts. The model loads at server start and
-stays resident (`--mlock`) — there is no unload-on-idle like Ollama's
-`KEEP_ALIVE`; that is the memory-vs-latency trade of this path. Healthcheck:
-`GET /health` (llama.cpp server JSON `{"status":"ok"}`).
-
-## Offline model packaging (BERT fast-path)
-
-The root `Dockerfile` is multi-stage (builder → **model** → runtime) and
-ARGuable per mode:
-
-| ARG | Default | Purpose |
-|:---|:---|:---|
-| `PIP_EXTRAS` | `bert` | Optional extras installed into the image (`""` = leanest Mode B image; the `[bert]` extra = onnxruntime + tokenizers + huggingface-hub) |
-| `ML_EXPORT_ONNX` | `1` | Hook for the future int8 ONNX export pipeline (until that tooling ships, the raw safetensors+heads bundle is staged) |
-| `ML_MODEL_REPO` | `Lucius-Morningstar/mailroom-modernbert-classifier` | Bundle source repo |
-| `ML_MODEL_REVISION` | `main` | Pin a Hub commit SHA for reproducible builds |
-| `ML_BUILD_NONE` | `0` | `1` = skip the model download (empty bundle dir; BERT lane fails open) |
-| `FINAL_USER` | `mailroom` | Docker/Compose contract (uid 10001). **Modal builds must pass `root`** — SDK 1.5.5 has no `container_user` and appends its runtime after the Dockerfile |
-
-Runtime contract: `ML_MODEL_DIR` (default `/models/mailroom-modernbert-classifier`)
-+ `MAILROOM_BERT_INTAKE=0/1` (gate; off by default). The BERT lane in
-`agents/bert_intake.py` fails **open** — missing package/bundle/model
-degrades to the deterministic clerk, never crashes intake. The `[bert]`
-extra contains **no torch**: runtime inference is onnxruntime CPU only
-(verified wheels: onnxruntime 1.30.0, cp311, linux amd64 + aarch64,
-`manylinux_2_28`, glibc ≥ 2.28 — bookworm is 2.36). `transformers`/`torch`/
-`optimum` belong exclusively to the future build-time ONNX export tooling
-and are deliberately NOT in `pyproject.toml`.
-
-## Modal vLLM
-
-`modal_vllm.py` runs vLLM's own OpenAI-compatible `/v1` server behind a Modal
-`web_server` (SDK pinned `modal==1.5.5`, image `vllm/vllm-openai:v0.28.0` —
-matches the local compose pin).
-
-```bash
-pip install -e ".[deploy]" && modal token new
-export MODAL_VLLM_MODEL=Qwen/Qwen3-8B MODAL_VLLM_GPU=L4 MODAL_VLLM_API_TOKEN=<secret>
-modal run deploy/modal_vllm.py::download_model   # pre-warm weights (CPU-only)
-modal deploy deploy/modal_vllm.py                # prints the URL
-export DEFAULT_PROVIDER=vllm VLLM_BASE_URL=<modal-url>/v1 VLLM_API_KEY=<token>
-```
-
-Knobs: `MODAL_VLLM_MODEL` / `MODAL_VLLM_GPU` / `MODAL_VLLM_MAX_MODEL_LEN` /
-`MODAL_VLLM_GPU_MEMORY_UTILIZATION` / `MODAL_VLLM_MAX_NUM_SEQS` /
-`MODAL_VLLM_TP_SIZE` (from the GPU `:N` suffix; DMR-051) /
-`MODAL_VLLM_QUANTIZATION` / `MODAL_VLLM_REVISION` / `MODAL_VLLM_IMAGE_TAG` /
-`MODAL_VLLM_API_TOKEN` / `MODAL_VLLM_SCALEDOWN_SECONDS` /
-`MODAL_VLLM_STARTUP_TIMEOUT_SECONDS` + `HF_TOKEN` for gated weights — all
-baked into a deploy-time `Secret.from_dict` (SDK 1.5.5 removed
-`Secret.from_local`). Debug (DMR-053): `modal run deploy/modal_vllm.py --debug`
-prints the masked resolved config, and `--check` probes `/models` with bearer
-hints; `download_model` fails loudly on an empty snapshot. Bearer auth is
-enforced by vLLM itself; the pipeline sends `VLLM_API_KEY` as the bearer
-(`llm/providers.py`), and Modal scale-to-zero 503s get a long bounded
-cold-start backoff in `llm/retry.py` (DMR-052).
+Quick start (Mode B / Mixed): see [Docker deployment](../docs/pipeline-reference-llm-mailroom/deployment/docker-deployment.md). GPU serve: see [Modal + vLLM](../docs/pipeline-reference-llm-mailroom/deployment/modal-vllm.md).
 
 ## Configuration Files
 
 | File | Purpose |
 |:---|:---|
-| `Dockerfile` | Docker image definition |
-| `nixpacks.toml` | Nixpacks configuration |
+| `Dockerfile` (repository root) | Multi-stage producer / compose image |
+| `nixpacks.toml` | Nixpacks fallback |
 | `railway.json` | Railway deployment config |
 
 ## Usage
 
 Build from the package directory:
+
 ```bash
 cd packages/llm-mailroom
 docker build -t llm-mailroom .
 ```
 
+(Standalone checkout: `docker build -t llm-mailroom .` at the repo root.)
+
+## Operator SMS pings
+
+Text alerts to the operator's phone: a digest every 10 minutes while the mailroom runs, plus an alert only when something needs attention (healthy 60-second scans stay silent). **Off by default.** Config lives in the `pager:` block of `src/config/taxonomy.yaml`; `python -m pipeline.pager status --full` shows every resolved key and where it came from.
+
+Quick start:
+
+1. Put Twilio credentials in `.env`: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM_NUMBER` or `TWILIO_MESSAGING_SERVICE_SID`.
+2. `PYTHONPATH=src python -m pipeline.pager on --to +16085551234` (a 10-digit US number is normalized to E.164).
+3. `PYTHONPATH=src python -m pipeline.pager test` sends `✅ MAILROOM PAGER TEST`; it works while alerts are off.
+4. `PYTHONPATH=src python -m pipeline.pager preview` prints the digest the phone would get (`--alert`, `--json`); it never sends.
+5. Start the mailroom. The watchdog hosts the sender (`MAILROOM_WATCHDOG=1` in compose), or run `pager run` in the foreground. One sender per data dir (`pager.lock`).
+
+| Recipient | Transport | Notes |
+|:---|:---|:---|
+| Your mobile number | `twilio` (default) or `email_gateway` | Email gateway (`5551234567@vtext.com` style) reuses the Gmail SMTP settings; free but carriers throttle it. |
+| Your Google Voice number | `twilio` only | Google Voice receives texts from a long-code or toll-free number, never from short codes, and has no email gateway. |
+
+- **Twilio trial accounts** only text verified numbers: verify each recipient (mobile and Google Voice) under Phone Numbers → Verified Caller IDs.
+- **US sending** from a long code needs A2P 10DLC registration; a verified toll-free number is the faster path for a single operator.
+- **Cost:** emoji texts are UCS-2 (70 characters per segment). `style: ascii` keeps them GSM-7 (160 per segment), about 2.3× fewer segments. `max_chars` (default 640) caps each text; overflow lines go to the pager log.
+
+**Start prompt.** On a live-production TTY start (`python -m api.main`, `python -m pipeline.watcher`) the operator is asked whether to enable text alerts and for a number (30-second timeout per question; the default leaves alerts as they are). `--pager` / `--no-pager` set the toggle without asking; `MAILROOM_PAGER_PROMPT=0` turns the prompt off. Non-interactive starts (docker, systemd, CI) log `pager_prompt_skipped` with the enable hint. The answer persists in `<base_dir>/pager_settings.json`, which wins over env for `enabled`/`recipients`; a running pager picks up `pager on|off` and `pager number …` within one scan.
+
+**Machine-readable copy.** Each text ends with `Ref P-<HHMM>-<hex>`. The same facts as JSON (`schema: mailroom.pager/v1`, with masked delivery results) go to `<base_dir>/pager_log.jsonl` (`pager log --json`, rotates at 5 MB) and, when `MAILROOM_PAGER_WEBHOOK_URL` is set, are POSTed there (`X-Mailroom-Signature: sha256=…` with `MAILROOM_PAGER_WEBHOOK_SECRET`).
+
+**What texts.** The watcher stopping, a Modal tier or OpenRouter down, a provider degraded, low OpenRouter credit, failed or stuck documents, the review backlog, an ingestion pause, undeliverable echo emails, and a stalled research run (`run_pilot.py` / `run_experiment.py` report progress; `--page` starts a sender for the run). Modal is never probed: status comes from passive LLM outcomes plus `modal container list`. Cooldowns, debounce, quiet hours (`quiet_hours.window: "22:00-07:00"`), the hourly cap and `pager mute 2h` are all in the `pager:` block. Only an external host (the watchdog, or `pager run`) can text "watcher stopped" when the watcher process itself dies.
+
 ## Related Files
 
+- [`docs/docker-deployment.md`](../docs/pipeline-reference-llm-mailroom/deployment/docker-deployment.md)
+- [`docs/modal-vllm.md`](../docs/pipeline-reference-llm-mailroom/deployment/modal-vllm.md)
+- [`docs/deployment.md`](../docs/pipeline-reference-llm-mailroom/deployment/README.md)
 - `src/` — Source code
-- `docs/` — Documentation

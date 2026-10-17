@@ -229,8 +229,8 @@ SYNOPSIS
 
 DESCRIPTION
     Lists the standalone Exios66 repos that make up the
-    constellation (pipeline, visualizer, scoring, eval, sandbox,
-    corpus feeds, derived graph sites, hub). Each entry carries a
+    constellation (pipeline, visualizer, scoring, sandbox,
+    corpus feeds, hub). Each entry carries a
     bundled blurb and, when GitHub is reachable, live metadata
     (description, stars, language, updated). 'open' jumps to the
     repo page in your browser.

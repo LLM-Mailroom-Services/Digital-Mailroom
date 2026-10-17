@@ -65,12 +65,19 @@ REQUIRED_IDS: tuple[str, ...] = (
     "sand39-1l4-n50",
     "sand40-probe",
     "sand40",
+    "sand42-1l4-c8",
+    "sand42-1l4-c16",
+    "sand42-2l4-c8",
+    "sand42-2l4-c16",
+    "sand42-smoke",
+    "sand42-noise-floor",
 )
 
 FAMILIES: tuple[tuple[str, str], ...] = (
     ("baseline", "Singular 1×L4 / 1-container Qwen3-8B"),
     ("improved", "Improved run configurations"),
     ("grid", "Qwen3-8B-AWQ specialist grid (SAND-037)"),
+    ("sand42", "SAND-042 paired concurrency × fleet grid (n=50, five specialists)"),
 )
 
 _DEPLOY_DEFAULT_RE = {
@@ -305,6 +312,21 @@ def _profile_activate(runbook: Mapping[str, Any]) -> list[str]:
     return lines
 
 
+def _midrun_cell(runbook: Mapping[str, Any]) -> str:
+    """The cell whose mid-run series this runbook writes, e.g. ``2l4-c32``.
+
+    Taken from the configs (``sand42-50-<class>-specialist-awq-<cell>.yaml``) rather than
+    from the runbook id, so it also covers the grid/other ``-awq-<shape>`` runbooks whose
+    ids do not name a SAND-042 cell. "" when nothing matches — the step then declines to
+    guess a filename instead of writing samples nowhere useful.
+    """
+    for rel in _config_paths(runbook):
+        m = re.search(r"-awq-(.+)$", Path(rel).stem)
+        if m:
+            return m.group(1)
+    return ""
+
+
 def _config_paths(runbook: Mapping[str, Any]) -> list[str]:
     raw = runbook.get("configs") or []
     if isinstance(raw, list) and raw:
@@ -355,14 +377,34 @@ def render_shell(name: str) -> str:
     # vLLM /metrics snapshots; export_card writes reports/SAND-37/<shape>/<specialist>/.
     scrape = bool(runbook.get("scrape_metrics"))
     export_card = bool(runbook.get("export_card"))
+    # SAND-047: a MID-RUN /metrics sample. The before/after scrapes bracket each start but
+    # fire at the run's drained edges, where kv_cache_usage_perc (live sequences in a
+    # pre-allocated cache) is 0 by construction — without this the KV/queue columns can
+    # only ever report 0, and no rerun under the same bracket design changes that.
+    midrun = bool(runbook.get("midrun_metrics"))
+    midrun_cell = _midrun_cell(runbook) if midrun else ""
 
     def _run_lines(cfg: str, indent: str) -> list[str]:
         out = [f"{indent}sandbox run preflight --config {cfg} --live{preflight_force}"]
         if scrape:
             out.append(f"{indent}sandbox run scrape-metrics --config {cfg} --label before")
+        if midrun and midrun_cell:
+            # Point the mid-run sampler at THIS run: `scrape-metrics --config X` writes
+            # into X's run dir, so a loop stuck on the first config would file every
+            # sample under the first run of the cell.
+            out.append(
+                f'{indent}echo {cfg} > "$HOME/.sand42-{midrun_cell}-active-cfg"'
+            )
         out.append(f"{indent}sandbox run start --config {cfg} --job-mode {job_mode} --watch{start_force}")
         if scrape:
             out.append(f"{indent}sandbox run scrape-metrics --config {cfg} --label after")
+        if midrun and midrun_cell:
+            # Fold BEFORE the card: the fold is what writes the per-run mid-run block, and
+            # a card is built from whatever exists at the moment it runs.
+            out.append(
+                f"{indent}.venv/bin/python scripts/sand42/midrun_kv.py fold "
+                f"--cell {midrun_cell} >/dev/null 2>&1 || true"
+            )
         if export_card:
             out.append(f"{indent}sandbox run card --config {cfg}")
         return out
@@ -419,7 +461,10 @@ def render_shell(name: str) -> str:
         elif kind == "cutover":
             lines += [
                 "",
-                "# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN",
+                "# VLLM_BASE_URL is the FULL base: deploy output + '/v1'",
+                "#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1",
+                "#   (without /v1 every chat call 404s — the profile appends /chat/completions)",
+                "# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN",
                 "sandbox cutover --profile modal-vllm",
             ]
         elif kind == "health":
@@ -444,6 +489,36 @@ def render_shell(name: str) -> str:
                 lines += ["do", *_run_lines('"$cfg"', "  "), "done"]
         elif kind == "phases":
             lines.extend(_phase_shell(runbook, deploy=deploy, preflight_force=preflight_force, job_mode=job_mode))
+        elif kind == "midrun_metrics":
+            if not midrun_cell:
+                lines.append(
+                    "# midrun_metrics: no `-awq-<cell>` config to name the series — skipped"
+                )
+            else:
+                rels = _config_paths(runbook)
+                pid_file = f"$HOME/.sand42-{midrun_cell}-midrun.pid"
+                lines += [
+                    "",
+                    "# SAND-047: sample /metrics MID-RUN every $MIDRUN_INTERVAL seconds.",
+                    "# The before/after scrapes fire at each run's DRAINED EDGES, where",
+                    "# kv_cache_usage_perc gauges a pre-allocated cache with no live sequences",
+                    "# and therefore reads 0 by construction — a mid sample is the only source.",
+                    "# It goes through `scrape-metrics` on purpose: that also preserves the",
+                    "# VERBATIM exporter text (~120 families) at the mid point, and appends",
+                    "# every sample to vllm_metrics_mid.series.jsonl so the card reports the",
+                    "# run's MAXIMUM instead of whichever probe happened to run last.",
+                    f'MIDRUN_INTERVAL="${{MIDRUN_INTERVAL:-30}}"',
+                    f'MIDRUN_CFG_FILE="$HOME/.sand42-{midrun_cell}-active-cfg"',
+                    f"echo {rels[0]} > \"$MIDRUN_CFG_FILE\"",
+                    f'while :; do',
+                    f'  cfg="$(cat "$MIDRUN_CFG_FILE" 2>/dev/null || true)"',
+                    f'  [ -n "$cfg" ] && sandbox run scrape-metrics --config "$cfg" '
+                    f'--label mid || true',
+                    f'  sleep "$MIDRUN_INTERVAL"',
+                    f'done >>"$HOME/sand42-{midrun_cell}-midrun.log" 2>&1 &',
+                    f'MIDRUN_PID=$!',
+                    f'trap \'kill "$MIDRUN_PID" 2>/dev/null || true\' EXIT',
+                ]
         elif kind == "configs":
             rels = _config_paths(runbook)
             if not rels:

@@ -3,8 +3,8 @@
 
 Reads ``data/enron/index.jsonl`` (the ``build_corpus_index.py`` output) in a
 single streaming pass and writes per-source EDA artifacts under
-``reports/eda/`` (the llm-entity-extraction ``explore_pipeline_sources.py``
-convention): ``report.md``, ``findings.md`` and citation-footed PNG figures.
+``reports/eda/`` (the ``explore_pipeline_sources.py`` convention
+from the pruned llm-entity-extraction repo): ``report.md``, ``findings.md`` and citation-footed PNG figures.
 
 Sections (the correspondence intel the mailroom pipeline needs):
 
@@ -84,7 +84,7 @@ OUT = ROOT / "reports" / "eda"
 CITE = ("Source: CMU classic Enron email corpus (enron_mail_20150507) — "
         "https://www.cs.cmu.edu/~enron/ · 517,431 emails, ~150 custodians")
 
-# Pipeline budgets (chars) — mirrors the llm-entity-extraction taxonomy:
+# Pipeline budgets (chars) — mirrors the llm-mailroom pipeline budgets:
 # 16k single-pass sorter text path, 40k correspondence specialist cap,
 # 90k chunk window.
 BUDGETS = [16_000, 40_000, 90_000]

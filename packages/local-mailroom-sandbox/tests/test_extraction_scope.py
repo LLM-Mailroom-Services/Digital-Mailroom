@@ -28,11 +28,11 @@ def test_empty_gt_treats_lists_and_blanks_as_absence_not_zero():
     assert not is_empty_gt(["breach"])
 
 
-def test_vendor_score_extraction_penalizes_empty_list_gt():
-    """Document the dojo bug this sandbox seam exists to paper over.
+def test_vendor_score_extraction_skips_empty_list_gt():
+    """The dojo bug this seam papered over is fixed upstream (>= v0.16).
 
-    ``score_extraction`` skips None/"" but treats ``denial_reasons: []`` as a
-    real event. A missing prediction scores 0.0 and pulls overall down.
+    Empty-field contract: correct emptiness is not folded into the overall
+    score, so ``denial_reasons: []`` GT is not a scored event at all.
     """
     result = score_extraction(
         "correspondence",
@@ -40,9 +40,8 @@ def test_vendor_score_extraction_penalizes_empty_list_gt():
         {"intent": "payment_demand"},
         {"intent": "payment_demand", "denial_reasons": []},
     )
-    assert result.field_scores.get("denial_reasons") == 0.0
-    assert result.overall_score is not None
-    assert result.overall_score < 1.0
+    assert "denial_reasons" not in result.field_scores
+    assert result.overall_score == 1.0
 
 
 def test_applicable_expected_drops_foreign_empty_insurance_fields():
@@ -211,3 +210,30 @@ def test_hf_fixture_correspondence_union_key_does_not_tank_score():
     assert scored["overall_extraction_score"] is not None
     assert scored["overall_extraction_score"] >= 0.99
     assert scored.get("extraction_f1", 1.0) >= 0.99
+
+
+def test_seam_keys_track_the_vendored_engine_and_the_merger_agent():
+    """The seam's field set IS the scoring contract — pin it, don't just comment it.
+
+    Four classes must equal the vendored engine's ``field_types`` exactly. Merger is
+    the deliberate exception: ``suite_for_doc_type("merger_agreement")`` returns the
+    *contract* suite, whose map still carries CUAD leftovers (``term_length``,
+    ``cuad_family``, ``cuad_clauses``, ``contract_value``, ``renewal_terms``) that
+    the mailroom merger agent never emits. The seam scores the agent's real keys
+    instead, minus the trace-only ``reasoning``/``confidence``.
+
+    A vendored-schema refresh that moves any of these silently changes what every
+    SAND-042 cell scores, so it must fail here rather than in a card.
+    """
+    from langchain_agents.specialist_agents import MERGER_AGREEMENT_SCHEMA
+    from llm_dojo_scoring import suite_for_doc_type
+
+    for doc_type in ("correspondence", "insurance_claim", "corporate_record", "contract"):
+        engine = set(suite_for_doc_type(doc_type).field_types or {})
+        assert set(LIVE_SCHEMA_FIELDS[doc_type]) == engine, doc_type
+
+    agent = set((MERGER_AGREEMENT_SCHEMA.get("properties") or MERGER_AGREEMENT_SCHEMA).keys())
+    merger = set(LIVE_SCHEMA_FIELDS["merger_agreement"])
+    assert merger == agent - {"reasoning", "confidence"}
+    # And the dojo's CUAD leftovers must not creep back into the merger score.
+    assert not merger & {"term_length", "cuad_family", "cuad_clauses", "contract_value", "renewal_terms"}

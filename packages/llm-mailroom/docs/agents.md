@@ -29,7 +29,7 @@ Key design points:
 - When a managed prompt is active, it's passed to the OpenAI call as `langfuse_prompt=`, linking each generation to its exact prompt version in the trace UI.
 - Every agent has a distinct system prompt ("personality") aligned with its role
 
-**Two of the agents — the Sorter and the Contracts Specialist — are vendored LangChain agents** (from `github.com/Exios66/llm-entity-extraction`, kept in sync with that repo's append-only prompt lineage — re-vendored to the sibling's current HEAD on 2026-08-15), imported into `langchain_agents/` with mailroom plumbing adapted in (pages/vision, run-deadline checks, per-call usage accounting — each adaptation marked `MAILROOM PATCH`). They use `langchain-openai`'s `ChatOpenAI` + `with_structured_output` instead of the mailroom's `agents/base.py` plumbing, and their system prompts resolve **by version key** through `langchain_agents/prompts.py:PROMPT_VERSIONS`: the production aliases are `"sorter"` → `SORTER_PROMPT_V14` (V12 CUAD-subtype lineage + mailroom pipeline doctrine; V13 remains a frozen insurance-class experiment derived from V0) and `"contracts_specialist"` → `CONTRACTS_SPECIALIST_PROMPT_V33` (V32 + pared checklist doctrine — no open-ended `key_obligations` / `termination_clauses`). The full eval history rides along in-repo (`sorter_v0…v14`, vision v0–v1, `contracts_specialist_v1…v33`) so evaluation loops can pin exactly one version per experiment — they bypass `get_managed_prompt`/Langfuse prompt linking (generations are still auto-traced via the langfuse-openai SDK patch). All other agents follow the `BaseAgent` contract below.
+**The Sorter, Contracts Specialist, and Merger Agreement Specialist are vendored LangChain agents** (from `github.com/Exios66/llm-entity-extraction` — a standalone repo that left the monorepo in DMR-079 and is no longer synced; the copies carry that repo's append-only prompt *history* as of the last re-vendor on 2026-08-15), imported into `langchain_agents/` with mailroom plumbing adapted in (pages/vision, run-deadline checks, per-call usage accounting — each adaptation marked `MAILROOM PATCH`). They use `langchain-openai`'s `ChatOpenAI` + `with_structured_output` instead of the mailroom's `agents/base.py` plumbing. Eval loops still pin an explicit lineage key through `langchain_agents/prompts.py:PROMPT_VERSIONS` (`sorter_v0…v14`, `contracts_specialist_v1…v33`). **Production is not that history:** classify uses **`sorter_v14`** (V12 CUAD-subtype lineage + mailroom pipeline doctrine — the strongest sorter this pipeline has; V13 remains a frozen insurance-class experiment derived from V0). Extract uses the sandbox / eval-environment **frozen v1** stems in `src/llm/frozen_v1/` for all five specialists (sha256-locked; `contracts_specialist_v33` is eval-only). Mailroom wrappers (`agents/sorter.py`, `agents/contracts_specialist.py`, `agents/merger_agreement_specialist.py`, and the native BaseAgent specialists) resolve those templates through `get_managed_prompt` (`mailroom-<agent>`, `production` label) so the LangGraph `classify` / `extract` nodes share the same Langfuse surface. Sync with `scripts/sync_prompts.py`. All other agents follow the `BaseAgent` contract below.
 
 ---
 
@@ -90,7 +90,7 @@ Fires only where the pipeline would previously have pinged a human. Independence
 | `cuad_family` | `str \| None` | CUAD agreement family |
 | `cuad_clauses` | `list[str]` | Present CUAD categories as `"<label>: <evidence>"` |
 
-The Contracts Specialist is also a **vendored LangChain agent** (`agents/contracts_specialist.py` re-exports `langchain_agents.specialist_agents.ContractsSpecialist`): production prompt `contracts_specialist_v33` (pared CUAD checklist — no open-ended `key_obligations` / `termination_clauses`), `normalize_extraction` guarantees every schema field is present, and a missing `confidence` is derived from the share of fields actually found. It extracts CUAD `contract` only. MAUD `merger_agreement` has its own specialist and `MergerAgreementExtraction` schema — the two labels are not interchangeable. It accepts a **`handoff_context`** — the chained-eval pattern: the graph passes the sorter's classification (`doc_type` + `contract_subtype` + confidence) into the extraction call so the specialist extracts with the expected clause set of that agreement family in mind. Every live specialist accepts the same optional `handoff_context` parameter.
+The Contracts Specialist is also a **vendored LangChain agent** (`agents/contracts_specialist.py` re-exports `langchain_agents.specialist_agents.ContractsSpecialist`): production prompt is the sandbox / eval-environment **frozen v1** stem (`llm/frozen_v1/contracts_specialist.txt`, Langfuse `mailroom-contracts_specialist`), not entity-extraction `contracts_specialist_v33`. `normalize_extraction` guarantees every schema field is present, and a missing `confidence` is derived from the share of fields actually found. It extracts CUAD `contract` only. MAUD `merger_agreement` has its own specialist and `MergerAgreementExtraction` schema — the two labels are not interchangeable. It accepts a **`handoff_context`** — the chained-eval pattern: the graph passes the sorter's classification (`doc_type` + `contract_subtype` + confidence) into the extraction call so the specialist extracts with the expected clause set of that agreement family in mind. Every live specialist accepts the same optional `handoff_context` parameter.
 
 ---
 
@@ -118,7 +118,7 @@ The Contracts Specialist is also a **vendored LangChain agent** (`agents/contrac
 | `subject_matter` | `str \| None` | One grounded sentence |
 | `keywords` | `list[str]` | Up to 8 grounded terms |
 
-`cuad_family` and `cuad_clauses` are not primary on this class. The specialist wraps the LangChain `MergerAgreementSpecialist` (chunked extraction for long MAUD agreements) and serves the mailroom `SYSTEM_PROMPT` (V0 + doctrine) via `get_managed_prompt`. Dojo suite key stays `merger_agreement`.
+`cuad_family` and `cuad_clauses` are not primary on this class. The specialist wraps the LangChain `MergerAgreementSpecialist` (chunked extraction for long MAUD agreements) and serves the frozen v1 stem via `get_managed_prompt`. Dojo suite key stays `merger_agreement`.
 
 ---
 
@@ -138,14 +138,14 @@ The Contracts Specialist is also a **vendored LangChain agent** (`agents/contrac
 | `entity_name` | `str` | Legal entity name |
 | `record_type` | `str` | Hub extract tokens: `articles_of_incorporation`, `bylaws`, `powers_of_attorney`, `rights_instrument`, `other` (sorter catalog is wider) |
 | `effective_date` | `str \| None` | Date the record took effect |
-| `intent` | `str \| None` | Short controlled label (e.g. `record_governance`) |
+| `intent` | `str \| None` | Controlled Hub purpose label (e.g. `governance_rules`, `corporate_action_approval`, `entity_formation`, `authority_delegation`, `investor_rights`, `other`) |
 | `subject_matter` | `str \| None` | One grounded sentence |
 | `keywords` | `list[str]` | Up to 8 grounded terms |
 | `signatories` | `list[str]` | Who signed/approved |
 | `jurisdiction` | `str \| None` | State/country of incorporation |
 | `filing_number` | `str \| None` | Official filing reference |
 
-**Honest gap (dojo 0.14.0):** there is **no external extraction benchmark** for this class (nothing CUAD/MAUD-shaped). The published `mailroom-dataset` set has 39 `corporate_record` rows with record-type subclasses; Hub extract inventory stays the five tokens above — do not treat those 39 rows as clause-level gold. Mailroom scores a **local extraction pack** (`observability.local_eval_packs`, mock/check only) with schema-complete `expected_fields` (entity_name, subject_matter, keywords, signatories, …) from committed fixtures. Extra Hub `ground_truth` columns are joined when present, never invented.
+**Honest gap (dojo 0.22.0):** there is **no external extraction benchmark** for this class (nothing CUAD/MAUD-shaped). The published `mailroom-dataset` set has 39 `corporate_record` rows with record-type subclasses; Hub extract inventory stays the five tokens above — do not treat those 39 rows as clause-level gold. Mailroom scores a **local extraction pack** (`observability.local_eval_packs`, mock/check only) with schema-complete `expected_fields` (entity_name, subject_matter, keywords, signatories, …) from committed fixtures. Extra Hub `ground_truth` columns are joined when present, never invented.
 
 ---
 
@@ -167,7 +167,7 @@ The Contracts Specialist is also a **vendored LangChain agent** (`agents/contrac
 | `additional_recipients` | `list[str]` | Cc'd / copied parties |
 | `communication_type` | `str` | letter, email, memo, notice, demand, etc. |
 | `communication_date` | `str \| None` | When it was sent |
-| `intent` | `str \| None` | Short controlled label (e.g. `demand_payment`) |
+| `intent` | `str \| None` | Controlled Hub purpose label (e.g. `payment_demand`, `notice`, `analysis`, `request`, `update`, `meeting_invite`, `press_communication`, `other`) |
 | `subject_matter` | `str \| None` | One grounded sentence |
 | `keywords` | `list[str]` | Up to 8 grounded terms |
 | `demand_amount` | `float \| None` | Exact dollar amount demanded (demand letters) |
@@ -216,7 +216,7 @@ documents that would have been classified as compliance filings route as
 | `coverage_determination` | `str` | approved, denied, partial, pending |
 | `denial_reasons` | `list[str]` | Stated denial reasons |
 | `supporting_documents` | `list[str]` | Documents referenced as supporting the claim |
-| `intent` | `str \| None` | Short controlled label (e.g. `coverage_denial`) |
+| `intent` | `str \| None` | Controlled Hub purpose label (e.g. `claim_filing`, `coverage_determination`, `loss_report`, `claim_data_record`, `other`) |
 | `subject_matter` | `str \| None` | One grounded sentence |
 | `keywords` | `list[str]` | Up to 8 grounded terms |
 | `claim_checklist` | `list[str]` | Present claim categories as `"<Category>: <evidence>"` |
@@ -224,7 +224,7 @@ documents that would have been classified as compliance filings route as
 
 A first-class document class (added in mailroom v0.4.0 / KANBAN-067): schema registry, taxonomy doc_class + agent block, graph dispatch node, classifier vocabulary, and sorter prompt coverage.
 
-**Honest gap (dojo 0.14.0):** Hub rows are CMS DE-SynPUF source tables (`carrier`/`inpatient`/`outpatient`/`pde`). Typed extraction plus field-micro P/R/F1/F2 are scored. **`determination_consistency` and `amount_exactness` are registered scorers**; CMS GT is homogeneous (all `coverage_determination=approved` with empty `denial_reasons`), so Hub `determination_consistency` is **gated** (not a quality KPI on GT-shaped rows). A local contrast pack (approved / denied / partial) exercises the scorer off that tautology. The same three determinations also live on the pilot manifest as synthetic mock-only PDFs (`insurance_01` approved / `insurance_02` denied / `insurance_03` partial, rendered from `docs/examples/sources/insurance/` by `prepare_samples.py`) so `--mock` pilots cover `insurance_claim` end-to-end; `--real` refuses them via `is_real_sample`. Mailroom still records a local field invariant on traces. Candidate corpus EDA lives in [`claims-data-eda`](https://github.com/Exios66/claims-data-eda).
+**Honest gap (dojo 0.22.0):** Hub rows are CMS DE-SynPUF source tables (`carrier`/`inpatient`/`outpatient`/`pde`). Typed extraction plus field-micro P/R/F1/F2 are scored. **`determination_consistency` and `amount_exactness` are registered scorers**; CMS GT is homogeneous (all `coverage_determination=approved` with empty `denial_reasons`), so Hub `determination_consistency` is **gated** (not a quality KPI on GT-shaped rows). A local contrast pack (approved / denied / partial) exercises the scorer off that tautology. The same three determinations also live on the pilot manifest as synthetic mock-only PDFs (`insurance_01` approved / `insurance_02` denied / `insurance_03` partial, rendered from `docs/examples/sources/insurance/` by `prepare_samples.py`) so `--mock` pilots cover `insurance_claim` end-to-end; `--real` refuses them via `is_real_sample`. Mailroom still records a local field invariant on traces. Candidate corpus EDA lives in [`claims-data-eda`](https://github.com/Exios66/claims-data-eda).
 
 ---
 

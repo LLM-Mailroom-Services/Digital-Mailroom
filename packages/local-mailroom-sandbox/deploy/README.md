@@ -46,7 +46,7 @@ Dedicated notebooks:
 
 ## Modal vLLM (remote GPU)
 
-Modal SDK **1.5.5** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**
+Modal SDK **1.6.1** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**
 (`vllm/vllm-openai:v0.29.0`, matching the local compose pin). Same knob
 contract as llm-mailroom KANBAN-064 / entity-extraction KANBAN-096, plus
 sandbox-local cost/scale knobs.
@@ -257,6 +257,37 @@ runner (concurrency) and the server (`--max-num-seqs`).
 - `download_model` runs CPU-only; Volumes are `$0.09/GiB/mo` (first 1 TiB
   free) and persist weights + compile artifacts across deploys.
 - Spend check: `modal billing summary` / `modal billing rates` (SDK 1.5.3+).
+
+### Ground-truth labeler (`sandbox-vllm-gt-labeler`, SAND-045)
+
+Separate app from `sandbox-vllm`. It hosts `Qwen/Qwen3-14B-AWQ` on L4
+(data parallel, not `L4:2`) for unfinished ground-truth fields on
+`Lucius-Morningstar/mailroom-dataset` Hub tag `v9.1`
+(`bc9eab280044befb51e19dda3071d290a8677f42`; parquet parent
+`ed7576b676343e0b402ec5412cded301e629bdee`). The deployed function still
+allows `max_containers=2`. A live EX-10 pass uses one replica: the client
+default `--replicas 1` sends 8 requests, matching `max_num_seqs` and
+`max_inputs`, so that GPU stays full and the autoscaler is not asked for a
+second container. `min_containers=0`, so deploy itself does not start a GPU.
+Do not run `download_model` unless a chunk is about to be labeled. Do not
+redeploy mid-chunk; a new revision cold-boots the warm L4.
+
+```bash
+python deploy/modal_gt_labeler.py --check
+python deploy/modal_gt_labeler.py --export
+modal deploy deploy/modal_gt_labeler.py
+modal app stop sandbox-vllm-gt-labeler
+```
+
+One invocation is one chunk from `mailroom_sandbox.gt_labeler.next_chunk`:
+at most 40 documents and a projected bill of $2. `scripts/gt_label_ex10.py`
+defaults to `--replicas 1` and `--usd-cap 2`. Spend is estimated as
+wall-clock × $0.80 × replicas, and the client stops before the next chunk
+once that estimate or a 45-minute wall hits. The 3,302-document corpus is
+refused as one submission. Prompts ask only for the fields on that document.
+Golden CUAD and MAUD clause maps are not requested. The live unfinished
+queue is the 91 SEC EDGAR EX-10 contracts whose `cuad_clause_labels` is
+still `pending_annotation`.
 
 ### Teardown + resource safeguards (DMR-063)
 

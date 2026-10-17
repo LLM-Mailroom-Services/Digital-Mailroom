@@ -25,7 +25,7 @@ while True:
     if len(rows) >= 8: sys.exit(0)
 PY
 }
-run() { echo "=== $1 ($2) ledger \$$(spent) ==="; watchdog "$1"; scripts/sand032/run_one.sh "config/runs/$1.yaml" $2 2>&1 | tail -2; }
+run() { echo "=== $1 ($2) ledger \$$(spent) ==="; watchdog "$1"; scripts/sand032/run_one.sh "config/runs/sand032/$1.yaml" $2 2>&1 | tail -2; }
 # A fleet — frozen seqs16, c32
 gate 0.40 sand032-s6-sorter1000 && run sand032-s6-sorter1000 "deploy stop"
 sleep 15

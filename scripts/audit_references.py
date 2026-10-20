@@ -6,7 +6,7 @@ Guards the migration of the hub identity from ``Exios66/mailroom-dev`` to
 stale hub references, with a classified allowlist for the references that are
 intentionally NOT migrated —
 
-  * ``packages/**`` — the ten package mirrors stay ``Exios66/*`` upstream repos
+  * ``packages/**`` — the seven package mirrors stay ``Exios66/*`` upstream repos
     (their docs legitimately name the original hub);
   * ``governance/TASKS.md`` / ``AGENTS.md`` — HUB-era lineage and archive;
   * ``CHANGELOG.md`` — historical entries (but its link-definition footer MUST

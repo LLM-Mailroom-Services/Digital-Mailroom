@@ -91,3 +91,26 @@ def test_get_engine_usable_from_two_event_loops(monkeypatch, tmp_path):
     assert not errors
     assert len(engines) == 2
     assert engines[0] is not engines[1]  # one engine per event loop
+
+
+def test_sequential_event_loops_never_reuse_a_dead_loops_engine(monkeypatch, tmp_path):
+    # CPython reuses id() of a collected loop; an id-keyed cache handed the next
+    # asyncio.run() an engine bound to the closed loop, and grew per loop.
+    _point_at_fresh_db(monkeypatch, tmp_path, "seq")
+    assert db.ensure_schema() is True
+    monkeypatch.setattr(db, "_engines", {})
+    seen: list = []
+
+    async def use_engine():
+        seen.append(db.get_engine())
+        async with db.async_session() as session:
+            assert (await session.execute(text("SELECT 1"))).scalar() == 1
+
+    for _ in range(6):
+        asyncio.run(use_engine())
+
+    # Red on the id-keyed cache either way: a reused id hands back the previous
+    # (closed-loop) engine; distinct ids grow the cache to 6 entries.
+    assert all(a is not b for a, b in zip(seen, seen[1:]))
+    # Closed loops are pruned on the next build: only the last loop's entry remains.
+    assert len(db._engines) == 1

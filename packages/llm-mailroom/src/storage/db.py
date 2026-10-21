@@ -1,6 +1,7 @@
 import asyncio
 import os
 import threading
+import weakref
 import structlog
 from pathlib import Path
 from sqlalchemy import text
@@ -63,20 +64,30 @@ def _apply_sqlite_pragmas(dbapi_conn, _connection_record=None) -> None:
 # asyncpg connections and the asyncio primitives inside the engine are bound to
 # the loop that first used them, so sharing one engine across loops (threads
 # that run their own asyncio.run()) raised "bound to a different event loop"
-# and lost writes (DMR-086). Engines for a superseded URL are dropped from the
-# cache on re-keying, keeping the previous URL-change behavior.
-_engines: dict[tuple[str, int | None], tuple[object, object]] = {}
+# and lost writes (DMR-086). Entries are keyed by id(loop) but validated by a
+# weakref identity check, because CPython reuses the id of a collected loop;
+# entries whose loop is closed or gone are pruned so repeated asyncio.run()
+# calls do not grow the cache. A URL change drops every cached engine.
+_engines: dict[int | None, tuple[object, object, object]] = {}
 _engines_lock = threading.Lock()
 _engine = None  # most recently built engine (kept for introspection)
 _engine_url: str | None = None
 _sessionmaker = None
 
 
-def _loop_key() -> int | None:
+def _running_loop():
     try:
-        return id(asyncio.get_running_loop())
+        return asyncio.get_running_loop()
     except RuntimeError:
         return None
+
+
+def _entry_is_live(entry, loop) -> bool:
+    ref = entry[0]
+    if ref is None:
+        return loop is None
+    owner = ref()
+    return owner is not None and owner is loop and not owner.is_closed()
 
 
 def _build_engine(url: str):
@@ -92,16 +103,20 @@ def _build_engine(url: str):
 def _engine_pair():
     global _engine, _engine_url, _sessionmaker
     url = _resolve_url()
-    key = (url, _loop_key())
+    loop = _running_loop()
+    key = None if loop is None else id(loop)
     with _engines_lock:
         if _engine_url is not None and _engine_url != url:
             _engines.clear()
-        pair = _engines.get(key)
-        if pair is None:
-            pair = _engines[key] = _build_engine(url)
-        _engine, _sessionmaker = pair
+        entry = _engines.get(key)
+        if entry is None or not _entry_is_live(entry, loop):
+            for k in [k for k, e in _engines.items() if k is not None and not _entry_is_live(e, e[0]())]:
+                del _engines[k]
+            ref = None if loop is None else weakref.ref(loop)
+            entry = _engines[key] = (ref, *_build_engine(url))
+        _, _engine, _sessionmaker = entry
         _engine_url = url
-        return pair
+        return _engine, _sessionmaker
 
 
 def get_engine():

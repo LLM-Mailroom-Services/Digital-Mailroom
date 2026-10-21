@@ -17,7 +17,7 @@ rows marked *cov* were timed under `--cov`, which is slower than a plain run.
 | **1 — surgical** | The single test file/module touched by a change | seconds | Every edit, before committing |
 | **2 — package unit** | The full test suite of the one changed package | seconds–minutes | Every non-trivial change to a package |
 | **3 — cross-package** | The suites of every package a change touches, plus any package that imports the changed surface | 1–6 min | Cross-package refactors, shared-catalog changes (taxonomy, vendor, dojo), version bumps |
-| **4 — full + governance** | All 7 package suites + `scripts/tests` + board-site JS + the governance gates | ~10 min suites + gates | Release cuts, CI gate verification, end-of-sprint sweeps |
+| **4 — full + governance** | All 7 package suites + `scripts/tests` + board-site JS + the governance gates | ~13.5 min suites + gates | Release cuts, CI gate verification, end-of-sprint sweeps |
 
 ## Per-package commands (measured)
 

@@ -165,6 +165,21 @@ source repo ({labeler_tests} labeler tests).
 
 
 def main_with_args(argv: list[str]) -> int:
+    """Validate and publish labeled Enron correspondence from CLI arguments.
+
+    ``argv`` excludes the program name. ``--limit`` caps retained rows after
+    filtering; zero means no cap. ``--dry-run`` validates rows and returns 0
+    without writing files or making network calls.
+
+    Otherwise, write the dataset to ``--out`` and a manifest beside it, then
+    upload the dataset, manifest, and dataset card to ``--repo-id``. Write
+    ``PUBLISH_SUMMARY.json`` beside ``--out`` before returning 0 for a matching
+    Hub LFS SHA-256 or 1 for a missing or mismatched hash.
+
+    Argument errors, a missing index, or schema violations raise
+    ``SystemExit(2)``; help raises ``SystemExit(0)``. Index JSON decoding,
+    index/output I/O, and Hub API errors propagate.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--index", type=Path, default=DEFAULT_INDEX)
     parser.add_argument("--out", type=Path, default=OUT_DIR / STAGED_NAME)

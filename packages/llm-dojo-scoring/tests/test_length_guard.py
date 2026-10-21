@@ -5,6 +5,8 @@
 behavior is pinned with hand-computed values.
 """
 
+import json
+
 import pytest
 
 from llm_dojo_scoring.asr import score_transcription
@@ -16,6 +18,7 @@ from llm_dojo_scoring.classification import (
     macro_prf,
     per_class_stats,
 )
+from llm_dojo_scoring.content_scoring import score_maud_extraction
 from llm_dojo_scoring.mailroom import score_aligned_classification
 from llm_dojo_scoring.tasks import score_task
 
@@ -114,3 +117,51 @@ def test_score_task_equal_length():
     r = score_task("doc_class", EXP2, ["contract", "contract"])
     assert r["n"] == 2
     assert r["accuracy"] == 0.5
+
+
+@pytest.mark.parametrize("task", ["maud_extraction", "maud_clause"])
+def test_score_task_maud_batch_lengths_raise(task):
+    labels = {"No-Shop": {"answer": "Yes"}}
+    assert score_task(task, [labels, labels], [labels, labels])["n_documents"] == 2
+    with pytest.raises(ValueError, match=MSG):
+        score_task(task, [labels, labels], [labels])
+    with pytest.raises(ValueError, match=r"expected has 1.*predicted has 2"):
+        score_task(task, [labels], [labels, labels])
+
+
+_MAUD_LABELS = {"No-Shop": {"answer": "Yes"}}
+_MAUD_SPANS = ["No-Shop: Yes", "Type of Consideration: All Stock"]
+
+
+@pytest.mark.parametrize("task", ["maud_extraction", "maud_clause"])
+@pytest.mark.parametrize(
+    "expected,predicted",
+    [
+        (_MAUD_SPANS, _MAUD_SPANS[:1]),
+        (_MAUD_SPANS[:1], _MAUD_SPANS),
+        (_MAUD_SPANS, []),
+        ([], _MAUD_SPANS),
+        ([], []),
+        ([_MAUD_LABELS, _MAUD_LABELS], _MAUD_LABELS),
+        ([_MAUD_LABELS, _MAUD_LABELS], []),
+        ([_MAUD_LABELS, _MAUD_LABELS], _MAUD_SPANS[:1]),
+        (_MAUD_SPANS, [_MAUD_LABELS]),
+        ([_MAUD_LABELS, _MAUD_LABELS], json.dumps(_MAUD_LABELS)),
+        (json.dumps([_MAUD_LABELS, _MAUD_LABELS]), json.dumps([_MAUD_LABELS])),
+        (tuple(_MAUD_SPANS), tuple(_MAUD_SPANS[:1])),
+    ],
+    ids=[
+        "missing-span", "extra-span", "empty-prediction", "empty-expected",
+        "both-empty", "reuse-label-map", "batch-empty-prediction",
+        "batch-vs-spans", "spans-vs-batch", "reuse-json", "json-batches",
+        "tuples",
+    ],
+)
+def test_score_task_maud_preserves_non_batch_inputs(task, expected, predicted):
+    assert score_task(task, expected, predicted) == score_maud_extraction(expected, predicted)
+
+
+@pytest.mark.parametrize("task", ["doc_class", "enron_topic", "transcription"])
+def test_score_task_non_maud_tuple_lengths_raise(task):
+    with pytest.raises(ValueError, match=MSG):
+        score_task(task, tuple(EXP2), tuple(PRED1))

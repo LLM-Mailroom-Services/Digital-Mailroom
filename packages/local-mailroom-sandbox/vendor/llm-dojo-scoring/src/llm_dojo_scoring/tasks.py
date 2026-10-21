@@ -240,7 +240,16 @@ def score_task(
     kind = task_kind(task)
 
     if isinstance(expected, (list, tuple)) and isinstance(predicted, (list, tuple)):
-        require_same_length(expected, predicted, what=f"score_task({task})")
+        # MAUD span lists describe one document, not parallel document batches.
+        if kind != "maud_extraction" or (
+            isinstance(expected, list)
+            and isinstance(predicted, list)
+            and expected
+            and predicted
+            and isinstance(expected[0], dict)
+            and isinstance(predicted[0], dict)
+        ):
+            require_same_length(expected, predicted, what=f"score_task({task})")
 
     if kind == "enron_topic":
         from .content_scoring import score_content_topic

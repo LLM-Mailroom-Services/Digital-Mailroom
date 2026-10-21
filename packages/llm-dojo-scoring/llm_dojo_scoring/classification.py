@@ -35,6 +35,21 @@ def _default_valid_classes() -> dict[str, re.Pattern[str]]:
     return {k: v for k, v in _DEFAULT_CLASSES_RE.items() if k not in retired}
 
 
+def require_same_length(expected, predicted, *, what: str = "scorer") -> None:
+    """Raise ``ValueError`` when paired sequences differ in length.
+
+    ``zip`` silently truncates to the shorter side, which turned a short
+    prediction list into a perfect score (DMR-087). Every paired scorer
+    calls this before zipping.
+    """
+    n_exp, n_pred = len(expected), len(predicted)
+    if n_exp != n_pred:
+        raise ValueError(
+            f"{what}: length mismatch: expected has {n_exp} items, "
+            f"predicted has {n_pred}"
+        )
+
+
 def normalize_label(value, valid: dict[str, re.Pattern[str]] | None = None) -> str:
     """Coerce an LLM output into a class key (best effort)."""
     valid = valid or _default_valid_classes()
@@ -69,6 +84,7 @@ def failure(output, expected) -> float:
 
 def accuracy(expected: list, predicted: list) -> float:
     """Overall exact-match accuracy over paired predictions."""
+    require_same_length(expected, predicted, what="accuracy")
     if not expected:
         return 0.0
     pairs: list[tuple] = []
@@ -101,6 +117,7 @@ def per_class_stats(expected: list, predicted: list) -> dict[str, dict]:
     Returns ``{class: {n, correct, accuracy, precision, recall, f1, f2}}``.
     Failed rows (``ERROR_PREFIX`` predictions) are skipped entirely.
     """
+    require_same_length(expected, predicted, what="per_class_stats")
     pairs: list[tuple[str, str]] = []
     for e, p in zip(expected, predicted):
         out = str(p)
@@ -145,6 +162,7 @@ def confusion_matrix(expected: list, predicted: list,
     ``labels`` order (default: sorted union of observed classes). Failed
     predictions (ERROR_PREFIX) are dropped.
     """
+    require_same_length(expected, predicted, what="confusion_matrix")
     pairs = [
         (normalize_label(e), normalize_label(p))
         for e, p in zip(expected, predicted)
@@ -171,6 +189,7 @@ def binary_metrics(expected: list, predicted: list, positive: str,
     class keys); ``normalize=False`` treats inputs as raw binary flags
     (True/False, 1/0, "yes"/"no").
     """
+    require_same_length(expected, predicted, what="binary_metrics")
     def _flag(value):
         if not normalize:
             if isinstance(value, str):
@@ -210,6 +229,7 @@ def macro_prf(expected: list, predicted: list, *, normalize: bool = True) -> dic
     Standard multiclass macro-average for imbalanced doc-type / subclass
     catalogs (sorter T0 ``f1_macro``). Failed ``ERROR_PREFIX`` rows are skipped.
     """
+    require_same_length(expected, predicted, what="macro_prf")
     pairs: list[tuple[str, str]] = []
     for e, p in zip(expected, predicted):
         if str(p).startswith(ERROR_PREFIX):

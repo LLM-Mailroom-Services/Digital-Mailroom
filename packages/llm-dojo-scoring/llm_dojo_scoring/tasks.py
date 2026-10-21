@@ -28,6 +28,7 @@ from .classification import (
     macro_accuracy,
     macro_prf,
     normalize_label,
+    require_same_length,
     top_confusions,
 )
 from .config import (
@@ -237,6 +238,9 @@ def score_task(
     ``chained`` runs use :func:`chained_composite` / :func:`chained_summary`.
     """
     kind = task_kind(task)
+
+    if isinstance(expected, (list, tuple)) and isinstance(predicted, (list, tuple)):
+        require_same_length(expected, predicted, what=f"score_task({task})")
 
     if kind == "enron_topic":
         from .content_scoring import score_content_topic

@@ -24,7 +24,12 @@ import json
 import re
 from typing import Any, Iterable, Sequence
 
-from .classification import ERROR_PREFIX, confusion_matrix, top_confusions
+from .classification import (
+    ERROR_PREFIX,
+    confusion_matrix,
+    require_same_length,
+    top_confusions,
+)
 from .config import MAUD_CONSIDERATION_ALIASES, MAUD_CONSIDERATION_TYPES
 from .corpus import (
     CORRESPONDENCE_SENTIMENT_LABELS,
@@ -226,6 +231,8 @@ def _label_content_score(
     *,
     normalize,
 ) -> dict:
+    expected, predicted = list(expected), list(predicted)
+    require_same_length(expected, predicted, what=task)
     pairs = []
     for e, p in zip(expected, predicted):
         if str(p).startswith(ERROR_PREFIX):

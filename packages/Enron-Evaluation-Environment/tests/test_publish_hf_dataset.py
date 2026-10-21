@@ -67,14 +67,14 @@ def test_red_verification_exits_nonzero(monkeypatch, tmp_path, capsys):
     _install_fake_hub(monkeypatch, lambda data: "0" * 64)  # sha mismatch
     code = pub.main_with_args(_argv(tmp_path))
     assert "VERIFY: RED" in capsys.readouterr().out
-    assert code != 0
+    assert code == 1
     summary = json.loads((tmp_path / "out" / "PUBLISH_SUMMARY.json").read_text())
     assert summary["enron_correspondence"]["verified"] is False
 
 
 def test_missing_hub_file_exits_nonzero(monkeypatch, tmp_path):
     _install_fake_hub(monkeypatch, lambda data: None)  # no LFS entry on the Hub
-    assert pub.main_with_args(_argv(tmp_path)) != 0
+    assert pub.main_with_args(_argv(tmp_path)) == 1
 
 
 def test_green_verification_exits_zero(monkeypatch, tmp_path, capsys):

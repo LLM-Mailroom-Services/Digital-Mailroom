@@ -236,6 +236,11 @@ def score_task(
     Returns a task-appropriate score dict (exact match, per-class, confusion,
     bootstrap CIs; doc_type + subclass for the hierarchical kinds). For
     ``chained`` runs use :func:`chained_composite` / :func:`chained_summary`.
+
+    Raises:
+        ValueError: If both ``expected`` and ``predicted`` are lists or tuples
+            with different lengths, or the task resolves to ``chained``.
+            Delegated scorers also propagate their length-mismatch errors.
     """
     kind = task_kind(task)
 

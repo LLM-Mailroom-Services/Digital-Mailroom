@@ -286,6 +286,10 @@ def score_aligned_classification(
     Aligned applies :data:`EXTRACT_CLASS_ALIASES` only. ``merger_agreement``
     is not equivalent to ``contract`` — predicting ``contract`` for a MAUD
     document is a miss. ``unknown`` and retired types stay distinct.
+
+    Consumes both iterables and raises ``ValueError`` if their lengths differ.
+    Returns pair and match counts plus accuracies rounded to four decimals;
+    empty inputs give zero counts and accuracies.
     """
     expected, predicted = list(expected), list(predicted)
     require_same_length(expected, predicted, what="score_aligned_classification")

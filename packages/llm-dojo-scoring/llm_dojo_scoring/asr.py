@@ -101,8 +101,11 @@ def _mean(values: list[float]) -> float:
 def score_transcription(expected: Any, predicted: Any) -> dict:
     """Batch or single-string WER/CER dict.
 
-    ``expected`` / ``predicted`` are parallel strings, or a single pair of
-    strings. Returns mean WER/CER over the run plus complementary accuracies.
+    ``expected`` / ``predicted`` are parallel lists of strings, or a single
+    pair of strings. Batch scoring applies only when both inputs are lists;
+    otherwise they form one pair. Raises ``ValueError`` for unequal batch
+    lengths. Returns mean WER/CER and mean per-pair complementary accuracies,
+    plus the pair count ``n``. Empty batches return zero scores and ``n=0``.
     """
     if isinstance(expected, list) and isinstance(predicted, list):
         require_same_length(expected, predicted, what="score_transcription")

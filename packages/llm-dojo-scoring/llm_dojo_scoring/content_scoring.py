@@ -231,6 +231,16 @@ def _label_content_score(
     *,
     normalize,
 ) -> dict:
+    """Score paired content labels using the supplied normalizer.
+
+    Consumes both iterables and raises ``ValueError`` if their lengths differ.
+    ``task`` identifies the task in the result and length-mismatch error;
+    ``normalize`` maps answers to labels, and its exceptions propagate.
+    ``ERROR_PREFIX`` predictions remain in scoring as the label ``error:``.
+    Returns accuracy, macro-F1, per-class counts and accuracy, confusion
+    details, top confusions, and pair count. Empty inputs give zero headline
+    scores and no pairs.
+    """
     expected, predicted = list(expected), list(predicted)
     require_same_length(expected, predicted, what=task)
     pairs = []

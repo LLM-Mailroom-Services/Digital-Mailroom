@@ -153,6 +153,7 @@ python scripts/taxonomy_parity.py               # doc-class taxonomy drift (CI g
 python scripts/release_chain.py status          # hub release chain: tags, changelog sections, hub version
 python scripts/release_chain.py check           # chain invariants; exit 1 on structural errors
 python scripts/release_chain.py cut X.Y.Z       # cut a hub release (dry run; --apply writes, --tag tags)
+python scripts/ci.py run --changed              # local CI (DMR-090): gates for changed paths; --all --report-status posts the `ci` commit status
 ./docs/wiki/sync-wiki.sh                        # push docs/wiki/ source to the GitHub wiki (--check for drift)
 ```
 

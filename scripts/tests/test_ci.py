@@ -422,7 +422,7 @@ class TestRealGateTable(unittest.TestCase):
         self.assertEqual(gates["scripts"].argv[1:], ["-m", "unittest", "discover", "scripts/tests"])
         self.assertEqual(gates["llm-mailroom"].argv,
                          ["uv", "run", "--frozen", "pytest", "packages/llm-mailroom/src/tests",
-                          "-q", "-p", "no:cacheprovider"])
+                          "-p", "no:cacheprovider"])
         self.assertEqual(gates["board-site"].argv, ["node", "tests/api.test.js"])
         self.assertEqual(gates["board-site"].cwd.name, "board-site")
 

@@ -162,7 +162,7 @@ def build_gates(root: Path = REPO_ROOT) -> list[Gate]:
     ]
     for pkg, path in PACKAGE_TESTS.items():
         gates.append(Gate(pkg, "pytest",
-                          ["uv", "run", "--frozen", "pytest", path, "-q", "-p", "no:cacheprovider"],
+                          ["uv", "run", "--frozen", "pytest", path, "-p", "no:cacheprovider"],
                           parse="pytest"))
     return gates
 

@@ -72,3 +72,6 @@ data/archive/
 # Vercel serverless functions (board-site deploy root)
 .vercel/
 .vercel
+
+# Local CI runner output (DMR-090)
+.ci/

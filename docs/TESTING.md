@@ -62,6 +62,38 @@ python scripts/taxonomy_parity.py            # doc-class + subclass taxonomy (CI
 python scripts/release_chain.py check        # hub release-chain invariants (CI gate)
 ```
 
+## Local CI runner (`scripts/ci.py`, DMR-090)
+
+GitHub Actions is unusable for this account, so CI runs locally. `scripts/ci.py`
+(stdlib only) runs the same governance gates as the workflows plus the gates
+they never ran: `uv lock --check`, `sync_vendor.py --check`, `scripts/tests`,
+`board-site` JS tests and one `uv run --frozen pytest` per package.
+
+```bash
+python3 scripts/ci.py run                     # = --changed: gates mapped from the diff vs origin/main
+python3 scripts/ci.py run --all               # every gate (tier 4)
+python3 scripts/ci.py run --only scripts lock # named gates/groups (partial run)
+python3 scripts/ci.py run --all --report-status   # + post the required `ci` commit status
+python3 scripts/ci.py status                  # print the last run (.ci/last-run.json)
+```
+
+- Every run writes `.ci/last-run.json` and `.ci/last-run.md` (gitignored);
+  paste the `.md` into the PR body as the test evidence.
+- `--changed` mapping: `packages/<pkg>/**` -> that suite; `llm-dojo-scoring` /
+  `llm-mailroom` also -> vendor + the sandbox suite; `scripts/`, `governance/`,
+  `.github/` -> governance + scripts; `board-site/` -> board-site; any
+  `pyproject.toml`/`uv.lock` -> lock + all suites; anything else (or an empty
+  diff) -> governance only.
+- `labels-audit` needs GitHub credentials; without them it is `skip (reason)`.
+  A skip is reported, never counted as a pass.
+- `--report-status` posts `ci` for HEAD to `LLM-Mailroom-Services/Digital-Mailroom`
+  (override: `MAILROOM_GITHUB_REPO`; token: `GITHUB_TOKEN`, `MAILROOM_GH_TOKEN`,
+  `gh auth token`). It refuses on a dirty tree, a HEAD that is not on a remote
+  branch, or a partial run that would post `success` (partial runs may only post
+  `failure`).
+- Optional pre-push hook: `git config core.hooksPath scripts/githooks` runs
+  `ci.py run --changed` before each push; `SKIP_CI=1` bypasses it loudly.
+
 ## Notes
 
 - **Network-free by default.** The suites use local fixtures and the local HF

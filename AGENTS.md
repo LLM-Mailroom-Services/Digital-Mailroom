@@ -220,6 +220,7 @@ python scripts/release_chain.py status          # hub release-chain snapshot (ta
 python scripts/release_chain.py check           # chain invariants; exit 1 on structural errors (CI gate)
 python scripts/release_chain.py cut X.Y.Z       # stamp [Unreleased] -> section + bump hub version (dry run; --apply/--tag)
 python scripts/release_notes.py X.Y.Z           # render the GitHub Release body from the changelog section + PRs + commits (template: .github/RELEASE_TEMPLATE.md)
+python scripts/ci.py run --all --report-status   # local CI gate (DMR-090); `run` alone = --changed fast pass
 ./docs/wiki/sync-wiki.sh                        # push docs/wiki/ source to the GitHub wiki (--check for drift)
 ```
 
@@ -384,6 +385,20 @@ cross-package / full+governance), per-package commands with measured
 durations, and the change-type → required-suite matrix.** Docs currency:
 when a change alters behavior described by `README.md`, `AGENTS.md`, or
 `governance/TASKS.md`, update those files in the same commit.
+
+**CI is local (DMR-090).** GitHub Actions is unusable for this account, so
+the workflows (`board-governance.yml`, `release-governance.yml`) remain in the
+tree but do not run. CI is `python scripts/ci.py run --all --report-status`,
+run locally (or by any agent) before a PR is marked ready: it runs the
+governance gates, `uv lock --check`, the vendor drift gate, `scripts/tests`,
+the board-site JS test and one `uv run --frozen pytest` per package, then posts
+the required `ci` commit status for HEAD (`success` only from a clean,
+pushed, `--all` run; a partial run can only post `failure`). The PR body
+quotes `.ci/last-run.md` (gitignored; written by every run) in place of
+hand-typed counts. `labels-audit` is `skip (reason)` without GitHub
+credentials; a skip is never a pass. Optional pre-push gate:
+`git config core.hooksPath scripts/githooks` runs `ci.py run --changed` on
+every push (`SKIP_CI=1` bypasses it, loudly). Details: `docs/TESTING.md`.
 
 ## Sub-package sync
 

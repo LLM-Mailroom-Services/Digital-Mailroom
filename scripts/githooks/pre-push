@@ -1,0 +1,19 @@
+#!/bin/sh
+# DMR-090: opt-in pre-push hook -- runs the local CI gates for what changed.
+# Enable:   git config core.hooksPath scripts/githooks
+# Bypass:   SKIP_CI=1 git push ...   (loud; the bypass is never silent)
+# Disable:  git config --unset core.hooksPath
+
+if [ "${SKIP_CI:-}" = "1" ]; then
+    echo "pre-push: !!! SKIP_CI=1 -- local CI gates BYPASSED for this push !!!" >&2
+    exit 0
+fi
+
+root=$(git rev-parse --show-toplevel) || exit 1
+cd "$root" || exit 1
+
+echo "pre-push: running python3 scripts/ci.py run --changed (SKIP_CI=1 to bypass)" >&2
+if ! python3 scripts/ci.py run --changed; then
+    echo "pre-push: local CI failed; push aborted (fix the gates or SKIP_CI=1)" >&2
+    exit 1
+fi

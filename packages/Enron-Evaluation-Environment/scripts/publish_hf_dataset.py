@@ -350,7 +350,9 @@ def main_with_args(argv: list[str]) -> int:
     }, indent=2))
     print("\n" + json.dumps(result, indent=1))
     print("VERIFY:", "GREEN" if result["verified"] else "RED — inspect!")
-    return 0
+    # DMR-089: a RED verification must fail the process (summary JSON is
+    # already written above, so the evidence trail survives).
+    return 0 if result["verified"] else 1
 
 
 def main() -> int:

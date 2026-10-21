@@ -1078,6 +1078,15 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
     removed docclass-era compliance files survived their upstream deletion).
     Standalone clones fall back to the tag-based clone refresh, with a loud
     warning that tags can lag removals (the v0.7.1 tag predates 59c47401).
+
+    If ``args.visualizer`` is true, also clone The-Mailroom or update its
+    existing Git checkout with a fast-forward-only pull. Nonzero statuses
+    do not skip later vendors or the requested visualizer operation. Return
+    the first nonzero status, or 0 if none is reported; a failed visualizer
+    pull uses status 1.
+
+    ``OSError`` exceptions from filesystem operations or starting Git
+    propagate and stop processing.
     """
     print(
         "vendor trees are tracked snapshots (self-contained); fetch-deps "

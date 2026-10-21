@@ -1088,7 +1088,9 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
     for name, tag, url in _VENDOR_PINS:
         ws = _monorepo_workspace_pkg(name)
         if ws is not None:
-            rc = rc or _refresh_vendor_from_workspace(name, ws)
+            # Always run every refresh; `rc or call()` skips later vendors (DMR-088).
+            r = _refresh_vendor_from_workspace(name, ws)
+            rc = rc or r
         else:
             print(
                 f"== {name}: no monorepo workspace detected — falling back to the "
@@ -1096,7 +1098,8 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
                 "the monorepo workspace as the source of truth",
                 file=sys.stderr,
             )
-            rc = rc or _refresh_vendor(name, tag, url)
+            r = _refresh_vendor(name, tag, url)
+            rc = rc or r
     if getattr(args, "visualizer", False):
         dest = vendor_dir() / "The-Mailroom"
         if dest.is_dir() and (dest / ".git").exists():
@@ -1114,9 +1117,10 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
                 )
                 rc = rc or 1
         else:
-            rc = rc or subprocess.run(
+            clone_rc = subprocess.run(
                 ["git", "clone", "--depth", "1", "https://github.com/Exios66/The-Mailroom.git", str(dest)]
             ).returncode
+            rc = rc or clone_rc
     return rc
 
 

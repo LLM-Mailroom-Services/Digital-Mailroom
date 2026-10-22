@@ -2,7 +2,7 @@
 
 `mailroom-dataset` ships five Hugging Face configs. The first two are the evaluation contract every repository joins. The other three are ingress-simulation extras.
 
-Pin the revision (`v9.1` / `ed7576b6`). Never read the live tip.
+Pin the revision (`v9.2` / `670e8bc6`; data `d49f60a4`). Never read the live tip.
 
 ## `default` (blind)
 
@@ -74,7 +74,7 @@ Recovery and adversarial fixtures: calibration quartet, arbiter cases, failure s
 
 llm-mailroom does **not** depend on `datasets`. `pipeline/hf_corpus_loader.py` walks parquet (with a `/rows` pagination fallback), joins `default` to `ground_truth` on `filename`, and proves `content_sha256 == sha256(doc_text)`. Pilots pass `ground_truth=` into `run_pipeline` so Langfuse judges see expected class/stage/fields.
 
-Eval-environment's subset grammar (`src/evals/cases.py`) samples this same pin. mailroom-ml trains on `mailroom-modernbert-training` / `mailroom-finetune`, not on this eval surface.
+Eval-environment's subset grammar (`src/evals/cases.py`) samples the eval harness pin (`v9.1` until its coordinated bump); this package pins `v9.2`. mailroom-ml trains on `mailroom-modernbert-training` / `mailroom-finetune`, not on this eval surface.
 
 ## Family datasets
 

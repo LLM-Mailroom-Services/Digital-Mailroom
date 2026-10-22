@@ -21,6 +21,13 @@ and is recorded there, not here.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`uv.lock` re-locked to the published hub v0.9.0** (DMR-084 residual): the
+  v0.9.0 cut bumped `pyproject.toml` but left the lockfile's `mailroom-hub`
+  entry at `0.8.0`, so every `uv sync`/`uv run` rewrote it. `uv lock` now
+  records `mailroom-hub 0.9.0`; no dependency resolution changed.
+
 ## [0.9.0] - 2026-10-17
 ### Removed
 

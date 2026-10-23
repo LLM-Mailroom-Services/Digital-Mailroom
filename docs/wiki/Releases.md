@@ -3,7 +3,20 @@
 Standalone repositories own package implementations and releases. Digital-Mailroom
 imports their committed sources and generates vendor snapshots; it releases its
 own integration workspace, wiring, governance, board, and tooling separately.
-See [[Sub-Package-Sync]] for the four core components and their source owners.
+See [[Sub-Package-Sync]] for the five core packages and their source owners.
+
+## Active package scope (DMR-093, 2026-10-23)
+
+Sync and release integration now select five core packages: `llm-dojo-scoring`,
+`llm-mailroom`, `local-mailroom-sandbox`, `The-Mailroom` and
+`mailroom-corpus-eda` (the only virtual member). Enron and claims remain external
+feeds, preserved as complete hub checkouts on
+[`feature/enron-evaluation-environment`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment/packages/Enron-Evaluation-Environment) and
+[`feature/claims-data-eda`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda/packages/claims-data-eda) at `59c879d9fb4480084e53137e2e9fb25650933944`.
+The prune PR depends on #162, whose two feeder trees must match that commit.
+Historical seven-member release/test evidence retains its original scope.
+For restoration use a separate checkout; reconcile membership, sync, dependencies
+and tests before any selective import, without replacing current root metadata.
 
 ## Hub release chain (HUB-024)
 

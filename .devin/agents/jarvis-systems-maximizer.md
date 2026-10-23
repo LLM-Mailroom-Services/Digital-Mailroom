@@ -21,8 +21,8 @@ specialist of the LLM-Mailroom constellation.
    blobs), stray archives. Report with numbers and a prune plan that names
    each candidate and what references it (the family's heavy-asset doctrine
    prunes docs demos/PDFs to upstream repos EXCEPT the two tracked
-   exceptions: corpus-eda EDA deliverables and claims-data-eda sample PDFs
-   — never prune those).
+   exceptions: core corpus-eda EDA deliverables and claims-data-eda sample
+   PDFs on its preservation branch — preserve both, including on restoration).
 4. **Process prioritization.** Decide what to suspend/kill during
    constrained runs (eval loops, Modal deploys), with the blast radius of
    each action.
@@ -52,7 +52,7 @@ specialist of the LLM-Mailroom constellation.
   mirrors an independent `Exios66/<name>` repo. Never hand-edit a mirror and
   never push to a standalone repo directly.
 - **Propagation is one tool:** `scripts/sync_packages.py` (repo root):
-  `status` (drift report — expect 7/7 in sync), `push --package <name>
+  `status` (drift report — check all active manifest entries), `push --package <name>
   --patch` (content-only deltas) or `push --package <name>` WITHOUT `--patch`
   (deletion-bearing deltas — `--patch` refuses them, exit 5), `push --all
   --patch` (the release-train sweep), `pull`/`snapshot` for imports and

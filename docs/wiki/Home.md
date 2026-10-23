@@ -1,12 +1,15 @@
 # Digital-Mailroom — the LLM-Mailroom monorepo wiki
 
 **Digital-Mailroom** is the central checkout of the LLM-Mailroom constellation:
-one uv workspace, one lockfile, one virtualenv, seven packages under
+one uv workspace, one lockfile, one virtualenv, five core packages under
 [`packages/`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/main/packages) —
 each mirroring an independent, standalone-operational `Exios66/*` repository.
 
-The monorepo is the **development source of truth**; the standalone repos
-remain the release vehicles for the deployed surfaces.
+Standalone repositories own package implementations and releases. Implement
+and test there first, then import committed sources here. Digital-Mailroom
+owns workspace wiring, governance, the board and integration tooling.
+Enron and claims are external feeds with complete preserved hub checkouts;
+see [[Architecture]] for branch and source links.
 
 The board is also served live at **https://digital-mailroom-theta.vercel.app**
 (issue-backed, auto-updating; see [[Served-Board]]).
@@ -33,7 +36,7 @@ The board is also served live at **https://digital-mailroom-theta.vercel.app**
 | Served board | [digital-mailroom-theta.vercel.app](https://digital-mailroom-theta.vercel.app) — live, issue-backed ([[Served-Board]]) |
 | Conventions | [`AGENTS.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/AGENTS.md) — read first, every session |
 | Subagents | 15-agent roster ([[Subagents]]) — project + global agent files under `.opencode/agents/` (see DMR-062) |
-| Packages | 7 (4 built + 3 virtual members) |
+| Packages | 5 (4 built + 1 virtual member: mailroom-corpus-eda) |
 | Python | 3.11+ (workspace `requires-python >= 3.11`) |
 | Family pins | llm-mailroom **v0.7.1** · llm-dojo-scoring **v0.19.1** |
 | HF corpus | [mailroom-dataset](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset) — schema v9, 3,302 rows (frozen v8 baseline: [mailroom-corpus](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-corpus)) |

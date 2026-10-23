@@ -124,7 +124,7 @@ AGENTS.md before touching code inside it.
 | Research memos / run reports | `packages/local-mailroom-sandbox/reports/<card>/` (SAND-* run reports) and `packages/llm-mailroom/docs/reports/` |
 | Scoring engine (OUT OF SCOPE) | `packages/llm-dojo-scoring` (`field_scoring.py`, `classification.py`, `diagnostics.py`, `failure_modes.py`, `equivalences.py`) — the shared package; only its `prompts/` catalog is a prompt surface |
 | Ground truth (OUT OF SCOPE) | `packages/llm-dojo-scoring/llm_dojo_scoring/cuad_schema.py`, `maud_schema.py`, the mailroom-dataset `ground_truth` config (`packages/llm-mailroom/src/scripts/sync_hf_ground_truth.py`). The retired `llm-entity-extraction` loop's CUAD ground-truth module is not in this workspace. |
-| Corpus feeds | `packages/Enron-Evaluation-Environment` (the shared Enron labelers: `correspondence_subclasses` / `content_topics` / `sentiment_scorer`), `packages/claims-data-eda` |
+| External corpus feeds | [Preserved Enron](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment/packages/Enron-Evaluation-Environment) (`correspondence_subclasses` / `content_topics` / `sentiment_scorer`) and [preserved claims](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda/packages/claims-data-eda); inspect in a separate branch checkout or their standalone sources, never assume active local package paths |
 | Hub uploads (OUT OF SCOPE) | centralized `packages/mailroom-corpus-eda/src/mailroom_eda/` helpers — NEVER ad-hoc upload code |
 | Hub board (cross-package) | `governance/TASKS.md` — DMR-00N cards, five lanes (`unassigned` / `assigned` / `in_progress` / `needs_attention` / `done`), archive append-only |
 | Package board (sandbox scope) | `packages/local-mailroom-sandbox/governance/TASKS.md` — SAND-NNN cards |
@@ -685,7 +685,7 @@ Close every iteration with a tight summary:
   mirrors an independent `Exios66/<name>` repo. Never hand-edit a mirror and
   never push to a standalone repo directly.
 - **Propagation is one tool:** `scripts/sync_packages.py` (repo root):
-  `status` (drift report — expect 7/7 in sync), `push --package <name>
+  `status` (drift report — check all active manifest entries), `push --package <name>
   --patch` (content-only deltas) or `push --package <name>` WITHOUT `--patch`
   (deletion-bearing deltas — `--patch` refuses them, exit 5), `push --all
   --patch` (the release-train sweep), `pull`/`snapshot` for imports and

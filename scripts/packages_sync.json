@@ -1,23 +1,11 @@
 {
   "note": "Per-package sync cursor against the standalone Exios66/* repositories. Baseline per issue #2: monorepo aligned with the standalone repos as of 2026-08-31T00:06:57Z (2026-08-30 19:06 CST). Cursor writes are content-verified (HUB-021) \u2014 upstream tip must be contained in the package tree unless snapshot --force is passed.",
   "packages": {
-    "Enron-Evaluation-Environment": {
-      "branch": "main",
-      "synced_at": "2026-09-16T22:07:23Z",
-      "synced_sha": "160d9077cca69e2018bbc118ceca7ee89aba191f",
-      "url": "https://github.com/Exios66/Enron-Evaluation-Environment.git"
-    },
     "The-Mailroom": {
       "branch": "main",
       "synced_at": "2026-10-16T21:27:49Z",
       "synced_sha": "d5358650e42d8e8843c215cde1eebb8c9acebbed",
       "url": "https://github.com/Exios66/The-Mailroom.git"
-    },
-    "claims-data-eda": {
-      "branch": "main",
-      "synced_at": "2026-09-16T22:07:38Z",
-      "synced_sha": "a3fbca3c9c76b25d88b93d772220f8f1192d98f1",
-      "url": "https://github.com/Exios66/claims-data-eda.git"
     },
     "llm-dojo-scoring": {
       "branch": "main",

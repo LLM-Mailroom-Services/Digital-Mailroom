@@ -18,8 +18,6 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "claims-data-eda",
-    "enron-evaluation-environment",
     "llm-dojo-scoring",
     "mailroom",
     "mailroom-corpus-eda",
@@ -1008,32 +1006,6 @@ wheels = [
 ]
 
 [[package]]
-name = "claims-data-eda"
-version = "0.1.0"
-source = { virtual = "packages/claims-data-eda" }
-dependencies = [
-    { name = "matplotlib" },
-    { name = "numpy" },
-    { name = "pandas" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "huggingface-hub" },
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=0.30" },
-    { name = "matplotlib", specifier = ">=3.7" },
-    { name = "numpy", specifier = ">=1.24" },
-    { name = "pandas", specifier = ">=2.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-]
-provides-extras = ["dev"]
-
-[[package]]
 name = "click"
 version = "8.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1356,11 +1328,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/f5/22/900cb125c76b7aaa4
 wheels = [
     { url = "https://files.pythonhosted.org/packages/de/15/545e2b6cf2e3be84bc1ed85613edd75b8aea69807a71c26f4ca6a9258e82/email_validator-2.3.0-py3-none-any.whl", hash = "sha256:80f13f623413e6b197ae73bb10bf4eb0908faf509ad8362c5edeb0be7fd450b4", size = 35604, upload-time = "2025-08-26T13:09:05.858Z" },
 ]
-
-[[package]]
-name = "enron-evaluation-environment"
-version = "0.1.0"
-source = { virtual = "packages/Enron-Evaluation-Environment" }
 
 [[package]]
 name = "et-xmlfile"

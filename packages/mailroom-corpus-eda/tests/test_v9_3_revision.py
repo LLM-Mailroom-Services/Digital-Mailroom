@@ -513,3 +513,29 @@ class TestStagedParquetGate:
         extra = dict(rows[0], filename="extra.txt")
         with pytest.raises(AssertionError, match="row count drift"):
             v93.verify_staged_parquet_gt_fields([*rows, extra], tmp_path)
+
+
+def test_staged_parquet_rejects_duplicate_filename_with_unchanged_counts(tmp_path):
+    """Duplicating one corporate row cannot conceal another missing row."""
+    rows = [
+        {"filename": "a.htm", "expected": "corporate_record", "split": "train", "gt_fields": {"intent": "governance_rules"}},
+        {"filename": "b.htm", "expected": "corporate_record", "split": "train", "gt_fields": {"intent": "governance_rules"}},
+        {"filename": "c.txt", "expected": "contract", "split": "test", "gt_fields": {"intent": "agreement"}},
+    ]
+    TestStagedParquetGate._stage_parquet([rows[0], rows[0], rows[2]], tmp_path)
+    with pytest.raises(AssertionError, match="duplicate staged parquet filename"):
+        v93.verify_staged_parquet_gt_fields(rows, tmp_path)
+
+
+def test_staged_parquet_rejects_rows_in_wrong_split_directory(tmp_path):
+    """Equal split counts do not authorize swapping the actual partitions."""
+    rows = TestStagedParquetGate._rows()
+    TestStagedParquetGate._stage_parquet(rows, tmp_path)
+    base = tmp_path / "parquet" / "ground_truth"
+    train = base / "train" / "train-00000-of-00001.parquet"
+    test = base / "test" / "test-00000-of-00001.parquet"
+    train_bytes, test_bytes = train.read_bytes(), test.read_bytes()
+    train.write_bytes(test_bytes)
+    test.write_bytes(train_bytes)
+    with pytest.raises(AssertionError, match="directory split"):
+        v93.verify_staged_parquet_gt_fields(rows, tmp_path)

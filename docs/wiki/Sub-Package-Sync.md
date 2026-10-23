@@ -1,104 +1,99 @@
 # Sub-package sync
 
-Every package under `packages/` mirrors an independent `Exios66/*`
-repository (git subtree). **The monorepo is the development source of
-truth**; the standalone repos remain standalone and operational.
+Standalone `Exios66/*` repositories are the authoritative package sources.
+Digital-Mailroom imports committed sources into `packages/` (git subtrees)
+and generates sandbox vendors. Hub-owned wiring, governance, board, and
+integration tooling are implemented in the hub.
 
-## The doctrine (HUB-004, human-confirmed)
+## Source ownership (DMR-091, user-directed)
 
-**Check feeders before editing or publishing.** Before package work or reviewing an open hub PR, fetch the current standalone main branches and compare each package against its recorded cursor and current upstream tip. Import completed upstream work first. Review overlapping PR changes for fixes already shipped upstream; preserve distinct hub fixes with a three-way merge using the cursor as the base. Refresh sandbox vendors from the reconciled workspace afterward. Record upstream SHAs, retained hub changes, and verification evidence. Never push a stale hub snapshot over newer standalone work. Fetches in a shared checkout must be serialized, or use dedicated refs with `--no-write-fetch-head`: the sync driver uses shared `FETCH_HEAD`.
+| Source repository | Owns |
+| --- | --- |
+| llm-dojo-scoring | ALL scoring engine logic and metrics |
+| llm-mailroom | The document-processing pipeline |
+| local-mailroom-sandbox | The core offline/local and Modal/vLLM GPU testing interface for that pipeline |
+| The-Mailroom | The visualizer used by BOTH sandbox and llm-mailroom |
 
-- **Current-only pulls** — only import upstream code that is current; stale
-  code never regresses the monorepo (the sync driver has no rewind path —
-  it only reports *forward* drift).
-- **Monorepo truth wins** — on conflict, monorepo-side fixes win unless
-  upstream genuinely supersedes them.
-- **No merge tangles** — pulls are squashed; if subtree ancestry can't
-  fast-forward (snapshot-based cursors), publish monorepo fixes upstream as
-  clean patch commits instead of forcing grafts.
-- **No silent drift** — `status` always recomputes real drift against live
-  upstreams, so a stale manifest is visible at a glance.
+The corpus repositories likewise own their package implementations. Read the
+source repository's governance before edits. Implement, test, and commit in
+that standalone checkout first; then import the committed source here. Never
+implement a package change in the hub and push it back. Workspace and vendor
+copies are integration artifacts, never competing implementation sources.
+
+## Import doctrine
+
+- Fetch current standalone main branches before an import or hub PR review.
+  Compare source tips with `scripts/packages_sync.json` cursors and package
+  trees; import completed source changes first. Serialize shared-checkout
+  fetches or use dedicated refs with `--no-write-fetch-head` because the
+  driver shares `FETCH_HEAD`.
+- Review overlapping PR changes for work already shipped in the source.
+  A remaining package fix belongs in its standalone source first. Do not
+  silently retain hub-authored package behavior during conflict resolution.
+- Record source SHAs, import commits, cursor verification, and test evidence.
+  `status` recomputes drift against live upstreams; hub-ahead paths require
+  explanation as integration outputs or correction through the source.
+- Do not rewind current sources to stale snapshots. Review conflicts by
+  ownership and source commits, not a blanket "monorepo truth wins" rule.
 
 ## The driver
 
 ```bash
-python scripts/sync_packages.py status                       # drift report (fetches upstreams; --json for machines)
-python scripts/sync_packages.py pull  --package <name> --squash   # import upstream commits
-python scripts/sync_packages.py push  --package <name>       # publish monorepo commits upstream
-python scripts/sync_packages.py push  --package <name> --patch    # content-only fast path (DMR-070); never for deletion-bearing deltas
-python scripts/sync_packages.py snapshot [--package <name>] [--force]  # re-baseline cursors (content-verified)
+python scripts/sync_packages.py status                              # live drift report; --json for machines
+python scripts/sync_packages.py pull --package <name> --squash --verify-suite
+python scripts/sync_packages.py snapshot --package <name>            # content-verified cursor re-baseline
 ```
 
-- `pull`/`push` refuse to run on a dirty worktree (`--allow-dirty` overrides).
-- `pull --squash` keeps upstream history out of the monorepo log.
-- Per-package cursors live in `scripts/packages_sync.json`.
-- **Content-verified cursors (HUB-021)** — `snapshot` refuses to advance a
-  cursor past upstream content the package tree doesn't actually contain
-  (blob-level containment; gitignored prunes are exempt). The HUB-018
-  incident (snapshot-advance without a merge → next squash pull re-imported
-  the whole range) is now structurally impossible without `--force`.
-- `pull` skips the subtree merge when the upstream tip is already contained
-  in the package (the re-import loop killer).
-- `push --patch` is the **content-only fast path** (DMR-070): it rebuilds the
-  package's tracked files on top of the real upstream tip and lands ONE
-  fast-forward commit upstream, then re-baselines the cursor. It **refuses**
-  deletion-bearing monorepo deltas (exit 5) — use a full subtree `push`
-  without `--patch` for those. (`--dry-run` prints the plan first.)
-- `status` shows per-package `CURSOR GAP` flags and the monorepo-ahead file
-  count — the unpushed delta, i.e. the release-train payload (HUB-005).
-- **The release-train sweep (HUB-005 propagation):** the all-packages
-  one-liner is `python scripts/sync_packages.py push --all --patch` — one
-  command fetches every upstream tip, lands the monorepo delta as a single
-  fast-forward commit per package, and re-baselines the cursors. Follow with
-  `sync_packages.py status` (expect 7/7 in sync, 0 monorepo-ahead) and
-  commit the cursor file. `patch_push` extracts committed blobs (`git ls-tree
-  -r HEAD` + `git cat-file blob`) — uncommitted work never propagates
-  (DMR-028).
-- After a pull, **re-apply monorepo-side prunes** the merge may resurrect
-  (historical example: `packages/llm-entity-extraction/docs/{data,posit,posit-src}/` were
-  gitignored-heavy-asset paths; gitignore does not apply to tracked files,
-  so `git rm -r --cached` + tree removal is the fix — HUB-004).
+`pull` refuses a dirty worktree by default. Squash imports keep source history
+out of the hub log. The driver skips merges when the source tip is already
+contained. `snapshot` refuses cursor advancement past missing source blobs
+(gitignored prunes are exempt); do not use `--force` to bypass missing content.
+After imports, preserve documented hub-only heavy-asset exclusions without
+changing authoritative package behavior.
 
-## The push-leg decision tree (DMR-070)
+A conflicted pull aborts to its pre-pull state by default. Recovery options
+`--keep-conflicts`/`--allow-dirty` are explicit; interrupted MERGE_HEAD state
+gets remediation. `pull --open-pr` produces a reviewable import branch/PR;
+the cursor advances only after merge. Resolve against authoritative source
+commits, reviewing every ladder-resolved path. Content matching neither side
+is reported as `resolution_divergences` on stderr, in JSON, and in the PR body.
+`--verify-suite` runs the imported package's suite; `SYNC_VERIFY_CMD` overrides
+the runner. Exit codes: 0 ok / 1 network / 2 dirty / 3 conflict-aborted /
+4 git-internal / **5 verification refused** (severity 5 > 4 > 3 > 2 > 1 > 0).
+Global `--manifest`/`--repo-root` support isolated state runs.
 
-Pick the push leg by WHAT the monorepo delta contains — the wrong leg is a
-doom loop:
+## Legacy outbound tooling
 
-| Delta contains | Leg | Why |
-| --- | --- | --- |
-| Additions/modifications only | `push --package <name> --patch` (or full subtree push) | Content pushes carry everything; `--patch` lands one fast-forward commit. |
-| Deletions of tracked upstream paths | `push --package <name>` (full subtree push, NO `--patch`) | `patch_push` rebuilds monorepo blobs on top of the tip — upstream-only paths would silently survive. The deletion guard now REFUSES (`exit 5`, `deleted_paths`) instead of letting that happen (the v0.6.0 compliance-removal trap). |
-| Either, before pushing | add `--verify-suite` | Runs the touched package's pytest suite first (`SYNC_VERIFY_CMD` overrides); a red suite refuses push AND cursor advance. |
-
-Post-import (DMR-070a): `pull --open-pr` blob-compares every ladder-resolved
-path against BOTH merge sides; a resolution matching neither side is
-resolution-introduced content — reported on stderr, in
-`resolution_divergences` (JSON), and in the PR body. Exit codes:
-0 ok / 1 network / 2 dirty / 3 conflict-aborted / 4 git-internal /
-**5 verification refused**.
+`push`, `push --patch`, and `push --all --patch` are historical commands and
+are forbidden for package delivery. The former HUB-005 release train and
+DMR-070 push-leg decision tree do not authorize hub-to-source changes.
+Existing deletion guards, post-push landing verification, and cursor safety
+checks remain tooling safeguards, not permission to publish hub package copies.
 
 ## Vendor snapshots (sandbox self-containment)
 
-`packages/local-mailroom-sandbox/vendor/` tracks the monorepo **workspace
-packages**, not upstream tags (hub#62 doctrine; the drift guard
-`packages/local-mailroom-sandbox/tests/test_vendor_drift.py` enforces
-byte-identity).
+`packages/local-mailroom-sandbox/vendor/` tracks imported workspace packages;
+the sandbox drift guard enforces byte-identity. After importing committed
+source changes, regenerate copies; never edit vendors by hand or push them
+back as source.
 
 ```bash
-python scripts/sync_vendor.py           # mirror workspace -> vendor (content AND deletions)
-python scripts/sync_vendor.py --check   # CI-friendly no-op drift gate
+python scripts/sync_vendor.py           # imported workspace -> vendor, content AND deletions
+python scripts/sync_vendor.py --check   # no-op drift gate
 ```
 
-`sandbox fetch-deps` mirrors the workspace when the monorepo layout is
-detected and falls back to a loud tag-based refresh for standalone clones.
-NEVER tag-refresh the vendored llm-mailroom from the monorepo: the v0.7.1
-tag predates the five-class taxonomy removal (59c47401), so a tag-based
-re-snapshot resurrects the deleted docclass-era files.
+`sandbox fetch-deps` mirrors the workspace in hub layout; standalone clones
+use their configured tag-based refresh. Never tag-refresh hub vendors: stale
+tags (such as llm-mailroom v0.7.1 before the taxonomy removal) resurrect removed
+paths. Hub vendor regeneration is an integration output.
 
-## Verification contract for a sync session
+## Verification contract for an import session
 
-1. `status` → all packages in sync (or the drift is the work).
-2. Post-pull: the pulled package's FULL suite green (a subtree pull is a
-   significant change).
-3. Monorepo-side guards/skip-fixes intact.
-4. Cursor advanced; `git status` clean; board card closed with Evidence.
+1. Record current source tips, cursors, and explained integration drift.
+2. Run the imported package's FULL suite and relevant dependent suites;
+   a subtree pull is a significant change. Run packages separately.
+3. Verify source-owned fixes came from committed standalone sources, and
+   hub-only wiring and documented heavy-asset exclusions remain intact.
+4. Regenerate vendors and run `sync_vendor.py --check` plus sandbox gates.
+5. Verify cursors; finish with a clean card scope and board Evidence naming
+   source/import commits and exact pass/skip/fail counts.

@@ -3,10 +3,11 @@
 The sandbox scores a corporate-record row through the SAME vendored alignment
 the dojo's ``suites._score_extraction`` runs (``align_unlabeled`` +
 ``corporate_record_schema``) — wired via ``doc_subclass``/``expected_subclass``.
-This test only checks the WIRING: every expectation is computed IN TEST from
+The original cache cases check WIRING: their expectations are computed IN TEST from
 the vendored module (no hardcoded numbers), so a scoring bump that changes the
 alignment semantics still passes as long as the sandbox faithfully forwards
-the subclass to the vendored engine.
+the subclass to the vendored engine. Unconditional annotated-field cases below
+also pin independent hand-computed scores and require no local corpus cache.
 """
 
 from __future__ import annotations
@@ -244,3 +245,59 @@ def test_non_subclass_paths_are_unchanged():
     # no subclass given → legacy single-path result; no alignment surfaced
     assert "unlabeled_fields" not in corporate
     assert corporate["overall_extraction_score"] is not None
+
+
+@pytest.mark.parametrize(
+    "field,expected_value,presence,expected_precision",
+    [
+        ("certifying_officer", "Bob", "populated", 1.0),
+        ("certifying_officer", "", "schema_documented_absence", 2 / 3),
+        ("entity_name", None, "schema_documented_absence", 2 / 3),
+    ],
+)
+def test_labeled_corporate_fields_are_not_filtered_before_scoring(
+    field, expected_value, presence, expected_precision
+):
+    """Keep annotated mismatches and explicit absences as real scoring events."""
+    expected = {
+        "intent": "governance_rules",
+        "subject_matter": "Bylaws",
+        field: expected_value,
+        "gt_presence": json.dumps({field: presence}),
+    }
+    predicted = {
+        "intent": "governance_rules",
+        "subject_matter": "Bylaws",
+        field: "Alice",
+    }
+    result = score_extraction_row(
+        "corporate_record", predicted, expected, expected_subclass="bylaws"
+    )
+    # Two correct semantic fields; a wrong label is one FN, while a
+    # hallucinated documented absence is one FP. Both yield F1 = 4/5.
+    assert result["extraction_f1"] == pytest.approx(0.8)
+    assert result["extraction_precision"] == pytest.approx(expected_precision, abs=5e-5)
+    assert field not in result["unlabeled_fields"]
+    if presence == "populated":
+        assert result["overall_extraction_score"] < 1.0
+    else:
+        # Dojo excludes empty GT from its quality average; the precision/F1
+        # metrics above are the independent penalty for spurious fills.
+        assert result["overall_extraction_score"] == 1.0
+
+
+def test_registered_corporate_extension_is_not_an_extra_schema_key():
+    """A bylaws extension belongs to the subclass schema, unlike a POA field."""
+    predicted = {
+        "entity_name": "Example LLC", "record_type": "bylaws",
+        "intent": "governance_rules", "subject_matter": "Bylaws",
+        "keywords": ["bylaws"], "certifying_officer": "Alice",
+        "principal": "Wrong subclass",
+    }
+    result = score_extraction_row(
+        "corporate_record", predicted,
+        {"intent": "governance_rules", "certifying_officer": "Alice"},
+        expected_subclass="bylaws",
+    )
+    assert "certifying_officer" not in result["extra_schema_keys"]
+    assert "principal" in result["extra_schema_keys"]

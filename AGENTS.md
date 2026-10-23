@@ -7,10 +7,10 @@ workspace redirects.
 
 ## Layout
 
-- `packages/llm-dojo-scoring` — scoring engine (dist `llm-dojo-scoring`)
+- `packages/llm-dojo-scoring` — imported scoring engine and ALL metrics (dist `llm-dojo-scoring`)
 - `packages/llm-mailroom` — pipeline (dist `mailroom`, `src/` layout)
-- `packages/The-Mailroom` — visualizer (dist `the-mailroom`)
-- `packages/local-mailroom-sandbox` — local experiment sandbox (dist `mailroom-sandbox`)
+- `packages/The-Mailroom` — imported visualizer shared by the pipeline and sandbox (dist `the-mailroom`)
+- `packages/local-mailroom-sandbox` — imported core offline/local and Modal/vLLM GPU testing interface for the pipeline (dist `mailroom-sandbox`)
 - `packages/Enron-Evaluation-Environment` — corpus feed (virtual member, no build)
 - `packages/claims-data-eda` — corpus feed (virtual member, no build)
 - `packages/mailroom-corpus-eda` — corpus EDA + centralized HF upload helpers (virtual member, no build)
@@ -21,8 +21,9 @@ Hub-level (no package): `governance/TASKS.md` (the board), `scripts/`
 (workflows, labels, issue templates).
 
 Most packages carry their own `AGENTS.md` with project-specific conventions —
-read it before changing code inside a package. `llm-dojo-scoring` has no
-AGENTS.md; its README carries the conventions.
+read it in the authoritative standalone checkout before changing package code.
+`packages/*` here are integration copies, never implementation sources.
+`llm-dojo-scoring` has no AGENTS.md; its README carries the conventions.
 
 **Pruned in DMR-079 (v0.8.0 = the last release containing them):**
 `llm-entity-extraction` and `llm-mailroom-graph` left the monorepo and survive
@@ -163,16 +164,16 @@ are on before you edit:
 
 | Surface | What it is | How it moves |
 |---|---|---|
-| **Monorepo** (this repo) | Development source of truth | You edit + commit HERE |
-| **Standalone mirrors** (`Exios66/<name>`) | Every `packages/*` subtree mirrors an independent repo | Only via `scripts/sync_packages.py` — never hand-edit a mirror |
-| **Vendor snapshots** (`packages/local-mailroom-sandbox/vendor/`) | Byte-identical snapshots of the workspace packages | Only via `scripts/sync_vendor.py` |
+| **Standalone sources** (`Exios66/<name>`) | Authoritative package implementations | Edit, test, and commit in their own checkouts; import committed sources into the hub |
+| **Digital-Mailroom** (this repo) | Integrates committed package sources; owns hub wiring, governance, board, and release tooling | Import into `packages/*` with `scripts/sync_packages.py pull`; implement only hub-owned work here |
+| **Vendor snapshots** (`packages/local-mailroom-sandbox/vendor/`) | Generated snapshots of imported workspace packages | Only via `scripts/sync_vendor.py`; never edit copies by hand |
 
 **The six commands every agent must know:**
 
 ```bash
 python scripts/sync_packages.py status                          # drift report (expect 7/7 in sync)
-python scripts/sync_packages.py push --package <name> [--patch] # publish monorepo deltas upstream
-python scripts/sync_packages.py push --all --patch              # the release-train sweep (HUB-005)
+python scripts/sync_packages.py pull --package <name> --squash # import committed standalone source
+python scripts/sync_vendor.py --check                         # verify generated vendor copies
 python scripts/sync_vendor.py                                   # refresh sandbox vendor snapshots (+ --check gate)
 python scripts/release_chain.py cut X.Y.Z --apply               # prepare a hub release (dry run without --apply)
 python scripts/release_notes.py X.Y.Z                           # render the GitHub Release body
@@ -193,19 +194,19 @@ python scripts/release_notes.py X.Y.Z                           # render the Git
 2. **Standalone package release** (an `Exios66/<name>` repo): cut in that
    package via its own release tooling (e.g. `scripts/release.py --bump` in
    The-Mailroom, or an explicit annotated tag), then
-   **propagate** monorepo-side deltas with `sync_packages.py push` and
-   re-baseline the cursor. Bump a consuming pin ONLY at release time of the
-   pinned package (`packages/llm-mailroom/src/scripts/bump_dojo_scoring.py`
-   for the dojo pin) — never delete a pin line.
+   **import** committed standalone changes with `sync_packages.py pull` and
+   verify the cursor. Bump consuming pins in the consuming standalone source
+   ONLY at release time of the pinned package (`src/scripts/bump_dojo_scoring.py`
+   in llm-mailroom for the dojo pin), then import them — never delete a pin line.
 
 **Ownership (DMR-074):** sync & release planning/dispatch is a
 `orchestrator-governor` unit-of-work; execution is a `general` mission. When
-your card's deliverable must reach a standalone repo, that is a **sync unit
-on the card** — chain it, never hand-edit the mirror. Full law: §
+your card needs a package implementation change, author it in the authoritative
+standalone checkout first and track its source commit plus a **hub import unit
+on the card**. Never implement it in the hub and push it back. Full law: §
 [Sub-package sync](#sub-package-sync) below, the runbooks
 `docs/wiki/Sub-Package-Sync.md` + `docs/wiki/Releases.md`, and the test-tier
-matrix in `docs/TESTING.md` (`--verify-suite` runs a package's suite before
-any push).
+matrix in `docs/TESTING.md` (`pull --verify-suite` gates an import).
 
 ## Commands
 
@@ -474,101 +475,69 @@ behind tests that could not fail. These rules apply to every package:
 
 ## Sub-package sync
 
-**Check feeders before editing or publishing.** Before package work or reviewing an open hub PR, fetch the current standalone main branches and compare each package against its recorded cursor and current upstream tip. Import completed upstream work first. Review overlapping PR changes for fixes already shipped upstream; preserve distinct hub fixes with a three-way merge using the cursor as the base. Refresh sandbox vendors from the reconciled workspace afterward. Record upstream SHAs, retained hub changes, and verification evidence. Never push a stale hub snapshot over newer standalone work. Fetches in a shared checkout must be serialized, or use dedicated refs with `--no-write-fetch-head`: the sync driver uses shared `FETCH_HEAD`.
+**Source ownership (DMR-091, user-directed):** standalone repositories own
+package implementations. llm-dojo-scoring owns ALL scoring engine logic and
+metrics; llm-mailroom owns the pipeline; local-mailroom-sandbox owns its core
+offline/local and Modal/vLLM GPU testing interface for that pipeline;
+The-Mailroom owns the visualizer used by BOTH sandbox and llm-mailroom.
+Digital-Mailroom integrates their committed sources and generates vendor copies.
+Hub-owned workspace wiring, governance, board, and integration tooling stay here.
 
-Every package mirrors an independent `Exios66/*` repo. `scripts/sync_packages.py`
-(status / pull / push / snapshot, cursor in `scripts/packages_sync.json`)
-reconciles the mirrors; the monorepo is the development source of truth.
+**Check sources before importing or reviewing a hub PR.** Fetch current
+standalone main branches; compare each package with its cursor and upstream tip.
+Import completed source work first. Review overlapping hub PR changes for fixes
+already shipped in the source. Any remaining package implementation must first
+be authored, tested, and committed in its authoritative standalone checkout,
+then imported; do not preserve a hub-only implementation as an exception.
+Record source SHAs and verification evidence. Never push hub package copies to
+standalone sources. Serialize shared-checkout fetches, or use dedicated refs
+with `--no-write-fetch-head`: the sync driver uses shared `FETCH_HEAD`.
 
-**Release-train sweep (the HUB-005 propagation):** the all-packages one-liner
-is `python scripts/sync_packages.py push --all --patch` — one command fetches
-every upstream tip, lands the monorepo delta as a single fast-forward commit
-per package, and re-baselines the cursors; follow with
-`sync_packages.py status` (expect 7/7 in sync, 0 monorepo-ahead) and
-commit the cursor file. `patch_push` extracts committed blobs (`git ls-tree -r
-HEAD` + `git cat-file blob`) — uncommitted work never propagates (DMR-028).
+Use `scripts/sync_packages.py status`, `pull --package <name> --squash`, and
+content-verified `snapshot`; cursors live in `scripts/packages_sync.json`.
+`pull --verify-suite` runs the imported package's suite before cursor advance
+(`SYNC_VERIFY_CMD` overrides the runner). Do not force a cursor past missing
+source content. A dirty worktree is refused by default.
 
-**Sync failures are diagnosed, never silent (DMR-064, hardened DMR-073):**
-exit codes are
-0 ok / 1 network / 2 dirty-at-entry (or conflicts left in place via
-`--keep-conflicts`/`--allow-dirty`) / 3 merge conflict aborted cleanly /
-4 other git/internal failure (multi-package runs return the max severity).
-**A push is not trusted until its landing is proven (DMR-073):** `push
---patch` verifies with a post-push `ls-remote` probe that the remote tip now
-equals the pushed worktree commit — an unchanged tip (the SILENT NO-OP class
-that hid the DMR-071 deltas), an unreachable remote, or a foreign concurrent
-tip refuses with exit 5/1 and leaves the cursor untouched; the success line
-names the POST-push tip and the pushed commit (never the stale pre-push
-probe). An empty staged diff is likewise cross-checked against the tree
-(`local_ahead_paths`): "empty diff while the monorepo is ahead" is an
-extraction-mismatch refusal (exit 5), not a trusted no-delta. Cursors
-re-baseline only after a verified landing.
-A conflicted `pull` is detected (MERGE_HEAD + `diff --diff-filter=U` +
-`ls-files -u` classification: both-modified/add/add/modify-delete), the
-worktree is **aborted back to its pre-pull state by default**, and a
-structured summary with per-path remediation is printed. To import a
-divergent upstream as a reviewable change instead of a local mess, use
-`pull --open-pr [--resolve ours|theirs]` — it aborts, creates
-`sync/<package>/import-<sha>` (main stays clean), imports upstream with the
-chosen resolution strategy, pushes the branch, and opens a `gh` PR against
-`main`; the sync cursor never advances until the PR merges. Entry-guard
-recovery: a leftover `MERGE_HEAD` from an interrupted run is diagnosed with a
-remediation hint instead of a dead "worktree is dirty" refusal.
-`pull`/`push`/`snapshot` accept `--json` (JSON Lines, one record per package:
-command, package, ok, exit_code, error_class, conflicted_paths, remediation,
-cursor_updated, branch, pr_url) and the global `--manifest`/`--repo-root`
-overrides for temp-state runs. Hermetic suite: `python3 -m unittest discover
-scripts/tests`.
+**Conflict and verification safeguards (DMR-064/070/073):** conflicted pulls
+are aborted to their pre-pull state by default; `--keep-conflicts`/`--allow-dirty`
+are explicit recovery options. Interrupted MERGE_HEAD state is diagnosed with
+remediation. `pull --open-pr` creates a reviewable import branch and PR; the
+cursor advances only after merge. Resolve conflicts by source ownership;
+never use automatic ours/theirs resolution to retain hub-authored package
+behavior. Ladder-resolved paths are compared with BOTH sides; content matching
+neither is reported as `resolution_divergences` on stderr, JSON, and the PR body.
+Review it against authoritative source commits before merging.
+Exit codes: 0 ok / 1 network / 2 dirty / 3 conflict-aborted / 4 git/internal /
+5 verification refused (severity 5 > 4 > 3 > 2 > 1 > 0).
+Commands accept `--json`; global `--manifest`/`--repo-root` enable isolated
+state runs. Hermetic suite: `python3 -m unittest discover scripts/tests`.
 
-**Push-leg decision tree (DMR-070 — follow it; the wrong leg is a doom
-loop):** pick the leg by WHAT the monorepo delta contains:
-- **Content-only delta** (files added/modified, nothing deleted): either leg
-  works — `push --package <name> --patch` (fast, one fast-forward commit) or
-  the full `git subtree push` leg.
-- **Deletion-bearing delta** (the monorepo removed tracked upstream paths —
-  e.g. a retired agent): **only the full subtree-push leg carries
-  deletions** — run `push --package <name>` WITHOUT `--patch`.
-  `push --patch` REFUSES deletion-bearing packages (exit 5, error_class
-  `verify`, `deleted_paths` in the record) because a content push would
-  silently resurrect the deleted files upstream — the v0.6.0 compliance
-  removal shipped exactly this trap. If a deletion-bearing push fails
-  containment/non-fast-forward, fix the push (fetch upstream, graft), never
-  re-add the deleted files.
-- **Verify before pushing:** add `--verify-suite` to `push --patch` (and
-  `pull`) to run the touched package's pytest suite before anything is
-  pushed or any cursor advances (`SYNC_VERIFY_CMD` env overrides the
-  default pytest invocation — used by the hermetic tests).
+**Legacy outbound commands are forbidden for package delivery.** The driver's
+`push`, `push --patch`, and `push --all --patch` remain historical tooling,
+not an authorized workflow. Their deletion guard, post-push landing checks,
+and refusal to advance unverified cursors remain safety mechanisms; they do
+not authorize hub-to-source implementation or a release-train sweep.
 
-**Post-import verification (DMR-070):** after `pull --open-pr` resolves
-conflicts, every ladder-resolved path is blob-compared against BOTH merge
-sides; a resolution matching NEITHER side is resolution-introduced content
-(the v0.6 `corpus.py` else-branch mangling class) — it is reported loudly on
-stderr, carried as `resolution_divergences` in the JSON record, and appended
-to the PR body. Exit codes now include **5 verification refused**
-(`--verify-suite` failure, or the patch-push deletion guard); severity order
-5 > 4 > 3 > 2 > 1 > 0.
-
-**Vendor snapshots (sandbox self-containment, DMR-057/hub#62/DMR-070):**
-`packages/local-mailroom-sandbox/vendor/` are TRACKED snapshots that track
-the monorepo **workspace packages**, not upstream tags (the drift guard
-`tests/test_vendor_drift.py` enforces byte-identity; both VENDOR.md files
-document the doctrine). Refresh with `python scripts/sync_vendor.py`
-(monorepo root) — it mirrors workspace → vendor carrying BOTH content AND
-deletions, and `--check` is a CI-friendly no-op drift gate.
-`sandbox fetch-deps` mirrors the workspace when the monorepo layout is
-detected and falls back to a loud tag-based refresh for standalone clones.
-NEVER tag-refresh the vendored llm-mailroom from the monorepo: the v0.7.1
-tag predates the five-class taxonomy removal (59c47401), so a tag-based
-re-snapshot resurrects the deleted docclass-era files (the exact revival
-this tooling now refuses).
+**Vendor snapshots (sandbox self-containment, DMR-057/070/091):**
+`packages/local-mailroom-sandbox/vendor/` are TRACKED generated copies of
+imported workspace packages, never implementation sources. After importing
+committed authoritative changes, refresh with `python scripts/sync_vendor.py`
+(workspace → vendor, content AND deletions); verify with `--check` and the
+sandbox drift guard. Never hand-edit a vendor or publish it back as source.
+`sandbox fetch-deps` mirrors the workspace in hub layout and uses the
+standalone's configured tag-based refresh otherwise. Never tag-refresh hub
+vendors: stale tags can resurrect removed paths. Vendor-only refreshes in the
+hub are integration outputs, not standalone package implementation changes.
 
 ## Workspace rules
 
 - Member dependency lines keep their published git pins (release builds via
   plain `pip install .` depend on them). Dev redirection happens ONLY through
   `[tool.uv.sources]` tables — never delete a pin line to "fix" resolution.
-- Bump a pin only when cutting a release of the pinned package (see
-  `packages/llm-mailroom/src/scripts/bump_dojo_scoring.py`, release-time only).
+- Bump a package pin in the consuming standalone source only when cutting a
+  release of the pinned package (llm-mailroom `src/scripts/bump_dojo_scoring.py`,
+  release-time only), then import the committed change.
 - Hub releases (the monorepo itself) follow the release chain (HUB-024):
   accumulate changes under `CHANGELOG.md` `[Unreleased]`, then
   `python scripts/release_chain.py cut X.Y.Z --apply` — it stamps the

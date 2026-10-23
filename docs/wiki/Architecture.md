@@ -3,32 +3,40 @@
 ## The map
 
 ```
-                    ┌── corpus feeds (colocated data) ─────────────────────┐
-                    │  Enron-Evaluation-Environment   claims-data-eda      │
-                    │  mailroom-corpus-eda   (mailroom-corpus, P0–P6 EDA)  │
-                    └──────────────────────────┬───────────────────────────┘
-                                               ▼
-┌────────────────────────┐        ┌───────────────────────────────────────┐
-│  llm-dojo-scoring      │◀───────│           llm-mailroom                │
-│  shared scoring engine │ import │  LangGraph multi-agent pipeline       │
-└────────────────────────┘        └──────────────────┬────────────────────┘
-                                                     ▼
-┌── surfaces ──────────────────────────────────────────┐
-│  The-Mailroom (visualizer)     local-mailroom-sandbox│
-│  Digital-Mailroom dispatch board (Vercel)            │
-└──────────────────────────┬───────────────────────────┘
-                           ▼
-┌──────────────────────────────────────────────────────┐
-│  Digital-Mailroom — this standalone repo             │
-│  (central truth; every box lives in it)              │
-└──────────────────────────────────────────────────────┘
+Corpus feeds ────────────────> llm-mailroom (13-node pipeline)
+                                     ▲             │
+local-mailroom-sandbox ── executes ────┘             │ uses
+  offline/local + Modal/vLLM GPU harness            ▼
+  │                                         llm-dojo-scoring
+  └────────────── uses scoring ─────────────> ALL engine + metrics
+
+llm-mailroom ────────────────┐
+local-mailroom-sandbox ──────┴── Langfuse / API ──> The-Mailroom
+                                                  shared visualizer
+
+Committed standalone sources ── import ──> Digital-Mailroom packages/
+Imported workspace packages ── generate ─> sandbox vendor snapshots
+Digital-Mailroom owns hub wiring, governance, board, and integration tooling.
 ```
+
+Standalone **llm-dojo-scoring owns ALL scoring engine logic and metrics**;
+standalone **llm-mailroom owns the 13-node pipeline**. Standalone
+**local-mailroom-sandbox is the core offline/local and Modal/vLLM GPU testing
+interface that executes that pipeline**. Standalone **The-Mailroom is the
+shared visualizer used by BOTH llm-mailroom and sandbox through Langfuse/API**.
+
+Digital-Mailroom imports committed authoritative package sources and generates
+vendors. Implement package changes in the owning standalone source first;
+never duplicate the pipeline or scorer in the hub, edit imported package or
+vendor copies as implementation sources, or push hub implementations back.
+Hub-owned wiring, governance, board, and integration tooling remain here.
+See [[Sub-Package-Sync]] and [[Releases]] for import and release gates.
 
 ## Every repository, with links
 
-All seven packages live in this monorepo (`packages/`) as git subtrees and
-mirror independent `Exios66/*` repositories that remain standalone and
-operational. GitHub Pages sites exist for four of them.
+All seven packages are imported into this hub (`packages/`) as git subtrees
+from authoritative standalone `Exios66/*` repositories. GitHub Pages sites
+exist for four of them.
 
 > **Pruned in DMR-079:** `llm-entity-extraction` and `llm-mailroom-graph`
 > are standalone `Exios66/*` repos only (no longer synced); `agent-mailroom`
@@ -37,7 +45,7 @@ operational. GitHub Pages sites exist for four of them.
 
 | Layer | Repository | GitHub Pages |
 | --- | --- | --- |
-| Hub (central truth, this repo) | [LLM-Mailroom-Services/Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) | — |
+| Hub (integration, this repo) | [LLM-Mailroom-Services/Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) | — |
 | Hub — served board (`board-site/`, Vercel) | [digital-mailroom-theta.vercel.app](https://digital-mailroom-theta.vercel.app) | — |
 | Corpus feed | [Exios66/Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment) | [exios66.github.io/Enron-Evaluation-Environment](https://exios66.github.io/Enron-Evaluation-Environment/) |
 | Corpus feed | [Exios66/claims-data-eda](https://github.com/Exios66/claims-data-eda) | [exios66.github.io/claims-data-eda](https://exios66.github.io/claims-data-eda/) |

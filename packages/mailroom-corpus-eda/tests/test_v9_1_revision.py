@@ -386,3 +386,18 @@ class TestStageDefaultAndGroundTruth:
         assert counts[("default", "test")] == 1
         assert counts[("ground_truth", "train")] == 1
         assert counts[("ground_truth", "test")] == 1
+
+
+def test_revision_preserves_subclass_in_corporate_presence_probe():
+    """Subsidiary-list inapplicable core fields keep explicit presence codes."""
+    row = _gt_row(
+        expected="corporate_record", expected_subclass="subsidiary_list",
+        gt_fields={"signatories": "", "jurisdiction": "", "filing_number": ""},
+        doc_text="Subsidiaries of Example LLC", metadata={},
+    )
+    revised = rev.revise_row(row)
+    presence = json.loads(revised["gt_fields"]["gt_presence"])
+    assert presence["signatories"] == "not_applicable"
+    assert presence["jurisdiction"] == "not_applicable"
+    assert presence["filing_number"] == "not_applicable"
+    assert "gt_presence" not in row["gt_fields"]

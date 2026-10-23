@@ -145,9 +145,13 @@ SCHEMA_ADHERENCE_ROW_KEYS = (
 )
 
 
-def schema_keys_for(doc_type: str) -> frozenset[str]:
+def schema_keys_for(doc_type: str, doc_subclass: str | None = None) -> frozenset[str]:
     """Live extraction-schema field names for ``doc_type``."""
     resolved = str(doc_type or "").strip()
+    if resolved == "corporate_record" and doc_subclass:
+        from llm_dojo_scoring.corporate_record_schema import entity_field_types
+
+        return _FALLBACK_SCHEMA_KEYS[resolved] | frozenset(entity_field_types(doc_subclass))
     try:
         from schemas.documents import get_extraction_schema
 
@@ -278,6 +282,7 @@ def _pydantic_valid(doc_type: str, payload: Mapping[str, Any]) -> bool | None:
 def assess_extraction_payload(
     predicted: Any,
     doc_type: str,
+    doc_subclass: str | None = None,
 ) -> dict[str, Any]:
     """Classify format/parse vs schema for one specialist prediction.
 
@@ -291,7 +296,7 @@ def assess_extraction_payload(
     legacy: list[str] = []
     schema_valid = False
     if payload is not None and not parse_error:
-        keys = schema_keys_for(doc_type)
+        keys = schema_keys_for(doc_type, doc_subclass)
         public = [k for k in payload if k not in _META_KEYS]
         extra = sorted(k for k in public if keys and k not in keys)
         legacy = sorted(k for k in public if k in _LEGACY_CORRESPONDENCE_KEYS)

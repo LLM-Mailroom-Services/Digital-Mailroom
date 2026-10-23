@@ -166,6 +166,19 @@ def _apply_hub_aliases(doc_type: str, fields: Mapping[str, Any] | None) -> dict[
     return out
 
 
+
+def _allowed_fields(doc_type: str) -> frozenset[str] | None:
+    """Keep the complete corporate registry available to the subclass scorer."""
+    resolved = str(doc_type or "").strip()
+    allowed = LIVE_SCHEMA_FIELDS.get(resolved)
+    if resolved == "corporate_record":
+        from llm_dojo_scoring.corporate_record_schema import SUBCLASS_SCHEMAS
+
+        extensions = {entity.key for schema in SUBCLASS_SCHEMAS.values() for entity in schema.entities}
+        return frozenset(allowed or ()) | extensions
+    return allowed
+
+
 def applicable_expected_fields(
     doc_type: str,
     expected: Mapping[str, Any] | None,
@@ -177,10 +190,16 @@ def applicable_expected_fields(
     drops empties / trace / metadata but keeps remaining keys (no invented
     allow-list).
     """
-    allowed = LIVE_SCHEMA_FIELDS.get(str(doc_type or "").strip())
+    allowed = _allowed_fields(doc_type)
+    corporate = str(doc_type or "").strip() == "corporate_record"
     out: dict[str, Any] = {}
     for key, value in _apply_hub_aliases(doc_type, expected).items():
         if key in TRACE_ONLY_KEYS or key in HUB_METADATA_KEYS:
+            continue
+        # The corporate scorer must see original presence metadata and blank
+        # values to distinguish documented absence from unlabeled fields.
+        if corporate and (key == "gt_presence" or key in (allowed or ())):
+            out[key] = value
             continue
         if is_empty_gt(value):
             continue
@@ -202,7 +221,7 @@ def scope_predicted_fields(
     A correspondence specialist must not be F1-penalized for omitting
     ``claim_number``. In-schema extras the model invented still count as FP.
     """
-    allowed = LIVE_SCHEMA_FIELDS.get(str(doc_type or "").strip())
+    allowed = _allowed_fields(doc_type)
     out: dict[str, Any] = {}
     for key, value in _apply_hub_aliases(doc_type, predicted).items():
         if key in TRACE_ONLY_KEYS or key in HUB_METADATA_KEYS:

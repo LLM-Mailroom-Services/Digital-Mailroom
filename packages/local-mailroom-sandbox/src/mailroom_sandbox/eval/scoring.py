@@ -240,7 +240,7 @@ def score_extraction_row(
         # The dojo's per-row presence contract, verbatim: the unlabeled
         # key-entity fields this row scored (or none).
         payload["unlabeled_fields"] = result["unlabeled_fields"]
-    payload.update(assess_extraction_payload(predicted, doc_type))
+    payload.update(assess_extraction_payload(predicted, doc_type, doc_subclass=sub))
     if doc_type == "merger_agreement" and raw_expected.get("maud_clause_labels"):
         # SAND-032: merger GT is MAUD question→answer labels only; the suite's
         # field map never meets it (F1 0 by construction). Headline = MAUD accuracy.

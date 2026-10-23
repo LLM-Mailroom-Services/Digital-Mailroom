@@ -5,9 +5,12 @@
 The standalone repositories own implementation; imports flow source main → hub
 workspace → generated sandbox vendors. PR162 remains draft and unmerged. The
 v0.9.1 rollback release and verified assets preserve pre-integration package
-state. Source runtime PR118 has a full 2076-pass/37-skip gate; prepared Dojo
-0.23.0 PR61 has 1797 passes/5 skips and a wheel verified against 105 committed
-Python/runtime-data paths. Neither pending review is treated as approval.
+state. Source runtime PR118 has a full 2076-pass/37-skip gate, with the last
+private-publication/manifest boundary repair under review. Dojo PR61 was
+independently approved and merged at 3eb56be1; v0.23.0 is published and imported
+as the exact 220-path tree. Source and hub pass 1797 tests/5 skips, and the
+published wheel matches 105 committed Python/runtime-data paths. Pending
+consumer adoption is not treated as approved.
 Visualizer source PR40 merged at 77ded085 after independent recovery review.
 Sandbox source PR153 remains draft after independent remote-generation,
 dotenv-ordering and record-task findings; source repairs and final vendors are

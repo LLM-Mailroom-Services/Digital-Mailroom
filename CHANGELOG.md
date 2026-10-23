@@ -21,6 +21,13 @@ and is recorded there, not here.
 
 ## [Unreleased]
 
+### Changed
+
+- DMR-091: import canonical Dojo v0.23.0 from merged standalone main
+  `3eb56be1`, including source-owned scoring engines, support/provenance fixes
+  and their regression coverage. The workspace lock records 0.23.0; final
+  consumer pins and generated vendor reconciliation remain under review.
+
 ## [0.9.1] - 2026-10-23
 ### Changed
 

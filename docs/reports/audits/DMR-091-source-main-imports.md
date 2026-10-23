@@ -1,7 +1,28 @@
 # DMR-091 source-main imports — intermediate evidence
 
 2026-10-23 UTC. PR162 remains under review; final vendor composition and
-additional Dojo ownership adoption are pending. This is not final completion.
+final consumer adoption are pending. This is not final completion.
+
+## Current canonical Dojo release import
+
+Dojo PR61 merged at `3eb56be1c445b2f71c461ffa5f26660ca8516f98`.
+Annotated release [v0.23.0](https://github.com/Exios66/llm-dojo-scoring/releases/tag/v0.23.0)
+peels to that exact main commit; its tree is
+`6266049dcccfd383b3d542db3891fe48bcce0971`, equal to reviewed candidate `73812b55`.
+All **220 tracked package paths and modes** are imported exactly, including
+all new canonical engines and regression files. The cursor records actual
+merged main; the root version remains 0.9.1 and uv.lock changes only Dojo's
+package version from 0.22.0 to 0.23.0. Offline lock/check passes.
+
+Source and imported hub full suites each pass **1797 tests, 5 existing skips**.
+Independent xhigh review inspected all 32 PR61 paths and passed 16684 source-history
+comparisons. Final installed-wheel code/runtime data match all 105 declared
+source payloads; published wheel and sdist downloads match local SHA256SUMS.
+The release retains distinct live corporate v6 and evaluation v7 bytes.
+Consumer pins and committed source-generated sandbox vendors are still pending;
+this is not final integration approval.
+
+## Earlier imports retained as historical stage evidence
 
 - Dojo source PR59 merged at `1d7fac8e510b834977e452b25a761c66945ad464`;
   all 198 tracked source paths/modes imported exactly. Reviewed candidate tree

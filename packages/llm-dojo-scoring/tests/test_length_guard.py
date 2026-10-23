@@ -49,6 +49,7 @@ PRED1 = ["contract"]
     ],
 )
 def test_mismatched_lengths_raise(call):
+    """Reject shorter predictions and shorter expectations with both lengths named."""
     with pytest.raises(ValueError, match=MSG):
         call(list(EXP2), list(PRED1))
     # predicted longer than expected is equally refused
@@ -57,10 +58,12 @@ def test_mismatched_lengths_raise(call):
 
 
 def test_accuracy_equal_length():
+    """Keep hand-computed accuracy for equally sized label lists."""
     assert accuracy(["contract", "correspondence"], ["contract", "contract"]) == 0.5
 
 
 def test_per_class_stats_equal_length():
+    """Preserve per-class counts and rates for a missed correspondence label."""
     s = per_class_stats(["contract", "correspondence"], ["contract", "contract"])
     assert s["contract"]["accuracy"] == 1.0
     assert s["contract"]["precision"] == 0.5
@@ -68,12 +71,14 @@ def test_per_class_stats_equal_length():
 
 
 def test_macro_accuracy_equal_length():
+    """Average class accuracy without changing equally sized inputs."""
     assert macro_accuracy(
         ["contract", "correspondence"], ["contract", "contract"]
     ) == 0.5
 
 
 def test_confusion_matrix_equal_length():
+    """Retain ordered labels and the two-by-two confusion counts."""
     m, labels = confusion_matrix(
         ["contract", "correspondence"], ["contract", "contract"]
     )
@@ -82,6 +87,7 @@ def test_confusion_matrix_equal_length():
 
 
 def test_binary_metrics_equal_length():
+    """Count one true positive and one false positive for contract labels."""
     r = binary_metrics(
         ["contract", "correspondence"], ["contract", "contract"], "contract"
     )
@@ -90,6 +96,7 @@ def test_binary_metrics_equal_length():
 
 
 def test_macro_prf_equal_length():
+    """Preserve hand-computed macro precision and recall."""
     r = macro_prf(["contract", "correspondence"], ["contract", "contract"])
     # contract P=0.5 R=1; correspondence P=0 R=0 -> macro P=0.25 R=0.5
     assert r["precision_macro"] == 0.25
@@ -98,22 +105,26 @@ def test_macro_prf_equal_length():
 
 
 def test_score_transcription_equal_length():
+    """Average one exact transcript and one single-word substitution."""
     r = score_transcription(["a b", "c d"], ["a b", "c x"])
     assert r["n"] == 2
     assert r["wer"] == 0.25  # (0/2 + 1/2) / 2
 
 
 def test_score_transcription_single_pair_unchanged():
+    """Keep scalar transcript pairs as single-document scoring."""
     assert score_transcription("a b", "a b")["n"] == 1
 
 
 def test_score_aligned_classification_equal_length():
+    """Retain the document count and half-correct aligned accuracy."""
     r = score_aligned_classification(EXP2, ["contract", "contract"])
     assert r["n"] == 2
     assert r["exact_accuracy"] == 0.5
 
 
 def test_score_task_equal_length():
+    """Dispatch equal-length document batches without changing their score."""
     r = score_task("doc_class", EXP2, ["contract", "contract"])
     assert r["n"] == 2
     assert r["accuracy"] == 0.5
@@ -121,6 +132,7 @@ def test_score_task_equal_length():
 
 @pytest.mark.parametrize("task", ["maud_extraction", "maud_clause"])
 def test_score_task_maud_batch_lengths_raise(task):
+    """Reject unequal MAUD document batches while accepting matched batches."""
     labels = {"No-Shop": {"answer": "Yes"}}
     assert score_task(task, [labels, labels], [labels, labels])["n_documents"] == 2
     with pytest.raises(ValueError, match=MSG):
@@ -158,10 +170,12 @@ _MAUD_SPANS = ["No-Shop: Yes", "Type of Consideration: All Stock"]
     ],
 )
 def test_score_task_maud_preserves_non_batch_inputs(task, expected, predicted):
+    """Delegate single-document MAUD spans and mixed forms without batch guards."""
     assert score_task(task, expected, predicted) == score_maud_extraction(expected, predicted)
 
 
 @pytest.mark.parametrize("task", ["doc_class", "enron_topic", "transcription"])
 def test_score_task_non_maud_tuple_lengths_raise(task):
+    """Reject unequal tuple batches for non-MAUD task kinds."""
     with pytest.raises(ValueError, match=MSG):
         score_task(task, tuple(EXP2), tuple(PRED1))

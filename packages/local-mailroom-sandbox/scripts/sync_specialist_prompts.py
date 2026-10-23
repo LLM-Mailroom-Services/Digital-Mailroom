@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Sync specialist production prompts into config/prompts/ (DMR-074 / SAND-026).
 
-Exports the vendored llm-mailroom code-default text so historical pins stay
-byte-identical to vendor. Re-run after ``sandbox fetch-deps`` / monorepo
+Exports vendored llm-mailroom code-default text, except the sandbox corporate
+evaluation head, which comes from dojo production_prompts independently of
+the mailroom live freeze. Historical and evaluation pins stay distinct. Re-run after ``sandbox fetch-deps`` / monorepo
 ``sync_vendor.py``.
 
 SAND-026 experiment pins live as parallel ``*_simplified`` stems. They
@@ -30,7 +31,8 @@ ROOT = Path(__file__).resolve().parents[1]
 VENDOR_SRC = ROOT / "vendor" / "llm-mailroom" / "src"
 PROMPTS = ROOT / "config" / "prompts"
 
-# Vendor mirrors only. Default sync writes these stems and no others.
+# Vendor exports; corporate follows the sandbox evaluation head.
+# Default sync writes these stems and no others.
 EXPORTS = (
     ("contracts_specialist_v33", "contracts"),
     ("merger_agreement_specialist_production", "merger"),
@@ -54,14 +56,14 @@ EXPERIMENT_STEMS: frozenset[str] = frozenset(EXPERIMENT_FROM_VENDOR.values())
 def _load_texts() -> dict[str, str]:
     if str(VENDOR_SRC) not in sys.path:
         sys.path.insert(0, str(VENDOR_SRC))
-    # The vendored llm-dojo-scoring must be importable (frozen_v1 reads the
-    # ``production_prompts`` catalog through it). Import the sandbox package
+    # The corporate evaluation export needs vendored llm-dojo-scoring,
+    # independently of the live mailroom freeze. Import the sandbox package
     # so its __init__ wires the vendored dojo src onto sys.path — running the
     # script bare was silently relying on an installed llm_dojo_scoring.
     importlib.import_module("mailroom_sandbox")
     from langchain_agents.prompts import PROMPT_VERSIONS
+    from llm_dojo_scoring.prompts import get_prompt
     from agents import (
-        corporate_records_specialist as corp,
         correspondence_specialist as corr,
         insurance_claims_specialist as ins,
         merger_agreement_specialist as merger,
@@ -70,7 +72,9 @@ def _load_texts() -> dict[str, str]:
     return {
         "contracts_specialist_v33": PROMPT_VERSIONS["contracts_specialist_v33"],
         "merger_agreement_specialist_production": merger.SYSTEM_PROMPT,
-        "corporate_records_specialist_production": corp.SYSTEM_PROMPT,
+        "corporate_records_specialist_production": get_prompt(
+            "corporate_records_specialist", family="production_prompts"
+        ).text,
         "correspondence_specialist_production": corr.SYSTEM_PROMPT,
         "insurance_claims_specialist_production": ins.SYSTEM_PROMPT,
     }

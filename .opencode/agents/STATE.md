@@ -1,5 +1,27 @@
 # Audit State
 
+## DMR-091 / DMR-093 reconciliation in progress — 2026-10-23 UTC
+
+The standalone repositories own implementation; imports flow source main → hub
+workspace → generated sandbox vendors. PR162 remains draft and unmerged. The
+v0.9.1 rollback release and verified assets preserve pre-integration package
+state. Source runtime PR118 has a full 2076-pass/37-skip gate; prepared Dojo
+0.23.0 PR61 has 1797 passes/5 skips and a wheel verified against 105 committed
+Python/runtime-data paths. Neither pending review is treated as approval.
+Visualizer source PR40 merged at 77ded085 after independent recovery review.
+Sandbox source PR153 remains draft after independent remote-generation,
+dotenv-ordering and record-task findings; source repairs and final vendors are
+pending. Final hub import/review must preserve the existing visualizer overlays.
+
+Pruning PR167 is stacked on PR162, with structural approval at 001f0958 and
+exact preservation of 149 Enron/claims blobs/modes. It awaits final source docs,
+vendors and five-core gates before being marked ready. The enabled daily 23:00
+America/Chicago check has dispatched a queued audit; dispatch success is not a
+completed clean result. See the DMR-091/092/093 reports and board for evidence.
+
+The entries below remain historical audit records; they do not supersede this
+source-ownership direction or certify the current reconciliation complete.
+
 ## Latest Audit
 
 - **Date:** 2026-09-22 (UTC)

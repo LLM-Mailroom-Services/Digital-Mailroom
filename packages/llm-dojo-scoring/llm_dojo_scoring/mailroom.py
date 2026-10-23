@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from .classification import require_same_length
+
 from .intake import (
     INTAKE_HANDOFF_NODE,
     INTAKE_LIVE_METHOD,
@@ -287,6 +289,8 @@ def score_aligned_classification(
     is not equivalent to ``contract`` — predicting ``contract`` for a MAUD
     document is a miss. ``unknown`` and retired types stay distinct.
     """
+    expected, predicted = list(expected), list(predicted)
+    require_same_length(expected, predicted, what="score_aligned_classification")
     pairs = list(zip(expected, predicted))
     n = len(pairs)
     if not n:

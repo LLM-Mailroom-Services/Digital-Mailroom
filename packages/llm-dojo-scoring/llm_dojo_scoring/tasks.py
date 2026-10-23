@@ -28,6 +28,7 @@ from .classification import (
     macro_accuracy,
     macro_prf,
     normalize_label,
+    require_same_length,
     top_confusions,
 )
 from .config import (
@@ -238,6 +239,18 @@ def score_task(
     ``chained`` runs use :func:`chained_composite` / :func:`chained_summary`.
     """
     kind = task_kind(task)
+
+    if isinstance(expected, (list, tuple)) and isinstance(predicted, (list, tuple)):
+        # MAUD span lists describe one document, not parallel document batches.
+        if kind != "maud_extraction" or (
+            isinstance(expected, list)
+            and isinstance(predicted, list)
+            and expected
+            and predicted
+            and isinstance(expected[0], dict)
+            and isinstance(predicted[0], dict)
+        ):
+            require_same_length(expected, predicted, what=f"score_task({task})")
 
     if kind == "enron_topic":
         from .content_scoring import score_content_topic

@@ -16,6 +16,8 @@ from __future__ import annotations
 import re
 from typing import Any, Sequence
 
+from .classification import require_same_length
+
 __all__ = [
     "word_error_rate",
     "character_error_rate",
@@ -106,6 +108,7 @@ def score_transcription(expected: Any, predicted: Any) -> dict:
     strings. Returns mean WER/CER over the run plus complementary accuracies.
     """
     if isinstance(expected, list) and isinstance(predicted, list):
+        require_same_length(expected, predicted, what="score_transcription")
         pairs = list(zip(expected, predicted))
     else:
         pairs = [(expected, predicted)]

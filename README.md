@@ -23,21 +23,36 @@ Multi-agent legal-document pipeline · Deterministic scoring · Pixel-art visual
 
 ## Architecture
 
-```
-Corpus feeds ────────────────> llm-mailroom (13-node pipeline)
-                                     ▲             │
-local-mailroom-sandbox ── executes ────┘             │ uses
-  offline/local + Modal/vLLM GPU harness            ▼
-  │                                         llm-dojo-scoring
-  └────────────── uses scoring ─────────────> ALL engine + metrics
+```text
+ Enron-Evaluation-Environment ─┐  (external corpus feeds)
+ claims-data-eda ──────────────┴─> mailroom-corpus-eda
+                                   EDA + centralized HF upload helpers
+                                              │ publishes
+                                              ▼
+                                   HF Hub: mailroom-dataset (pinned tag)
+                          ┌───────────────────┴───────────────────┐
+                          │ pinned pull                           │ pinned pull
+                          ▼                                       ▼
+ ┌─────────────────────────────┐ executes ┌─────────────────────────────┐
+ │ local-mailroom-sandbox      │ ───────> │ llm-mailroom                │
+ │ offline/local + Modal/vLLM  │          │ 13-node LangGraph pipeline  │
+ │ GPU testing harness         │          │ (FastAPI producer)          │
+ └──────────────┬──────────────┘          └──────────────┬──────────────┘
+                │ scores with                            │ scores with
+                └───────────────────┐  ┌─────────────────┘
+                                    ▼  ▼
+                     ┌───────────────────────────────┐
+                     │ llm-dojo-scoring              │
+                     │ ALL scoring engine + metrics  │
+                     └───────────────────────────────┘
 
-llm-mailroom ────────────────┐
-local-mailroom-sandbox ──────┴── Langfuse / API ──> The-Mailroom
-                                                  shared visualizer
+ llm-mailroom ───────────┐
+ local-mailroom-sandbox ─┴─ traces / API ─> Langfuse ─> The-Mailroom
+                                                       shared visualizer, both
 
-Committed standalone sources ── import ──> Digital-Mailroom packages/
-Imported workspace packages ── generate ─> sandbox vendor snapshots
-Digital-Mailroom owns hub wiring, governance, board, and integration tooling.
+ Standalone sources ─── sync_packages.py pull ──> Digital-Mailroom packages/
+ Imported packages ──── sync_vendor.py ─────────> sandbox vendor snapshots
+ Digital-Mailroom owns hub wiring, governance, board, integration tooling.
 ```
 
 ## Repository Map

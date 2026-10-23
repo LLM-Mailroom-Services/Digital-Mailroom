@@ -474,6 +474,8 @@ behind tests that could not fail. These rules apply to every package:
 
 ## Sub-package sync
 
+**Check feeders before editing or publishing.** Before package work or reviewing an open hub PR, fetch the current standalone main branches and compare each package against its recorded cursor and current upstream tip. Import completed upstream work first. Review overlapping PR changes for fixes already shipped upstream; preserve distinct hub fixes with a three-way merge using the cursor as the base. Refresh sandbox vendors from the reconciled workspace afterward. Record upstream SHAs, retained hub changes, and verification evidence. Never push a stale hub snapshot over newer standalone work. Fetches in a shared checkout must be serialized, or use dedicated refs with `--no-write-fetch-head`: the sync driver uses shared `FETCH_HEAD`.
+
 Every package mirrors an independent `Exios66/*` repo. `scripts/sync_packages.py`
 (status / pull / push / snapshot, cursor in `scripts/packages_sync.json`)
 reconciles the mirrors; the monorepo is the development source of truth.

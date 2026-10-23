@@ -525,6 +525,9 @@ def run_extract_eval(
             # DMR-056: live corpus rows carry doc_text inline (no fixture file).
             doc_text=row.get("doc_text")
             or (fixture_file(row).read_text(encoding="utf-8") if fixture_file(row).is_file() else None),
+            # Per-subclass scoring (sandbox #145): the row's GT subclass drives
+            # the vendored corporate-record alignment (see scoring.py).
+            expected_subclass=row.get("expected_subclass"),
         )
         schema_rows.append(scored)
         value = scored.get("overall_extraction_score")
@@ -1076,6 +1079,9 @@ def run_pipeline_eval(
                     if "subdir" in row and fixture_file(row).is_file()
                     else None
                 ),
+                # Per-subclass scoring (sandbox #145): the row's GT subclass
+                # drives the vendored corporate-record alignment.
+                expected_subclass=row.get("expected_subclass"),
             )
             schema_rows.append(scored)
             value = scored.get("overall_extraction_score")

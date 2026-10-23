@@ -125,7 +125,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser(
         "fetch-deps",
-        help="Refresh tracked vendor snapshots (llm-mailroom v0.7.1, llm-dojo-scoring v0.22.0) from pinned tags",
+        help="Refresh tracked vendor snapshots (llm-mailroom v0.7.1, llm-dojo-scoring feat/corporate-record-subclass-schemas @ 8e6566c sha-frozen) from pinned refs",
         parents=[shared],
     )
     p.add_argument("--visualizer", action="store_true", help="Also clone The-Mailroom (Langfuse observer)")
@@ -1094,7 +1094,7 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
         "deletions), tag-based clone fallback for standalone clones"
     )
     rc = 0
-    for name, tag, url in _VENDOR_PINS:
+    for name, pin, url, sha in _VENDOR_PINS:
         ws = _monorepo_workspace_pkg(name)
         if ws is not None:
             # Always run every refresh; `rc or call()` skips later vendors (DMR-088).
@@ -1103,11 +1103,12 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
         else:
             print(
                 f"== {name}: no monorepo workspace detected — falling back to the "
-                f"tag-based refresh ({tag}); NOTE tags can lag removals — prefer "
-                "the monorepo workspace as the source of truth",
+                f"pin-based refresh ({pin}" + (f" @ sha {sha[:12]})" if sha else ")") +
+                f"; NOTE refs can move — prefer the monorepo workspace as the "
+                "source of truth",
                 file=sys.stderr,
             )
-            r = _refresh_vendor(name, tag, url)
+            r = _refresh_vendor(name, pin, url, sha)
             rc = rc or r
     if getattr(args, "visualizer", False):
         dest = vendor_dir() / "The-Mailroom"
@@ -1133,16 +1134,30 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
     return rc
 
 
-# (vendor name, pinned tag, upstream url) — STANDALONE-clone fallback pins.
-# In the monorepo, fetch-deps ignores these and mirrors the workspace package
-# instead (DMR-057/070): tags can lag removals — the v0.7.1 tag predates the
-# five-class taxonomy removal (59c47401), so a tag-based refresh of
-# llm-mailroom would resurrect the deleted docclass-era files.
-# llm-dojo-scoring v0.22.0 is tagged (released 2026-10-16, commit a2862cec),
-# so the standalone fallback resolves the tag with no silent downgrade.
-_VENDOR_PINS: tuple[tuple[str, str, str], ...] = (
-    ("llm-mailroom", "v0.7.1", "https://github.com/Exios66/llm-mailroom.git"),
-    ("llm-dojo-scoring", "v0.22.0", "https://github.com/Exios66/llm-dojo-scoring.git"),
+# (vendor name, pinned ref, upstream url, frozen HEAD sha) — STANDALONE-clone
+# fallback pins. In the monorepo, fetch-deps ignores these and mirrors the
+# workspace package instead (DMR-057/070): tags can lag removals — the v0.7.1
+# tag predates the five-class taxonomy removal (59c47401), so a tag-based
+# refresh of llm-mailroom would resurrect the deleted docclass-era files.
+# llm-dojo-scoring: the v0.22.0 tag (released 2026-10-16, commit a2862cec) is
+# one sync cycle behind the vendored snapshot: the tracked tree is the
+# `feat/corporate-record-subclass-schemas` branch @ 8e6566c (dojo draft #46,
+# per-subclass corporate-record scoring). A branch ref MOVES, so the pin also
+# carries the FROZEN commit sha (8e6566c…, the snapshot's HEAD): the
+# standalone fallback still clones `--branch` (the branch stays the clone ref,
+# so a shallow clone resolves), then verifies `git rev-parse HEAD` against the
+# sha and FAILS LOUDLY on mismatch — a silently moved branch tip can no longer
+# resurrect a scoring engine that drifts from the vendored snapshot and the
+# lineage/prompt registry (see vendor/llm-dojo-scoring/VENDOR.md: pin
+# "8e6566c + lineage JSON @ 3b2eeb4").
+_VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
+    ("llm-mailroom", "v0.7.1", "https://github.com/Exios66/llm-mailroom.git", None),
+    (
+        "llm-dojo-scoring",
+        "feat/corporate-record-subclass-schemas",
+        "https://github.com/Exios66/llm-dojo-scoring.git",
+        "8e6566c1d1c52efeb5ebbb57ddee90a94586f7da",
+    ),
 )
 
 
@@ -1244,30 +1259,59 @@ def _package_src_dir(clone_root: Path) -> Path | None:
     return None
 
 
-def _refresh_vendor(name: str, tag: str, url: str) -> int:
+def _refresh_vendor(name: str, pin: str, url: str, sha: str | None = None) -> int:
     import shutil
 
     stamp = subprocess.run(
-        ["git", "ls-remote", "--tags", url, tag],
+        ["git", "ls-remote", url, pin],
         capture_output=True,
         text=True,
         check=False,
     )
     if stamp.returncode != 0 or not stamp.stdout.strip():
-        print(f"!! could not resolve {tag} of {url}", file=sys.stderr)
+        print(f"!! could not resolve {pin} of {url}", file=sys.stderr)
         return 1
     work = vendor_dir() / ".refresh" / name
     if work.is_dir():
         shutil.rmtree(work)
     work.parent.mkdir(parents=True, exist_ok=True)
     clone = subprocess.run(
-        ["git", "clone", "--depth", "1", "--branch", tag, url, str(work)],
+        ["git", "clone", "--depth", "1", "--branch", pin, url, str(work)],
         capture_output=True,
         text=True,
         check=False,
     )
     if clone.returncode != 0:
-        print(f"!! clone {name}@{tag} failed: {clone.stderr.strip()}", file=sys.stderr)
+        print(f"!! clone {name}@{pin} failed: {clone.stderr.strip()}", file=sys.stderr)
+        return 1
+    # Sha-freeze verdict FIRST: the vendored snapshot is byte-pinned to a
+    # commit; a moved ref tip (a branch advances, a tag is re-pointed) must
+    # fail loudly HERE, before any tracked tree is replaced with files the
+    # sandbox was never certified against.
+    head_proc = subprocess.run(
+        ["git", "-C", str(work), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    head = "unknown"
+    if head_proc.returncode != 0:
+        print(
+            f"!! could not read the refreshed {name} commit: "
+            f"{head_proc.stderr.strip() or head_proc.stdout.strip()}",
+            file=sys.stderr,
+        )
+    else:
+        head = head_proc.stdout.strip()
+    if sha and head != sha:
+        print(
+            f"!! {name} pin mismatch: {pin} resolved to commit {head[:12]} but the "
+            f"vendored snapshot is frozen at {sha[:12]} — refusing to vendor a "
+            "tree the sandbox was never certified against. Re-pin "
+            "_VENDOR_PINS in src/mailroom_sandbox/cli.py first.",
+            file=sys.stderr,
+        )
+        shutil.rmtree(work, ignore_errors=True)
         return 1
     dest = vendor_dir() / name
     dest.mkdir(parents=True, exist_ok=True)
@@ -1278,7 +1322,7 @@ def _refresh_vendor(name: str, tag: str, url: str) -> int:
     package_src = _package_src_dir(work)
     if package_src is None:
         print(
-            f"!! unexpected layout in {name}@{tag} clone (no src/, llm_dojo_scoring/, "
+            f"!! unexpected layout in {name}@{pin} clone (no src/, llm_dojo_scoring/, "
             f"or llm_mailroom/ at root) — vendor/{name} left untouched",
             file=sys.stderr,
         )
@@ -1290,23 +1334,8 @@ def _refresh_vendor(name: str, tag: str, url: str) -> int:
     # package at the clone root and gets normalized under src/ (DMR-058).
     dest_src = dest / "src" / package_src.name if package_src.name != "src" else dest / "src"
     shutil.copytree(package_src, dest_src, ignore=shutil.ignore_patterns("tests", "__pycache__", "*.pyc"))
-    head_proc = subprocess.run(
-        ["git", "-C", str(work), "rev-parse", "HEAD"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if head_proc.returncode != 0:
-        head = "unknown"
-        print(
-            f"!! could not read the refreshed {name} commit: "
-            f"{head_proc.stderr.strip() or head_proc.stdout.strip()}",
-            file=sys.stderr,
-        )
-    else:
-        head = head_proc.stdout.strip()
     shutil.rmtree(work, ignore_errors=True)
-    print(f"== refreshed vendor/{name} @ {tag} (commit {head[:12]}) — commit the diff")
+    print(f"== refreshed vendor/{name} @ {pin} (commit {head[:12]}) — commit the diff")
     return 0
 
 

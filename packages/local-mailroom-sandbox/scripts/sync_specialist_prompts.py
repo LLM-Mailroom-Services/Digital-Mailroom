@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
 import sys
 from pathlib import Path
 
@@ -53,6 +54,11 @@ EXPERIMENT_STEMS: frozenset[str] = frozenset(EXPERIMENT_FROM_VENDOR.values())
 def _load_texts() -> dict[str, str]:
     if str(VENDOR_SRC) not in sys.path:
         sys.path.insert(0, str(VENDOR_SRC))
+    # The vendored llm-dojo-scoring must be importable (frozen_v1 reads the
+    # ``production_prompts`` catalog through it). Import the sandbox package
+    # so its __init__ wires the vendored dojo src onto sys.path — running the
+    # script bare was silently relying on an installed llm_dojo_scoring.
+    importlib.import_module("mailroom_sandbox")
     from langchain_agents.prompts import PROMPT_VERSIONS
     from agents import (
         corporate_records_specialist as corp,

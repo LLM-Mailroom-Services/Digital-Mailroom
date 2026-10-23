@@ -108,7 +108,27 @@ def score_extraction_row(
     predicted: dict,
     expected: dict,
     doc_text: str | None = None,
+    doc_subclass: str | None = None,
+    expected_subclass: str | None = None,
 ) -> dict[str, Any]:
+    """Row-level extraction scoring through the vendored dojo suite.
+
+    ``doc_subclass`` / ``expected_subclass``: the row's GT record subclass
+    (``expected_subclass`` on a Hub row, e.g. ``bylaws``). For
+    ``corporate_record`` it flows into the vendored
+    ``suite.score(..., doc_subclass=...)`` so the per-subclass machinery in
+    ``llm_dojo_scoring.corporate_record_schema`` actually runs there:
+    ``align_unlabeled`` drops blank unlabeled key-entity fields from BOTH
+    sides (instead of scoring a blank GT field as expected-empty), extension
+    keys the dataset never labeled are never treated as spurious fills, and
+    the payload carries the per-row ``unlabeled_fields`` list. Without it the
+    suite normalizes the subclass to ``"other"`` — the sandbox-#145 wiring gap.
+
+    The subclass path returns the dojo's detailed payload, so the row carries
+    the same provenance-stamped fields (`metric_id`) the per-row
+    ``unlabeled_fields`` contract is defined on.
+    """
+    sub = str(doc_subclass or expected_subclass or "").strip() or None
     scoring_method = "suite"
     try:
         suite = suite_for_doc_type(doc_type)
@@ -128,9 +148,19 @@ def score_extraction_row(
     expected = expected or {}
     raw_expected = expected  # MAUD/CUAD label maps may be scoped out below
     predicted, expected = scope_extraction_pair(doc_type, predicted, expected)
+    sub_kwargs = {"doc_subclass": sub} if sub else {}
     if suite is not None:
         try:
-            result = suite.score(expected, predicted, doc_text=doc_text)
+            if sub:
+                # Subclass-aware: ask for the detailed payload so the vendored
+                # alignment surfaces its per-row `unlabeled_fields` (a plain
+                # single-doc score() returns a bare ExtractionScoreResult and
+                # would silently discard it).
+                result = suite.score(
+                    expected, predicted, doc_text=doc_text, detailed=True, **sub_kwargs
+                )
+            else:
+                result = suite.score(expected, predicted, doc_text=doc_text)
         except Exception as exc:
             scoring_method = "suite-fallback-generic"
             _warn_once(
@@ -147,6 +177,11 @@ def score_extraction_row(
         result = score_extraction(
             doc_type, field_types, predicted, expected, doc_text=doc_text
         )
+    # Subclass-aware results come back as the detailed payload dict; the
+    # ExtractionScoreResult itself then sits under result["extraction"].
+    extraction_obj = result
+    if sub and isinstance(result, dict) and result.get("extraction") is not None:
+        extraction_obj = result["extraction"]
     overall = getattr(result, "overall_score", None)
     if overall is None and isinstance(result, dict):
         # SAND-019: the mailroom suites return a FLAT dict whose real aggregate is
@@ -168,10 +203,15 @@ def score_extraction_row(
         "doc_type": doc_type,
         "scoring_method": scoring_method,
     }
-    if hasattr(result, "__dict__"):
+    if hasattr(extraction_obj, "__dict__") and (
+        not isinstance(result, dict) or sub
+    ):
         payload["fields"] = {
-            k: v for k, v in vars(result).items() if k != "field_scores" and not k.startswith("_")
+            k: v
+            for k, v in vars(extraction_obj).items()
+            if k != "field_scores" and not k.startswith("_")
         }
+    if hasattr(result, "__dict__"):
         try:
             prf = extraction_binary_metrics(
                 expected,
@@ -196,6 +236,10 @@ def score_extraction_row(
         for key in _EXTRACT_PRF_KEYS:
             if key in result:
                 payload[key] = result[key]
+    if sub and isinstance(result, dict) and result.get("unlabeled_fields") is not None:
+        # The dojo's per-row presence contract, verbatim: the unlabeled
+        # key-entity fields this row scored (or none).
+        payload["unlabeled_fields"] = result["unlabeled_fields"]
     payload.update(assess_extraction_payload(predicted, doc_type))
     if doc_type == "merger_agreement" and raw_expected.get("maud_clause_labels"):
         # SAND-032: merger GT is MAUD question→answer labels only; the suite's

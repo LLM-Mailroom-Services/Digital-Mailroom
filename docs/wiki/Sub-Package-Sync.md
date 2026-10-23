@@ -6,6 +6,8 @@ truth**; the standalone repos remain standalone and operational.
 
 ## The doctrine (HUB-004, human-confirmed)
 
+**Check feeders before editing or publishing.** Before package work or reviewing an open hub PR, fetch the current standalone main branches and compare each package against its recorded cursor and current upstream tip. Import completed upstream work first. Review overlapping PR changes for fixes already shipped upstream; preserve distinct hub fixes with a three-way merge using the cursor as the base. Refresh sandbox vendors from the reconciled workspace afterward. Record upstream SHAs, retained hub changes, and verification evidence. Never push a stale hub snapshot over newer standalone work. Fetches in a shared checkout must be serialized, or use dedicated refs with `--no-write-fetch-head`: the sync driver uses shared `FETCH_HEAD`.
+
 - **Current-only pulls** — only import upstream code that is current; stale
   code never regresses the monorepo (the sync driver has no rewind path —
   it only reports *forward* drift).

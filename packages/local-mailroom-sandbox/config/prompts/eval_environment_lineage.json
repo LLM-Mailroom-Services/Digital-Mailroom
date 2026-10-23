@@ -4,7 +4,7 @@
   "source_repo": "LLM-Mailroom-Services/eval-environment",
   "source_path": "prompts/manifest.json",
   "frozen_at": "2026-09-26T05:09:29+00:00",
-  "notes": "eval-environment frozen v1 specialist stems (issues #4–#8). Sandbox Modal/vLLM specialist evals must inject these exact bytes. source_key is the sandbox stem at commit 303e7f0. Re-freeze (dojo #29/#30): the corporate_records and correspondence stems carry the corrected text, frozen in eval-environment as mutations corporate_records_specialist_v6 / correspondence_specialist_v7; each row's `superseded` block keeps the original v1 key, sha256, chars and frozen_at. Every other specialist is still the unchanged v1 bytes.",
+  "notes": "eval-environment frozen v1 specialist stems (issues #4–#8). Sandbox Modal/vLLM specialist evals must inject these exact bytes. source_key is the sandbox stem at commit 303e7f0. Re-freeze (dojo #29/#30): the corporate_records and correspondence stems carry the corrected text, frozen in eval-environment as mutations corporate_records_specialist_v6 / correspondence_specialist_v7; each row's `superseded` block keeps the original v1 key, sha256, chars and frozen_at. Every other specialist is still the unchanged v1 bytes. Default-pin move (deliberate re-freeze, 2026-10-17, sandbox PR #145): corporate_records_specialist default v6→v7 — the canonical amended text (sha256 253559fc…, eval-environment mutation corporate_records_specialist_v7, one compact line per doc_subclass with per-subclass key entities generated from the dojo's corporate_record_schema). v7 is what the vendored scoring registry and the corporate_record_schema prompt renderer (render_prompt_section / render_subclass_block) now serve, so default runs stopped contradicting the per-subclass schema law; the v5→v6 chain identity is recorded in parent_key and the original v1 identity stays in `superseded`; the v6 bytes remain available as stem corporate_records_specialist_simplified (sha256 fe13501…).",
   "specialists": {
     "contracts_specialist": {
       "eval_environment_key": "contracts_specialist_v1",
@@ -14,15 +14,15 @@
       "opening": "You are the contracts specialist."
     },
     "corporate_records_specialist": {
-      "eval_environment_key": "corporate_records_specialist_v6",
-      "parent_key": "corporate_records_specialist_v5",
-      "sandbox_stem": "corporate_records_specialist_simplified",
-      "sha256": "fe13501f667fcd9f64f7dfbf8b0f124f81d9dd039f4109288b43f106f82b1399",
-      "chars": 5865,
+      "eval_environment_key": "corporate_records_specialist_v7",
+      "parent_key": "corporate_records_specialist_v6",
+      "sandbox_stem": "corporate_records_specialist_subclass_v2",
+      "sha256": "253559fcb7ac6b36878453821a4fab0aa94228ad5add77d5aeabb06bb265134c",
+      "chars": 5462,
       "opening": "You are the corporate-records specialist.",
-      "refrozen_at": "2026-10-16T13:54:17+00:00",
-      "origin": "dojo #29/#30: corrected production_prompts text, frozen in eval-environment as a mutation",
-      "fix": "filing_number null unless an official number appears",
+      "refrozen_at": "2026-10-17T00:00:00+00:00",
+      "origin": "default-pin move v6→v7 (deliberate re-freeze, 2026-10-17, sandbox PR #145): the corporate-records default serves the canonical amended v7 text — per-subclass key entities generated from llm_dojo_scoring.corporate_record_schema (parent chain v6 = dojo #29/#30 field-guidance correction)",
+      "fix": "one compact line per doc_subclass (record_type, intent, +extra entity keys); entity_name = owning company; 403 chars shorter than v6",
       "superseded": {
         "eval_environment_key": "corporate_records_specialist_v1",
         "sha256": "484e64dd847b7bb35afebca74edc1fb6c381f0f7d5e9367ad8673bec0b8af45c",
@@ -88,6 +88,19 @@
       "source_path": "prompts/mutations.json",
       "origin": "SAND-042 RCA (#134)",
       "fix": "MAUD answer catalog generated from llm_dojo_scoring.maud_schema; no free text in maud_clauses; per-chunk answering duty"
+    },
+    {
+      "agent": "corporate_records_specialist",
+      "eval_environment_key": "corporate_records_specialist_v7",
+      "parent_key": "corporate_records_specialist_v6",
+      "sandbox_stem": "corporate_records_specialist_subclass_v2",
+      "sha256": "253559fcb7ac6b36878453821a4fab0aa94228ad5add77d5aeabb06bb265134c",
+      "chars": 5462,
+      "opening": "You are the corporate-records specialist.",
+      "frozen_at": "2026-10-17",
+      "source_path": "prompts/mutations.json",
+      "origin": "dojo corporate_record_schema (per-subclass key entities); coordinated amendment: certificate_of_formation gets its own line, subsidiary_list's subject_matter = the listing statement, keywords = subsidiary names (resolves Exios66/local-mailroom-sandbox#143 CodeRabbit finding)",
+      "fix": "one compact line per doc_subclass (record_type, intent, +extra entity keys); entity_name = owning company; 403 chars shorter than v6"
     }
   ]
 }

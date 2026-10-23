@@ -44,6 +44,14 @@ def new_record(**fields: Any) -> dict[str, Any]:
 
 
 def append(record: dict[str, Any], path: Path | None = None) -> Path:
+    """Append an experiment record and regenerate its Markdown summary.
+
+    Mutate ``record`` with the active locked generation identity when present.
+    Return the JSONL path; append and summary-generation errors propagate.
+    """
+    from mailroom_sandbox.runtime import stamp_locked_record
+
+    stamp_locked_record(record)
     dest = path or jsonl_path()
     written = append_experiment(record, dest)
     regenerate_markdown(dest)

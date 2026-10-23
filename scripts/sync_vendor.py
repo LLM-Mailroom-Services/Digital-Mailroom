@@ -6,8 +6,8 @@ The sandbox ships llm-mailroom + llm-dojo-scoring as TRACKED snapshots under
 ``packages/local-mailroom-sandbox/vendor/`` (DMR-057 self-containment). The
 drift guard (``packages/local-mailroom-sandbox/tests/test_vendor_drift.py``)
 requires the vendored trees to stay byte-identical to the workspace packages —
-the monorepo is the development source of truth. This script is the refresh
-leg the drift guard's docstring documents.
+the workspace consumes authoritative standalone commits. This script generates
+vendor copies only after those source revisions are imported into the workspace.
 
 DMR-070 lesson: a copy-only refresh never deletes — that is how the
 docclass-era compliance files survived their upstream removal (59c47401) and

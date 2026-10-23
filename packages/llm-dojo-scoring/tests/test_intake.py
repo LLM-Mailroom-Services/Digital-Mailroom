@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import partial
+
 import pytest
 
 from llm_dojo_scoring.intake import (
@@ -22,7 +24,99 @@ from llm_dojo_scoring.suites import get_suite
 from llm_dojo_scoring.tasks import score_task
 
 
+@pytest.fixture(params=["direct", "dispatch"])
+def intake_scorer(request):
+    """Exercise intake's direct API and public task routing with the same cases."""
+    if request.param == "direct":
+        return score_intake
+    return partial(score_task, "intake")
+
+
+@pytest.mark.parametrize("sizes", [(2, 1), (1, 2), (2, 0), (0, 2)])
+def test_unequal_intake_payload_batches_fail_before_normalizing(
+    intake_scorer, mocker, sizes
+):
+    """Reject incomplete payload batches before normalizing any paired row."""
+    mocker.patch(
+        "llm_dojo_scoring.intake.deterministic_normalize",
+        side_effect=AssertionError("An incomplete batch must not be scored"),
+    )
+    n_expected, n_predicted = sizes
+    with pytest.raises(
+        ValueError, match=rf"expected.*{n_expected}.*predicted.*{n_predicted}"
+    ):
+        intake_scorer(
+            [{"raw_text": "A\u00a0B"}] * n_expected,
+            [{"changed": True}] * n_predicted,
+        )
+
+
+@pytest.mark.parametrize("sizes", [(2, 1), (1, 2)])
+def test_intake_raw_text_override_does_not_bypass_batch_cardinality(sizes):
+    """A shared raw-text override still requires one prediction per document."""
+    n_expected, n_predicted = sizes
+    with pytest.raises(
+        ValueError, match=rf"expected.*{n_expected}.*predicted.*{n_predicted}"
+    ):
+        score_intake(
+            [None] * n_expected,
+            [{"text": "A B"}] * n_predicted,
+            raw_text="A\u00a0B",
+        )
+
+
+def test_equal_intake_batches_preserve_order_and_mean_scores(intake_scorer):
+    """Score every aligned row, including an incorrect final prediction."""
+    result = intake_scorer(
+        ["A\u00a0B", "C\u00a0D"],
+        ["A B", {"text": "wrong", "method": "llm", "changed": True}],
+    )
+
+    assert result["n"] == 2
+    assert [row["gold_text"] for row in result["per_document"]] == ["A B", "C D"]
+    assert [row["accuracy"] for row in result["per_document"]] == [1.0, 0.0]
+    assert result["per_document"][1]["intake_method"] == "llm"
+    assert result["accuracy"] == 0.5
+    assert result["f1_macro"] == 0.5
+    assert result["intake_changed_rate"] == 1.0
+    assert result["intake_prep_completeness"] == 1.0
+
+
+def test_equal_intake_payload_batches_keep_optional_match_denominators(intake_scorer):
+    """Missing payload flags stay excluded while present mismatches lower scores."""
+    result = intake_scorer(
+        ["agree-\nment", "A\n\n\n\nB"],
+        [
+            {"changed": True, "hyphen_unwraps": 1},
+            {"changed": False, "collapsed_blank_runs": 1},
+        ],
+    )
+
+    assert result["n"] == 2
+    assert [row["accuracy"] for row in result["per_document"]] == [1.0, 0.5]
+    assert result["accuracy"] == 0.75
+    assert result["f1_macro"] == 0.75
+    assert result["intake_changed_match"] == 0.5
+    assert result["intake_hyphen_unwraps_match"] == 1.0
+    assert result["intake_collapsed_blanks_match"] == 1.0
+    assert result["intake_messy_match"] is None
+
+
+def test_empty_intake_batches_return_empty_aggregates(intake_scorer):
+    """Equal empty lists remain valid without inventing scored documents."""
+    result = intake_scorer([], [])
+
+    assert result["n"] == 0
+    assert result["per_document"] == []
+    assert result["accuracy"] == 0.0
+    assert result["f1_macro"] == 0.0
+    assert result["intake_changed_rate"] == 0.0
+    assert result["intake_hyphen_unwraps"] == 0.0
+    assert result["intake_changed_match"] is None
+
+
 def test_normalize_collapses_nbsp_and_unwraps_hyphens():
+    """Normalize nonbreaking spaces and wrapped words while tracking cleanup statistics."""
     cleaned, stats = deterministic_normalize("A\u00a0B\n\n\n\nagree-\nment")
     assert "A B" in cleaned
     assert "agreement" in cleaned
@@ -34,6 +128,7 @@ def test_normalize_collapses_nbsp_and_unwraps_hyphens():
 
 
 def test_empty_text_is_not_messy():
+    """Leave empty text unchanged and report no cleanup or messiness."""
     cleaned, stats = deterministic_normalize("")
     assert cleaned == ""
     assert stats["changed"] is False
@@ -41,6 +136,7 @@ def test_empty_text_is_not_messy():
 
 
 def test_normalize_is_idempotent():
+    """Avoid further text changes or change flags after normalization."""
     raw = "Hello   world.\r\n\r\n\r\nagree-\nment\n"
     once, _ = deterministic_normalize(raw)
     twice, stats = deterministic_normalize(once)
@@ -49,12 +145,14 @@ def test_normalize_is_idempotent():
 
 
 def test_markdown_table_rows_keep_internal_spaces():
+    """Preserve meaningful internal spacing in Markdown table rows."""
     raw = "| col  a | col  b |\n\n\nNext."
     cleaned, _ = deterministic_normalize(raw)
     assert "| col  a | col  b |" in cleaned
 
 
 def test_apply_intake_payload_has_eval_keys():
+    """Return cleaned text and the evaluation metadata expected from live intake."""
     cleaned, stats = apply_intake("A\n\n\n\nB", filename="x.txt")
     for key in INTAKE_SPAN_KEYS:
         assert key in stats
@@ -63,6 +161,7 @@ def test_apply_intake_payload_has_eval_keys():
 
 
 def test_prep_completeness_fails_when_wraps_remain():
+    """Reduce preparation completeness for residual line wraps and restore it after cleanup."""
     dirty = "agree-\nment\n\n\n\nNext"
     assert intake_prep_completeness(dirty) < 1.0
     cleaned, _ = deterministic_normalize(dirty)
@@ -70,6 +169,7 @@ def test_prep_completeness_fails_when_wraps_remain():
 
 
 def test_score_intake_clerk_against_itself():
+    """Give clerk output perfect scores and preserve normalization statistics."""
     raw = "A\u00a0B\n\n\n\nagree-\nment"
     cleaned, stats = apply_intake(raw)
     out = score_intake(raw, cleaned)
@@ -81,6 +181,7 @@ def test_score_intake_clerk_against_itself():
 
 
 def test_score_intake_detects_skipped_prep():
+    """Penalize skipped text preparation in accuracy and completeness metrics."""
     raw = "Hello   world.\n\n\n\nNext"
     out = score_intake(raw, raw)
     assert out["accuracy"] == 0.0
@@ -88,6 +189,7 @@ def test_score_intake_detects_skipped_prep():
 
 
 def test_llm_intake_scored_against_clerk_gold():
+    """Score matching LLM cleanup against deterministic clerk ground truth."""
     raw = "The par-\nties agree."
     gold, _ = apply_intake(raw)
     llm_cleaned = "The parties agree."  # LLM also unwrapped
@@ -99,6 +201,7 @@ def test_llm_intake_scored_against_clerk_gold():
 
 
 def test_span_payload_without_text_scores_flags():
+    """Compare intake change, messiness, and unwrap flags without requiring text."""
     raw = "A\n\n\n\nB"
     _, gold_stats = apply_intake(raw)
     payload = {k: gold_stats[k] for k in INTAKE_SPAN_KEYS}
@@ -109,6 +212,7 @@ def test_span_payload_without_text_scores_flags():
 
 
 def test_suite_and_profile_are_computable_prep_not_cost():
+    """Expose intake preparation tasks, handoff metadata, and computable metrics."""
     profile = get_profile("intake")
     assert profile.tasks == ("prepare", "normalize")
     assert profile.metrics_bundle == "intake"
@@ -141,6 +245,7 @@ def test_suite_and_profile_are_computable_prep_not_cost():
 
 
 def test_score_task_intake_and_missing_inputs():
+    """Route intake scoring through the task API and validate required inputs."""
     raw = "x  y"
     cleaned, _ = apply_intake(raw)
     out = score_task("intake", [raw], [cleaned])

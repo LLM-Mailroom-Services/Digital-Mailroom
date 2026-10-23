@@ -99,7 +99,14 @@ def test_run_resume_passes_resolved_config_path(tmp_path, monkeypatch):
     cfg = nested / "run.yaml"
     cfg.write_text("schema: sandbox.run/v1\n", encoding="utf-8")
     store = RunStore(run_dir("cli-resume"))
-    store.write_lock({"run_id": "cli-resume", "spec_hash": "s1"})
+    from mailroom_sandbox.job.preflight import preflight
+    from mailroom_sandbox.job.spec import RunSpec
+
+    source = tmp_path / "resume-input.jsonl"
+    source.write_text('{"id":"d0","doc_text":"hello"}\n')
+    prepared = RunSpec(run_id="cli-resume", dataset={"provider": "file", "local_path": str(source)},
+        engine={"kind": "vllm-local", "modal": None}, trace={"sink": "none"})
+    assert preflight(prepared, offline=True)["status"] == "prepared"
 
     spec = SimpleNamespace(
         profile="ollama",

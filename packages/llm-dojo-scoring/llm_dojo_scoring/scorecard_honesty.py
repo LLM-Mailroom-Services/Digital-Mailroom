@@ -81,6 +81,12 @@ _ACRONYM_BOUNDARY = re.compile(r"([A-Z]+)([A-Z][a-z])")
 
 # Registry metric name → canonical metric_id (issue #17).
 _METRIC_ID_BY_NAME: dict[str, str] = {
+    'sandbox_maud_accuracy': 'maud.sandbox_labeled.micro_accuracy',
+    'sandbox_maud_clean_accuracy': 'maud.sandbox_clean_subset.micro_accuracy',
+    'sandbox_maud_precision_answered': 'maud.sandbox_answered.precision',
+    'sandbox_cuad_presence_f1': 'cuad.sandbox_category_detection.micro_f1',
+    'sandbox_cuad_presence_precision': 'cuad.sandbox_category_detection.micro_precision',
+    'sandbox_cuad_presence_recall': 'cuad.sandbox_category_detection.micro_recall',
     "extraction_overall_score": "pipeline.extraction.overall",
     "overall_score": "pipeline.extraction.overall",
     "extraction_f1": "pipeline.extraction.field_micro_f1",
@@ -110,6 +116,9 @@ _CLASS_METRIC_IDS: dict[str, tuple[str, ...]] = {
         "pipeline.extraction.field_micro_precision",
         "pipeline.extraction.field_micro_recall",
         "maud.question.micro_accuracy",
+        'cuad.sandbox_category_detection.micro_f1',
+        'cuad.sandbox_category_detection.micro_precision',
+        'cuad.sandbox_category_detection.micro_recall',
     ),
     "merger_agreement": (
         "pipeline.extraction.overall",
@@ -119,6 +128,9 @@ _CLASS_METRIC_IDS: dict[str, tuple[str, ...]] = {
         "pipeline.extraction.field_micro_f2",
         "pipeline.extraction.field_micro_precision",
         "pipeline.extraction.field_micro_recall",
+        'maud.sandbox_labeled.micro_accuracy',
+        'maud.sandbox_clean_subset.micro_accuracy',
+        'maud.sandbox_answered.precision',
     ),
     "corporate_record": (
         "pipeline.extraction.overall",
@@ -186,6 +198,7 @@ class UnknownMetricNameError(KeyError):
     """Raised when a metric name has no canonical ``metric_id`` (#17)."""
 
     def __str__(self) -> str:  # KeyError repr-quotes its message by default
+        """Return the error message without KeyError's added quotation marks."""
         return str(self.args[0]) if self.args else ""
 
 
@@ -195,11 +208,14 @@ class ProvenanceExportError(ValueError):
 
 @dataclass(frozen=True)
 class GtAssessment:
+    """Ground-truth scorability status and an optional reason for refusing a score."""
+
     status: str  # "scored" | "unscorable"
     reason: str | None = None
 
     @property
     def scorable(self) -> bool:
+        """Return whether the assessment explicitly permits scoring."""
         return self.status == "scored"
 
 
@@ -232,6 +248,7 @@ def metric_id_for(
 
 
 def metric_ids_for_class(doc_class: str) -> tuple[str, ...]:
+    """Return class-specific metric IDs, falling back to generic extraction."""
     return _CLASS_METRIC_IDS.get(doc_class, ("pipeline.extraction.overall",))
 
 
@@ -353,6 +370,7 @@ def unscorable_extraction_result(
     doc_class: str = "extraction",
     metric_id: str | None = None,
 ) -> dict[str, Any]:
+    """Build an unscorable extraction payload with null scores and a GT reason."""
     mid = metric_id or metric_id_for("extraction_overall_score", doc_class=doc_class)
     return {
         "status": "unscorable",
@@ -371,8 +389,14 @@ def aggregate_quality_honest(
     doc_results: Sequence[Mapping[str, Any]],
     *,
     score_key: str = "overall_score",
+    precision: int | None = 4,
 ) -> dict[str, Any]:
-    """Quality mean excludes unscorable rows — never folds them in as 0.0 (#16)."""
+    """Quality mean excludes unscorable rows, retaining real zero (#16).
+
+    The default keeps four-decimal fmean behavior. ``precision=None`` preserves
+    legacy consumer sum/length arithmetic without rounding; population and
+    empty-support policy remain canonical for either precision mode.
+    """
     scored_vals: list[float] = []
     n_unscorable = 0
     for row in doc_results:
@@ -388,7 +412,10 @@ def aggregate_quality_honest(
     return {
         "n_scored": n_scored,
         "n_unscorable": n_unscorable,
-        "quality_mean": round(fmean(scored_vals), 4) if scored_vals else None,
+        "quality_mean": (
+            (sum(scored_vals) / n_scored if precision is None else round(fmean(scored_vals), precision))
+            if scored_vals else None
+        ),
         "quality_population": "scored_only",
         # Nothing scored (empty batch or every row unscorable) proves nothing.
         "export_verdict": "unproven" if n_scored == 0 else "scored",
@@ -396,12 +423,14 @@ def aggregate_quality_honest(
 
 
 def export_quality_verdict(assessment: GtAssessment | None) -> str:
+    """Label unscorable assessments unproven and all other cases scored."""
     if assessment is None or assessment.scorable:
         return "scored"
     return "unproven"
 
 
 def _try_parse_json(text: str) -> tuple[Any | None, bool]:
+    """Parse JSON-looking text, returning its value and a success flag."""
     stripped = text.strip()
     if not stripped:
         return None, False
@@ -607,6 +636,7 @@ def detect_maud_gt_ambiguity(exp_labels: Mapping[str, Any]) -> set[str]:
 
 
 def _fold(value: Any) -> str:
+    """Lowercase a value and collapse non-ASCII-alphanumeric runs to spaces."""
     return re.sub(r"[^a-z0-9]+", " ", str(value or "").strip().lower()).strip()
 
 
@@ -641,15 +671,17 @@ def summarize_run_completion(
     error_hist: dict[str, int] = {}
     n_errored = 0
     for rec in records:
-        err = rec.get("error") or rec.get("error_class") or rec.get("finish_reason")
+        success_tokens = {
+            "stop", "completed", "success", "none", "",
+            "end_turn", "eos", "stop_sequence", "tool_calls",
+        }
+        # A success-like field cannot mask an independent failure signal.
+        err = next((value for value in (
+            rec.get("error"), rec.get("error_class"), rec.get("finish_reason")
+        ) if value and str(value).strip().lower() not in success_tokens), None)
         status = str(rec.get("status") or "")
         is_error = bool(rec.get("errored") or status.upper().startswith("ERROR"))
-        if not is_error and err:
-            token = str(err)
-            is_error = token.lower() not in {
-                "stop", "completed", "success", "none", "",
-                "end_turn", "eos", "stop_sequence", "tool_calls",
-            }
+        is_error = is_error or err is not None
         if not is_error:
             continue
         n_errored += 1
@@ -736,6 +768,7 @@ def stamp_provenance(
 
 
 def _absent(value: Any) -> bool:
+    """Treat only None and blank strings as absent, preserving zero-valued seeds."""
     # 0 is a real draw seed; only None / "" count as missing.
     return value is None or (isinstance(value, str) and not value.strip())
 
@@ -808,6 +841,7 @@ def validate_comparison_provenance(
 
 
 def normalize_serving_kind_token(kind: str | None) -> str | None:
+    """Canonicalize serving-kind aliases while preserving empty inputs."""
     if not kind:
         return kind
     token = str(kind).strip().lower()

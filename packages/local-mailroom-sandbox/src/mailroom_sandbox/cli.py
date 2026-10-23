@@ -84,6 +84,7 @@ def _one_line(exc: BaseException) -> str:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the sandbox CLI parser with subcommands and handler defaults."""
     shared = argparse.ArgumentParser(add_help=False)
     shared.add_argument("--profile", default=os.environ.get("SANDBOX_PROFILE") or "ollama")
     shared.add_argument("--model", default=None, help="Override every agent's model tag")
@@ -125,7 +126,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser(
         "fetch-deps",
-        help="Refresh tracked vendor snapshots (llm-mailroom v0.7.1, llm-dojo-scoring v0.22.0) from pinned tags",
+        help=(
+            "Refresh tracked vendor snapshots from the monorepo workspace when "
+            "present, otherwise reviewed, SHA-frozen standalone source refs"
+        ),
         parents=[shared],
     )
     p.add_argument("--visualizer", action="store_true", help="Also clone The-Mailroom (Langfuse observer)")
@@ -1071,44 +1075,34 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
     """Refresh the TRACKED vendor snapshots (DMR-057/DMR-070).
 
     The family code ships in-repo (DMR-057), so a fresh checkout needs no
-    network. Refresh order (DMR-070 rework): when the sandbox checkout lives
-    inside the Digital-Mailroom monorepo, the workspace package is the
-    development source of truth and the vendor tree MIRRORS it — carrying
-    BOTH content updates AND deletions (a copy-only refresh is how the
-    removed docclass-era compliance files survived their upstream deletion).
-    Standalone clones fall back to the tag-based clone refresh, with a loud
-    warning that tags can lag removals (the v0.7.1 tag predates 59c47401).
-
-    If ``args.visualizer`` is true, also clone The-Mailroom or update its
-    existing Git checkout with a fast-forward-only pull. Nonzero statuses
-    do not skip later vendors or the requested visualizer operation. Return
-    the first nonzero status, or 0 if none is reported; a failed visualizer
-    pull uses status 1.
-
-    ``OSError`` exceptions from filesystem operations or starting Git
-    propagate and stop processing.
+    network. When present, the Digital-Mailroom monorepo workspace packages
+    are mirrored into vendor, carrying both content updates and deletions.
+    Otherwise, refresh uses reviewed standalone main refs frozen to the
+    SHAs in _VENDOR_PINS. A moved-ref check rejects a SHA mismatch before
+    any tracked vendor files are replaced.
     """
     print(
         "vendor trees are tracked snapshots (self-contained); fetch-deps "
         "refreshes them — workspace mirror first (offline, carries "
-        "deletions), tag-based clone fallback for standalone clones"
+        "deletions), otherwise reviewed standalone main refs frozen to SHAs; "
+        "moved refs are rejected before tracked vendor files are replaced"
     )
     rc = 0
-    for name, tag, url in _VENDOR_PINS:
+    for name, pin, url, sha in _VENDOR_PINS:
         ws = _monorepo_workspace_pkg(name)
         if ws is not None:
-            # Always run every refresh; `rc or call()` skips later vendors (DMR-088).
-            r = _refresh_vendor_from_workspace(name, ws)
-            rc = rc or r
+            refresh_rc = _refresh_vendor_from_workspace(name, ws)
+            rc = rc or refresh_rc
         else:
             print(
                 f"== {name}: no monorepo workspace detected — falling back to the "
-                f"tag-based refresh ({tag}); NOTE tags can lag removals — prefer "
-                "the monorepo workspace as the source of truth",
+                f"reviewed standalone source refresh ({pin}" + (f" @ sha {sha[:12]})" if sha else ")") +
+                "; moved refs fail the SHA check before tracked vendor files "
+                "are replaced",
                 file=sys.stderr,
             )
-            r = _refresh_vendor(name, tag, url)
-            rc = rc or r
+            refresh_rc = _refresh_vendor(name, pin, url, sha)
+            rc = rc or refresh_rc
     if getattr(args, "visualizer", False):
         dest = vendor_dir() / "The-Mailroom"
         if dest.is_dir() and (dest / ".git").exists():
@@ -1133,16 +1127,14 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
     return rc
 
 
-# (vendor name, pinned tag, upstream url) — STANDALONE-clone fallback pins.
-# In the monorepo, fetch-deps ignores these and mirrors the workspace package
-# instead (DMR-057/070): tags can lag removals — the v0.7.1 tag predates the
-# five-class taxonomy removal (59c47401), so a tag-based refresh of
-# llm-mailroom would resurrect the deleted docclass-era files.
-# llm-dojo-scoring v0.22.0 is tagged (released 2026-10-16, commit a2862cec),
-# so the standalone fallback resolves the tag with no silent downgrade.
-_VENDOR_PINS: tuple[tuple[str, str, str], ...] = (
-    ("llm-mailroom", "v0.7.1", "https://github.com/Exios66/llm-mailroom.git"),
-    ("llm-dojo-scoring", "v0.22.0", "https://github.com/Exios66/llm-dojo-scoring.git"),
+# Reviewed standalone main refs frozen to exact source SHAs. Mirror monorepo
+# workspace packages when available, after importing those reviewed revisions.
+# The fallback rejects moved refs before replacing any tracked vendor file.
+_VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
+    ("llm-mailroom", "main",
+     "https://github.com/Exios66/llm-mailroom.git", "c529d3f3e4c10865b90f7d7d4675dbb2b8fbae5e"),
+    ("llm-dojo-scoring", "main",
+     "https://github.com/Exios66/llm-dojo-scoring.git", "bd5ed7c7f098f773b7e527f227cf2cf6e5e9e5f4"),
 )
 
 
@@ -1197,7 +1189,7 @@ def _refresh_vendor_from_workspace(name: str, ws_root: Path) -> int:
     dest_root = vendor_dir() / name / "src"
     if ws_root.name != "src":
         # llm-dojo-scoring layout: the package dir relocates under src/
-        # (mirrors the tag-based path's DMR-058 normalization).
+        # (mirrors the standalone path's DMR-058 normalization).
         dest_root = dest_root / ws_root.name
     dest_root.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1244,30 +1236,59 @@ def _package_src_dir(clone_root: Path) -> Path | None:
     return None
 
 
-def _refresh_vendor(name: str, tag: str, url: str) -> int:
+def _refresh_vendor(name: str, pin: str, url: str, sha: str | None = None) -> int:
     import shutil
 
     stamp = subprocess.run(
-        ["git", "ls-remote", "--tags", url, tag],
+        ["git", "ls-remote", url, pin],
         capture_output=True,
         text=True,
         check=False,
     )
     if stamp.returncode != 0 or not stamp.stdout.strip():
-        print(f"!! could not resolve {tag} of {url}", file=sys.stderr)
+        print(f"!! could not resolve {pin} of {url}", file=sys.stderr)
         return 1
     work = vendor_dir() / ".refresh" / name
     if work.is_dir():
         shutil.rmtree(work)
     work.parent.mkdir(parents=True, exist_ok=True)
     clone = subprocess.run(
-        ["git", "clone", "--depth", "1", "--branch", tag, url, str(work)],
+        ["git", "clone", "--depth", "1", "--branch", pin, url, str(work)],
         capture_output=True,
         text=True,
         check=False,
     )
     if clone.returncode != 0:
-        print(f"!! clone {name}@{tag} failed: {clone.stderr.strip()}", file=sys.stderr)
+        print(f"!! clone {name}@{pin} failed: {clone.stderr.strip()}", file=sys.stderr)
+        return 1
+    # Sha-freeze verdict FIRST: the vendored snapshot is byte-pinned to a
+    # commit; a moved ref tip (a branch advances, a tag is re-pointed) must
+    # fail loudly HERE, before any tracked tree is replaced with files the
+    # sandbox was never certified against.
+    head_proc = subprocess.run(
+        ["git", "-C", str(work), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    head = "unknown"
+    if head_proc.returncode != 0:
+        print(
+            f"!! could not read the refreshed {name} commit: "
+            f"{head_proc.stderr.strip() or head_proc.stdout.strip()}",
+            file=sys.stderr,
+        )
+    else:
+        head = head_proc.stdout.strip()
+    if sha and head != sha:
+        print(
+            f"!! {name} pin mismatch: {pin} resolved to commit {head[:12]} but the "
+            f"vendored snapshot is frozen at {sha[:12]} — refusing to vendor a "
+            "tree the sandbox was never certified against. Re-pin "
+            "_VENDOR_PINS in src/mailroom_sandbox/cli.py first.",
+            file=sys.stderr,
+        )
+        shutil.rmtree(work, ignore_errors=True)
         return 1
     dest = vendor_dir() / name
     dest.mkdir(parents=True, exist_ok=True)
@@ -1278,7 +1299,7 @@ def _refresh_vendor(name: str, tag: str, url: str) -> int:
     package_src = _package_src_dir(work)
     if package_src is None:
         print(
-            f"!! unexpected layout in {name}@{tag} clone (no src/, llm_dojo_scoring/, "
+            f"!! unexpected layout in {name}@{pin} clone (no src/, llm_dojo_scoring/, "
             f"or llm_mailroom/ at root) — vendor/{name} left untouched",
             file=sys.stderr,
         )
@@ -1290,23 +1311,8 @@ def _refresh_vendor(name: str, tag: str, url: str) -> int:
     # package at the clone root and gets normalized under src/ (DMR-058).
     dest_src = dest / "src" / package_src.name if package_src.name != "src" else dest / "src"
     shutil.copytree(package_src, dest_src, ignore=shutil.ignore_patterns("tests", "__pycache__", "*.pyc"))
-    head_proc = subprocess.run(
-        ["git", "-C", str(work), "rev-parse", "HEAD"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if head_proc.returncode != 0:
-        head = "unknown"
-        print(
-            f"!! could not read the refreshed {name} commit: "
-            f"{head_proc.stderr.strip() or head_proc.stdout.strip()}",
-            file=sys.stderr,
-        )
-    else:
-        head = head_proc.stdout.strip()
     shutil.rmtree(work, ignore_errors=True)
-    print(f"== refreshed vendor/{name} @ {tag} (commit {head[:12]}) — commit the diff")
+    print(f"== refreshed vendor/{name} @ {pin} (commit {head[:12]}) — commit the diff")
     return 0
 
 
@@ -2619,13 +2625,23 @@ def _cmd_modal_matrix_env(args) -> int:
 
 
 def _run_load_spec(args) -> tuple[object, Path]:
-    """Load the run spec and return it with a resolved ``--config`` path."""
+    """Return a run spec with CLI overrides and its resolved config path.
+
+    Per-agent and per-role CLI choices win over the YAML selections.
+    Raises SystemExit when ``--config`` is absent; loading and override
+    validation errors propagate.
+    """
     config = getattr(args, "config", None)
     if not config:
         raise SystemExit("run commands need --config <run.yaml>")
     from mailroom_sandbox.job.spec import load_run_spec
 
     spec = load_run_spec(config)
+    if getattr(args, "model", None):
+        spec.engine.model = args.model
+    cli_models = _agent_models(args)
+    if cli_models:
+        spec.agent_models = {**getattr(spec, "agent_models", {}), **cli_models}
     cli_versions = getattr(args, "prompt_versions", None)
     if cli_versions:
         # --prompt-version wins per role over the spec's prompt.versions; the merged
@@ -2650,7 +2666,7 @@ def _run_id_required(args) -> str:
 
 # Preflight refusals are exit 3 — an operator must decide (re-lock, or name the
 # takeover). Any other non-prepared status is exit 1: something is broken.
-_REFUSAL_STATUSES = {"drift_refused", "foreign_store_refused"}
+_REFUSAL_STATUSES = {"drift_refused", "foreign_store_refused", "busy_refused"}
 
 
 def _cmd_run_preflight(args) -> int:
@@ -2682,18 +2698,6 @@ def _cmd_run_start(args) -> int:
     from mailroom_sandbox.job.spec import run_dir
 
     spec, config_path = _run_load_spec(args)
-    # DMR-072: the job path must activate the runtime profile like every other
-    # live CLI path. Without it the vendored pipeline loads its own default
-    # config (openrouter, no key) and the sorter node falls through to the
-    # graph's doc_type="unknown" default — a 50-item "run" then "completes" in
-    # seconds with 0.0 scores, ok=True rows, and zero endpoint calls (the
-    # silent-fallback trap; now also hard-guarded in runner._predict_row).
-    activate(
-        spec.profile,
-        model=_activation_model(spec, getattr(args, "model", None)),
-        agent_models=_agent_models(args),
-        agent_knobs=_activation_knobs(spec),
-    )
     if getattr(args, "mock", None) is not None or getattr(args, "local", None) is not None:
         spec.job.mock = bool(args.mock)
     report = preflight.preflight(
@@ -2713,6 +2717,7 @@ def _cmd_run_start(args) -> int:
         _print({"run_id": run_id, "state": "dry_run"})
         return 0
     store = RunStore(run_dir(run_id))
+    store.verify_generation()
     mode = getattr(args, "mode", None) or spec.job.mode
     if mode == "modal":
         # DMR-048: default live probe before firing — a stale VLLM_BASE_URL
@@ -2807,7 +2812,11 @@ def _endpoint_tracer(run_id: str, lock: dict):
 
 
 def _finalize_remote(store) -> bool:
-    """Pull a terminal remote run's dir back and append its records locally."""
+    """Pull terminal artifacts and append records matching the local generation.
+
+    Return False for a reported transfer/validation failure, True otherwise.
+    Store validation, JSON parsing, and local log write errors propagate.
+    """
     from mailroom_sandbox.eval import experiment_log
     from mailroom_sandbox.job import remote as job_remote
 
@@ -2822,11 +2831,22 @@ def _finalize_remote(store) -> bool:
     if record_path.is_file():
         for line in record_path.read_text(encoding="utf-8").splitlines():
             if line.strip():
-                experiment_log.append(json.loads(line))
+                from mailroom_sandbox.job.evidence import record_matches
+
+                record = json.loads(line)
+                lock = store.verify_generation()
+                if record_matches(record, store, lock, state=store.state()):
+                    experiment_log.append(record)
     return True
 
 
 def _watch_remote(store, args) -> int:
+    """Poll remote progress and finalize terminal artifacts into the local store.
+
+    Return 0 for a completed run or 1 for failure, failed finalization, or
+    20 minutes without a heartbeat when the remote call is no longer alive.
+    Store and finalization exceptions propagate.
+    """
     from mailroom_sandbox.job import remote as job_remote
     from mailroom_sandbox.tui.session import MailroomConsole, remote_progress_line
 
@@ -2863,7 +2883,8 @@ def _watch_remote(store, args) -> int:
             except ValueError:
                 pass
         if state in {"done", "failed"}:
-            _finalize_remote(store)
+            if not _finalize_remote(store):
+                return 1
             console.complete(state=state, summary=store.run_id)
             if state == "failed":
                 error = (progress or {}).get("error") or (store.read_checkpoint() or {}).get(
@@ -2891,6 +2912,12 @@ def _watch_remote(store, args) -> int:
 
 
 def _cmd_run_status(args) -> int:
+    """Print the local summary and available remote progress, or watch the run.
+
+    Fetch terminal remote artifacts before reporting. Return 1 for a missing
+    lock or failed finalization, otherwise 0, or the watch exit code.
+    Store and remote-operation exceptions propagate.
+    """
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.spec import run_dir
     from mailroom_sandbox.job import remote as job_remote
@@ -2905,7 +2932,8 @@ def _cmd_run_status(args) -> int:
     remote_progress = job_remote.read_progress(store) if _job_mode(store) == "modal" else None
     if remote_progress and remote_progress.get("state") in {"done", "failed"}:
         # Terminal remote run: sync items/checkpoints/records back locally.
-        _finalize_remote(store)
+        if not _finalize_remote(store):
+            return 1
     summary = store.summary()
     payload = summary
     if remote_progress:
@@ -2915,23 +2943,18 @@ def _cmd_run_status(args) -> int:
 
 
 def _cmd_run_resume(args) -> int:
-    """Resume a locked run after re-checking preflight when ``--config`` is set."""
+    """Resume a locked run after re-checking preflight when ``--config`` is set.
+
+    Run-ID-only overrides must match the frozen model and prompt choices.
+    Return 3 for drift or preflight refusal, 1 for missing/invalid artifacts
+    or execution failure, 2 for a paused local run, and 0 for local completion
+    or remote dispatch/attach. Watching returns its own exit code.
+    Uncaught spec-loading and remote-operation errors propagate.
+    """
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.spec import run_dir
 
     run_id = _run_id_required(args)
-    # DMR-072: same profile-activation contract as `run start` — resuming an
-    # endpoint-mode job must not re-enter the unactivated silent-fallback path.
-    if getattr(args, "config", None):
-        from mailroom_sandbox.job.spec import load_run_spec
-
-        _spec = load_run_spec(args.config)
-        activate(
-            _spec.profile,
-            model=_activation_model(_spec, getattr(args, "model", None)),
-            agent_models=_agent_models(args),
-            agent_knobs=_activation_knobs(_spec),
-        )
     store = RunStore(run_dir(run_id))
     if not store.read_lock():
         _print({"run_id": run_id, "error": "no locked run to resume"})
@@ -2950,6 +2973,27 @@ def _cmd_run_resume(args) -> int:
         if report.get("status") != "prepared":
             _print(report)
             return 3 if report.get("status") in _REFUSAL_STATUSES else 1
+    # A run-id-only resume may repeat the locked choices, never alter them
+    # implicitly. New choices need a config and an explicit safe generation reset.
+    try:
+        lock = store.verify_generation()
+    except RuntimeError as exc:
+        _print({"run_id": run_id, "status": "failed", "detail": str(exc)})
+        return 1
+    cli_model = getattr(args, "model", None)
+    cli_models = _agent_models(args) or {}
+    from mailroom_sandbox.prompt_versions import parse_selection, selection_from_lock
+
+    cli_prompts = parse_selection(getattr(args, "prompt_versions", None))
+    locked_prompts = selection_from_lock(store.read_prompt_lock() or {}).keys
+    drifted = (
+        (cli_model is not None and cli_model != (lock.get("engine") or {}).get("model"))
+        or any((lock.get("agent_models") or {}).get(name) != value for name, value in cli_models.items())
+        or any(locked_prompts.get(name) != value for name, value in cli_prompts.items())
+    )
+    if drifted:
+        _print({"run_id": run_id, "status": "drift_refused", "detail": "runtime overrides differ from the lock"})
+        return 3
     if _job_mode(store) == "modal":
         from mailroom_sandbox.job import remote as job_remote
 
@@ -2972,6 +3016,12 @@ def _job_mode(store) -> str:
 
 
 def _cmd_run_cancel(args) -> int:
+    """Request remote cancellation or cooperative cancellation of a running local job.
+
+    Idle local runs are left without a pending request. Return 1 when no
+    local lock exists, otherwise 0 after reporting the request or idle state.
+    Remote cancellation and store errors propagate.
+    """
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.remote import cancel as remote_cancel
     from mailroom_sandbox.job.spec import run_dir
@@ -2983,11 +3033,23 @@ def _cmd_run_cancel(args) -> int:
         remote_cancel(store)
         _print({"run_id": run_id, "state": "cancel_requested"})
         return 0
-    store.write_checkpoint(
-        state="paused", cursor=cp.get("cursor", 0), total=cp.get("total", 0), remote=None
-    )
-    store.append_event("cancel_requested", "info")
-    _print(store.summary())
+    if not store.read_lock():
+        _print({"run_id": run_id, "error": "no locked run to cancel"})
+        return 1
+    # Only a running writer can consume a pending token. Otherwise an idle
+    # cancel would make the next resume pause before submitting its first row.
+    active = False
+    if cp.get("state") == "running":
+        try:
+            with store.acquire(blocking=False):
+                pass
+        except BlockingIOError:
+            active = True
+    if not active:
+        _print({"run_id": run_id, "state": cp.get("state"), "detail": "no active local runner"})
+        return 0
+    store.request_cancel()
+    _print({"run_id": run_id, "state": "cancel_requested"})
     return 0
 
 

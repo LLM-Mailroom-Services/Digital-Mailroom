@@ -2,14 +2,16 @@
 """Refresh the sandbox vendor snapshots from the workspace packages (hub#62).
 
 The sandbox ships llm-mailroom + llm-dojo-scoring as TRACKED snapshots under
-``vendor/`` (DMR-057 self-containment). The workspace monorepo packages are
-the source of truth; after a workspace change the vendor tree must be
-refreshed in the same commit or the drift guard
+``vendor/`` (DMR-057 self-containment). Standalone repositories own
+implementation. After importing their reviewed, committed source-main changes
+into the workspace, refresh generated snapshots in the same consuming change
+or the drift guard
 (``tests/test_vendor_drift.py``) fails.
 
 This script copies the workspace trees into ``vendor/`` with the sandbox
 layout (llm-mailroom src minus tests/; llm-dojo-scoring package dir under
-src/), mirroring what ``sandbox fetch-deps`` produces from the pinned tags.
+src/), mirroring what ``sandbox fetch-deps`` produces from immutable source
+pins. Never export downstream package edits to the independent repositories.
 
 Usage:
     python scripts/sync_vendor.py            # both snapshots
@@ -84,6 +86,11 @@ def _refresh(name: str, dest: Path, source: Path) -> int:
 
 
 def main() -> int:
+    """Refresh the selected snapshot or all snapshots from workspace sources.
+
+    Parse the optional snapshot name from argv, attempt every selected
+    refresh, and return the largest refresh exit code.
+    """
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument(
         "snapshot", nargs="?", choices=[s[0] for s in _SNAPSHOTS], default=None
@@ -94,7 +101,11 @@ def main() -> int:
     for name, dest, source in _SNAPSHOTS:
         if args.snapshot and name != args.snapshot:
             continue
-        rc = rc or _refresh(name, dest, source)
+        try:
+            rc = max(rc, _refresh(name, dest, source))
+        except OSError as exc:
+            print(f"error: refreshing {name}: {exc}", file=sys.stderr)
+            rc = max(rc, 1)
     return rc
 
 

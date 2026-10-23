@@ -2,7 +2,7 @@
 
 # 📬 Digital Mailroom
 
-**LLM-Mailroom constellation monorepo — one checkout, seven packages, zero cross-repo import friction.**
+**LLM-Mailroom constellation monorepo — one checkout, five core packages, zero cross-repo import friction.**
 
 Multi-agent legal-document pipeline · Deterministic scoring · Pixel-art visualizer · Local sandbox · Corpus EDA
 
@@ -24,29 +24,25 @@ Multi-agent legal-document pipeline · Deterministic scoring · Pixel-art visual
 ## Architecture
 
 ```
-                    ┌── corpus feeds (colocated data) ─────────────────────┐
-                    │  Enron-Evaluation-Environment   claims-data-eda      │
-                    │  mailroom-corpus-eda   (mailroom-corpus, P0–P6 EDA)  │
-                    └──────────────────────────┬───────────────────────────┘
-                                               ▼
-┌────────────────────────┐        ┌───────────────────────────────────────┐
-│  llm-dojo-scoring      │◀───────│           llm-mailroom                │
-│  shared scoring engine │ import │  LangGraph multi-agent pipeline       │
-└────────────────────────┘        └──────────────────┬────────────────────┘
-                                                     ▼
-                    ┌── surfaces ──────────────────────────────────────────┐
-                    │  The-Mailroom (visualizer)     local-mailroom-sandbox│
-                    └──────────────────────────┬───────────────────────────┘
-                                               ▼
-                    ┌──────────────────────────────────────────────────────┐
-                    │            Digital-Mailroom — this standalone repo   │
-                    │        (central truth; every box lives in it)        │
-                    └──────────────────────────────────────────────────────┘
+Corpus feeds ────────────────> llm-mailroom (13-node pipeline)
+                                     ▲             │
+local-mailroom-sandbox ── executes ────┘             │ uses
+  offline/local + Modal/vLLM GPU harness            ▼
+  │                                         llm-dojo-scoring
+  └────────────── uses scoring ─────────────> ALL engine + metrics
+
+llm-mailroom ────────────────┐
+local-mailroom-sandbox ──────┴── Langfuse / API ──> The-Mailroom
+                                                  shared visualizer
+
+Committed standalone sources ── import ──> Digital-Mailroom packages/
+Imported workspace packages ── generate ─> sandbox vendor snapshots
+Digital-Mailroom owns hub wiring, governance, board, and integration tooling.
 ```
 
 ## Repository Map
 
-All seven packages live in `packages/` as git subtrees and mirror independent `Exios66/*` repositories. GitHub Pages sites exist for four of them.
+Five core packages are imported into `packages/` as git subtrees from authoritative standalone `Exios66/*` repositories: four built members and one virtual corpus-EDA member. Two core packages have GitHub Pages sites; the external Enron and claims feeds have their own sites.
 
 > **Pruned in DMR-079:** `llm-entity-extraction` and `llm-mailroom-graph` left the monorepo (standalone `Exios66/*` repos only, no longer synced); `agent-mailroom` is preserved on the branch `feature/agent-mailroom`. Hub `v0.8.0` is the last release containing them (rollback point).
 
@@ -54,9 +50,7 @@ All seven packages live in `packages/` as git subtrees and mirror independent `E
 
 | Layer | Repository | GitHub/Vercel Pages |
 | :--- | :--- | :--- |
-| **Hub** (central truth) | [`LLM-Mailroom-Services/Digital-Mailroom`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) | [Dispatch Board](https://digital-mailroom-theta.vercel.app) |
-| **Corpus feed** | [`Exios66/Enron-Evaluation-Environment`](https://github.com/Exios66/Enron-Evaluation-Environment) | [exios66.github.io/Enron-Evaluation-Environment](https://exios66.github.io/Enron-Evaluation-Environment/) |
-| **Corpus feed** | [`Exios66/claims-data-eda`](https://github.com/Exios66/claims-data-eda) | [exios66.github.io/claims-data-eda](https://exios66.github.io/claims-data-eda/) |
+| **Hub** (integration) | [`LLM-Mailroom-Services/Digital-Mailroom`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) | [Dispatch Board](https://digital-mailroom-theta.vercel.app) |
 | **Corpus EDA + HF** | [`Exios66/Mailroom-Corpus-EDA`](https://github.com/Exios66/Mailroom-Corpus-EDA) | [exios66.github.io/Mailroom-Corpus-EDA](https://exios66.github.io/Mailroom-Corpus-EDA/) |
 | **Scoring engine** | [`Exios66/llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring) | — |
 | **LangGraph pipeline** | [`Exios66/llm-mailroom`](https://github.com/Exios66/llm-mailroom) | — |
@@ -65,23 +59,40 @@ All seven packages live in `packages/` as git subtrees and mirror independent `E
 
 </div>
 
+## External corpus feeds and preserved checkouts
+
+Enron and claims remain usable standalone feeds; their datasets, taxonomy and
+published sites retain their identities. DMR-093 removes their local copies
+from the active workspace after #162. Both preservation branches point to
+`59c879d9fb4480084e53137e2e9fb25650933944`; PR162 must keep these package trees byte-identical.
+
+| Layer | Repository | GitHub Pages |
+| --- | --- | --- |
+| **Corpus feed** | [`Exios66/Enron-Evaluation-Environment`](https://github.com/Exios66/Enron-Evaluation-Environment) | [exios66.github.io/Enron-Evaluation-Environment](https://exios66.github.io/Enron-Evaluation-Environment/) |
+| **Corpus feed** | [`Exios66/claims-data-eda`](https://github.com/Exios66/claims-data-eda) | [exios66.github.io/claims-data-eda](https://exios66.github.io/claims-data-eda/) |
+
+Browse [Enron's preserved package](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment/packages/Enron-Evaluation-Environment) or
+[claims' preserved package](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda/packages/claims-data-eda). Use a separate checkout of the
+preservation branch for its original complete workspace (including the old
+hub chart generator). To selectively restore a package, reconcile membership,
+sync entries, dependencies and tests explicitly; keep current root metadata.
+The earlier `feature/agent-mailroom` preservation branch remains unchanged.
+
 ## Package Details
 
 <div align="center">
 
 | Package | Role | Source |
 | :--- | :--- | :--- |
-| `llm-dojo-scoring` | Deterministic scoring, error-analysis, visualization & interpretation suite | [`Exios66/llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring) |
+| `llm-dojo-scoring` | ALL scoring engine logic and metrics; error-analysis and interpretation suite | [`Exios66/llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring) |
 | `llm-mailroom` | LangGraph multi-agent legal-document pipeline (FastAPI producer) | [`Exios66/llm-mailroom`](https://github.com/Exios66/llm-mailroom) |
-| `The-Mailroom` | Pixel-art visualizer console + hosted Observatory (Langfuse as source of truth) | [`Exios66/The-Mailroom`](https://github.com/Exios66/The-Mailroom) |
-| `local-mailroom-sandbox` | Local-first experiment sandbox (Ollama, vLLM, llama.cpp) | [`Exios66/local-mailroom-sandbox`](https://github.com/Exios66/local-mailroom-sandbox) |
-| `Enron-Evaluation-Environment` | Enron corpus EDA → pipeline-ready correspondence dataset | [`Exios66/Enron-Evaluation-Environment`](https://github.com/Exios66/Enron-Evaluation-Environment) |
-| `claims-data-eda` | CMS DE-SynPUF EDA → pipeline-ready insurance_claim dataset | [`Exios66/claims-data-eda`](https://github.com/Exios66/claims-data-eda) |
+| `The-Mailroom` | Shared visualizer for BOTH llm-mailroom and local-mailroom-sandbox; hosted Observatory | [`Exios66/The-Mailroom`](https://github.com/Exios66/The-Mailroom) |
+| `local-mailroom-sandbox` | Core offline/local and Modal/vLLM GPU testing interface for the llm-mailroom pipeline | [`Exios66/local-mailroom-sandbox`](https://github.com/Exios66/local-mailroom-sandbox) |
 | `mailroom-corpus-eda` | mailroom-corpus corpus EDA (P0–P6) + centralized HF upload helpers | [`Exios66/Mailroom-Corpus-EDA`](https://github.com/Exios66/Mailroom-Corpus-EDA) |
 
 </div>
 
-> Virtual members (`package = false`) have no build system and are not installed — they exist so their data/code stays colocated in the single checkout.
+> `mailroom-corpus-eda` is the sole virtual member (`package = false`): it has no build system and is not installed. Its EDA code and deliverables stay colocated with the four built members.
 
 ## Repository Structure
 
@@ -100,11 +111,11 @@ Digital-Mailroom/
 │   └── wiki/
 ├── scripts/
 │   ├── board_state.py     # board machine-readable parser + CI gate
-│   ├── sync_packages.py   # subtree ↔ standalone repo sync
+│   ├── sync_packages.py   # standalone source → hub imports
 │   ├── taxonomy_parity.py # taxonomy drift detector (CI gate)
 │   ├── release_chain.py   # hub changelog ↔ semver tag ↔ version gate (HUB-024)
 │   └── deploy_gh_pages.py # local GH Pages deploy (no Actions)
-└── packages/              # all seven packages (subtree + virtual)
+└── packages/              # five core packages (four built + one virtual)
 ```
 
 ## Development
@@ -130,13 +141,15 @@ Cross-package dependencies resolve to **workspace sources** during development (
 
 ## Sub-Package Sync
 
-Every package mirrors an independent `Exios66/*` repository. The monorepo is the development source of truth; `scripts/sync_packages.py` keeps the mirrors reconciled.
+Standalone `Exios66/*` repositories own package implementations. Author, test, and commit changes there; import committed sources here with `scripts/sync_packages.py`. Digital-Mailroom owns hub wiring, governance, board, and integration tooling. Workspace package copies and generated vendors are never implementation sources; never implement a package change here and push it back.
+
+Commit messages follow the [shared template and examples](docs/COMMIT_MESSAGES.md): name the changed behavior, explain the affected files, and report validation and compatibility limits.
 
 ```bash
 python scripts/sync_packages.py status                  # live status
 python scripts/sync_packages.py pull --all              # sync from upstream
-python scripts/sync_packages.py push --package llm-mailroom
-python scripts/sync_packages.py push --package llm-mailroom --patch   # content-only fast path (DMR-070); never for deletion-bearing deltas
+python scripts/sync_vendor.py                          # regenerate vendors from imported sources
+python scripts/sync_vendor.py --check                  # verify vendor identity
 python scripts/sync_packages.py snapshot                # cursor verification
 ```
 
@@ -152,7 +165,7 @@ python scripts/github_labels.py audit           # label taxonomy drift (CI gate)
 python scripts/taxonomy_parity.py               # doc-class taxonomy drift (CI gate, HUB-019 §65A)
 python scripts/release_chain.py status          # hub release chain: tags, changelog sections, hub version
 python scripts/release_chain.py check           # chain invariants; exit 1 on structural errors
-python scripts/release_chain.py cut X.Y.Z       # cut a hub release (dry run; --apply writes, --tag tags)
+python scripts/release_chain.py cut X.Y.Z       # cut a hub release (dry run; --apply writes; tag after merge)
 ./docs/wiki/sync-wiki.sh                        # push docs/wiki/ source to the GitHub wiki (--check for drift)
 ```
 
@@ -164,7 +177,7 @@ The [GitHub wiki](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/wiki
 
 ## Release Flow
 
-The monorepo is the development source of truth. Upstream repositories remain the release vehicles for deployed surfaces; propagate package changes with `scripts/sync_packages.py push` when a release is cut, then bump published pins as required.
+Release packages from their authoritative standalone repositories and update consuming pins there at release time. Import committed sources into the hub, regenerate vendors, and verify integration suites. Hub releases version the integration workspace separately; commit the cut and `uv.lock`, merge the PR, then tag the merged main tip. See [Sub-Package Sync](docs/wiki/Sub-Package-Sync.md) and [Releases](docs/wiki/Releases.md). Legacy outbound package pushes are forbidden.
 
 ---
 

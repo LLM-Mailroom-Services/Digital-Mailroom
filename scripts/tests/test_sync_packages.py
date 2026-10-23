@@ -234,6 +234,32 @@ class TestConflictHandling(SyncScriptTest):
         self.assertNotEqual(git(self.mono, "rev-parse", "-q", "--verify", "MERGE_HEAD").returncode, 0)
         self.assertEqual(git(self.mono, "status", "--porcelain").stdout.strip(), "")
 
+    def test_b3_existing_file_update_is_imported(self):
+        """An upstream edit to an existing path is not 'already contained'.
+
+        The pull fast path used to treat a matching filename as proof the new
+        blob had been imported, then advance the cursor while leaving the old
+        bytes in the package tree.
+        """
+        base = self.run_script("pull", "--package", PKG, "--json", env_extra=self.origin_env)
+        self.assertEqual(base.returncode, 0, base.stderr + base.stdout)
+        before = (self.mono / "packages" / PKG / "a.txt").read_text()
+        updated = "new source-owned scoring implementation\n"
+        (self.src / "a.txt").write_text(updated)
+        git(self.src, "add", "a.txt", check=True)
+        git(self.src, "commit", "-m", "upstream-only existing-file update", check=True)
+        git(self.src, "push", "origin", "main", check=True)
+        tip = sha_of(self.src)
+        res = self.run_script(
+            "pull", "--package", PKG, "--json", env_extra=self.origin_env
+        )
+        actual = (self.mono / "packages" / PKG / "a.txt").read_text()
+        self.assertEqual(res.returncode, 0, res.stderr + res.stdout)
+        self.assertEqual(actual, updated)
+        self.assertNotEqual(actual, before)
+        self.assertEqual(self.read_manifest()["packages"][PKG]["synced_sha"], tip)
+        self.assertNotIn("already contained", res.stdout + res.stderr)
+
 
 # --------------------------------------------------------------------------- #
 # network failure class (c), patch_push cleanup (d), manifest atomicity (e)
@@ -541,8 +567,8 @@ class TestResolutionLadder(SyncScriptTest):
 
 class TestSeverityAndDirty(SyncScriptTest):
     def test_j_multi_package_severity_law(self):
-        # second package (claims-data-eda) stays in sync -> fast path
-        origin2 = self.upstreams / "claims-data-eda.git"
+        # second package (The-Mailroom) stays in sync -> fast path
+        origin2 = self.upstreams / "The-Mailroom.git"
         src2 = self.tmp / "src2"
         git(self.tmp, "init", "--bare", "-b", "main", str(origin2), check=True)
         git(self.tmp, "clone", str(origin2), str(src2), check=True)
@@ -550,7 +576,7 @@ class TestSeverityAndDirty(SyncScriptTest):
         git(src2, "add", "-A", check=True)
         git(src2, "commit", "-m", "base2", check=True)
         git(src2, "push", "origin", "main", check=True)
-        git(self.mono, "subtree", "add", "--prefix=packages/claims-data-eda",
+        git(self.mono, "subtree", "add", "--prefix=packages/The-Mailroom",
             str(origin2), "main", check=True)
         self.diverge()  # llm-dojo-scoring now conflicts
         res = self.run_script("pull", "--all", "--json", env_extra=self.origin_env)
@@ -561,19 +587,18 @@ class TestSeverityAndDirty(SyncScriptTest):
             rec = json.loads(line)
             recs[rec["package"]] = rec
         self.assertEqual(set(recs), {
-            "Enron-Evaluation-Environment", "The-Mailroom",
-            "claims-data-eda", "llm-dojo-scoring",
+            "The-Mailroom", "llm-dojo-scoring",
             "llm-mailroom", "local-mailroom-sandbox",
             "mailroom-corpus-eda",
         })
         self.assertEqual(recs[PKG]["error_class"], "conflict")
         self.assertEqual(recs[PKG]["exit_code"], 3)
         self.assertFalse(recs[PKG]["cursor_updated"])
-        self.assertEqual(recs["claims-data-eda"]["error_class"], "ok")
-        self.assertTrue(recs["claims-data-eda"]["cursor_updated"])
+        self.assertEqual(recs["The-Mailroom"]["error_class"], "ok")
+        self.assertTrue(recs["The-Mailroom"]["cursor_updated"])
         self.assertEqual(recs["llm-mailroom"]["error_class"], "network")
         # cursor advanced ONLY for the fast-path package
-        self.assertEqual(set(self.read_manifest().get("packages", {})), {"claims-data-eda"})
+        self.assertEqual(set(self.read_manifest().get("packages", {})), {"The-Mailroom"})
 
     def test_k_allow_dirty_conflict_leaves_merge_in_place(self):
         self.diverge()

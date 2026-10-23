@@ -14,7 +14,7 @@ export const archiveApi = {
     ).then((r) => r.data),
 
   verify: (docId: string) =>
-    api.get<{ valid: boolean; computed: string; expected: string }>(
+    api.get<{ valid: boolean; computed?: string; expected?: string | null; reason?: string | null }>(
       `/v1/archive/${docId}/verify`,
     ).then((r) => r.data),
 }

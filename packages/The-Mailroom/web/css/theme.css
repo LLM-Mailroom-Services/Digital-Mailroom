@@ -670,3 +670,8 @@ dialog.operator-login input {
   font: inherit;
 }
 dialog.operator-login menu { display: flex; gap: 8px; justify-content: flex-end; padding: 0; margin: 12px 0 0; }
+
+/* Nonblocking cached producer advisory; readable outside the pixel canvas. */
+.dojo-update-notice { padding: 10px 14px; color: var(--paper); background: var(--panel-2); border-left: 4px solid var(--gold); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.dojo-update-notice a { color: var(--gold); text-decoration: underline; }
+.dojo-update-notice a:focus-visible { outline: 2px solid var(--paper); outline-offset: 3px; }

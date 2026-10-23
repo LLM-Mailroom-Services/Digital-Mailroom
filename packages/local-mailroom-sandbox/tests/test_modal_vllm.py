@@ -654,7 +654,7 @@ class TestVersionPins:
 
         data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
         deploy = data["project"]["optional-dependencies"]["deploy"]
-        assert "modal==1.6.1" in deploy, "deploy extra must pin the verified SDK"
+        assert "modal==1.6.2" in deploy, "deploy extra must pin the verified SDK"
         core = data["project"]["dependencies"]
         assert all("modal" not in dep for dep in core), (
             "modal must stay a deploy-time extra (runtime venv stays clean)"
@@ -662,7 +662,7 @@ class TestVersionPins:
 
     def test_app_file_records_sdk_version(self):
         text = DEPLOY_APP.read_text(encoding="utf-8")
-        assert "1.6.1" in text
+        assert "1.6.2" in text
         assert "v0.29.0" in text
         assert "huggingface-secret" in text
 

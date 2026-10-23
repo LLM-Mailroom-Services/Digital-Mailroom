@@ -17,7 +17,7 @@ this visualizer.
 | Default document display | Langfuse (`MAILROOM_SOURCE=langfuse`) | [langfuse](../langfuse/SKILL.md) | Phoenix-only if the family conveyor is required; never Braintrust; never canned JSON on the live path |
 | Optional local OTEL source | `MAILROOM_SOURCE=phoenix` or `both` | [apache-phoenix](../apache-phoenix/SKILL.md) | Phoenix as a replacement for the US-cloud `llm-mailroom` project |
 | Hosted eval / experiment logs | not this repo | [braintrust](../braintrust/SKILL.md) | A `MAILROOM_SOURCE=braintrust` adapter |
-| Hub GT / production-pilot scripts | `scripts/eval_pipeline.py`, `run_production_pilot.py` | [huggingface](../huggingface/SKILL.md) | Live Qwen/Hub unless explicitly asked; `import llm_dojo_scoring` at runtime |
+| Hub GT / production-pilot scripts | `scripts/eval_pipeline.py`, `run_production_pilot.py` | [huggingface](../huggingface/SKILL.md) | Live Qwen/Hub unless explicitly asked; Dojo imports in the live display path (offline `[eval]` uses Dojo) |
 | Local LLM inference | `local-mailroom-sandbox` / `llm-mailroom` | [ollama](../ollama/SKILL.md) | An Ollama client inside The-Mailroom |
 | Remote GPU vLLM | sandbox `modal-vllm` | [modal](../modal/SKILL.md) | Modal deploy from this repo |
 | Pixel conveyor / SPA | `web/` vanilla HTML/CSS/JS | [pixel-console](../pixel-console/SKILL.md) | npm / webpack / React |

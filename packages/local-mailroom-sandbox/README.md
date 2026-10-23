@@ -35,9 +35,10 @@ Swap in OpenRouter when you need an API provider. This repo does **not** fork th
 pip install -e ".[dev]"
 cp config/.env.example .env
 # family code is already vendored under vendor/ (self-contained); fetch-deps
-# only refreshes the snapshots (workspace mirror in the monorepo; tag fallback
-# standalone, network, optional):
-sandbox fetch-deps                 # mirror the workspace packages onto vendor/ (or tag fallback in standalone clones)
+# only refreshes the snapshots (workspace packages first; reviewed standalone
+# main refs frozen to SHAs otherwise, requiring network). Moved refs are rejected
+# before tracked vendor files are replaced:
+sandbox fetch-deps                 # mirror workspace packages or refresh SHA-frozen standalone main refs
 sandbox up                         # Langfuse + Ollama
 sandbox pull-models                # ollama pull qwen3:8b
 sandbox health
@@ -138,7 +139,7 @@ deploy/              Dockerfile + compose + Modal vLLM (modal_vllm.py) + Modal j
 notebooks/           offline env setup + data prep + mock smoke
 data/fixtures/       offline samples (see ATTRIBUTION.md)
 src/mailroom_sandbox/
-vendor/              tracked family snapshots (llm-mailroom v0.7.1 + llm-dojo-scoring v0.22.0 (released 2026-10-16); see VENDOR.md)
+vendor/              tracked family snapshots (llm-mailroom v0.7.1 + llm-dojo-scoring feat/corporate-record-subclass-schemas @ 8e6566c; see VENDOR.md)
 reports/             sandbox experiment log (not a sister-repo mirror)
 governance/          SAND-* board (README / PREFIX / TASKS / archive)
 api-evals/           OpenRouter API cost harness — its own config/runs/ + reports/ and its own CLI

@@ -1,46 +1,34 @@
 {
   "note": "Per-package sync cursor against the standalone Exios66/* repositories. Baseline per issue #2: monorepo aligned with the standalone repos as of 2026-08-31T00:06:57Z (2026-08-30 19:06 CST). Cursor writes are content-verified (HUB-021) \u2014 upstream tip must be contained in the package tree unless snapshot --force is passed.",
   "packages": {
-    "Enron-Evaluation-Environment": {
-      "branch": "main",
-      "synced_at": "2026-09-16T22:07:23Z",
-      "synced_sha": "160d9077cca69e2018bbc118ceca7ee89aba191f",
-      "url": "https://github.com/Exios66/Enron-Evaluation-Environment.git"
-    },
     "The-Mailroom": {
       "branch": "main",
-      "synced_at": "2026-10-16T21:27:49Z",
-      "synced_sha": "d5358650e42d8e8843c215cde1eebb8c9acebbed",
+      "synced_at": "2026-10-23T13:41:33Z",
+      "synced_sha": "89c664b957f155005d32e5ddf711c3bb89d609b4",
       "url": "https://github.com/Exios66/The-Mailroom.git"
-    },
-    "claims-data-eda": {
-      "branch": "main",
-      "synced_at": "2026-09-16T22:07:38Z",
-      "synced_sha": "a3fbca3c9c76b25d88b93d772220f8f1192d98f1",
-      "url": "https://github.com/Exios66/claims-data-eda.git"
     },
     "llm-dojo-scoring": {
       "branch": "main",
-      "synced_at": "2026-10-16T23:41:47Z",
-      "synced_sha": "5431881cc74813bd770d710bf825e28fb6b048f6",
+      "synced_at": "2026-10-23T13:41:33Z",
+      "synced_sha": "d381b95f1182ef5b377b743988eb61e021579aac",
       "url": "https://github.com/Exios66/llm-dojo-scoring.git"
     },
     "llm-mailroom": {
       "branch": "main",
-      "synced_at": "2026-10-16T23:45:34Z",
-      "synced_sha": "0fd60717677e8917a80138fda0caf4bf3c959e5f",
+      "synced_at": "2026-10-23T13:41:33Z",
+      "synced_sha": "5e197b354b2458e06566de175c6888f1f4c294cc",
       "url": "https://github.com/Exios66/llm-mailroom.git"
     },
     "local-mailroom-sandbox": {
       "branch": "main",
-      "synced_at": "2026-10-16T23:44:33Z",
-      "synced_sha": "ee9c5952b68f09215ffc8d371b6553cf6dcb1123",
+      "synced_at": "2026-10-23T13:41:33Z",
+      "synced_sha": "8e228e9f177d80a79fe6e50bb68c7e2340902f80",
       "url": "https://github.com/Exios66/local-mailroom-sandbox.git"
     },
     "mailroom-corpus-eda": {
       "branch": "main",
-      "synced_at": "2026-10-16T21:27:10Z",
-      "synced_sha": "c50531604ba2950765c4ab86a10b59a879ee764c",
+      "synced_at": "2026-10-23T03:34:30Z",
+      "synced_sha": "4735ee0208f14c224154aba8f09653b590d7a405",
       "url": "https://github.com/Exios66/Mailroom-Corpus-EDA.git"
     }
   },

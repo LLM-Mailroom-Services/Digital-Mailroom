@@ -1,7 +1,22 @@
 # Releases
 
-The monorepo is the development source of truth; upstream repositories
-remain the release vehicles for the deployed surfaces (HF Spaces, Railway).
+Standalone repositories own package implementations and releases. Digital-Mailroom
+imports their committed sources and generates vendor snapshots; it releases its
+own integration workspace, wiring, governance, board, and tooling separately.
+See [[Sub-Package-Sync]] for the five core packages and their source owners.
+
+## Active package scope (DMR-093, 2026-10-23)
+
+Sync and release integration now select five core packages: `llm-dojo-scoring`,
+`llm-mailroom`, `local-mailroom-sandbox`, `The-Mailroom` and
+`mailroom-corpus-eda` (the only virtual member). Enron and claims remain external
+feeds, preserved as complete hub checkouts on
+[`feature/enron-evaluation-environment`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment/packages/Enron-Evaluation-Environment) and
+[`feature/claims-data-eda`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda/packages/claims-data-eda) at `59c879d9fb4480084e53137e2e9fb25650933944`.
+The prune PR depends on #162, whose two feeder trees must match that commit.
+Historical seven-member release/test evidence retains its original scope.
+For restoration use a separate checkout; reconcile membership, sync, dependencies
+and tests before any selective import, without replacing current root metadata.
 
 ## Hub release chain (HUB-024)
 
@@ -18,23 +33,27 @@ Semantic Versioning chain:
   changelog section, sections must be semver + strictly descending, the hub
   pyproject version must never sit behind the newest tag), and `cut X.Y.Z`
   (stamps `[Unreleased]` into a dated section, bumps the hub
-  `pyproject.toml` version; `--apply` writes, `--tag` tags; never commits
-  or pushes).
+  `pyproject.toml` version; `--apply` writes; never commits or pushes).
+  Do not use `--tag`: it tags the pre-cut HEAD before the cut is committed.
 - Enforcement: `.github/workflows/release-governance.yml` runs `check` on
   every `v*` tag push; `board-governance.yml` runs it on hub-scope path
   changes.
 - Cut a release:
 
   ```bash
-  python scripts/release_chain.py cut X.Y.Z --apply --tag   # stamps section + bumps pyproject + tags
-  git push origin main vX.Y.Z                               # the commit (with its DMR-0NN reference), then the tag
+  TZ=UTC python scripts/release_chain.py cut X.Y.Z --apply
+  uv lock
+  # Commit CHANGELOG.md, pyproject.toml, and uv.lock together under the DMR card.
+  # Merge the PR; update this checkout to the merged main tip before tagging.
+  git tag -a vX.Y.Z -m "mailroom-hub vX.Y.Z"
+  git push origin vX.Y.Z
   python scripts/release_notes.py X.Y.Z --title "<epoch>" --out release-notes-vX.Y.Z.md
   gh release create vX.Y.Z --title "Mailroom Hub vX.Y.Z — <epoch>" --notes-file release-notes-vX.Y.Z.md
   ```
 
   The GitHub Release body is **generated** by `scripts/release_notes.py` from
   the freshly-stamped changelog section, so every release carries a summary
-  of the changes, the highlights, the merged PRs, the key (HUB-card) commits,
+  of the changes, the highlights, the merged PRs, the key card-referenced commits,
   and references to the changelog + compare. Mirror the section title
   (`Mailroom Hub vX.Y.Z — <epoch>`) as the release name.
 
@@ -51,7 +70,7 @@ release window:
 - **Pull requests merged** — every PR whose merge commit landed in
   `v<previous>..v<X.Y.Z>` (resolved via `gh`; the offline fallback lists the
   merge commits from git only).
-- **Key commits** — the HUB-card-referenced commits in the window (the
+- **Key commits** — the card-referenced commits in the window (the
   critical evidence), then the non-card commits to complete the trace.
 - **Verify + reference** — the changelog link, the `v<prev>...v<ver>` compare
   URL, and the board note pointing to each card's Evidence.
@@ -72,33 +91,35 @@ change what every release carries, never hand-type a release body.
 - Package versions at a hub release are recorded in that release's
   changelog section (see the `[0.1.0]` section for the baseline).
 
-## Release train (HUB-005 scope)
+## Package release and hub import
 
-1. **Propagate monorepo work upstream**
-   `python scripts/sync_packages.py push --package <name>` (a subtree push
-   per package). If subtree ancestry can't fast-forward (snapshot-based
-   cursors), publish as clean patch commits to the standalone repo and
-   re-baseline the cursor with `snapshot` (see [[Sub-Package-Sync]]).
-2. **Bump the consuming pins** — release-time only:
-   `packages/llm-mailroom/src/scripts/bump_dojo_scoring.py` for the dojo
-   pin. Never delete a pin line; bump only when cutting a release of the
-   pinned package.
-3. **Tag in the standalone repo** — one tag per release (`vX.Y.Z`), cut
-   from the standalone repo the release ships from.
-4. **Verify** — the touched packages' FULL suites green; `git status`
-   clean; the board card closed with Evidence naming the commits.
+1. **Author and verify in the standalone source** — implement package changes
+   in that repository, with its regression tests, governance, and release
+   tooling. Never implement in `packages/*` and push back to the source.
+2. **Release from the standalone repository** — cut its release/tag from the
+   committed source using its own tooling. Bump consuming pins in the consuming
+   standalone repository only at release time of the pinned package (for the
+   dojo pin, llm-mailroom `src/scripts/bump_dojo_scoring.py`). Never delete a pin.
+3. **Import committed sources into Digital-Mailroom** — fetch current tips,
+   compare cursors, and use `sync_packages.py pull --package <name> --squash`.
+   Review imports and cursor updates; regenerate vendors with `sync_vendor.py`.
+4. **Verify the integration** — imported packages' FULL suites and relevant
+   dependents green, vendor drift absent, card scope clean, and Evidence naming
+   standalone source/release and hub import commits plus exact test counts.
+
+The legacy HUB-005 outbound train (`sync_packages.py push`, including
+`push --all --patch`) is forbidden for package delivery. A hub release never
+publishes package implementation back into authoritative standalone sources.
 
 ## Ownership
 
-- **Planning & dispatch** — sync/release missions are `orchestrator-governor`
-  units of work: it breaks the train into per-package sync units (push leg,
-  `--verify-suite`, cursor re-baseline) and hub-release units, briefed from
-  this page + [[Sub-Package-Sync]].
-- **Execution** — `general` missions run the sweeps
-  (`sync_packages.py push --all --patch`, `sync_vendor.py`, pin bumps).
-- **Never hand-edit a mirror** — a deliverable that must reach a standalone
-  repo is a sync unit on the card; propagation is `sync_packages.py push`,
-  never a direct push from the monorepo tree.
+- **Planning & dispatch** — `orchestrator-governor` scopes standalone source
+  work, source releases, hub imports, and hub releases as distinct card units.
+- **Execution** — `general` missions execute source work in authoritative
+  standalone checkouts and run imports/vendor generation in the hub.
+- **Hub ownership** — hub wiring, board, governance, and integration tooling
+  stay hub-owned. Imported `packages/*` and vendors are never implementation
+  sources. Vendors are generated only, never edited by hand.
 
 ## Current family pins
 

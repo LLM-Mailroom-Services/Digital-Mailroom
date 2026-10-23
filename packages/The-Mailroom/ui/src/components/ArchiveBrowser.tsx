@@ -130,7 +130,7 @@ export default function ArchiveBrowser() {
                       <button
                         type="button"
                         onClick={() => void archiveApi.verify(entry.doc_id).then((r) => {
-                          window.alert(r.valid ? 'Checksum valid' : 'Checksum mismatch')
+                          window.alert(r.valid ? 'Checksum valid' : (r.reason || 'Checksum mismatch'))
                         })}
                         className="p-1.5 rounded-md hover:bg-muted"
                         title="Verify checksum"

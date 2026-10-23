@@ -719,6 +719,11 @@ dialog.operator-login input {
 }
 dialog.operator-login menu { display: flex; gap: 8px; justify-content: flex-end; padding: 0; margin: 16px 0 0; }
 
+/* Producer metadata, independent of trace-source availability. */
+.dojo-update-notice { max-width: var(--max); margin: 0 auto 1rem; padding: .8rem 1rem; color: var(--ink); background: var(--warn-bg); border-left: 4px solid var(--warn); line-height: 1.6; overflow-wrap: anywhere; }
+.dojo-update-notice a { color: var(--ink); text-decoration: underline; }
+.dojo-update-notice a:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+
 /* #111: BERT lane panels — reduces terminal manifests (intake.bert). */
 .bert-panels {
   margin-top: 0.75rem;

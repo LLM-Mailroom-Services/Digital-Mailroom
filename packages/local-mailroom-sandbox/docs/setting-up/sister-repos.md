@@ -6,7 +6,7 @@ the code it imports at runtime ships as tracked snapshots under `vendor/`:
 | Repository | Role | Pin |
 | --- | --- | --- |
 | [llm-mailroom](https://github.com/Exios66/llm-mailroom) | LangGraph pipeline, agents, prompts, SQLite catalog | tracked snapshot `v0.7.1` under `vendor/` (DMR-057) |
-| [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Deterministic scoring engine | tracked snapshot `v0.22.0` (tag) under `vendor/` (DMR-057) |
+| [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Deterministic scoring engine | tracked snapshot `feat/corporate-record-subclass-schemas` @ `8e6566c` (branch, dojo draft #46) under `vendor/` (DMR-057) |
 | [The-Mailroom](https://github.com/Exios66/The-Mailroom) | Pixel-art visualizer (Langfuse-only) | observer |
 | [Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment) | Correspondence corpus feed | Hub datasets |
 

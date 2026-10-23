@@ -21,9 +21,7 @@ body:
         - hub (monorepo-level / cross-package)
         - governance (board, AGENTS.md, templates)
         - tooling (scripts/, CI workflows)
-        - enron-evaluation-environment
         - the-mailroom
-        - claims-data-eda
         - llm-dojo-scoring
         - llm-mailroom
         - local-mailroom-sandbox

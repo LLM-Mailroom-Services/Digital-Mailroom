@@ -55,6 +55,16 @@ def test_specialist_posture_pins_catalog_stems():
         # SAND-032: correspondence rows keep the production prompt constant
         # with the 2×L4 AWQ runs (0.23–0.25 vs simplified ~0.09).
         *(r for r in SAND032_RUNS if SPECIALIST_POSTURE[r]["agent"] == "correspondence_specialist"),
+        # Default-pin move v6→v7 (PR #145): every posture run that pinned the
+        # then-default `corporate_records_specialist_simplified` stem is an
+        # intentional non-catalog pin now — they ARE the pre-refreeze v6 bytes
+        # (SAND-032/037/040/042 cells ran BEFORE the v7 subclass schema existed).
+        *(
+            r
+            for r in SPECIALIST_POSTURE
+            if SPECIALIST_POSTURE[r].get("agent") == "corporate_records_specialist"
+            and SPECIALIST_POSTURE[r].get("prompt_file") == "corporate_records_specialist_simplified"
+        ),
         # SAND-032 Stage 5: re-runs merger with the revised MAUD v1 prompt.
         "sand032-s5-merger50-maud",
         # SAND-040 † merger cells use the MAUD v1 prompt (the prompt is one of the variables).
@@ -111,6 +121,11 @@ SAND42_SUCCESSORS = {
         "merger_agreement_specialist_v4",
         "merger_agreement_specialist_v3",
     ),
+    "corporate_records_specialist_subclass_v2": (
+        "corporate_records_specialist",
+        "corporate_records_specialist_v7",
+        "corporate_records_specialist_v6",
+    ),
 }
 
 
@@ -126,6 +141,14 @@ def test_sand42_repaired_stems_are_frozen_successors():
 
 @pytest.mark.parametrize("stem", sorted(SAND42_SUCCESSORS))
 def test_successor_stem_resolves_to_its_frozen_key(stem):
+    """Successor stems resolve to their frozen keys.
+
+    Freezing a successor used to never move the default pin. For
+    ``corporate_records_specialist`` it NOW does — the deliberate re-freeze
+    (default-pin move v6 → v7, PR #145: the canonical amended text the vendored
+    catalog and the injected corporate_record_schema prompt renderer serve).
+    insurance/merger keep their v1 defaults.
+    """
     from mailroom_sandbox.eval_environment_lineage import (
         eval_environment_key_for,
         lookup,
@@ -135,9 +158,17 @@ def test_successor_stem_resolves_to_its_frozen_key(stem):
     assert eval_environment_key_for(stem=stem) == key
     assert lookup(key=key)["sandbox_stem"] == stem
     assert agents_for_variant(stem) == [agent]
-    # Freezing a successor does not move the default v1 pin.
-    assert default_prompt_variant(agent) != stem
-    assert eval_environment_key_for(agent=agent) == agent + "_v1"
+    # The default pin is exactly the agent's specialists row (for corporate
+    # that IS the v7 successor after the deliberate re-freeze; the others stay
+    # on their earlier default).
+    from mailroom_sandbox.eval_environment_lineage import specialist_rows
+
+    default_key = eval_environment_key_for(agent=agent)
+    assert default_key == specialist_rows()[agent]["eval_environment_key"]
+    if agent == "corporate_records_specialist":
+        assert default_key == key  # the deliberate v6→v7 default-pin move
+    else:
+        assert default_key != key
 
 
 @pytest.mark.parametrize("stem", sorted(SAND42_SUCCESSORS))
@@ -224,11 +255,13 @@ CORRECTED = {
         6061,
     ),
     "corporate_records_specialist": (
+        "corporate_records_specialist_v7",
         "corporate_records_specialist_v6",
-        "corporate_records_specialist_v5",
         "corporate_records_specialist_v1",
-        "corporate_records_specialist_simplified",
-        "fe13501f667fcd9f64f7dfbf8b0f124f81d9dd039f4109288b43f106f82b1399",
+        "corporate_records_specialist_subclass_v2",
+        # deliberate default-pin move v6→v7 (PR #145): the dojo's
+        # production_prompts template now IS the amended v7 text
+        "253559fcb7ac6b36878453821a4fab0aa94228ad5add77d5aeabb06bb265134c",
         "484e64dd847b7bb35afebca74edc1fb6c381f0f7d5e9367ad8673bec0b8af45c",
         5801,
     ),

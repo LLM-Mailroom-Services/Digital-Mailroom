@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from llm_dojo_scoring.extraction_metrics import extraction_binary_metrics
 from llm_dojo_scoring.field_scoring import score_extraction
 
@@ -105,6 +107,75 @@ def test_schema_clean_payload_adheres():
     assert out["schema_adherence"] == 1.0
     assert out["extra_schema_key_count"] == 0
     assert classify_floor_mode(out) == "scorer"
+
+
+@pytest.mark.parametrize("subclass,field", [
+    ("bylaws", "certifying_officer"),
+    ("bylaws", "last_amended_date"),
+    ("articles_of_incorporation", "authorized_capital"),
+    ("rights_instrument", "exercise_price"),
+])
+@pytest.mark.parametrize("value,valid", [
+    ("As stated in the document", True),
+    (None, True),
+    (42, False),
+    (True, False),
+    ([], False),
+    ({"name": "Alice"}, False),
+])
+def test_corporate_extension_scalar_types(subclass, field, value, valid):
+    out = assess_extraction_payload({field: value}, "corporate_record", subclass)
+    assert out["parse_error"] is False
+    assert out["extra_schema_keys"] == []
+    assert out["schema_valid"] is valid
+    assert out["schema_adherence"] == float(valid)
+
+
+@pytest.mark.parametrize("subclass,field", [
+    ("subsidiary_list", "subsidiaries"),
+    ("board_resolution", "resolutions"),
+])
+@pytest.mark.parametrize("value,valid", [
+    (["Example LLC"], True),
+    ([], True),
+    (None, False),
+    ("Example LLC", False),
+    ({"name": "Example LLC"}, False),
+    (["Example LLC", 42], False),
+    ([{"name": "Example LLC"}], False),
+    ([["Example LLC"]], False),
+])
+def test_corporate_extension_list_types(subclass, field, value, valid):
+    out = assess_extraction_payload({field: value}, "corporate_record", subclass)
+    assert out["parse_error"] is False
+    assert out["extra_schema_keys"] == []
+    assert out["schema_valid"] is valid
+    assert out["schema_adherence"] == float(valid)
+
+
+@pytest.mark.parametrize("core", [
+    {"entity_name": {"name": "Example LLC"}},
+    {"signatories": "Alice"},
+    {"keywords": [42]},
+])
+def test_corporate_extensions_preserve_core_validation(core):
+    out = assess_extraction_payload(
+        {**core, "certifying_officer": "Alice"}, "corporate_record", "bylaws"
+    )
+    assert out["parse_error"] is False
+    assert out["extra_schema_keys"] == []
+    assert out["schema_valid"] is False
+
+
+def test_corporate_invalid_extension_reaches_score_report():
+    out = scoring.score_extraction_row(
+        "corporate_record",
+        {"intent": "governance_rules", "certifying_officer": {"name": "Alice"}},
+        {"intent": "governance_rules"},
+        expected_subclass="bylaws",
+    )
+    assert out["schema_valid"] is False
+    assert out["schema_adherence"] == 0.0
 
 
 def test_merge_schema_adherence_rates_are_additive():

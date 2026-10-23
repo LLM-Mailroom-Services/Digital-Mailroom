@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
 import sys
 from pathlib import Path
 
@@ -51,20 +52,35 @@ EXPERIMENT_STEMS: frozenset[str] = frozenset(EXPERIMENT_FROM_VENDOR.values())
 
 
 def _load_texts() -> dict[str, str]:
+    """Load export texts by prompt stem from the vendored family packages.
+
+    Adds vendor import paths as needed. Corporate evaluation text comes
+    from Dojo's production catalog, independently of the live pipeline
+    prompt. Import and prompt lookup errors propagate.
+    """
     if str(VENDOR_SRC) not in sys.path:
         sys.path.insert(0, str(VENDOR_SRC))
+    # The vendored llm-dojo-scoring must be importable (frozen_v1 reads the
+    # ``production_prompts`` catalog through it). Import the sandbox package
+    # so its __init__ wires the vendored dojo src onto sys.path — running the
+    # script bare was silently relying on an installed llm_dojo_scoring.
+    importlib.import_module("mailroom_sandbox")
     from langchain_agents.prompts import PROMPT_VERSIONS
     from agents import (
-        corporate_records_specialist as corp,
         correspondence_specialist as corr,
         insurance_claims_specialist as ins,
         merger_agreement_specialist as merger,
     )
 
+    from llm_dojo_scoring.prompts import get_prompt
+
     return {
         "contracts_specialist_v33": PROMPT_VERSIONS["contracts_specialist_v33"],
         "merger_agreement_specialist_production": merger.SYSTEM_PROMPT,
-        "corporate_records_specialist_production": corp.SYSTEM_PROMPT,
+        # Sandbox evaluation deliberately uses v7; the live pipeline stays v6.
+        "corporate_records_specialist_production": get_prompt(
+            "corporate_records_specialist", family="production_prompts"
+        ).text,
         "correspondence_specialist_production": corr.SYSTEM_PROMPT,
         "insurance_claims_specialist_production": ins.SYSTEM_PROMPT,
     }

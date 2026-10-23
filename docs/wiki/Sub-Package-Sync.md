@@ -76,6 +76,140 @@ the runner. Exit codes: 0 ok / 1 network / 2 dirty / 3 conflict-aborted /
 4 git-internal / **5 verification refused** (severity 5 > 4 > 3 > 2 > 1 > 0).
 Global `--manifest`/`--repo-root` support isolated state runs.
 
+## Runbook: import a standalone change (step by step)
+
+Written so a small model can follow it literally. Do the steps in order; if a
+step's output does not match what is written, STOP at that step and use its
+"If not" line. Never improvise a different command.
+
+**Vocabulary.** *Source* = the standalone repo `Exios66/<name>` (the only place
+package code is written). *Hub* = this repo. *Cursor* = the SHA recorded per
+package in `scripts/packages_sync.json` (the last source commit imported).
+*Import* = copying new source commits into `packages/<name>/`.
+
+**Step 0 — use a clean, private worktree.** `pull` refuses a dirty tree, and
+the shared checkout is often dirty with other agents' work. Never stash or
+discard someone else's changes; make your own checkout instead:
+
+```bash
+git fetch origin main
+git worktree add -b dmr-NNN-<slug> ../Digital-Mailroom-dmrNNN origin/main
+cd ../Digital-Mailroom-dmrNNN
+```
+
+**Step 1 — see what is new.**
+
+```bash
+python3 scripts/sync_packages.py status
+```
+
+Each package prints `in sync` or `N new upstream commit(s)`. Only packages
+that say `new upstream commit(s)` need an import. The `[N file(s)
+monorepo-ahead]` suffix is normal explained drift, not an error.
+If not: a package says `in sync` but you expected a change, the change is not in
+the *source* yet (see "Where a dependency bump really lands" below). Stop.
+
+**Step 2 — look at exactly what will come in.**
+
+```bash
+git fetch https://github.com/Exios66/<Repo>.git main:refs/remotes/src/<name> --no-write-fetch-head
+git log --oneline <synced_sha>..refs/remotes/src/<name>
+git diff --stat <synced_sha> refs/remotes/src/<name>
+```
+
+`<synced_sha>` is the package's `synced_sha` in `scripts/packages_sync.json`.
+Write down the commit list; it goes in the PR body.
+
+**Step 3 — try the plain pull.**
+
+```bash
+python3 scripts/sync_packages.py pull --package <name> --squash
+echo "exit=$?"
+```
+
+| You see | Meaning | Do |
+| --- | --- | --- |
+| a squash commit and exit 0 | import done, cursor advanced | go to Step 5 |
+| `refusing to pull: worktree is dirty`, exit 2 | you skipped Step 0 | do Step 0, retry |
+| `CONFLICT ... The pull was ABORTED`, exit 3 | normal when hub files drifted from the source | Step 4 |
+| exit 1 | network problem | retry once, then report |
+| exit 4 | git/internal error | stop, paste the output into the card |
+
+**Step 4 — on conflict, import through a PR branch.**
+
+```bash
+python3 scripts/sync_packages.py pull --package <name> --squash --open-pr --resolve ours
+```
+
+`ours` keeps the hub's copy of the conflicted files. That is correct when the
+conflicted files are NOT in the upstream diff (check the Step 2 `git diff --stat`; the PR diff must contain only those files). If the upstream commits DO
+touch a conflicted file, do not use `ours` blindly: ask the board owner.
+The driver makes branch `sync/<name>/import-<sha12>`, merges, and, if the test
+suite passes, pushes and opens a PR. Read stderr for `resolution_divergences`;
+any entry there must be reviewed against the source commit before merge.
+
+If it prints `verify-suite FAILED` and does not push, go to Step 4b.
+
+**Step 4b — `--verify-suite` failed: is it the import or was it already red?**
+The driver's gate is `pytest -x`, so any pre-existing failure blocks it. Run the
+package's suite on the branch AND on the base commit and compare totals:
+
+```bash
+uv run --frozen pytest packages/<name>/tests -q | tail -3          # on the import branch
+git checkout -q --detach origin/main
+uv run --frozen pytest packages/<name>/tests -q | tail -3          # baseline
+git checkout -q sync/<name>/import-<sha12>
+```
+
+(`llm-mailroom` uses `packages/llm-mailroom/src/tests`.) Identical pass/fail
+counts mean the import changed nothing: push the branch yourself and open the
+PR with `gh pr create`, putting BOTH count lines in the body. Different counts
+mean the import broke something: do not push; report the new failing tests.
+A red baseline is its own bug; open or update a board card for it.
+
+**Step 5 — after the PR merges, advance the cursor.** The PR flow never
+touches the cursor. On up-to-date `main`:
+
+```bash
+python3 scripts/sync_packages.py snapshot --package <name>
+python3 scripts/sync_packages.py status      # that package must now say "in sync"
+```
+
+Commit the changed `scripts/packages_sync.json` (card-prefixed message). If
+`snapshot` refuses with missing content, the import is incomplete: do NOT pass
+`--force`.
+
+**Step 6 — vendors (only if you imported llm-dojo-scoring, llm-mailroom or
+The-Mailroom, because the sandbox vendors those).**
+
+```bash
+python3 scripts/sync_vendor.py && python3 scripts/sync_vendor.py --check
+```
+
+**Step 7 — close out.** Run the package's full suite (`docs/TESTING.md`), then
+record in the card: source SHA range, import PR, exact pass/fail/skip counts,
+and any red baseline. `python3 scripts/board_state.py check` must not gain
+new errors.
+
+### Where a dependency bump really lands
+
+- **Python lockfiles.** A package's own `uv.lock` (e.g.
+  `packages/local-mailroom-sandbox/uv.lock`) is a SOURCE file: it only changes
+  through the source repo + `pull`. The hub's own resolution is the ROOT
+  `uv.lock`; it is hub-owned and is bumped here with
+  `uv lock --upgrade-package <pkg>` (then `uv lock --check`), as its own card
+  and commit. An import does not change the root lock.
+- **npm lockfiles** (`packages/The-Mailroom/ui/package-lock.json`) are source
+  files and arrive by `pull`.
+- **Dependabot PRs must be merged in the source repo.** Dependabot also runs on
+  forks. `LLM-Mailroom-Services/mailroom-sandbox` is a FORK of
+  `Exios66/local-mailroom-sandbox` (verify with `gh repo view <repo> --json
+  isFork,parent`); merging dependabot PRs there changes the fork only and the
+  hub never sees them. Before merging any dependabot PR, run that check and
+  merge only on the repo named in `scripts/packages_sync.json` (`url`).
+- A bump already present in the source lock (check the version in the package
+  `uv.lock`) is obsolete: close the dependabot PR instead of merging.
+
 ## Legacy outbound tooling
 
 `push`, `push --patch`, and `push --all --patch` are historical commands and

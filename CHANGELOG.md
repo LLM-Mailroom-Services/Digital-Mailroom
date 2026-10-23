@@ -21,6 +21,19 @@ and is recorded there, not here.
 
 ## [Unreleased]
 
+### Removed
+
+- **DMR-093 five-core workspace**: remove the 149 tracked paths under the
+  noncore Enron and claims package roots from active main. Complete checkouts
+  survive on [`feature/enron-evaluation-environment`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment)
+  and [`feature/claims-data-eda`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda),
+  both preserved at `59c879d9fb4480084e53137e2e9fb25650933944`.
+  The separate prune PR depends on #162 retaining both trees byte-identically;
+  no feeder source fix is included. The original `feature/agent-mailroom`,
+  standalone repos/sites, dataset identities, taxonomies and historical labels remain.
+- Retire the feeder-only hub `gen_interactive_charts.py`; its implementation
+  remains in the complete preserved checkouts.
+
 ### Changed
 
 - DMR-091: import the merged feeder tips before landing the reconciliation.
@@ -40,6 +53,12 @@ and is recorded there, not here.
   `3eb56be1`, including source-owned scoring engines, support/provenance fixes
   and their regression coverage. The workspace lock records 0.23.0; final
   consumer pins and generated vendor reconciliation remain under review.
+- Select dojo, pipeline, sandbox, visualizer and corpus-EDA explicitly in the
+  root workspace, lock and sync registry; corpus-EDA is the only virtual member.
+  Current docs/templates describe five members; seven-member evidence remains dated.
+- Limit the shared Pages helper to core corpus-EDA and fail when reports are
+  absent. Offline CLI tests cover target rejection before external calls/writes,
+  real report builds with fake Git/GitHub plumbing, and workspace/lock/cursor selection.
 
 ## [0.9.1] - 2026-10-23
 ### Changed

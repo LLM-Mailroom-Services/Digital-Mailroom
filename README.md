@@ -2,7 +2,7 @@
 
 # 📬 Digital Mailroom
 
-**LLM-Mailroom constellation monorepo — one checkout, seven packages, zero cross-repo import friction.**
+**LLM-Mailroom constellation monorepo — one checkout, five core packages, zero cross-repo import friction.**
 
 Multi-agent legal-document pipeline · Deterministic scoring · Pixel-art visualizer · Local sandbox · Corpus EDA
 
@@ -42,7 +42,7 @@ Digital-Mailroom owns hub wiring, governance, board, and integration tooling.
 
 ## Repository Map
 
-All seven packages are imported into `packages/` as git subtrees from authoritative standalone `Exios66/*` repositories. GitHub Pages sites exist for four of them.
+Five core packages are imported into `packages/` as git subtrees from authoritative standalone `Exios66/*` repositories: four built members and one virtual corpus-EDA member. Two core packages have GitHub Pages sites; the external Enron and claims feeds have their own sites.
 
 > **Pruned in DMR-079:** `llm-entity-extraction` and `llm-mailroom-graph` left the monorepo (standalone `Exios66/*` repos only, no longer synced); `agent-mailroom` is preserved on the branch `feature/agent-mailroom`. Hub `v0.8.0` is the last release containing them (rollback point).
 
@@ -51,8 +51,6 @@ All seven packages are imported into `packages/` as git subtrees from authoritat
 | Layer | Repository | GitHub/Vercel Pages |
 | :--- | :--- | :--- |
 | **Hub** (integration) | [`LLM-Mailroom-Services/Digital-Mailroom`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) | [Dispatch Board](https://digital-mailroom-theta.vercel.app) |
-| **Corpus feed** | [`Exios66/Enron-Evaluation-Environment`](https://github.com/Exios66/Enron-Evaluation-Environment) | [exios66.github.io/Enron-Evaluation-Environment](https://exios66.github.io/Enron-Evaluation-Environment/) |
-| **Corpus feed** | [`Exios66/claims-data-eda`](https://github.com/Exios66/claims-data-eda) | [exios66.github.io/claims-data-eda](https://exios66.github.io/claims-data-eda/) |
 | **Corpus EDA + HF** | [`Exios66/Mailroom-Corpus-EDA`](https://github.com/Exios66/Mailroom-Corpus-EDA) | [exios66.github.io/Mailroom-Corpus-EDA](https://exios66.github.io/Mailroom-Corpus-EDA/) |
 | **Scoring engine** | [`Exios66/llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring) | — |
 | **LangGraph pipeline** | [`Exios66/llm-mailroom`](https://github.com/Exios66/llm-mailroom) | — |
@@ -60,6 +58,25 @@ All seven packages are imported into `packages/` as git subtrees from authoritat
 | **Local sandbox** | [`Exios66/local-mailroom-sandbox`](https://github.com/Exios66/local-mailroom-sandbox) | — |
 
 </div>
+
+## External corpus feeds and preserved checkouts
+
+Enron and claims remain usable standalone feeds; their datasets, taxonomy and
+published sites retain their identities. DMR-093 removes their local copies
+from the active workspace after #162. Both preservation branches point to
+`59c879d9fb4480084e53137e2e9fb25650933944`; PR162 must keep these package trees byte-identical.
+
+| Layer | Repository | GitHub Pages |
+| --- | --- | --- |
+| **Corpus feed** | [`Exios66/Enron-Evaluation-Environment`](https://github.com/Exios66/Enron-Evaluation-Environment) | [exios66.github.io/Enron-Evaluation-Environment](https://exios66.github.io/Enron-Evaluation-Environment/) |
+| **Corpus feed** | [`Exios66/claims-data-eda`](https://github.com/Exios66/claims-data-eda) | [exios66.github.io/claims-data-eda](https://exios66.github.io/claims-data-eda/) |
+
+Browse [Enron's preserved package](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment/packages/Enron-Evaluation-Environment) or
+[claims' preserved package](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda/packages/claims-data-eda). Use a separate checkout of the
+preservation branch for its original complete workspace (including the old
+hub chart generator). To selectively restore a package, reconcile membership,
+sync entries, dependencies and tests explicitly; keep current root metadata.
+The earlier `feature/agent-mailroom` preservation branch remains unchanged.
 
 ## Package Details
 
@@ -71,13 +88,11 @@ All seven packages are imported into `packages/` as git subtrees from authoritat
 | `llm-mailroom` | LangGraph multi-agent legal-document pipeline (FastAPI producer) | [`Exios66/llm-mailroom`](https://github.com/Exios66/llm-mailroom) |
 | `The-Mailroom` | Shared visualizer for BOTH llm-mailroom and local-mailroom-sandbox; hosted Observatory | [`Exios66/The-Mailroom`](https://github.com/Exios66/The-Mailroom) |
 | `local-mailroom-sandbox` | Core offline/local and Modal/vLLM GPU testing interface for the llm-mailroom pipeline | [`Exios66/local-mailroom-sandbox`](https://github.com/Exios66/local-mailroom-sandbox) |
-| `Enron-Evaluation-Environment` | Enron corpus EDA → pipeline-ready correspondence dataset | [`Exios66/Enron-Evaluation-Environment`](https://github.com/Exios66/Enron-Evaluation-Environment) |
-| `claims-data-eda` | CMS DE-SynPUF EDA → pipeline-ready insurance_claim dataset | [`Exios66/claims-data-eda`](https://github.com/Exios66/claims-data-eda) |
 | `mailroom-corpus-eda` | mailroom-corpus corpus EDA (P0–P6) + centralized HF upload helpers | [`Exios66/Mailroom-Corpus-EDA`](https://github.com/Exios66/Mailroom-Corpus-EDA) |
 
 </div>
 
-> Virtual members (`package = false`) have no build system and are not installed — they exist so their data/code stays colocated in the single checkout.
+> `mailroom-corpus-eda` is the sole virtual member (`package = false`): it has no build system and is not installed. Its EDA code and deliverables stay colocated with the four built members.
 
 ## Repository Structure
 
@@ -100,7 +115,7 @@ Digital-Mailroom/
 │   ├── taxonomy_parity.py # taxonomy drift detector (CI gate)
 │   ├── release_chain.py   # hub changelog ↔ semver tag ↔ version gate (HUB-024)
 │   └── deploy_gh_pages.py # local GH Pages deploy (no Actions)
-└── packages/              # all seven packages (subtree + virtual)
+└── packages/              # five core packages (four built + one virtual)
 ```
 
 ## Development

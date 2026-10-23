@@ -11,8 +11,6 @@ workspace redirects.
 - `packages/llm-mailroom` — pipeline (dist `mailroom`, `src/` layout)
 - `packages/The-Mailroom` — imported visualizer shared by the pipeline and sandbox (dist `the-mailroom`)
 - `packages/local-mailroom-sandbox` — imported core offline/local and Modal/vLLM GPU testing interface for the pipeline (dist `mailroom-sandbox`)
-- `packages/Enron-Evaluation-Environment` — corpus feed (virtual member, no build)
-- `packages/claims-data-eda` — corpus feed (virtual member, no build)
 - `packages/mailroom-corpus-eda` — corpus EDA + centralized HF upload helpers (virtual member, no build)
 
 Hub-level (no package): `governance/TASKS.md` (the board), `scripts/`
@@ -29,6 +27,18 @@ read it in the authoritative standalone checkout before changing package code.
 `llm-entity-extraction` and `llm-mailroom-graph` left the monorepo and survive
 only as standalone `Exios66/*` repos (no longer synced); `agent-mailroom` is
 preserved on the branch `feature/agent-mailroom` (cut from tag `v0.8.0`).
+
+**DMR-093 (2026-10-23):** five active core members remain (four built plus
+virtual `mailroom-corpus-eda`). Noncore feeds are external standalone repos;
+their complete hub checkouts are preserved on
+[`feature/enron-evaluation-environment`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment/packages/Enron-Evaluation-Environment) and
+[`feature/claims-data-eda`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda/packages/claims-data-eda), both at
+`59c879d9fb4480084e53137e2e9fb25650933944`. PR162 must retain those two package trees byte-identically;
+pruning lands in a separate PR dependent on #162. For the original complete
+workspace, use a separate checkout of the preservation branch. Selective
+restoration must reconcile explicit membership, sync selection, dependencies
+and tests; never overwrite the current root workspace/lock/cursors with the
+archived versions. Keep the existing `feature/agent-mailroom` unchanged.
 
 ## Specialist subagents — call them, don't impersonate them
 
@@ -171,7 +181,7 @@ are on before you edit:
 **The six commands every agent must know:**
 
 ```bash
-python scripts/sync_packages.py status                          # drift report (expect 7/7 in sync)
+python scripts/sync_packages.py status                          # drift report (five active packages; expect 5/5 in sync)
 python scripts/sync_packages.py pull --package <name> --squash # import committed standalone source
 python scripts/sync_vendor.py --check                         # verify generated vendor copies
 python scripts/sync_vendor.py                                   # refresh sandbox vendor snapshots (+ --check gate)
@@ -231,8 +241,6 @@ uv run pytest packages/llm-mailroom/src/tests
 uv run pytest packages/The-Mailroom/tests
 uv run pytest packages/local-mailroom-sandbox/tests
 uv run pytest packages/mailroom-corpus-eda/tests
-uv run pytest packages/claims-data-eda/tests
-uv run pytest packages/Enron-Evaluation-Environment/tests
 python3 -m unittest discover scripts/tests   # hub governance tooling (hermetic)
 (cd board-site && node tests/api.test.js)    # served-board API proxy
 ```
@@ -555,10 +563,10 @@ hub are integration outputs, not standalone package implementation changes.
   pruned from this repo — keep them out; reference the upstream repos.
   EXCEPTION: the mailroom-corpus-eda EDA deliverables (`reports/figures/`,
   `reports/figures_interactive/`, `reports/tables/`, `SUMMARY_REPORT.*`) are
-  tracked in full per human directive (HUB-008) — never prune them. Second
-  exception: the claims-data-eda real-sample PDFs under `docs/examples/`
-  (8 small text PDFs, human directive 2026-09-04, HUB-046) — tracked in
-  full, regenerate only via `scripts/render_samples.py`.
+  tracked in full per human directive (HUB-008) — never prune them. The eight
+  claims-data-eda sample PDFs (HUB-046) remain tracked on its preservation
+  branch under `packages/claims-data-eda/docs/examples/`; preserve them on
+  restoration and regenerate only via that package's `scripts/render_samples.py`.
 - Deploy configs (Dockerfile, nixpacks.toml, railway.json) inside each
   package are still standalone-repo aware; build images from the package
   directory as before.

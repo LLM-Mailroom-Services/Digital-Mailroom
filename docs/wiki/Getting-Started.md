@@ -27,12 +27,23 @@ uv run pytest packages/llm-dojo-scoring/tests
 uv run pytest packages/llm-mailroom/src/tests
 uv run pytest packages/The-Mailroom/tests
 uv run pytest packages/local-mailroom-sandbox/tests
-uv run pytest packages/claims-data-eda/tests
-uv run pytest packages/Enron-Evaluation-Environment/tests
+uv run pytest packages/mailroom-corpus-eda/tests
 ```
 
-`mailroom-corpus-eda` ships 8 test files (~79 tests) and is also verified behaviorally via
-`packages/mailroom-corpus-eda/run_all.py` (P0–P6).
+The active workspace has five core members (four built plus virtual
+`mailroom-corpus-eda`). For the historical Enron/claims suites, use a separate
+checkout of [`feature/enron-evaluation-environment`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment/packages/Enron-Evaluation-Environment) or
+[`feature/claims-data-eda`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda/packages/claims-data-eda), both preserved at `59c879d9fb4480084e53137e2e9fb25650933944`.
+In that original complete workspace, run its package's suite separately:
+
+```bash
+uv run --frozen pytest packages/Enron-Evaluation-Environment/tests
+uv run --frozen pytest packages/claims-data-eda/tests
+```
+
+Do not copy the archived root metadata over current main. Selective restoration
+requires explicit membership, sync, dependency and test reconciliation. See
+[[Architecture]] and `docs/TESTING.md` for dated pre-prune measurements.
 
 Surgical by default; run a package's FULL suite only for significant
 changes (packaging/imports, cross-cutting refactors, scoring) and always

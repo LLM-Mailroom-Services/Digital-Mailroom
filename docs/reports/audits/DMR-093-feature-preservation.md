@@ -9,4 +9,10 @@ Both branches point to `59c879d9fb4480084e53137e2e9fb25650933944`, the reviewed 
 
 Remote refs were independently read after creation and matched the requested commit. Inventories include every tracked blob and mode. No ref was force-updated. Existing `feature/agent-mailroom` and recovery tags remain intact.
 
-Pruning belongs in a separate PR dependent on #162. GitHub #163 is the closed rollback-release issue; it cannot be reused as a PR number. The new PR will remove only these two active package roots and wiring while retaining the five core packages, historical evidence, standalone links, taxonomy and centralized corpus helpers.
+Pruning belongs in a separate PR dependent on #162. GitHub #163 is the closed rollback-release issue; it cannot be reused as a PR number. [PR167](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/pull/167) removes only these two active package roots and wiring while retaining the five core packages, historical evidence, standalone links, taxonomy and centralized corpus helpers.
+
+The five-core branch retains all 26 count-neutral committed persona mirrors.
+The eight global canonical profiles already differed from the committed
+project copies before this card; none contains a current seven-package count.
+No unrelated global profile configuration was overwritten. Global/profile
+byte-parity drift is pre-existing and is not claimed repaired by this pruning.

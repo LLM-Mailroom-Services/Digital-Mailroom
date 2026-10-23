@@ -4,8 +4,6 @@
 No GitHub Actions required.  Run from the monorepo root:
 
     python scripts/deploy_gh_pages.py --package mailroom-corpus-eda
-    python scripts/deploy_gh_pages.py --package claims-data-eda
-    python scripts/deploy_gh_pages.py --package Enron-Evaluation-Environment
     python scripts/deploy_gh_pages.py --all
 
 What it does:
@@ -38,16 +36,6 @@ REPOS: dict[str, tuple[str, str, str]] = {
         "mailroom-corpus-eda",
         "reports",
         "Mailroom Corpus EDA",
-    ),
-    "claims-data-eda": (
-        "claims-data-eda",
-        "reports",
-        "CMS DE-SynPUF Claims EDA",
-    ),
-    "Enron-Evaluation-Environment": (
-        "Enron-Evaluation-Environment",
-        "reports",
-        "Enron Correspondence EDA",
     ),
 }
 
@@ -252,7 +240,7 @@ def _enable_pages(repo_slug: str) -> bool:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Deploy EDA reports to GitHub Pages")
     parser.add_argument("--package", choices=list(REPOS.keys()), help="Deploy one package")
-    parser.add_argument("--all", action="store_true", help="Deploy all three EDA repos")
+    parser.add_argument("--all", action="store_true", help="Deploy all active core EDA reports (mailroom-corpus-eda)")
     parser.add_argument("--dry-run", action="store_true", help="Build but don't push")
     parser.add_argument("--list-urls", action="store_true", help="Print expected URLs and exit")
     args = parser.parse_args()
@@ -271,8 +259,9 @@ def main() -> None:
     for slug in targets:
         pkg_dir, reports_subdir, title = REPOS[slug]
         reports_dir = PACKAGES / pkg_dir / reports_subdir
-        if not reports_dir.exists():
-            print(f"SKIP {slug}: {reports_dir} does not exist")
+        if not reports_dir.is_dir():
+            print(f"ERROR {slug}: reports directory does not exist: {reports_dir}")
+            failures += 1
             continue
         failures += _deploy_to_gh_pages(slug, reports_dir, title, dry_run=args.dry_run)
 

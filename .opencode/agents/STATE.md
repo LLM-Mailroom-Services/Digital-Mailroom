@@ -411,3 +411,18 @@ Extensive references in `packages/llm-mailroom/docs/wiki/` and `docs/sister-repo
 - **Audit consequence:** every path under those three packages cited in the entries above (e.g. `packages/llm-entity-extraction/deploy/modal_vllm.py` in DMR-024/DMR-030, the `agent-mailroom` / `llm-mailroom-graph` README findings, the llm-entity-extraction suite counts) is historical evidence only and is **no longer auditable** in this tree. Do not re-open those findings against the monorepo; the audit surface for deploy files is now `packages/llm-mailroom/deploy/modal_vllm.py` and `packages/local-mailroom-sandbox/deploy/modal_vllm.py`.
 - **Expected sync baseline:** `sync_packages.py status` now expects 7/7 (was 10/10).
 - **Entries above are left unedited** (append-only audit trail).
+
+
+## DMR-093 scope note (2026-10-23 UTC, proposal pending parent application)
+
+- Five active workspace/sync packages: dojo, pipeline, sandbox, visualizer and
+  corpus-EDA. Enron (86 tracked paths) and claims (63) are preserved without
+  source fixes at `59c879d9fb4480084e53137e2e9fb25650933944` on
+  [`feature/enron-evaluation-environment`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment/packages/Enron-Evaluation-Environment) and
+  [`feature/claims-data-eda`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda/packages/claims-data-eda). PR162 must retain both package trees
+  byte-identically; removal belongs to a separate PR dependent on #162.
+- The DMR-079 7/7 baseline and all prior audit entries remain dated history.
+  `feature/agent-mailroom`, taxonomy/data identities and historical labels stay.
+- No full feeder audits. Retained package docs need standalone-first merge/import;
+  core cursors must follow the parent's final source imports. No upstream parity
+  or final suite claim is made here. Parent owns gates, commits and card closure.

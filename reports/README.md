@@ -21,8 +21,8 @@
 | Package | Reports Location |
 |:---|:---|
 | `llm-mailroom` | `packages/llm-mailroom/data/` — HF pilot outputs |
-| `claims-data-eda` | `packages/claims-data-eda/reports/` — CMS DE-SynPUF EDA |
-| `Enron-Evaluation-Environment` | `packages/Enron-Evaluation-Environment/reports/` — Enron EDA |
+| `claims-data-eda` (external/preserved) | [Preserved reports](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda/packages/claims-data-eda/reports) — CMS DE-SynPUF EDA |
+| `Enron-Evaluation-Environment` (external/preserved) | [Preserved reports](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment/packages/Enron-Evaluation-Environment/reports) — Enron EDA |
 | `mailroom-corpus-eda` | `packages/mailroom-corpus-eda/reports/` — corpus EDA, figures, tables |
 
 ## Notes

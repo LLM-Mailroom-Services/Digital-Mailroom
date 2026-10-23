@@ -42,8 +42,6 @@ packages/The-Mailroom/site/
 packages/local-mailroom-sandbox/data/*
 # Sandbox fixtures are tracked (the package .gitignore ignores runtime data).
 !packages/local-mailroom-sandbox/data/fixtures/
-packages/Enron-Evaluation-Environment/data/
-packages/claims-data-eda/data/
 
 # Heavy assets pruned from history at monorepo import — keep them out.
 # (Regenerated locally by their packages; affected tests carry skip guards.)

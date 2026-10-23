@@ -142,9 +142,7 @@ JSON_MODE = False
 
 # package directory name -> standalone repo name (all under Exios66/, main).
 PACKAGES: dict[str, str] = {
-    "Enron-Evaluation-Environment": "Enron-Evaluation-Environment",
     "The-Mailroom": "The-Mailroom",
-    "claims-data-eda": "claims-data-eda",
     "llm-dojo-scoring": "llm-dojo-scoring",
     "llm-mailroom": "llm-mailroom",
     "local-mailroom-sandbox": "local-mailroom-sandbox",

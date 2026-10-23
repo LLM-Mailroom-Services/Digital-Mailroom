@@ -17,7 +17,7 @@ rows marked *cov* were timed under `--cov`, which is slower than a plain run.
 | **1 — surgical** | The single test file/module touched by a change | seconds | Every edit, before committing |
 | **2 — package unit** | The full test suite of the one changed package | seconds–minutes | Every non-trivial change to a package |
 | **3 — cross-package** | The suites of every package a change touches, plus any package that imports the changed surface | 1–6 min | Cross-package refactors, shared-catalog changes (taxonomy, vendor, dojo), version bumps |
-| **4 — full + governance** | All 7 package suites + `scripts/tests` + board-site JS + the governance gates | ~13.5 min suites + gates | Release cuts, CI gate verification, end-of-sprint sweeps |
+| **4 — full + governance** | All 5 core package suites + `scripts/tests` + board-site JS + the governance gates | five-core timing pending | Release cuts, CI gate verification, end-of-sprint sweeps |
 
 ## Per-package commands (measured)
 
@@ -32,8 +32,6 @@ invocation**.
 | local-mailroom-sandbox | `uv run pytest packages/local-mailroom-sandbox/tests -q` | 1324 pass / 5 skip | ~1:50 *cov* |
 | The-Mailroom | `uv run pytest packages/The-Mailroom/tests -q` | 421 pass | ~38 s *cov* |
 | mailroom-corpus-eda | `uv run pytest packages/mailroom-corpus-eda/tests -q` | 186 pass / 17 skip | ~23 s |
-| claims-data-eda | `uv run pytest packages/claims-data-eda/tests -q` | 40 pass | ~10 s |
-| Enron-Evaluation-Environment | `uv run pytest packages/Enron-Evaluation-Environment/tests -q` | 87 pass | ~12 s |
 | hub governance tooling | `python3 -m unittest discover scripts/tests` | 62 pass | ~9 s |
 | board-site API | `(cd board-site && node tests/api.test.js)` | 23 checks | <1 s |
 
@@ -46,6 +44,28 @@ skips and corpus-eda's 17 `data/parquet` snapshot skips mean the real-sample /
 real-corpus tests do not run in a fresh checkout.
 
 **No CI workflow runs any of these suites** — the local run is the gate.
+
+## Historical seven-member measurements (2026-10-21, before DMR-093)
+
+The five core rows above and the two feeder rows below were measured together
+in the seven-member checkout on 2026-10-21. These are historical results, not
+new verification of the pruned workspace or final PR162 imports. The original
+four-tier sweep was ~13.5 minutes plus gates. DMR-093's five-core verification
+must record fresh results separately.
+
+| Preserved package | Historical command | Tests | Wall time |
+| --- | --- | --- | --- |
+| claims-data-eda | `uv run pytest packages/claims-data-eda/tests -q` | 40 pass | ~10 s |
+| Enron-Evaluation-Environment | `uv run pytest packages/Enron-Evaluation-Environment/tests -q` | 87 pass | ~12 s |
+
+Run these commands only in a separate checkout of the complete preserved
+workspace: [Enron](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment/packages/Enron-Evaluation-Environment), [claims](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda/packages/claims-data-eda), commit `59c879d9fb4480084e53137e2e9fb25650933944`.
+PR162 must leave both package trees byte-identical. No feeder audit or source
+fix is required for this prune. Keep the package-local ignores and tracked
+sample PDFs when restoring. Do not overlay the old root pyproject, lock or
+sync manifest onto current main; reconcile those contracts explicitly.
+
+
 
 > llm-mailroom is the long pole (~5 min). Its sub-suites can be targeted for
 > faster surgical feedback: `src/tests/test_observability.py`,
@@ -64,7 +84,7 @@ real-corpus tests do not run in a fresh checkout.
 | Version bump / pin change | **3** | All packages referencing the pin + `docs/wiki/Releases.md` + `release_chain.py check` |
 | Board/tooling change (scripts/, board-site/) | **2–3** | `scripts/board_state.py check`, `board-site/tests/api.test.js`, relevant script tests |
 | Multi-package refactor | **3** | Every touched package's full suite |
-| Release cut / sprint sweep | **4** | All 7 package suites + `scripts/tests` + board-site JS + all governance gates below |
+| Release cut / sprint sweep | **4** | All 5 core package suites + `scripts/tests` + board-site JS + all governance gates below |
 
 ## Governance gates (always run on governance/tooling changes and at tier 4)
 

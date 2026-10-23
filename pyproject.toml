@@ -6,7 +6,13 @@ readme = "README.md"
 requires-python = ">=3.11"
 
 [tool.uv.workspace]
-members = ["packages/*"]
+members = [
+    "packages/llm-dojo-scoring",
+    "packages/llm-mailroom",
+    "packages/local-mailroom-sandbox",
+    "packages/The-Mailroom",
+    "packages/mailroom-corpus-eda",
+]
 
 [dependency-groups]
 dev = [
@@ -29,10 +35,10 @@ dev = [
     "seaborn>=0.13",
     "squarify>=0.4",
     "huggingface_hub>=1.29",
-    # Workspace members, editable in the shared venv. Virtual members
-    # (Enron-Evaluation-Environment, claims-data-eda, mailroom-corpus-eda) are `package = false` and not installable; their
-    # script deps (pandas/numpy/matplotlib/...) ride in transitively via the
-    # members below.
+    # Four built workspace members, editable in the shared venv. The sole
+    # virtual member, mailroom-corpus-eda, has `package = false`; its script
+    # deps (pandas/numpy/matplotlib/...) ride in transitively via the members
+    # below, with additional EDA/HF dependencies listed above.
     "llm-dojo-scoring",
     "mailroom",
     "mailroom-sandbox",

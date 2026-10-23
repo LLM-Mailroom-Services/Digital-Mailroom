@@ -1,5 +1,7 @@
 import asyncio
 import os
+import threading
+import weakref
 import structlog
 from pathlib import Path
 from sqlalchemy import text
@@ -58,25 +60,86 @@ def _apply_sqlite_pragmas(dbapi_conn, _connection_record=None) -> None:
         logger.warning("sqlite_pragma_apply_failed")
 
 
-_engine = None
+# One async engine + sessionmaker per (URL, running event loop). aiosqlite /
+# asyncpg connections and the asyncio primitives inside the engine are bound to
+# the loop that first used them, so sharing one engine across loops (threads
+# that run their own asyncio.run()) raised "bound to a different event loop"
+# and lost writes (DMR-086). Entries are keyed by id(loop) but validated by a
+# weakref identity check, because CPython reuses the id of a collected loop;
+# entries whose loop is closed or gone are pruned so repeated asyncio.run()
+# calls do not grow the cache. A URL change drops every cached engine.
+_engines: dict[int | None, tuple[object, object, object]] = {}
+_engines_lock = threading.Lock()
+_engine = None  # most recently built engine (kept for introspection)
 _engine_url: str | None = None
 _sessionmaker = None
 
 
-def get_engine():
-    """Lazily-built async engine, keyed by the current resolved URL."""
+def _running_loop():
+    """Return the event loop running in this thread, or None outside one."""
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        return None
+
+
+def _entry_is_live(entry, loop) -> bool:
+    """Return whether a cache entry's weak reference identifies the open loop.
+
+    An entry with no loop reference matches only ``loop=None``.
+    """
+    ref = entry[0]
+    if ref is None:
+        return loop is None
+    owner = ref()
+    return owner is not None and owner is loop and not owner.is_closed()
+
+
+def _build_engine(url: str):
+    """Return a new async engine and session factory for ``url``.
+
+    For SQLite, attempt to create parent directories and register connection
+    pragmas. Sessions retain loaded attributes after commit. Engine and driver
+    initialization errors propagate.
+    """
+    engine = create_async_engine(url, **_engine_kwargs(url))
+    if url.startswith("sqlite"):
+        # A-15/A-5: WAL + busy_timeout + FK enforcement per connection.
+        from sqlalchemy import event
+
+        event.listen(engine.sync_engine, "connect", _apply_sqlite_pragmas)
+    return engine, async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+
+def _engine_pair():
+    """Return the cached engine and session factory for the current URL and loop.
+
+    Calls outside a running loop share a separate entry. URL changes discard
+    cached entries without disposing their engines. Engine construction
+    errors propagate.
+    """
     global _engine, _engine_url, _sessionmaker
     url = _resolve_url()
-    if _engine is None or _engine_url != url:
-        _engine = create_async_engine(url, **_engine_kwargs(url))
-        if url.startswith("sqlite"):
-            # A-15/A-5: WAL + busy_timeout + FK enforcement per connection.
-            from sqlalchemy import event
-
-            event.listen(_engine.sync_engine, "connect", _apply_sqlite_pragmas)
+    loop = _running_loop()
+    key = None if loop is None else id(loop)
+    with _engines_lock:
+        if _engine_url is not None and _engine_url != url:
+            _engines.clear()
+        entry = _engines.get(key)
+        if entry is None or not _entry_is_live(entry, loop):
+            for k in [k for k, e in _engines.items() if k is not None and not _entry_is_live(e, e[0]())]:
+                del _engines[k]
+            ref = None if loop is None else weakref.ref(loop)
+            entry = _engines[key] = (ref, *_build_engine(url))
+        _, _engine, _sessionmaker = entry
         _engine_url = url
-        _sessionmaker = async_sessionmaker(_engine, class_=AsyncSession, expire_on_commit=False)
-    return _engine
+        return _engine, _sessionmaker
+
+
+def get_engine():
+    """Lazily-built async engine, keyed by the current resolved URL and the
+    running event loop (never shared across loops)."""
+    return _engine_pair()[0]
 
 
 def async_session():
@@ -90,8 +153,8 @@ def async_session():
 
 
 def _get_sessionmaker():
-    get_engine()
-    return _sessionmaker
+    """Return the session factory for the current resolved URL and running loop."""
+    return _engine_pair()[1]
 
 
 async def acquire_write_lock(session: AsyncSession, key: str) -> None:
@@ -126,6 +189,7 @@ def _ensure_models_imported():
 
 
 _schema_checked_url: str | None = None
+_schema_lock = threading.Lock()
 
 
 def ensure_schema() -> bool:
@@ -138,11 +202,29 @@ def ensure_schema() -> bool:
     The idempotency cache is keyed by the resolved DB URL so a change of
     MAILROOM_BASE_DIR (e.g. per-test temp dirs) creates the schema in the
     right database.
+
+    Return True after successful setup or a cache hit, or False when schema
+    creation or migration raises an Exception. Model-import errors propagate.
     """
     global _schema_checked_url
     url = _resolve_url()
     if _schema_checked_url == url:
         return True
+    with _schema_lock:
+        # Double-checked: a concurrent first caller may have finished the
+        # create_all/migrate while we waited (DMR-086).
+        if _schema_checked_url == url:
+            return True
+        return _ensure_schema_locked(url)
+
+
+def _ensure_schema_locked(url: str) -> bool:
+    """Create or migrate the schema for ``url`` with ``_schema_lock`` held.
+
+    The caller must hold the lock. Cache the URL and return True on success;
+    return False for schema setup exceptions. Model-import errors propagate.
+    """
+    global _schema_checked_url
     _ensure_models_imported()
     try:
         if url.startswith("sqlite"):

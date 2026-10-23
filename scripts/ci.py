@@ -110,7 +110,12 @@ class Gate:
 
 
 def find_token(environ: Optional[dict] = None, gh_runner: Optional[Callable[[], str]] = None) -> Optional[str]:
-    """GITHUB_TOKEN, then MAILROOM_GH_TOKEN, then ``gh auth token``; None if none."""
+    """GITHUB_TOKEN, then MAILROOM_GH_TOKEN, then ``gh auth token``; None if none.
+
+    ``environ`` supplies the token environment variables; ``gh_runner``
+    replaces the CLI lookup. OSError and SubprocessError during that lookup
+    return None; other runner errors propagate.
+    """
     env = os.environ if environ is None else environ
     for key in ("GITHUB_TOKEN", "MAILROOM_GH_TOKEN"):
         val = (env.get(key) or "").strip()
@@ -121,6 +126,7 @@ def find_token(environ: Optional[dict] = None, gh_runner: Optional[Callable[[], 
             return None
 
         def gh_runner() -> str:
+            """Return token CLI output, or an empty string on a nonzero exit."""
             proc = subprocess.run(["gh", "auth", "token"], capture_output=True, text=True, timeout=20)
             return proc.stdout if proc.returncode == 0 else ""
     try:
@@ -131,19 +137,27 @@ def find_token(environ: Optional[dict] = None, gh_runner: Optional[Callable[[], 
 
 
 def target_repo(environ: Optional[dict] = None) -> str:
+    """Return the trimmed MAILROOM_GITHUB_REPO override, or DEFAULT_REPO."""
     env = os.environ if environ is None else environ
     return (env.get("MAILROOM_GITHUB_REPO") or "").strip() or DEFAULT_REPO
 
 
 def build_gates(root: Path = REPO_ROOT) -> list[Gate]:
+    """Build gate definitions in execution order without running them.
+
+    ``root`` locates the board-site working directory. Credential and Node
+    prechecks return skip reasons when those prerequisites are missing.
+    """
     py = sys.executable or "python3"
 
     def need_creds() -> Optional[str]:
+        """Return a skip reason when GitHub credentials are unavailable."""
         if find_token() is None:
             return "no GitHub credentials (GITHUB_TOKEN / MAILROOM_GH_TOKEN / gh auth token)"
         return None
 
     def need_node() -> Optional[str]:
+        """Return a skip reason when Node is unavailable, otherwise None."""
         return None if shutil.which("node") else "node not installed"
 
     gates = [
@@ -218,11 +232,11 @@ _COUNT_KEYS = {
 
 
 def parse_pytest_summary(output: str) -> dict:
-    """Parse the final pytest summary line into counts.
+    """Parse the final pytest summary line, falling back to progress lines.
 
     Returns passed/failed/skipped/errors/xfailed/xpassed (ints, 0 when absent)
-    plus ``found`` (False when no summary line was recognised, e.g. a crash
-    before pytest reported).
+    plus ``found`` (True when a summary or progress line is recognized).
+    A ``no tests ran`` summary is recognized with all counts zero.
     """
     counts = {"passed": 0, "failed": 0, "skipped": 0, "errors": 0, "xfailed": 0, "xpassed": 0, "found": False}
     lines = output.splitlines()
@@ -250,7 +264,10 @@ _PROGRESS_KEYS = {".": "passed", "s": "skipped", "F": "failed", "E": "errors", "
 def _count_progress_chars(lines: list[str], counts: dict) -> dict:
     """Fallback when pytest printed no summary line (e.g. a suite's addopts
     carry ``-q -q``): tally the progress characters (``.`` ``s`` ``F`` ``E``
-    ``x`` ``X``) from the dotted progress lines."""
+    ``x`` ``X``) from the dotted progress lines.
+
+    Update and return ``counts``, setting ``found`` if any progress line matches.
+    """
     seen = False
     for line in lines:
         m = _PROGRESS_RE.match(line.strip())
@@ -267,15 +284,27 @@ def _count_progress_chars(lines: list[str], counts: dict) -> dict:
 # --------------------------------------------------------------------------
 
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess:
+    """Capture Git output in ``root`` without raising for nonzero exits.
+
+    OSError from starting the process propagates.
+    """
     return subprocess.run(["git", *args], cwd=str(root), capture_output=True, text=True)
 
 
 def head_sha(root: Path) -> str:
+    """Return HEAD's commit SHA, or an empty string on a nonzero Git exit.
+
+    OSError from starting Git propagates.
+    """
     proc = _git(root, "rev-parse", "HEAD")
     return proc.stdout.strip() if proc.returncode == 0 else ""
 
 
 def current_branch(root: Path) -> str:
+    """Return the branch name, or ``HEAD`` for a detached checkout.
+
+    A nonzero Git exit returns an empty string; OSError from starting Git propagates.
+    """
     proc = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
     return proc.stdout.strip() if proc.returncode == 0 else ""
 
@@ -284,7 +313,9 @@ def changed_paths(root: Path, base: str) -> Optional[list[str]]:
     """Paths changed vs the merge-base of ``base`` plus uncommitted/untracked.
 
     None when the merge-base cannot be computed (caller falls back to every
-    gate, the safe direction).
+    gate, the safe direction). Otherwise, return sorted, unique paths;
+    unsuccessful diff or queries for untracked files contribute no paths.
+    OSError from starting Git propagates.
     """
     mb = _git(root, "merge-base", base, "HEAD")
     if mb.returncode != 0 or not mb.stdout.strip():
@@ -300,11 +331,19 @@ def changed_paths(root: Path, base: str) -> Optional[list[str]]:
 
 
 def is_dirty(root: Path) -> bool:
+    """Return True for tracked/untracked changes or a nonzero Git exit.
+
+    OSError from starting Git propagates.
+    """
     proc = _git(root, "status", "--porcelain")
     return proc.returncode != 0 or bool(proc.stdout.strip())
 
 
 def head_on_remote(root: Path) -> bool:
+    """Check whether a locally known remote branch contains HEAD, without fetching.
+
+    A nonzero Git exit returns False; OSError from starting Git propagates.
+    """
     proc = _git(root, "branch", "-r", "--contains", "HEAD")
     return proc.returncode == 0 and bool(proc.stdout.strip())
 
@@ -314,6 +353,16 @@ def head_on_remote(root: Path) -> bool:
 # --------------------------------------------------------------------------
 
 def run_gate(gate: Gate, root: Path, ci_dir: Path) -> dict:
+    """Run a gate and return its status, exit code, duration in seconds, and log path.
+
+    A precheck reason skips execution and log creation, with exit code None.
+    Otherwise, run in ``gate.cwd`` or ``root`` and write captured output to
+    ``ci_dir/<gate.name>.log``. Nonzero exits fail; OSError starting the process
+    becomes a failed record with exit code 127. Pytest counts are included
+    when requested and do not determine the status.
+
+    Precheck exceptions and errors creating or writing the log propagate.
+    """
     rec = {"name": gate.name, "group": gate.group, "command": " ".join(gate.argv),
            "status": STATUS_PASS, "rc": 0, "duration_s": 0.0, "reason": "", "counts": None, "log": ""}
     if gate.precheck:
@@ -350,7 +399,10 @@ def run_gate(gate: Gate, root: Path, ci_dir: Path) -> dict:
 
 
 def describe(n: int, p: int, f: int, s: int, partial: bool = False) -> str:
-    """Status description, e.g. ``12 gates: 11 pass, 1 skip`` (zero fail/skip omitted)."""
+    """Status description, e.g. ``12 gates: 11 pass, 1 skip`` (zero fail/skip omitted).
+
+    Prefix partial runs and truncate the result to 140 characters.
+    """
     parts = [f"{p} pass"]
     if f:
         parts.append(f"{f} fail")
@@ -363,6 +415,11 @@ def describe(n: int, p: int, f: int, s: int, partial: bool = False) -> str:
 
 
 def summarize(records: list[dict], *, mode: str, sha: str, branch: str, started: str) -> dict:
+    """Combine gate records, totals, and run metadata into a report.
+
+    Any failed gate makes the state ``failure``; skipped or empty runs can
+    be ``success``. Modes other than ``all`` get a description marked partial.
+    """
     n = len(records)
     p = sum(r["status"] == STATUS_PASS for r in records)
     f = sum(r["status"] == STATUS_FAIL for r in records)
@@ -375,6 +432,7 @@ def summarize(records: list[dict], *, mode: str, sha: str, branch: str, started:
 
 
 def _detail(r: dict) -> str:
+    """Format test counts, a notice of a missing summary, or the gate's reason."""
     c = r.get("counts")
     if c and c.get("found"):
         bits = [f"{c['passed']} passed"]
@@ -388,6 +446,7 @@ def _detail(r: dict) -> str:
 
 
 def render_table(summary: dict) -> str:
+    """Return an aligned text table of gates followed by the overall result."""
     rows = [("GATE", "STATUS", "TIME", "DETAIL")]
     for r in summary["gates"]:
         rows.append((r["name"], r["status"].upper(), f"{r['duration_s']:.1f}s", _detail(r)))
@@ -400,6 +459,7 @@ def render_table(summary: dict) -> str:
 
 
 def render_markdown(summary: dict) -> str:
+    """Return a Markdown run report with gate details and a warning for partial runs."""
     out = [f"### Local CI (`scripts/ci.py`): {summary['state']}", "",
            f"- commit: `{summary['sha']}` on `{summary['branch']}`",
            f"- mode: `{summary['mode']}`" + ("" if summary["mode"] == "all" else
@@ -413,6 +473,10 @@ def render_markdown(summary: dict) -> str:
 
 
 def write_summary(root: Path, summary: dict) -> None:
+    """Create or overwrite .ci/last-run.json and .ci/last-run.md under ``root``.
+
+    Filesystem and serialization errors propagate.
+    """
     d = root / CI_DIR_NAME
     d.mkdir(parents=True, exist_ok=True)
     (d / "last-run.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
@@ -424,12 +488,17 @@ def write_summary(root: Path, summary: dict) -> None:
 # --------------------------------------------------------------------------
 
 def build_status_payload(summary: dict) -> dict:
+    """Return the ``ci`` status payload with its description capped at 140 characters."""
     return {"state": summary["state"], "context": STATUS_CONTEXT,
             "description": summary["description"][:140]}
 
 
 def post_status(url: str, token: str, payload: dict) -> tuple[int, str]:
-    """POST a commit status to GitHub. Isolated so tests can fake it."""
+    """POST a commit status and return the HTTP code and decoded response body.
+
+    HTTP errors return their code and body; URL errors return code 0 and
+    their reason. Other errors making requests or reading responses propagate.
+    """
     req = urllib.request.Request(
         url, data=json.dumps(payload).encode("utf-8"), method="POST",
         headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
@@ -449,7 +518,18 @@ class Refused(Exception):
 
 def report_status(summary: dict, root: Path, *, poster: Callable = post_status,
                   token: Optional[str] = None, repo: Optional[str] = None) -> dict:
-    """Post the ``ci`` status for HEAD, or raise Refused with the reason."""
+    """Post the ``ci`` status for HEAD and return its URL, payload, and HTTP code.
+
+    Raise Refused for an unresolved HEAD, a mismatch with the summary's SHA,
+    a dirty tree, no locally known remote branch containing HEAD, missing
+    credentials, or a successful partial run. Only mode ``all`` may post
+    success. Missing ``token`` and ``repo`` values use credential discovery
+    and the configured repository, respectively.
+
+    ``poster`` receives the URL, token, and payload and returns an HTTP code
+    and body. A non-2xx code raises RuntimeError; errors starting Git
+    and exceptions from ``poster`` propagate.
+    """
     sha = head_sha(root)
     if not sha:
         raise Refused("cannot resolve HEAD")
@@ -479,10 +559,21 @@ def report_status(summary: dict, root: Path, *, poster: Callable = post_status,
 # --------------------------------------------------------------------------
 
 def _now() -> str:
+    """Return the current UTC time as YYYY-MM-DDTHH:MM:SSZ."""
     return _dt.datetime.now(_dt.timezone.utc).strftime(UTC_FMT)
 
 
 def cmd_run(args, root: Path, gates: list[Gate], poster: Callable) -> int:
+    """Execute selected gates, save and print a report, and optionally post status.
+
+    ``args`` contains parsed CLI options. ``only`` replaces path selection
+    with named gates or groups. A missing merge-base runs all gates but
+    retains changed mode, so success still cannot be posted.
+
+    Return 0 on success (skips allowed), 1 for gate or status posting failure,
+    or 2 for an unknown gate/group or a status refusal with no failed gates.
+    Errors from prechecks, log writes, and report writes propagate.
+    """
     log = sys.stderr if args.json else sys.stdout
     mode = "all" if args.all else "changed"
     if args.all:
@@ -538,6 +629,11 @@ def cmd_run(args, root: Path, gates: list[Gate], poster: Callable) -> int:
 
 
 def cmd_status(args, root: Path) -> int:
+    """Print the saved run as JSON or a table according to ``args.json``.
+
+    Return 1 if no report exists, otherwise 0. File read errors and
+    JSONDecodeError propagate.
+    """
     path = root / CI_DIR_NAME / "last-run.json"
     if not path.exists():
         print("ci: no previous run (.ci/last-run.json missing)", file=sys.stderr)
@@ -549,6 +645,13 @@ def cmd_status(args, root: Path) -> int:
 
 def main(argv: Optional[list[str]] = None, *, gates: Optional[list[Gate]] = None,
          poster: Callable = post_status, root: Optional[Path] = None) -> int:
+    """Parse CLI options and return the dispatched command's exit code.
+
+    ``argv=None`` uses process arguments. ``gates``, ``poster``, and ``root``
+    override gate definitions, status delivery, and the repository root.
+    Argument errors and help raise SystemExit; unhandled command errors
+    propagate.
+    """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
 

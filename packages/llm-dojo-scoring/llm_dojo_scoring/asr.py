@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from typing import Any, Sequence
 
-from .classification import require_same_length
+from ._paired import require_equal_lengths
 
 __all__ = [
     "word_error_rate",
@@ -104,14 +104,11 @@ def _mean(values: list[float]) -> float:
 def score_transcription(expected: Any, predicted: Any) -> dict:
     """Batch or single-string WER/CER dict.
 
-    ``expected`` / ``predicted`` are parallel lists of strings, or a single
-    pair of strings. Batch scoring applies only when both inputs are lists;
-    otherwise they form one pair. Raises ``ValueError`` for unequal batch
-    lengths. Returns mean WER/CER and mean per-pair complementary accuracies,
-    plus the pair count ``n``. Empty batches return zero scores and ``n=0``.
+    ``expected`` / ``predicted`` are parallel strings, or a single pair of
+    strings. Returns mean WER/CER over the run plus complementary accuracies.
     """
     if isinstance(expected, list) and isinstance(predicted, list):
-        require_same_length(expected, predicted, what="score_transcription")
+        require_equal_lengths(expected, predicted)
         pairs = list(zip(expected, predicted))
     else:
         pairs = [(expected, predicted)]

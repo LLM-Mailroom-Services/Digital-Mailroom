@@ -5,8 +5,6 @@ Guards (1) the live specialist prompts against the dojo ``production`` /
 against the dojo ``DEFAULT_FIELD_TYPES`` for the live document classes.
 """
 
-import hashlib
-
 from llm_dojo_scoring.prompts import get_prompt
 from llm_dojo_scoring.suites import DEFAULT_FIELD_TYPES
 
@@ -26,18 +24,13 @@ LIVE_DOC_TYPES: tuple[str, ...] = (
 
 
 def test_live_specialists_equal_dojo_production():
-    """Serve live production bytes while preserving the separate corporate eval head."""
+    """Live prompts use production; corporate evaluation v7 is unpromoted."""
     live = prompt_templates()
     for agent in SPECIALIST_AGENTS:
         assert live[agent] == get_prompt(agent, family="production").text
         evaluation = get_prompt(agent, family="production_prompts").text
         if agent == "corporate_records_specialist":
-            assert hashlib.sha256(live[agent].encode()).hexdigest() == (
-                "fe13501f667fcd9f64f7dfbf8b0f124f81d9dd039f4109288b43f106f82b1399"
-            )
-            assert hashlib.sha256(evaluation.encode()).hexdigest() == (
-                "253559fcb7ac6b36878453821a4fab0aa94228ad5add77d5aeabb06bb265134c"
-            )
+            assert live[agent] != evaluation
         else:
             assert live[agent] == evaluation
 

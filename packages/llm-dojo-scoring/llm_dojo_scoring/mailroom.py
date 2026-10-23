@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from .classification import require_same_length
+from ._paired import require_equal_lengths
 
 from .intake import (
     INTAKE_HANDOFF_NODE,
@@ -288,13 +288,9 @@ def score_aligned_classification(
     Aligned applies :data:`EXTRACT_CLASS_ALIASES` only. ``merger_agreement``
     is not equivalent to ``contract`` — predicting ``contract`` for a MAUD
     document is a miss. ``unknown`` and retired types stay distinct.
-
-    Consumes both iterables and raises ``ValueError`` if their lengths differ.
-    Returns pair and match counts plus accuracies rounded to four decimals;
-    empty inputs give zero counts and accuracies.
     """
     expected, predicted = list(expected), list(predicted)
-    require_same_length(expected, predicted, what="score_aligned_classification")
+    require_equal_lengths(expected, predicted)
     pairs = list(zip(expected, predicted))
     n = len(pairs)
     if not n:

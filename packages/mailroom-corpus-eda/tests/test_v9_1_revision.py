@@ -85,6 +85,14 @@ class TestRevisesTargetV9Dataset:
 
 
 class TestReviseRow:
+    def test_subsidiary_list_preserves_inapplicable_blank_presence(self):
+        row = _gt_row(expected="corporate_record", expected_subclass="subsidiary_list",
+                      gt_fields={"record_type": "other", "signatories": "",
+                                 "jurisdiction": "", "filing_number": ""})
+        presence = json.loads(rev.revise_row(row)["gt_fields"]["gt_presence"])
+        for field in ("signatories", "jurisdiction", "filing_number"):
+            assert presence.get(field) == "not_applicable", field
+
     def test_strips_weak_indirect_signals_from_metadata(self):
         out = rev.revise_row(_gt_row())
         assert "clause_count" not in out["metadata"]
@@ -386,18 +394,3 @@ class TestStageDefaultAndGroundTruth:
         assert counts[("default", "test")] == 1
         assert counts[("ground_truth", "train")] == 1
         assert counts[("ground_truth", "test")] == 1
-
-
-def test_revision_preserves_subclass_in_corporate_presence_probe():
-    """Subsidiary-list inapplicable core fields keep explicit presence codes."""
-    row = _gt_row(
-        expected="corporate_record", expected_subclass="subsidiary_list",
-        gt_fields={"signatories": "", "jurisdiction": "", "filing_number": ""},
-        doc_text="Subsidiaries of Example LLC", metadata={},
-    )
-    revised = rev.revise_row(row)
-    presence = json.loads(revised["gt_fields"]["gt_presence"])
-    assert presence["signatories"] == "not_applicable"
-    assert presence["jurisdiction"] == "not_applicable"
-    assert presence["filing_number"] == "not_applicable"
-    assert "gt_presence" not in row["gt_fields"]

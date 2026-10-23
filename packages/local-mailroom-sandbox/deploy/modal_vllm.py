@@ -63,7 +63,7 @@ no ASGI wrapper.
 
 Pinned / verified 2026-09-16:
 
-* Modal Python SDK **1.6.1** (pinned in the ``deploy`` extra).
+* Modal Python SDK **1.6.2** (pinned in the ``deploy`` extra).
 * vLLM **v0.29.0** — ``vllm/vllm-openai:v0.29.0`` (newest stable).
 * ``.entrypoint([])`` clears the image's vLLM entrypoint so Modal can run
   our ``serve()`` function without flag leakage.

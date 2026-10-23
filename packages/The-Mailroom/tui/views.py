@@ -19,6 +19,7 @@ from rich.table import Table
 from rich.text import Text
 
 from tui.corpus import SlimRow
+from mailroom_ui.pipeline_ops import DOJO_RELEASE_URL, dojo_update_text
 
 # Error ring shared by the fetch helpers; re-exported from
 # ``mailroom_console`` so legacy imports keep working.
@@ -347,6 +348,9 @@ def status_header(connected: bool, count: int, api_base: str = "",
                  f"  inbox: {pipeline.get('inbox_pending')}")
         if pipeline.get("watcher") != "live":
             style = "yellow" if connected else style
+        advisory = dojo_update_text(pipeline.get("dojo_update"))
+        if connected and advisory:
+            extra += f"\n{advisory} {DOJO_RELEASE_URL}"
     return Panel(Text(f"THE MAILROOM TUI   {state}   runs: {count}   "
                       f"source: {api_base}{extra}", style=style),
                  border_style=style)

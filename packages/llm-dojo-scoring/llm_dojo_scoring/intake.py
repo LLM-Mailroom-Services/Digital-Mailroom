@@ -25,6 +25,8 @@ Prep steps applied before the sorter sees ``doc_text``:
 
 from __future__ import annotations
 
+from ._paired import require_equal_lengths
+
 import re
 import unicodedata
 from typing import Any
@@ -245,6 +247,7 @@ def _as_text_and_payload(value: Any) -> tuple[str | None, dict]:
 
 
 def _gold_from(expected: Any, *, raw_text: str | None = None) -> tuple[str, dict, bool, dict]:
+    """Derive normalized gold text, normalization stats, messiness, and span metadata."""
     source = raw_text if raw_text is not None else expected
     if isinstance(source, dict):
         raw = source.get("raw") or source.get("raw_text") or source.get("text") or ""
@@ -260,25 +263,29 @@ def _gold_from(expected: Any, *, raw_text: str | None = None) -> tuple[str, dict
 
 
 def _flag_match(pred: Any, gold: Any) -> float | None:
+    """Compare boolean flag values, returning None when either value is missing."""
     if pred is None or gold is None:
         return None
     return 1.0 if bool(pred) == bool(gold) else 0.0
 
 
 def _int_match(pred: Any, gold: Any) -> float | None:
+    """Compare integer-convertible values, treating invalid conversions as mismatches."""
     if pred is None or gold is None:
         return None
     try:
         return 1.0 if int(pred) == int(gold) else 0.0
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return 0.0
 
 
 def _mean(values: list[float]) -> float:
+    """Return the four-decimal mean, or zero for an empty sample."""
     return round(sum(values) / len(values), 4) if values else 0.0
 
 
 def _score_one(expected: Any, predicted: Any, *, raw_text: str | None = None) -> dict:
+    """Score one intake prediction against normalized gold text and preparation metadata."""
     gold_text, gold_stats, gold_messy, gold_payload = _gold_from(
         expected, raw_text=raw_text
     )
@@ -355,6 +362,16 @@ def score_intake(
     An LLM intake is scored the same way: compare its cleaned text / flags
     to ``deterministic_normalize(expected)``. ``method`` on the payload
     should be ``llm`` or ``deterministic``.
+
+    ``raw_text``, when provided, overrides the source used to derive gold,
+    including for every document in a batch.
+
+    When both inputs are lists, return mean metrics, ``n``, and
+    ``per_document`` results; unequal lengths raise ``ValueError``. Two
+    empty lists return ``n=0``, an empty ``per_document``, zero aggregate
+    metrics, and ``None`` for metadata match scores. Otherwise return
+    single-document metrics and gold text with ``n=1``. Raise ``TypeError``
+    if ``expected``, ``predicted``, and ``raw_text`` are all ``None``.
     """
     if expected is None and predicted is None and raw_text is None:
         raise TypeError(
@@ -362,6 +379,7 @@ def score_intake(
             "string or normalize-intake payload"
         )
     if isinstance(expected, list) and isinstance(predicted, list):
+        require_equal_lengths(expected, predicted)
         rows = [
             _score_one(e, p, raw_text=raw_text) for e, p in zip(expected, predicted)
         ]

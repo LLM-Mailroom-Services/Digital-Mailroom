@@ -24,16 +24,22 @@ LIVE_DOC_TYPES: tuple[str, ...] = (
 
 
 def test_live_specialists_equal_dojo_production():
+    """Live prompts use production; corporate evaluation v7 is unpromoted."""
     live = prompt_templates()
     for agent in SPECIALIST_AGENTS:
-        assert (
-            live[agent]
-            == get_prompt(agent).text
-            == get_prompt(agent, family="production_prompts").text
-        )
+        assert live[agent] == get_prompt(agent, family="production").text
+        evaluation = get_prompt(agent, family="production_prompts").text
+        if agent == "corporate_records_specialist":
+            assert live[agent] != evaluation
+        else:
+            assert live[agent] == evaluation
 
 
 def test_taxonomy_field_types_equal_dojo_defaults_for_live_classes():
+    """Require live taxonomy field types to match the pinned dojo defaults."""
+    # Strict parity (plan Task 12): the dojo re-pinned DEFAULT_FIELD_TYPES to
+    # the mailroom taxonomy (``intent: label`` for the three controlled
+    # classes), so any drift on either side fails here.
     tax = {c["key"]: c["field_types"] for c in load_config()["doc_classes"]}
     for doc in LIVE_DOC_TYPES:
         assert tax[doc] == DEFAULT_FIELD_TYPES[doc], doc

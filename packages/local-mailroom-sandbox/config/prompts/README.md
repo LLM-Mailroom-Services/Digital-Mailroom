@@ -42,13 +42,17 @@ without a sanctioned eval-environment re-freeze (eval-environment issue #19
 tracks cross-repo alignment).
 
 **Re-freeze (dojo #30):** `correspondence_specialist_simplified` and
-`corporate_records_specialist_simplified` carry the corrected text the dojo ships
-as `production_prompts` (eval-environment mutations `correspondence_specialist_v7`
+`corporate_records_specialist_simplified` carry the corrected text the dojo shipped
+as `production_prompts` at the v0.22.0-era snapshot (eval-environment mutations
+`correspondence_specialist_v7`
 and `corporate_records_specialist_v6`; the file body equals the dojo template
-body, with no provenance comment). Their lineage rows name the `_v7` / `_v6`
+body, with no provenance comment). Their lineage rows carried the `_v7` / `_v6`
 keys and new sha256/chars; each row's `superseded` block keeps the original v1
 key, sha256, chars and `frozen_at`. The other three stems are unchanged v1 bytes.
-Default `sync_specialist_prompts.py` never rewrites these stems.
+Default `sync_specialist_prompts.py` never rewrites these stems. (Since the
+2026-10-17 vendor bump the dojo's `production_prompts` corporate template IS the
+amended `_v7` text, and the corporate DEFAULT pin moved to the successor stem —
+see the subclass-successor section below; `_simplified` keeps the v6 bytes.)
 
 Parallel `*_simplified` stems for the offline sandbox. They intentionally
 diverge from vendor: **class-specific** extractors (not a lightly edited
@@ -117,6 +121,33 @@ python scripts/sync_specialist_prompts.py --overwrite-experiment
 
 That copies current vendor text onto the matching `*_simplified` stem (loud;
 almost never what a quality experiment wants).
+
+## Corporate records subclass successor (frozen as eval-environment v7)
+
+`corporate_records_specialist_subclass_v2` is frozen as
+`corporate_records_specialist_v7`, with `corporate_records_specialist_v6`
+as its parent. It builds on the re-frozen
+`corporate_records_specialist_simplified` stem. Its sha256 and char count
+are pinned under `frozen_successors` in `eval_environment_lineage.json`;
+`assert_catalog_sha` and `verify_local_catalog` refuse byte drift
+(`--prompt-version` selects the key too — the vendored catalog carries
+`corporate_records_specialist_v7` since the 2026-10-17 vendor bump).
+
+**Default-pin move (deliberate re-freeze, PR #145, 2026-10-17): the
+corporate default stem IS now `corporate_records_specialist_subclass_v2`
+(`corporate_records_specialist_v7`, sha256 `253559fc…`).** The v7 text is
+the canonical amended body the vendored catalog's `production_prompts`
+template and `llm_dojo_scoring.corporate_record_schema.render_prompt_section`
+serve, and it is the only text the per-subclass scoring alignment is defined
+against — a default run must not contradict the schema law the scorer now
+enforces. The v6 bytes stay pinned as stem
+`corporate_records_specialist_simplified`; the original v1 identity stays in
+the default row's `superseded` block. Historical posture runs that pinned the
+then-default `_simplified` stem are intentional non-catalog pins.
+
+| Stem | Agent | Frozen key | Built from | Change |
+| --- | --- | --- | --- | --- |
+| `corporate_records_specialist_subclass_v2` | `corporate_records_specialist` | `corporate_records_specialist_v7` | `corporate_records_specialist_simplified` (re-frozen v6) | Per-subclass key-entity lines **generated** from `llm_dojo_scoring.corporate_record_schema.render_prompt_section` replace the executive brief (5865 → 5462 chars); subclass +keys emitted only for their subclass; `certificate_of_formation` has its own line and the `subsidiary_list` line pins `subject_matter` (the listing statement) / `keywords` (subsidiary names). |
 
 ## SAND-042 repaired stems (frozen as eval-environment v4)
 

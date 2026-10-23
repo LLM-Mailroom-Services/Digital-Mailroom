@@ -16,6 +16,8 @@ from __future__ import annotations
 import re
 from typing import Any, Sequence
 
+from ._paired import require_equal_lengths
+
 __all__ = [
     "word_error_rate",
     "character_error_rate",
@@ -29,6 +31,7 @@ _WORD_RE = re.compile(r"[^\w']+", re.UNICODE)
 
 
 def _normalize_text(value: Any) -> str:
+    """Lowercase text and collapse whitespace, treating falsey values as empty."""
     return _WHITESPACE_RE.sub(" ", str(value or "").strip().lower()).strip()
 
 
@@ -67,6 +70,7 @@ def _levenshtein(ref: Sequence[str], hyp: Sequence[str]) -> int:
 
 
 def _error_rate(ref: Sequence[str], hyp: Sequence[str]) -> float:
+    """Return edit distance per reference token, with empty-reference handling."""
     if not ref:
         return 0.0 if not hyp else 1.0
     return _levenshtein(ref, hyp) / len(ref)
@@ -93,6 +97,7 @@ def character_accuracy(predicted: Any, expected: Any) -> float:
 
 
 def _mean(values: list[float]) -> float:
+    """Return the four-decimal mean, or zero for an empty sample."""
     return round(sum(values) / len(values), 4) if values else 0.0
 
 
@@ -103,6 +108,7 @@ def score_transcription(expected: Any, predicted: Any) -> dict:
     strings. Returns mean WER/CER over the run plus complementary accuracies.
     """
     if isinstance(expected, list) and isinstance(predicted, list):
+        require_equal_lengths(expected, predicted)
         pairs = list(zip(expected, predicted))
     else:
         pairs = [(expected, predicted)]

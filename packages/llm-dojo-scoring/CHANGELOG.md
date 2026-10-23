@@ -5,6 +5,121 @@ Format based on Keep a Changelog; versioning is SemVer.
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-10-23
+
+### Added
+
+- Shared Dojo release awareness (DMR-095): opt-in shared Dojo release
+  awareness, cached nonblocking application startup checks, cache-only health
+  status, and `dojo-version` with explicit/offline/forced JSON checks. Daily
+  per-user state, error backoff, consumer/release notice limits and an environment
+  opt-out leave imports and scoring offline; upgrades and release pins remain
+  operator controlled.
+
+### Fixed
+
+- Concurrent release checks retain newer cached versions and intervening
+  failures when attempt timestamps tie; explicit results reflect retained cache
+  knowledge. Epoch-zero observations and sequential forced recovery remain valid.
+- The copyable startup example imports `sys` before writing notices to stderr.
+- LegalBench excludes float NaN labels from support, equivalence credit and
+  calibration, while preserving supplied zero/false labels and literal strings.
+
+## [0.23.1] - 2026-10-23
+
+### Fixed
+
+- CodeAnt boundary review: non-finite integer intake metadata is a mismatch;
+  blank LegalBench labels and unresolved pilot subclass candidates cannot earn
+  equivalence credit; metadata-only structural fallback payloads are invalid;
+  JSON null MAUD answers do not become the meaningful catalog string "None".
+  Existing valid-label matching, literal catalog answers and typed schema
+  validation remain supported. Regression tests execute the canonical engines.
+- LegalBench accepts explicit producer equivalence groups without mutating
+  global settings. Pilot report calibration has a canonical round-last raw
+  aggregation API, preserving the existing three-decimal report contract.
+
+## [0.23.0] - 2026-10-23
+
+### Changed
+
+- Paired batch scorers reject unequal document counts, including direct and
+  dispatched intake and recognized mixed MAUD batches. Span-list and scalar
+  interpretations remain supported; no scoring formula changes.
+
+- **`corporate_records_specialist_v7` amendment coordinated across the four
+  repos.** The frozen eval-environment mutation text — the `production_prompts`
+  corporate-records bytes; `production` stays on the llm-mailroom v6 freeze
+  (`fe13501f…`) — replaces the
+  `certificate_of_formation` = "articles_of_incorporation with organizers
+  instead of incorporators" prose with an explicit per-subclass line
+  (`+organizers[], registered_agent; omit authorized_capital entirely, even
+  when null`) and adds `subsidiary_list` guidance (`subject_matter = the
+  listing statement, keywords = subsidiary names`). sha256
+  `b40963bb…` (5,333 chars) → `253559fc…` (5,462 chars; −403 vs the 5,865-char
+  `_v6` parent, recorded in `prompts/eval_environment_lineage.json`).
+
+### Fixed
+
+- DMR-091 independent source audit: retain missing/malformed predictions in
+  content, MAUD and presence populations; preserve raw classifier errors as
+  headline misses; inspect completion failure signals independently; sum pooled
+  serving costs rather than averaging run totals. Hand-counted regressions
+  cover padding, hierarchy, error sentinels, and known/unknown costs.
+
+- Corporate label repair and audit no longer treat malformed falsey GT values
+  (`[]`, `0`, `False`) as empty mappings. Text audit summaries retain
+  wrong-subclass entity defects instead of reporting those rows as clean.
+- The `doc:corporate_record` eval-bundle description (part of the "39
+  corporate_record rows" → 450 correction) now states the per-subclass schema +
+  unlabeled-field exclusions. The released 0.22.0 notes keep the wording they
+  shipped with; this correction happened after the v0.22.0 tag.
+
+### Added
+
+- Source-owned pipeline verdict thresholds, sandbox schema/floor policies and
+  the fixed chained-evaluation composite. The canonical scored-only reducer
+  supports unrounded consumer arithmetic without changing its existing default.
+  Typed-unavailable schema results retain their truthiness as JSON-safe booleans
+  instead of leaking nonserializable sets; schema key collections are accepted
+  consistently.
+
+- Canonical pilot classification/subclass policies, required-field and schema
+  support summaries, factuality support, and exact sandbox agent compatibility
+  rubrics. Missing extraction GT remains unscorable rather than a zero score.
+  Source/vendor version reporting ignores unrelated installed distributions.
+
+- Dojo-owned strict pipeline classification, LegalBench report/calibration,
+  offline visualizer lifecycle/quality and isolated-agent rubrics. Consumer
+  facades preserve existing report populations and keys; new class APIs reject
+  unequal paired lengths and do not score missing/blank labels as hits.
+
+- Dojo-owned sandbox MAUD/CUAD compatibility rubrics, distinct metric identities,
+  registry-valid emission maps and count-based benchmark pooling. Consumers
+  re-export these engines after adopting the committed source vendor.
+
+- Complete explicit Python docstrings, including private/nested helpers,
+  scripts, examples, and tests, with a repository-wide regression gate.
+- **`score_extraction(audit_predicted=…)`** — with it set,
+  `entity_list_audit` payloads include fields omitted from GT scoring (e.g.
+  predictions dropped by unlabeled alignment), so verification still surfaces
+  predicted entity facts when the GT side is unlabeled. Diagnostic only:
+  audit entries never produce false positives. Default `None` keeps the old
+  behavior (audit uses the alignment-replaced predictions).
+- `SubclassSchema.omit_entity_keys` / `.core_guidance` — data for the two new
+  prompt clauses; `render_prompt_section()` now emits `certificate_of_formation`
+  on its own line (no longer folded into `articles_of_incorporation`) and
+  reproduces the frozen doc_subclass block byte for byte. Catalog / lineage /
+  docs re-pinned to `253559fc…`.
+
+### Removed
+
+- The superseded research issue inventory; GitHub and `docs/TODOS.md` remain
+  the live follow-up sources. Retained research is marked as historical.
+- The one-off MCP push-queue helper and encoded Digital-Mailroom feeder-resync
+  bundle. Its target commit `357ac5be` is already an ancestor of
+  Digital-Mailroom `main`; the recovery payload remains available in Git history.
+
 ## [0.22.0] - 2026-10-16
 
 ### Changed — breaking
@@ -153,6 +268,16 @@ Format based on Keep a Changelog; versioning is SemVer.
 
 ### Added
 
+- eval-environment lineage re-synced (41 versions, commit `b449a79`) to include
+  `corporate_records_specialist_v7`, the production_prompts text with per-subclass
+  key entities (sha256 `b40963bb…`, 5865 → 5333 chars; supersedes `_v6`).
+- `corporate_record_schema` — per-subclass corporate-record entity schemas
+  (11 subclasses: applicable core fields, pinned `record_type`/`intent`,
+  subclass key entities such as `trustee`/`guarantors` for indentures or
+  `principal`/`attorneys_in_fact` for POAs), `scored_field_types`,
+  `corporate_record_json_schema`, `render_subclass_block`, and a GT label
+  audit (`audit_gt_rows`, `scripts/audit_corporate_record_labels.py`).
+  Reference: `docs/CORPORATE_RECORD_SCHEMA.md`.
 - **eval-environment prompt lineage.** `llm_dojo_scoring.prompts` now exports
   `list_prompt_versions`, `get_prompt_version`, `prompt_roles`, `prompt_chain`,
   `latest_prompt_version`, `default_prompt_version`, `diff_prompt_versions`,
@@ -197,6 +322,18 @@ Format based on Keep a Changelog; versioning is SemVer.
 
 ### Fixed
 
+- `corporate_record` scoring: key-entity fields that GT leaves blank without a
+  documented absence are now *unlabeled* and excluded from both sides
+  (`unlabeled_fields` on the payload; `doc_subclass=` on `score` /
+  `score_document`). Previously a correct entity extraction scored precision
+  0.375 because the published GT labels none of the six entity fields on any
+  of the 450 rows.
+- `corporate_records_specialist` prompt (`production`, `production_prompts`,
+  sha `b40963bb…`): per-subclass key-entity sections generated from
+  `corporate_record_schema`; `entity_name` is always the owning company.
+  Diverges from vendored mailroom `frozen_v1` — upstream re-vendor pending.
+- Stale "39 corporate_record rows" corrected to 450; corpus pin docs now cite Hub tag v9.2.
+- `corporate_record_relabel` + `scripts/relabel_corporate_record_gt.py` — deterministic GT repair proposal (entity_name, record_type, grounded subject_matter, provenance-free keywords, subclass-conflict fixes); `audit_gt_rows` also flags `subclass_content_conflict`.
 - MAUD composite classes whose parts are themselves catalog classes (e.g.
   `General R&Ws, fundamental/Special R&Ws`) now canonicalize to the same sorted
   set as any reordering, so a reordered correct answer is no longer scored wrong.

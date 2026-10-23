@@ -12,6 +12,14 @@ against the workspace package it mirrors. Refresh procedure:
     python scripts/sync_vendor.py            # copy workspace -> vendor/
 
 The drift guard fails (correctly) when the vendor tree lags the workspace.
+
+Standalone fallback (SAND-058): when this checkout is not inside the monorepo
+(`WORKSPACE/packages` absent) but the sibling standalone dojo checkout
+`../llm-dojo-scoring` EXISTS, the llm-dojo-scoring snapshot is drift-checked
+against that checkout's `llm_dojo_scoring/` package dir instead of being
+skipped — the vendored bytes must agree with the dojo source of truth
+either way. The skip only stays when NEITHER reference exists (guarded by
+existence, same conventions as above).
 """
 
 from __future__ import annotations
@@ -24,6 +32,12 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 VENDOR = REPO / "vendor"
 WORKSPACE = REPO.parent.parent
+# Standalone llm-dojo-scoring checkout (repo layout: .../Cold_Storage/
+# {llm-dojo-scoring,local-mailroom-sandbox}) — its package ships at the ROOT,
+# like the upstream clone the vendored snapshot normalizes (DMR-058).
+_STANDALONE_DOJO = REPO.parent / "llm-dojo-scoring"
+_STANDALONE_DOJO_PKG = _STANDALONE_DOJO / "llm_dojo_scoring"
+_STANDALONE_MAILROOM_PKG = REPO.parent / "llm-mailroom" / "src"
 
 # (vendored dir, workspace package root, relative subdir to compare)
 # - llm-mailroom: workspace src/ minus tests/ (VENDOR.md notes test-only files
@@ -109,9 +123,24 @@ def _diff_vs_workspace(vendored_root: Path, workspace_root: Path) -> list[str]:
 )
 def test_vendor_tracks_workspace(vendored_root, workspace_root, label):
     """The vendored snapshot is byte-identical to the workspace package
-    (excluding sandbox-local glue). A lagging vendor tree fails here."""
-    if not vendored_root.is_dir():
-        pytest.skip(f"vendor tree not present: {vendored_root}")
+    (excluding sandbox-local glue). A lagging vendor tree fails here.
+
+    Standalone fallback (SAND-058): no monorepo workspace but the sibling
+    standalone `../llm-dojo-scoring` checkout exists → drift-check against IT
+    (the same file-hash machinery, same exclusions). Skips only when neither
+    reference exists.
+    """
+    assert vendored_root.is_dir(), f"required vendor tree not present: {vendored_root}"
+    if not workspace_root.is_dir():
+        if label == "llm-dojo-scoring" and _STANDALONE_DOJO_PKG.is_dir():
+            print(
+                f"note [{label}]: no monorepo workspace ({workspace_root}) — "
+                f"drift-checking the vendor snapshot against the standalone "
+                f"checkout {_STANDALONE_DOJO} instead"
+            )
+            workspace_root = _STANDALONE_DOJO_PKG
+    if not workspace_root.is_dir() and label == "llm-mailroom":
+        workspace_root = _STANDALONE_MAILROOM_PKG
     if not workspace_root.is_dir():
         pytest.skip(f"workspace package not present: {workspace_root}")
     problems = _diff_vs_workspace(vendored_root, workspace_root)

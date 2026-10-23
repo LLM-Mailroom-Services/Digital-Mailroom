@@ -190,6 +190,8 @@ class PollHub:
         self.review_ttl = review_ttl
         self.clients: set[WebSocket] = set()
         self.snapshot: list[dict[str, Any]] = []
+        self.stale = True  # no successful poll yet
+        self.fetched_at: Optional[str] = None
         # Last successful enriched PipelineRun list (same traces as snapshot).
         # Desk endpoints (sessions / review / metrics) read this instead of
         # walking Langfuse again — a 2-minute sequential enrich blocked the
@@ -229,7 +231,7 @@ class PollHub:
         await ws.accept()
         # Initial snapshot BEFORE joining the broadcast set, so a concurrent
         # broadcast can't interleave a second send on the same socket.
-        await ws.send_json(self._snapshot_message(stale=False))
+        await ws.send_json(self._snapshot_message(stale=self.stale))
         self.clients.add(ws)
 
     async def _broadcast(self, payload: dict[str, Any]) -> None:
@@ -258,7 +260,7 @@ class PollHub:
             "type": "snapshot",
             "runs": self.snapshot,
             "stale": stale,
-            "fetched_at": datetime.now(timezone.utc).isoformat(),
+            "fetched_at": self.fetched_at,
             "poll_interval_s": self.interval,
             "pipeline": self.pipeline_ops,
         }
@@ -278,10 +280,19 @@ class PollHub:
                 # []), meaning "no fresh data".
                 if runs is not None:
                     self.snapshot = runs
-                payload = self._snapshot_message(stale=runs is None)
+                    self.fetched_at = datetime.now(timezone.utc).isoformat()
+                self.stale = runs is None
+                payload = self._snapshot_message(stale=self.stale)
                 await self._broadcast(payload)
-            except Exception as exc:  # pragma: no cover - defensive
+            except Exception as exc:
+                self.stale = True
                 log.warning("poller iteration failed: %s", exc)
+                # Existing clients need the same outage state as reconnects,
+                # even when a gathered I/O task raises before normal broadcast.
+                try:
+                    await self._broadcast(self._snapshot_message(stale=True))
+                except Exception as broadcast_exc:
+                    log.warning("poller outage broadcast failed: %s", broadcast_exc)
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=self.interval)
             except asyncio.TimeoutError:
@@ -344,22 +355,25 @@ class PollHub:
             want_enrich = mode == "all" or (
                 mode == "inflight" and is_conveyor_hot(prev or run)
             )
-            if not want_enrich and mode == "inflight" and budget > 0 \
-                    and self._enriched_fp.get(run.trace_id) != fp:
-                # Enrich-once: parked/finished runs get one full fetch when
-                # first seen or when their light identity changes (late
-                # scores, a reused id's new session) — bounded per cycle so a
-                # cold start never turns into a 200-trace N+1.
+            if not want_enrich and mode == "inflight" and budget > 0 and (
+                self._enriched_fp.get(run.trace_id) != fp
+                or self._needs_refresh(run, cached, now, prev)
+            ):
+                # Parked/finished runs refresh on identity changes AND TTL
+                # expiry. Keep the per-cycle budget, including at cold start.
                 want_enrich = True
                 budget -= 1
-                cached = None  # force a fetch, not the 60 s detail cache
-            if want_enrich and not self._needs_refresh(run, cached, now, prev):
+            if (want_enrich and self._enriched_fp.get(run.trace_id) == fp
+                    and not self._needs_refresh(run, cached, now, prev)):
                 chosen = apply_light_identity(prev, run) if prev is not None else run
                 payload = floor_payload(chosen)
                 ts = cached[0] if cached else now
                 self._details[run.trace_id] = (ts, payload, run_fingerprint(run))
             elif want_enrich:
-                force = cached is not None
+                # The poller already owns refresh scheduling. An actual
+                # refresh must bypass the source's independent full-run TTL,
+                # including the first fetch of a newly observed fingerprint.
+                force = True
                 try:
                     getter = getattr(self.source, "get_run", None)
                     if force and hasattr(self.source, "invalidate_run"):
@@ -395,6 +409,10 @@ class PollHub:
                 chosen = apply_light_identity(full, run) if full is not None else run
                 payload = floor_payload(chosen)
                 self._details[run.trace_id] = (now, payload, fp)
+                if full is None:
+                    # A failed/light fetch cannot renew a prior successful
+                    # enrichment. Retry within the next poll's normal budget.
+                    self._enriched_fp.pop(run.trace_id, None)
                 if full is not None:
                     self._enriched_fp[run.trace_id] = fp
                     try:

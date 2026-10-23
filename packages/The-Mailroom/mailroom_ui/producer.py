@@ -86,7 +86,10 @@ def _pin_cache_src() -> Path:
 
 
 def _materialize_git_pin(checkout: Path) -> Optional[Path]:
-    """Extract ``pipeline`` + ``schemas`` at MAILROOM_GIT_SHA from a git checkout.
+    """Extract the pure ``pipeline`` + ``schemas`` contract at MAILROOM_GIT_SHA.
+
+    This is not a runnable pipeline: config, observability and service
+    dependencies are intentionally outside this adapter's import boundary.
 
     The live sibling branch may not match the pin (and must not stay on
     ``sys.path`` — its ``scripts`` package would shadow this repo).
@@ -337,16 +340,41 @@ def serialize_catalog_row(doc: Any) -> dict[str, Any]:
 def validate_operator_extraction(
     doc_type: str, extracted_data: dict[str, Any]
 ) -> dict[str, Any]:
-    """Reject specialist-schema collisions before Complete (llm-mailroom #53).
+    """Validate Complete payloads using the producer's pure schema registry.
 
-    Prefer the live producer helper when the checkout or pin is new enough;
-    fall back to the bundled field-map check so older imports still block
-    foreign keys (e.g. correspondence ``sender`` on a contract).
+    The producer's review helper lazily imports observability.scores, which
+    also loads the dojo registry. Keep this adapter within pipeline/schemas
+    (including partial git-pin snapshots), without retaining sibling src on
+    sys.path. With no producer schemas, retain the bundled foreign-key check.
     """
-    review = (_LOADED or {}).get("review") if _LOADED else None
-    live = getattr(review, "validate_operator_extraction", None)
-    if callable(live):
-        return live(doc_type, extracted_data)
+    if _LOADED is not None:
+        from pydantic import ValidationError
+
+        documents = importlib.import_module("schemas.documents")
+        schemas = documents.EXTRACTION_SCHEMAS
+        # Registered extract classes only: get_extraction_schema also tries
+        # pipeline.config, whose taxonomy is absent from the contract archive.
+        model = schemas.get(doc_type)
+        payload = dict(extracted_data)
+        if model is None or not payload or payload.get("_parse_error"):
+            raise ValueError(f"extracted_data does not match the {doc_type} schema")
+        meta_keys = frozenset({"confidence", "reasoning", "mock_extraction"})
+        allowed = frozenset(model.model_fields) | meta_keys
+        all_keys = {key for schema in schemas.values() for key in schema.model_fields}
+        foreign = sorted(
+            key for key in payload
+            if key not in allowed and not str(key).startswith("_") and key in all_keys
+        )
+        if foreign:
+            raise ValueError(
+                f"extracted_data fields {foreign} belong to another specialist, "
+                f"not {doc_type}"
+            )
+        try:
+            model.model_validate(payload)
+        except ValidationError as exc:
+            raise ValueError(f"extracted_data does not match the {doc_type} schema") from exc
+        return payload
     from mailroom_ui.pipeline_schema import (
         validate_operator_extraction as _bundled,
     )

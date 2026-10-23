@@ -163,23 +163,157 @@ CORP_SUBCLASS_INTENT: dict[str, str] = {
 }
 
 
+#: Model-visible record phrase per corporate subclass (subject_matter / keywords).
+CORP_SUBCLASS_PHRASE: dict[str, str] = {
+    "articles_of_incorporation": "Articles of incorporation",
+    "bylaws": "Bylaws",
+    "charter_amendment": "Charter amendment",
+    "board_resolution": "Board resolution",
+    "officer_certificate": "Officer certificate",
+    "powers_of_attorney": "Power of attorney",
+    "subsidiary_list": "List of subsidiaries",
+    "rights_instrument": "Rights instrument",
+    "indenture": "Indenture",
+}
+
+
+_NOT_TICKERS = frozenset(
+    {"UK", "US", "USA", "EU", "LLC", "LP", "LLP", "LTD", "INC", "CORP", "CO", "NV", "AG", "SA", "PLC"}
+)
+_TICKER_TAIL = re.compile(r"\s*\([A-Z][A-Z0-9.\-]{0,5}(?:\s*,\s*[A-Z][A-Z0-9.\-]{0,5})*\)\s*$")
+_STATE_TAIL = re.compile(r"\s*/([A-Z]{2})/\s*$")
+
+#: US state / territory postal codes (USPS) — the only ``/XX/`` tails that are
+#: stripping candidates. Foreign two-letter codes that follow the same EDGAR
+#: pattern (``/UK/``, ``/ON/``, ``/BC/``, ``/EN/`` …) are part of the name
+#: and kept.
+_STATE_CODES = frozenset(
+    {
+        "AK", "AL", "AR", "AS", "AZ", "CA", "CO", "CT", "DC", "DE", "FL",
+        "FM", "GA", "GU", "HI", "IA", "ID", "IL", "IN", "KS", "KY", "LA",
+        "MA", "MD", "ME", "MI", "MH", "MN", "MO", "MP", "MS", "MT", "NC",
+        "ND", "NE", "NH", "NJ", "NM", "NV", "NY", "OH", "OK", "OR", "PA",
+        "PR", "PW", "RI", "SC", "SD", "TN", "TX", "UM", "UT", "VA", "VI",
+        "VT", "WA", "WI", "WV", "WY",
+    }
+)
+
+#: Verified CIK → EDGAR ticker for filers whose ticker collides with a
+#: ``_NOT_TICKERS`` legal-form suffix. For these filers the parenthesized
+#: tail is the ticker, not a legal form; without the CIK match the tail is
+#: kept as a name suffix. Do NOT blanket-remove these tokens from
+#: ``_NOT_TICKERS`` — other companies legitimately end in them (e.g. British
+#: AG names keep their ``(UK)`` country tails).
+_TICKER_BY_CIK: dict[int, str] = {
+    1308648: "AG",  # First Majestic Silver Corp (NYSE American: AG)
+}
+
+
+def _is_ticker_tail(tokens: set[str], cik: int) -> bool:
+    """True when a parenthesized tail's tokens qualify for ticker stripping.
+
+    A tail with no token in ``_NOT_TICKERS`` is treated as a ticker. If any
+    token is in that set, the tail is kept — unless it is the single
+    verified EDGAR ticker for the filer's CIK in ``_TICKER_BY_CIK`` (First
+    Majestic's NYSE ``AG``, which collides with the German AG legal form).
+    """
+    if not (tokens & _NOT_TICKERS):
+        return True
+    return cik in _TICKER_BY_CIK and len(tokens) == 1 and next(iter(tokens)) == _TICKER_BY_CIK[cik]
+
+
+def _clean_filer(filer: object, cik: int | None = None) -> str:
+    """Normalize an EDGAR filer name, removing CIK segments and eligible suffixes.
+
+    Non-string values (NaN, ints) give ``""``. Remove numeric ``(CIK ...)``
+    segments and collapse whitespace. Repeatedly strip trailing ``/XX/``
+    codes in ``_STATE_CODES`` and uppercase parenthesized ticker-shaped
+    groups accepted by ``_is_ticker_tail``. Unlisted slash codes such as
+    ``/UK/`` are kept. Parenthesized country / entity-form tokens in
+    ``_NOT_TICKERS``, such as ``(UK)``, are kept unless the tail is the
+    filer's verified ticker via ``_TICKER_BY_CIK`` (so
+    ``First Majestic Silver Corp (AG) (CIK 0001308648)`` becomes
+    ``First Majestic Silver Corp``).
+
+    Known limitation: the CIK is parsed from the same ``filer`` string by
+    default, so when ``(CIK n)`` is absent, ``cik`` is 0 and verified-ticker
+    disambiguation cannot fire — the legal-form-looking tail is kept
+    (conservative). Callers may pass an authoritative ``cik`` (the row's
+    separate metadata CIK, when present) to enable disambiguation in that
+    case; verified-ticker stripping still only handles single-token
+    uppercase tails (see the pinned conservative tests in
+    test_corporate_backfill).
+    """
+    if not isinstance(filer, str):
+        return ""
+    if cik is None:
+        m_cik = re.search(r"CIK\s*(\d+)", filer)
+        cik = int(m_cik.group(1)) if m_cik else 0
+    name = re.sub(r"\s*\(CIK\s*\d+\)", "", filer)
+    name = re.sub(r"\s+", " ", name).strip()
+    while True:
+        stripped = name
+        m_state = _STATE_TAIL.search(stripped)
+        if m_state and m_state.group(1) in _STATE_CODES:
+            stripped = stripped[: m_state.start()].rstrip()
+        m = _TICKER_TAIL.search(stripped)
+        if m and _is_ticker_tail(set(re.findall(r"[A-Z0-9.\-]+", m.group(0))), cik):
+            stripped = stripped[: m.start()].strip()
+        if stripped == name:
+            return name
+        name = stripped
+
+
+def _row_metadata_cik(md: dict) -> int | None:
+    """The row's separate metadata CIK when the schema carries one.
+
+    Some blind-metadata dicts expose ``cik`` as its own key (see
+    composition.provenance, which reads ``cik`` defensively). Returns the
+    parsed int when the value is an int or a digit string, else ``None`` —
+    the caller then falls back to parsing ``"(CIK n)"`` out of the filer
+    string (which defaults to 0 when absent, so verified-ticker
+    disambiguation cannot fire: the documented conservative limitation of
+    ``_clean_filer``).
+    """
+    v = md.get("cik")
+    if isinstance(v, int) and not isinstance(v, bool):
+        return v
+    if isinstance(v, str) and v.strip().isdigit():
+        return int(v.strip())
+    return None
+
+
 def backfill_purpose_gt(rows: list[dict]) -> dict:
     """v9 purpose-GT completion on legacy rows (v8 documented gaps).
 
-    - corporate_record: intent was 0% on all 39 v8 rows — complete via the
-      subclass → closed-vocabulary template (deterministic, zero LLM).
-    - correspondence: subject_matter/keywords were 96/350 (27%) — complete
-      from the published content_topic/topic_evidence + metadata
-      (subject/custodian/date) + doc_text head.
+    - corporate_record: complete intent via the subclass → closed-vocabulary
+      template (deterministic, zero LLM). Fill subject_matter, JSON-array
+      keywords and entity_name from the subclass phrase and cleaned filer.
+      Without a company, use "the registrant" only in subject_matter and
+      leave entity_name unfilled.
+    - correspondence: fill subject_matter from content_topic and metadata
+      subject; fill JSON-array keywords from content_topic, subclass and
+      metadata custodian/folder/date, with defaults for missing topic/subclass.
 
-    Only EMPTY fields are written (never overwrites an existing value);
-    provenance is ``heuristic`` (the §20/§43 regime, now mapped in
-    eval_contract.INTENT_SOURCE_METHOD). Returns completion stats.
+    Mutate rows in place, replacing missing or non-dict gt_fields with a
+    dict for every class. Fill only falsy or whitespace-only purpose fields;
+    filling corporate intent also sets intent_source to ``heuristic``
+    (the §20/§43 regime mapped in eval_contract.INTENT_SOURCE_METHOD),
+    intent_confidence to ``"0.9"`` and intent_status to ``auto_labeled``,
+    overwriting those provenance fields.
+
+    Return counters: corporate_intent counts newly filled intents;
+    correspondence_purpose counts correspondence rows with a truthy intent,
+    even when no fields changed. Missing expected raises KeyError.
+    AttributeError propagates if a metadata lookup is needed and truthy
+    metadata has no get method.
     """
     stats = {"corporate_intent": 0, "correspondence_purpose": 0}
     for r in rows:
         cls = r["expected"]
-        gt = r.get("gt_fields") or {}
+        gt = r.get("gt_fields")
+        if not isinstance(gt, dict) or gt is None:
+            gt = r["gt_fields"] = {}
         md = r.get("metadata") or {}
         if cls == "corporate_record":
             if not str(gt.get("intent") or "").strip():
@@ -189,19 +323,24 @@ def backfill_purpose_gt(rows: list[dict]) -> dict:
                 gt["intent_confidence"] = "0.9"
                 gt["intent_status"] = "auto_labeled"
                 stats["corporate_intent"] += 1
+            subclass = str(r.get("expected_subclass") or "other")
+            phrase = CORP_SUBCLASS_PHRASE.get(subclass, "Corporate record")
+            # _clean_filer parses "(CIK n)" from the filer string; pass the
+            # row's separate metadata CIK when the schema carries one so the
+            # verified-ticker disambiguation still fires for filers without
+            # an inline "(CIK n)" (None → same string-parse behavior as before).
+            company = _clean_filer(md.get("filer"), _row_metadata_cik(md))
             if not str(gt.get("subject_matter") or "").strip():
-                filer = md.get("filer") or "the registrant"
-                desc = md.get("exhibit_description") or str(r.get("expected_subclass") or "")
                 gt["subject_matter"] = (
-                    f"{str(r.get('expected_subclass') or 'corporate record')} of {filer} "
-                    f"(SEC EDGAR exhibit{f': {desc}' if desc else ''})."
+                    f"{phrase} of {company}" + ("" if company.endswith(".") else ".")
+                    if company
+                    else f"{phrase} of the registrant."
                 )
             if not str(gt.get("keywords") or "").strip():
-                kws = [str(r.get("expected_subclass") or "corporate record")]
-                for key in ("filer", "exhibit_type", "form"):
-                    if md.get(key):
-                        kws.append(str(md[key]))
-                gt["keywords"] = json.dumps(list(dict.fromkeys(kws))[:8], ensure_ascii=False)
+                # Document terms only: no exhibit number, form type, accession or CIK.
+                gt["keywords"] = json.dumps(list(dict.fromkeys([phrase, company] if company else [phrase])), ensure_ascii=False)
+            if company and not str(gt.get("entity_name") or "").strip():
+                gt["entity_name"] = company
         elif cls == "correspondence":
             if not str(gt.get("subject_matter") or "").strip():
                 topic = str(gt.get("content_topic") or "").strip() or "general business"
@@ -491,6 +630,13 @@ def load_draw_rows() -> list[dict]:
 
 
 def _validate_draw_row(r: dict) -> str:
+    """Validate one expansion-draw sidecar row; return an error message or ``""``.
+
+    Checks shape (filename/doc_text/expected/expected_subclass all non-empty
+    strings), class and subclass vocabularies, and that no metadata key looks
+    like a label (except the documented ``label_evidence`` holder) — the
+    §48/§49 label-leakage gate applied at load time.
+    """
     if not isinstance(r, dict):
         return "not an object"
     for key in ("filename", "doc_text", "expected", "expected_subclass"):
@@ -582,6 +728,13 @@ def verify_v8_drift(v8_rows: list[dict], enriched: list[dict]) -> None:
 
 
 def _published_v8_values() -> dict[str, dict[str, str]]:
+    """Read the published v8 identity keys (filename → document_id/source_corpus/…).
+
+    The reference values ``verify_v8_drift`` compares the enriched rows
+    against: the 2,000 frozen v8 rows must re-derive to these values exactly
+    (identity.py is byte-stable for v8). The dict is attached to each v8 row
+    as its ``_published`` build-internal key (removed at staging, D4).
+    """
     import pandas as pd
 
     frames = [
@@ -777,6 +930,13 @@ gt = load_dataset("Lucius-Morningstar/mailroom-dataset", "ground_truth")
 
 def build_manifest_v9(rows: list[dict], counts: dict, draw_counts: dict,
                       sha_table: dict[str, str], stage_dir: Path) -> None:
+    """Write the staged-build ``manifest.txt`` (repo id, version, composition, sha256 table).
+
+    The manifest is the release provenance record for the staged v9 tree:
+    parent repo pointer (frozen v8 baseline), per-class row composition and
+    expansion draws, config row counts, the md5 split rule, and the sha256
+    of every staged file.
+    """
     comp = dict(Counter(r["expected"] for r in rows))
     split_c = dict(Counter(r["split"] for r in rows))
     (stage_dir / "manifest.txt").write_text(
@@ -802,6 +962,11 @@ def build_manifest_v9(rows: list[dict], counts: dict, draw_counts: dict,
 
 
 def verify_blind_label_free(stage_dir: Path) -> None:
+    """Assert the staged ``default`` (blind) parquet carries exactly the 4 label-free columns.
+
+    §48 law: filename, doc_text, prompt, metadata — anything else means the
+    GT collation leaked a label column into the blind config (build-fatal).
+    """
     import pandas as pd
 
     for split in ("train", "test"):
@@ -813,6 +978,13 @@ def verify_blind_label_free(stage_dir: Path) -> None:
 
 
 def verify_v9_stage(rows: list[dict], stage_dir: Path, counts: dict) -> None:
+    """Post-stage integrity gate: GT parquet must equal the built rows exactly.
+
+    Row count, unique ``document_id``, class vocabulary within
+    ``EXPECTED_SUBCLASS_BY_CLASS``, zero NaN across the identity/contract/
+    matter columns, plus the §48 blind-config scan (see
+    ``verify_blind_label_free``). Raises on any violation.
+    """
     import pandas as pd
 
     gt = pd.concat([
@@ -932,6 +1104,7 @@ def build_all(
 
 
 def main() -> int:
+    """CLI entry point: ``python -m mailroom_eda.v9_build [--stage-dir DIR] [--publish]``."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stage-dir", type=Path, default=STAGE_DIR_DEFAULT)
     parser.add_argument("--publish", action="store_true")

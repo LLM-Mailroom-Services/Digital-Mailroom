@@ -2,9 +2,12 @@ version = 1
 revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
-    "python_full_version >= '3.14' and sys_platform == 'win32'",
-    "python_full_version >= '3.14' and sys_platform == 'emscripten'",
-    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version >= '3.15' and sys_platform == 'win32'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32'",
+    "python_full_version >= '3.15' and sys_platform == 'emscripten'",
+    "python_full_version == '3.14.*' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.15' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.14.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version == '3.13.*' and sys_platform == 'win32'",
     "python_full_version == '3.13.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.13.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
@@ -15,8 +18,6 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "claims-data-eda",
-    "enron-evaluation-environment",
     "llm-dojo-scoring",
     "mailroom",
     "mailroom-corpus-eda",
@@ -1005,32 +1006,6 @@ wheels = [
 ]
 
 [[package]]
-name = "claims-data-eda"
-version = "0.1.0"
-source = { virtual = "packages/claims-data-eda" }
-dependencies = [
-    { name = "matplotlib" },
-    { name = "numpy" },
-    { name = "pandas" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "huggingface-hub" },
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=0.30" },
-    { name = "matplotlib", specifier = ">=3.7" },
-    { name = "numpy", specifier = ">=1.24" },
-    { name = "pandas", specifier = ">=2.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-]
-provides-extras = ["dev"]
-
-[[package]]
 name = "click"
 version = "8.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1190,7 +1165,7 @@ name = "cuda-bindings"
 version = "13.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cuda-pathfinder" },
+    { name = "cuda-pathfinder", marker = "python_full_version < '3.15' and sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ce/67/5e7dba1ba576dd73da5dee894ca076ca5e959450dfff66d6d510a255d1f7/cuda_bindings-13.3.1-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:c7855c4868aabc0cfae28abbe83d56734bdfbd08f08fc234ac1912a12858bf49", size = 6025351, upload-time = "2026-05-29T23:11:49.685Z" },
@@ -1221,43 +1196,43 @@ wheels = [
 
 [package.optional-dependencies]
 cublas = [
-    { name = "nvidia-cublas", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
-    { name = "nvidia-cuda-nvrtc", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cublas", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "nvidia-cuda-nvrtc", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 cudart = [
-    { name = "nvidia-cuda-runtime", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cuda-runtime", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 cufft = [
-    { name = "nvidia-cufft", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
-    { name = "nvidia-nvjitlink", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cufft", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 cufile = [
-    { name = "nvidia-cufile", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cufile", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 cupti = [
-    { name = "nvidia-cuda-cupti", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cuda-cupti", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 curand = [
-    { name = "nvidia-curand", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-curand", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 cusolver = [
-    { name = "nvidia-cublas", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
-    { name = "nvidia-cusolver", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
-    { name = "nvidia-cusparse", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
-    { name = "nvidia-nvjitlink", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cublas", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "nvidia-cusolver", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "nvidia-cusparse", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 cusparse = [
-    { name = "nvidia-cusparse", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
-    { name = "nvidia-nvjitlink", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cusparse", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 nvjitlink = [
-    { name = "nvidia-nvjitlink", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 nvrtc = [
-    { name = "nvidia-cuda-nvrtc", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cuda-nvrtc", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 nvtx = [
-    { name = "nvidia-nvtx", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-nvtx", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 
 [[package]]
@@ -1353,11 +1328,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/f5/22/900cb125c76b7aaa4
 wheels = [
     { url = "https://files.pythonhosted.org/packages/de/15/545e2b6cf2e3be84bc1ed85613edd75b8aea69807a71c26f4ca6a9258e82/email_validator-2.3.0-py3-none-any.whl", hash = "sha256:80f13f623413e6b197ae73bb10bf4eb0908faf509ad8362c5edeb0be7fd450b4", size = 35604, upload-time = "2025-08-26T13:09:05.858Z" },
 ]
-
-[[package]]
-name = "enron-evaluation-environment"
-version = "0.1.0"
-source = { virtual = "packages/Enron-Evaluation-Environment" }
 
 [[package]]
 name = "et-xmlfile"
@@ -1918,8 +1888,8 @@ name = "httpcore2"
 version = "2.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "h11" },
-    { name = "truststore" },
+    { name = "h11", marker = "sys_platform != 'emscripten'" },
+    { name = "truststore", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/be/ad/f4f0e57345f1870f3e8cb624e058d7eca6e5a27d33bcc3311d9b618734cd/httpcore2-2.12.0.tar.gz", hash = "sha256:9293522bba0aa7c4c8e9e3f040c16575bd8868e155a77fa30c7a9085a5eae648", size = 67548, upload-time = "2026-08-18T13:22:08.211Z" }
 wheels = [
@@ -2982,13 +2952,14 @@ wheels = [
 
 [[package]]
 name = "llm-dojo-scoring"
-version = "0.22.0"
+version = "0.24.0"
 source = { editable = "packages/llm-dojo-scoring" }
 dependencies = [
     { name = "jellyfish" },
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "openpyxl" },
+    { name = "packaging" },
     { name = "pandas" },
     { name = "python-dateutil" },
     { name = "pyyaml" },
@@ -3045,6 +3016,7 @@ requires-dist = [
     { name = "openpyxl", specifier = ">=3.1.0" },
     { name = "opentelemetry-exporter-otlp-proto-http", marker = "extra == 'tracing'", specifier = ">=1.20" },
     { name = "opentelemetry-sdk", marker = "extra == 'tracing'", specifier = ">=1.20" },
+    { name = "packaging", specifier = ">=23.2" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "pyarrow", marker = "extra == 'catalog'", specifier = ">=15.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
@@ -3179,7 +3151,7 @@ wheels = [
 
 [[package]]
 name = "mailroom"
-version = "0.8.0"
+version = "0.8.1"
 source = { editable = "packages/llm-mailroom" }
 dependencies = [
     { name = "aiosqlite" },
@@ -3261,7 +3233,7 @@ requires-dist = [
     { name = "langgraph", specifier = ">=0.2.0" },
     { name = "langgraph-checkpoint-sqlite", specifier = ">=1.0" },
     { name = "llm-dojo-scoring", editable = "packages/llm-dojo-scoring" },
-    { name = "modal", marker = "extra == 'deploy'", specifier = "==1.6.1" },
+    { name = "modal", marker = "extra == 'deploy'", specifier = "==1.6.2" },
     { name = "nbclient", marker = "extra == 'dev'", specifier = ">=0.10" },
     { name = "nbformat", marker = "extra == 'dev'", specifier = ">=5.9" },
     { name = "onnxruntime", marker = "extra == 'bert'", specifier = ">=1.30" },
@@ -3482,7 +3454,7 @@ pipeline = [
 [package.metadata]
 requires-dist = [
     { name = "aiosqlite", marker = "extra == 'pipeline'", specifier = ">=0.20" },
-    { name = "braintrust", marker = "extra == 'observability'", specifier = ">=0.42,<0.46" },
+    { name = "braintrust", marker = "extra == 'observability'", specifier = ">=0.42,<0.47" },
     { name = "greenlet", marker = "extra == 'pipeline'", specifier = ">=3.0" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=0.24" },
@@ -3491,14 +3463,14 @@ requires-dist = [
     { name = "jupyterlab", marker = "extra == 'notebooks'", specifier = ">=4.2" },
     { name = "langchain-core", marker = "extra == 'pipeline'", specifier = ">=0.3" },
     { name = "langchain-openai", marker = "extra == 'pipeline'", specifier = ">=0.2" },
-    { name = "langfuse", marker = "extra == 'observability'", specifier = ">=4.0,<5" },
+    { name = "langfuse", marker = "extra == 'observability'", specifier = ">=4.0,<6" },
     { name = "langgraph", marker = "extra == 'pipeline'", specifier = ">=0.2" },
     { name = "mailroom-sandbox", extras = ["dev", "deploy", "hf", "observability", "notebooks", "pipeline"], marker = "extra == 'all'", editable = "packages/local-mailroom-sandbox" },
     { name = "mailroom-sandbox", extras = ["pipeline"], marker = "extra == 'dev'", editable = "packages/local-mailroom-sandbox" },
     { name = "markdown-it-py", marker = "extra == 'dev'", specifier = ">=3.0" },
     { name = "matplotlib", specifier = ">=3.8" },
     { name = "matplotlib", marker = "extra == 'notebooks'", specifier = ">=3.8" },
-    { name = "modal", marker = "extra == 'deploy'", specifier = "==1.6.1" },
+    { name = "modal", marker = "extra == 'deploy'", specifier = "==1.6.2" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "openai", specifier = ">=1.30" },
     { name = "openpyxl", specifier = ">=3.1" },
@@ -3722,7 +3694,7 @@ wheels = [
 
 [[package]]
 name = "modal"
-version = "1.6.1"
+version = "1.6.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -3739,9 +3711,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "watchfiles" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/65/ba/2b36899ea5633bf101e6ba6f7e95a4da3e4b1f57f52bd0ba8f4cfd12e808/modal-1.6.1.tar.gz", hash = "sha256:ff17768f67a65595aa7882e893e6cb78e2e001b3653aa52cfe98d4051d8d9e9e", size = 942670, upload-time = "2026-10-03T16:05:05.428Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f1/4c/4546bf12b132224a65a809766b6ada95a9a9fd63e28fb1abab1e1b962c2f/modal-1.6.2.tar.gz", hash = "sha256:f96bcd2de02abb74ac8ec3ff7d62400403633867a42c9c7b43f69f75ea00b952", size = 975949, upload-time = "2026-10-16T02:21:35.874Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d2/3c/6b7d9a15dab9af2833ce674bbc72b5654d4099d5b088f1cc1eda3f8249ca/modal-1.6.1-py3-none-any.whl", hash = "sha256:f408ef88563003a83e491a6be09d4221eaa6e038fa4faa2ad8b15b25afe949a4", size = 1063454, upload-time = "2026-10-03T16:05:02.554Z" },
+    { url = "https://files.pythonhosted.org/packages/59/2c/d7a1eadd29223208d9143b57fc027e39ad2da411c798e991e669fe7562a2/modal-1.6.2-py3-none-any.whl", hash = "sha256:1a6c8409e315785137615601cac940de3d72462c0059b9cd0faf5d17615bacf0", size = 1097851, upload-time = "2026-10-16T02:21:32.788Z" },
 ]
 
 [[package]]
@@ -4050,7 +4022,7 @@ name = "nvidia-cublas"
 version = "13.1.1.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cuda-nvrtc" },
+    { name = "nvidia-cuda-nvrtc", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/a1/0bd24ee8c8d03adac032fd2909426a00c88f8c57961b1277ded97f91119f/nvidia_cublas-13.1.1.3-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:b7a210458267ac818974c53038fbec2e969d5c99f305ab15c72522fa9f001dd5", size = 542848918, upload-time = "2026-04-08T18:46:22.985Z" },
@@ -4089,7 +4061,7 @@ name = "nvidia-cudnn-cu13"
 version = "9.20.0.48"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas" },
+    { name = "nvidia-cublas", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/56/c5/83384d846b2fd17c44bd499b36c75a45ed4f095fbbb2252294e89cea5c5c/nvidia_cudnn_cu13-9.20.0.48-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:e31454ae00094b0c55319d9d15b6fa2fc50a9e1c0f5c8c80fb75258234e731e1", size = 444574296, upload-time = "2026-03-09T19:28:27.751Z" },
@@ -4101,7 +4073,7 @@ name = "nvidia-cufft"
 version = "12.0.0.61"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink" },
+    { name = "nvidia-nvjitlink", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8b/ae/f417a75c0259e85c1d2f83ca4e960289a5f814ed0cea74d18c353d3e989d/nvidia_cufft-12.0.0.61-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:2708c852ef8cd89d1d2068bdbece0aa188813a0c934db3779b9b1faa8442e5f5", size = 214053554, upload-time = "2025-09-04T08:31:38.196Z" },
@@ -4131,9 +4103,9 @@ name = "nvidia-cusolver"
 version = "12.0.4.66"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas" },
-    { name = "nvidia-cusparse" },
-    { name = "nvidia-nvjitlink" },
+    { name = "nvidia-cublas", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "nvidia-cusparse", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "nvidia-nvjitlink", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c8/c3/b30c9e935fc01e3da443ec0116ed1b2a009bb867f5324d3f2d7e533e776b/nvidia_cusolver-12.0.4.66-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:02c2457eaa9e39de20f880f4bd8820e6a1cfb9f9a34f820eb12a155aa5bc92d2", size = 223467760, upload-time = "2025-09-04T08:33:04.222Z" },
@@ -4145,7 +4117,7 @@ name = "nvidia-cusparse"
 version = "12.6.3.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink" },
+    { name = "nvidia-nvjitlink", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f8/94/5c26f33738ae35276672f12615a64bd008ed5be6d1ebcb23579285d960a9/nvidia_cusparse-12.6.3.3-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:80bcc4662f23f1054ee334a15c72b8940402975e0eab63178fc7e670aa59472c", size = 162155568, upload-time = "2025-09-04T08:33:42.864Z" },
@@ -4644,7 +4616,7 @@ name = "pexpect"
 version = "4.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "ptyprocess" },
+    { name = "ptyprocess", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce1f4d06852fc19a2f11d180f23dc32d9588bee2f149d/pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f", size = 166450, upload-time = "2023-11-25T09:07:26.339Z" }
 wheels = [
@@ -6147,8 +6119,8 @@ name = "secretstorage"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography" },
-    { name = "jeepney" },
+    { name = "cryptography", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "jeepney", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1c/03/e834bcd866f2f8a49a85eaff47340affa3bfa391ee9912a952a1faa68c7b/secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be", size = 19884, upload-time = "2025-11-23T19:02:53.191Z" }
 wheels = [
@@ -6446,9 +6418,13 @@ dependencies = [
 dev = [
     { name = "bcrypt" },
     { name = "httpx" },
+    { name = "llm-dojo-scoring" },
     { name = "pyjwt" },
     { name = "pytest" },
     { name = "watchdog" },
+]
+eval = [
+    { name = "llm-dojo-scoring" },
 ]
 operator = [
     { name = "bcrypt" },
@@ -6469,6 +6445,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.110" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "langfuse", specifier = ">=4.0,<5" },
+    { name = "llm-dojo-scoring", marker = "extra == 'eval'", editable = "packages/llm-dojo-scoring" },
     { name = "mailroom", marker = "extra == 'pipeline'", editable = "packages/llm-mailroom" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pyjwt", marker = "extra == 'dev'" },
@@ -6480,11 +6457,12 @@ requires-dist = [
     { name = "pyyaml", marker = "extra == 'pipeline'", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.0" },
     { name = "structlog", marker = "extra == 'pipeline'", specifier = ">=24.0" },
+    { name = "the-mailroom", extras = ["eval"], marker = "extra == 'dev'", editable = "packages/The-Mailroom" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.29" },
     { name = "watchdog", marker = "extra == 'dev'" },
     { name = "watchdog", marker = "extra == 'operator'" },
 ]
-provides-extras = ["dev", "pipeline", "operator", "ui"]
+provides-extras = ["eval", "dev", "pipeline", "operator", "ui"]
 
 [[package]]
 name = "threadpoolctl"

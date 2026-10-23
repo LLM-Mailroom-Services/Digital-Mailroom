@@ -2,12 +2,14 @@
 """Sub-package <-> standalone-repo sync driver (issue #2, DMR-064).
 
 Each package under ``packages/`` mirrors an independent GitHub repository
-(``Exios66/<name>``). The monorepo is the single source of truth for active
-development; the sync flow keeps the mirrors reconciled with their upstreams:
+(``Exios66/<name>``). Standalone repositories own package implementations:
+merge source changes there first, then import their committed revisions here.
+The hub owns integration and governance. The sync flow compares and imports sources:
 
   status    compare each package against its upstream (drift report)
   pull      import upstream commits into the monorepo copy (git subtree pull)
-  push      publish monorepo commits back to the standalone repo (subtree push)
+  push      legacy outbound implementation; forbidden for package delivery
+            by the DMR-091 source-ownership policy (see root AGENTS.md)
   snapshot  re-baseline the sync manifest at the current upstream tips
 
 Usage:
@@ -140,9 +142,7 @@ JSON_MODE = False
 
 # package directory name -> standalone repo name (all under Exios66/, main).
 PACKAGES: dict[str, str] = {
-    "Enron-Evaluation-Environment": "Enron-Evaluation-Environment",
     "The-Mailroom": "The-Mailroom",
-    "claims-data-eda": "claims-data-eda",
     "llm-dojo-scoring": "llm-dojo-scoring",
     "llm-mailroom": "llm-mailroom",
     "local-mailroom-sandbox": "local-mailroom-sandbox",
@@ -572,6 +572,24 @@ def unimported_upstream_paths(upstream_tip: str, package: str) -> dict[str, str]
     return {p: "missing" for p in missing if p not in ignored}
 
 
+def upstream_content_not_imported(upstream_tip: str, package: str) -> dict[str, str]:
+    """Upstream paths whose bytes are not in the package tree.
+
+    Path presence is not containment. A file that still has an older blob
+    while the upstream tip has a new blob was not imported; the pull fast
+    path must not report that tip as already contained or advance the cursor
+    over it (DMR-091).
+    """
+    gaps = dict(unimported_upstream_paths(upstream_tip, package))
+    tip_tree = tree_map(upstream_tip)
+    pkg_tree = tree_map("HEAD", f"packages/{package}")
+    for path, blob in tip_tree.items():
+        current = pkg_tree.get(path)
+        if current is not None and current != blob:
+            gaps[path] = "modified"
+    return gaps
+
+
 def local_ahead_paths(upstream_tip: str, package: str) -> list[str]:
     """Package-side tracked paths absent from or differing at the tip."""
     tip_tree = tree_map(upstream_tip)
@@ -667,7 +685,7 @@ def cmd_pull(args: argparse.Namespace) -> int:
             warn(f"!! {package}: could not read upstream head (ls-remote failed)")
             worst = max(worst, E_NETWORK)
             continue
-        if rev_exists(head) and not unimported_upstream_paths(head, package):
+        if rev_exists(head) and not upstream_content_not_imported(head, package):
             entries[package] = {
                 "url": url,
                 "branch": DEFAULT_BRANCH,

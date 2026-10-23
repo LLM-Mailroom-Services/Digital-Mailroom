@@ -10,12 +10,9 @@ scoring code (``src/field_scoring.py``, ``src/metrics.py``, ``src/bootstrap.py``
 
 from __future__ import annotations
 
-from importlib import metadata
-
-try:
-    __version__ = metadata.version("llm-dojo-scoring")
-except metadata.PackageNotFoundError:
-    __version__ = "0.22.0"
+# Vendor and source checkouts can coexist with unrelated installed metadata.
+# Report the version of the code actually loaded; release tests pin pyproject parity.
+__version__ = "0.24.0"
 
 from . import (
     archive,
@@ -252,6 +249,14 @@ from .maud_schema import (
     parse_maud_clause,
     render_maud_question_block,
 )
+from .corporate_record_schema import (
+    SUBCLASS_SCHEMAS as CORPORATE_RECORD_SUBCLASS_SCHEMAS,
+    audit_gt_rows as audit_corporate_record_labels,
+    corporate_record_json_schema,
+    render_subclass_block as render_corporate_record_block,
+    scored_field_types as corporate_record_field_types,
+    subclass_schema as corporate_record_subclass_schema,
+)
 from .schema_contract import contract_empty_payload, contract_violations
 from .mailroom import (
     EXTRACT_CLASS_ALIASES,
@@ -384,6 +389,9 @@ __all__ = [
     "MAUD_CONSIDERATION_SUBCLASSES", "MAUD_QUESTIONS", "maud_answers_to_clauses",
     "maud_json_schema", "maud_question", "maud_questions", "parse_maud_clause",
     "render_maud_question_block",
+    "CORPORATE_RECORD_SUBCLASS_SCHEMAS", "audit_corporate_record_labels",
+    "corporate_record_json_schema", "render_corporate_record_block",
+    "corporate_record_field_types", "corporate_record_subclass_schema",
     "contract_empty_payload", "contract_violations",
     "parse_gt_fields", "scoring_gt_fields", "normalize_field_values",
     "parse_json_container", "is_empty_value", "gt_presence_map",
@@ -402,3 +410,15 @@ __all__ = [
     "GridDocument", "GridExperiment", "build_grid_report", "grid_scorecard",
     "serving_efficiency_rows", "session_cost_rows", "specialist_grid_rows",
 ]
+
+# Additive sandbox benchmark API; existing task/suite entry points keep their rubrics.
+from .sandbox_scoring import score_cuad as score_sandbox_cuad
+from .sandbox_scoring import score_maud as score_sandbox_maud
+
+__all__ += ["score_sandbox_cuad", "score_sandbox_maud"]
+
+from .sandbox_scoring import sandbox_metric_scores
+__all__ += ["sandbox_metric_scores"]
+
+from .sandbox_scoring import aggregate_sandbox_scores
+__all__ += ["aggregate_sandbox_scores"]

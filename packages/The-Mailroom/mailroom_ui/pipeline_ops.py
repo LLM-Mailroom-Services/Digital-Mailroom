@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
+import re
 import urllib.error
 import urllib.request
 from typing import Any, Optional
@@ -18,6 +20,72 @@ from typing import Any, Optional
 log = logging.getLogger("mailroom.pipeline_ops")
 
 _WATCHER_STALE_S = 15.0
+DOJO_RELEASE_URL = "https://github.com/Exios66/llm-dojo-scoring/releases/latest"
+_DOJO_STATUSES = ("update_available", "up_to_date", "unknown", "unavailable", "disabled")
+# Bounded canonical PEP 440 subset. Dojo owns version comparison; the display
+# rejects unfamiliar shapes instead of importing the optional scoring engine.
+_RELEASE = r"[0-9]{1,9}(?:\.[0-9]{1,9}){1,3}"
+_INSTALLED_VERSION = re.compile(
+    _RELEASE + r"(?:(?:a|b|rc)[0-9]{1,9})?(?:\.post[0-9]{1,9})?"
+    r"(?:\.dev[0-9]{1,9})?(?:\+[a-z0-9]+(?:[.-][a-z0-9]+)*)?", re.ASCII
+)
+_STABLE_VERSION = re.compile(_RELEASE + r"(?:\.post[0-9]{1,9})?", re.ASCII)
+
+
+def validated_dojo_update(value: Any) -> Optional[dict[str, Any]]:
+    """Allowlist the producer's cache-only advisory, without changing health.
+
+    No release lookup, local distribution inspection, HTML, or caller-supplied
+    URL is used. Unknown/disabled states may have no cached release yet.
+    """
+    if not isinstance(value, dict) or value.get("status") not in _DOJO_STATUSES:
+        return None
+    installed, latest = value.get("installed_version"), value.get("latest_version")
+    if not (isinstance(installed, str) and len(installed) <= 64
+            and _INSTALLED_VERSION.fullmatch(installed)):
+        return None
+    if latest is not None and not (
+        isinstance(latest, str) and len(latest) <= 64 and _STABLE_VERSION.fullmatch(latest)
+    ):
+        return None
+    checked = value.get("checked_at")
+    if checked is not None and not (
+        type(checked) in (int, float) and 0 <= checked <= 253402300799 and math.isfinite(checked)
+    ):
+        return None
+    if value["status"] == "update_available" and (latest is None or checked is None):
+        return None
+    if type(value.get("stale")) is not bool or type(value.get("cache_persisted")) is not bool:
+        return None
+    if value.get("source") not in ("cache", "network", "none"):
+        return None
+    error = value.get("error")
+    if error is not None and not (
+        isinstance(error, str) and len(error) <= 64 and re.fullmatch(r"[a-z][a-z0-9_]*", error, re.ASCII)
+    ):
+        return None
+    if value.get("release_url") != DOJO_RELEASE_URL:
+        return None
+    return {
+        "status": value["status"], "installed_version": installed, "latest_version": latest,
+        "checked_at": checked, "stale": value["stale"], "source": value["source"],
+        "error": error, "cache_persisted": value["cache_persisted"],
+        "release_url": DOJO_RELEASE_URL,
+    }
+
+
+def dojo_update_text(value: Any) -> str:
+    """Plain advisory text shared with the existing terminal ops renderer."""
+    update = validated_dojo_update(value)
+    if not update or update["status"] != "update_available":
+        return ""
+    from datetime import datetime, timezone
+
+    checked = datetime.fromtimestamp(update["checked_at"], timezone.utc).isoformat(timespec="seconds")
+    freshness = "stale; recheck needed" if update["stale"] else "release page may have changed"
+    return (f"Dojo update available for pipeline: installed {update['installed_version']}; "
+            f"available {update['latest_version']}. Cached release result checked {checked} "
+            f"({freshness}).")
 
 
 def pipeline_base_url() -> str:
@@ -144,6 +212,9 @@ def fetch_pipeline_ops(*, timeout: float = 1.5) -> dict[str, Any]:
         "ingestion_paused": paused,
         "status": health.get("status"),
     })
+    advisory = validated_dojo_update(health.get("dojo_update"))
+    if advisory is not None:
+        out["dojo_update"] = advisory
     if token:
         try:
             queue = _get_json(producer_url("/queue"), timeout=timeout, token=token)

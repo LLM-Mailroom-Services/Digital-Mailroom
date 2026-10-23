@@ -24,6 +24,7 @@ import json
 import re
 from typing import Any, Iterable, Sequence
 
+from ._paired import require_equal_lengths
 from .classification import ERROR_PREFIX, confusion_matrix, top_confusions
 from .config import MAUD_CONSIDERATION_ALIASES, MAUD_CONSIDERATION_TYPES
 from .corpus import (
@@ -97,10 +98,12 @@ _SENTIMENT_ALIASES: dict[str, str] = {
 }
 
 def _fold(value: Any) -> str:
+    """Normalize a label to lowercase words using the content alias separators."""
     return _ALIAS_RE.sub(" ", str(value or "").strip().lower()).strip()
 
 
 def _fold_key(value: Any) -> str:
+    """Convert a folded content label to an underscore-separated key."""
     return _fold(value).replace(" ", "_")
 
 
@@ -226,6 +229,9 @@ def _label_content_score(
     *,
     normalize,
 ) -> dict:
+    """Score paired normalized labels, retaining error predictions as failures."""
+    expected, predicted = list(expected), list(predicted)
+    require_equal_lengths(expected, predicted)
     pairs = []
     for e, p in zip(expected, predicted):
         if str(p).startswith(ERROR_PREFIX):
@@ -260,6 +266,7 @@ def _label_content_score(
 
 
 def _as_list(value: Any) -> list:
+    """Convert sequences to lists, wrap scalars, and map None to an empty list."""
     if value is None:
         return []
     if isinstance(value, (list, tuple)):
@@ -314,6 +321,7 @@ def score_correspondence_content(
 
 
 def _maybe_json(value: Any) -> Any:
+    """Decode JSON-looking strings, leaving malformed JSON and other values intact."""
     if isinstance(value, str):
         text = value.strip()
         if text.startswith("{") or text.startswith("["):
@@ -531,15 +539,27 @@ def parse_maud_labels(value: Any) -> dict[str, dict[str, Any]]:
 
 
 def _documents(expected: Any, predicted: Any) -> list[tuple[Any, Any]]:
-    """Yield (expected, predicted) per-document pairs.
+    """Return a list of ``(expected, predicted)`` document pairs.
 
-    A list of dicts is a batch. A list of strings is one document's spans.
+    Decode JSON object/array strings; malformed JSON remains unchanged.
+    A list beginning with a dict is a batch, even with later non-dict
+    entries. If neither side is a batch, return a single pair, keeping
+    span lists (including empty lists) as one document.
+
+    When either side is a batch, pair list entries by position. Raise
+    ``ValueError`` for unequal lengths when both sides are lists and each
+    is empty or begins with a dict. Other list pairings stop at the
+    shorter side. A non-list expected value is one document; a non-list
+    prediction is reused for every expected document.
     """
     exp = _maybe_json(expected)
     pred = _maybe_json(predicted)
     exp_batch = isinstance(exp, list) and exp and isinstance(exp[0], dict)
     pred_batch = isinstance(pred, list) and pred and isinstance(pred[0], dict)
     if exp_batch or pred_batch:
+        if (isinstance(exp, list) and isinstance(pred, list)
+                and (not exp or exp_batch) and (not pred or pred_batch)):
+            require_equal_lengths(exp, pred)
         exp_list = exp if isinstance(exp, list) else [exp]
         pred_list = pred if isinstance(pred, list) else [pred] * len(exp_list)
         return list(zip(exp_list, pred_list))
@@ -551,8 +571,9 @@ def score_maud_extraction(expected: Any, predicted: Any) -> dict:
 
     Accepts label maps, JSON, or clause spans via :func:`parse_maud_labels`.
     A list beginning with a dict is treated as a document batch; a list of
-    strings is one document's spans. Batch lists are paired up to the shorter
-    length; a non-list prediction is reused for each expected document.
+    strings is one document's spans. Unequal lists recognized as document
+    batches on both sides raise ValueError; batch-versus-span forms retain their pairing
+    behavior. A non-list prediction is reused for each expected document.
     Label parsing errors propagate.
 
     Headlines:

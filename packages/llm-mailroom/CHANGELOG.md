@@ -7,17 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+### Documentation
 
-- **llm-dojo-scoring pin bumped `v0.19.1` → `v0.21.0`** ([llm-dojo-scoring@v0.21.0](https://github.com/Exios66/llm-dojo-scoring/releases/tag/v0.21.0), tip `6a3053cc`): the dojo `production` family was re-vendored verbatim from a live mailroom checkout (five specialists now equal the frozen `production_prompts` v1 bytes, `reporter` is `kind: deterministic`, every row records `source_commit`), `llm_dojo_scoring.intents` added the controlled `intent` vocabularies, the exact-match `label` field type landed, and the six `production` classification prompts were re-synced from mailroom `6ddde73` (llm-mailroom#102 — the five-class doctrine no longer names the MAUD/CUAD corpora). Scoring semantics for the pinned behaviour are unchanged, so no pipeline code change is required; pins, badges, skills, wiki, README / landing, current-state GitBook pages (Overview, repos guides, architecture, Agents honest gaps, Scoring and performance, Running), the observability README, and the `## Corpus honesty` heading in generated HF-pilot reports now all cite `v0.21.0`. The pin was moved only via `PYTHONPATH=src python src/scripts/bump_dojo_scoring.py --apply --tag v0.21.0`.
+- DMR-093: document the pending five-package Digital-Mailroom core, source-first ownership, and published Enron/claims preservation branches. External feeder guides and provenance remain available; hub pruning lands separately after PR162.
+- CodeAnt review: scope the repository-index import instructions to imported core packages; issue, evaluation, and external-feeder repositories retain their own workflows.
 
-### Fixed
-
-- **Extraction schemas honour the empty-field contract (SAND-042 RCA)** (`schemas/documents.py`): `InsuranceClaimExtraction.insurer`, `insured_party`, `claim_type`, `damages_description` and `coverage_determination`, `CorporateRecordExtraction.entity_name` and `record_type`, and `CorrespondenceExtraction.communication_type` and `urgency` were `str = ""`, so a prompt-faithful `null` failed validation (insurance schema-valid 26–34 % on SAND-042). They are now `str | None = None`. `claimed_amount` and `demand_amount` accept the currency phrases the prompts allow (`"$18,530.00"`, `"1,250"`, `"USD 99.5"`, `"($40.00)"`; blank → `null`) and still reject prose. `src/tests/test_schema_null_contract.py` pins every scalar field of every extraction schema as nullable.
-- **`test_dojo_v019_wiring.py` no longer hardcodes the `0.19` series**: the two `scorer_version` assertions (per-document provenance payload, HF-pilot scorecard row) demanded `startswith("0.19")` and so failed the moment the pin moved. They now assert the payload value equals `SCORER_VERSION == llm_dojo_scoring.__version__`, i.e. the installed library's own version, so the check follows the pin instead of needing a hand edit per bump.
-- **`bump_dojo_scoring.py` no longer misses documented pins**: `docs/start-here/getting-started.md` and `docs/constellation/getting-started.md` are now in `PIN_FILES` (their `pip install "llm-dojo-scoring @ …@vX"` lines stayed on the old tag through the last two bumps); the "pinned as a git dependency (`@vX`)" pattern accepts either case (`docs/the-pipeline-in-depth/running.md`); a pattern covers this script's own documented `--apply --tag vX` invocation in `docs/sister-repos.md`; and the architecture dependency-table pattern accepts an `as of <date>` segment between the pin and `, auto-bumped` (`docs/constellation/architecture.md`). `--check` only compares the `pyproject.toml` pin, so these gaps were invisible to it.
+## [v0.8.1] - 2026-10-23
 
 ### Added
+
+- **Explicit offline corporate candidates:** register separate charter-intent and POA company-name instruction candidates with frozen parent provenance and deterministic request-contract tests. Both are unmeasured and require explicit experiment-key selection; live corporate v6 and evaluation v7 defaults remain unchanged.
 
 - **Operator SMS pager transports** (`src/pipeline/sms_notify.py`): Twilio, email-gateway and console transports with recipient validation, masked logging and GSM-7/UCS-2 segment counting, plus the default-off `pager:` block in `taxonomy.yaml`; nothing sends until the pager is wired in.
 - **Operator SMS pager core** (`src/pipeline/pager_core.py`, stdlib-only, shared verbatim with mailroom-reloaded): `pager:` config resolution (settings file → env → taxonomy → default, with floors), ten alert rules, the frequency state machine (mute/quiet hours with one catch-up digest, warning debounce, per-severity cooldowns, batched recovery, hourly cap that still passes criticals, silent healthy scans, failed sends stay pending), and the SMS renderers (verdict first, `Next:` step, metrics, `Ref P-…`) with the `mailroom.pager/v1` JSON payload.
@@ -30,7 +29,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Free-model resilience** (`llm/quota.py`, `llm/retry.py`): free calls on OpenRouter send the rest of the `free_model_swarm` chain (fallbacks only; `model` stays the primary) as the `models` array with `provider.require_parameters` when it has more than one entry (taxonomy unchanged: `openrouter/free` alone). A free-quota breaker trips after 3 consecutive 429s and short-circuits free calls (`FreeQuotaExhausted`, raised even when the opening 429 is the final retry) for a positive `Retry-After` as given, otherwise for `free_quota.cooldown_s` (300s, doubling per consecutive trip); either way capped at 3600s; the Gmail triage lane then answers with its deterministic header pass (`degraded: free_quota`) instead of burning the retry ladder. Paid models never touch the breaker. The model that actually answered (`response.model`) is recorded per agent as `served_models` in `usage_summary()` and logged on `llm_response`.
 - **Gmail intake performance** (`pipeline/gmail_intake.py`, `llm/result_cache.py`): a `BODYSTRUCTURE` pre-filter skips the body download for emails with no acceptable attachment (headers only, then the reject reply); bodies are fetched with `BODY.PEEK[]` so a message is never marked seen before it is handled; opt-in IMAP IDLE push between sweeps (`MAILROOM_GMAIL_IDLE=1`, falls back to polling on any error); the triage agent reuses validated results for identical input from a 30-day SQLite cache keyed on the full request (system prompt, skills, schema and boilerplate), with expired rows swept on write (`MAILROOM_LLM_CACHE=0` disables). IDLE waits with `select()` so a timeout never breaks the IMAP reader.
 
+### Changed
+
+- **Canonical scoring release:** adopt published `llm-dojo-scoring v0.23.1`. Primary classification, extraction, quality/rubric, LegalBench and pilot engines delegate to source-owned Dojo APIs; pipeline modules retain transport, telemetry and report assembly. Compatibility fixtures pin existing metric identities, raw sufficient statistics, missing-ground-truth behavior and field-support semantics. The pipeline corpus stays on `v9.1`; live corporate prompt v6 and evaluation v7 remain distinct.
+
+- **Corrected specialist prompts get their eval-environment lineage keys (plan D2):** mailroom already serves the 2026-10-05 dojo-corrected `correspondence_specialist` (`2b0b81ff…`) and `corporate_records_specialist` (`fe13501f…`) bytes (via the dojo `production_prompts` catalog, so no prompt text changed). `src/llm/frozen_v1/lineage.json` now records them as the eval-environment mutations `correspondence_specialist_v7` / `corporate_records_specialist_v6` with the uncorrected `_v1` digests under `derived_from`; the legacy `*.txt` files (never loaded) still hold the uncorrected v1 bytes.
+- **llm-dojo-scoring INTERIM pin `v0.21.0` → commit `8c7b7f1c9c3b18a7036ee58addcfaa35d816177d`** (dojo branch `claude/cool-wozniak-o044u4`, unreleased `[Unreleased]` changes; to be replaced by `@v0.22.0` once the human tags it — run `PYTHONPATH=src python src/scripts/bump_dojo_scoring.py --apply --tag v0.22.0`). The dojo fixes `DEFAULT_FIELD_TYPES` (`intent: label` for the three controlled classes), adds the public fail-soft `embed_texts`, the `contract_violations` schema checker, strict `metric_id_for`, provenance-required `Emitter.emit_score`, and the other breaking changes listed in its changelog; none of the breaking APIs is called by mailroom (it uses `score_document` with `dataset_revision` only, `archive_entry_hash` parity is pinned by tests). `bump_dojo_scoring.py` now understands a 40-hex SHA pin (badge/alt show the 7-char form and link to the commit; `--apply --tag vX.Y.Z` rewrites a SHA everywhere it is documented) and never downgrades an interim SHA pin: when the target release does not contain the pinned commit (GitHub compare), `--check` reports up to date and `--apply` refuses, so the daily auto-bump workflow cannot revert to `v0.21.0`. `[tool.uv.sources] llm-dojo-scoring = { workspace = true }` is unchanged (monorepo dev only; no `uv.lock` is tracked here, so there is nothing to regenerate).
+- **Extraction schemas honor the dojo empty-field contract (SAND-042):** `CorporateRecordExtraction.entity_name` / `record_type`, `CorrespondenceExtraction.communication_type` and `InsuranceClaimExtraction.insurer` / `insured_party` / `claim_type` / `damages_description` / `coverage_determination` are `str | None = None` (were non-nullable `str = ""`, so a prompt-faithful `null` failed `schema_valid`). `src/tests/test_schema_contract.py` pins `contract_violations(...) == []` for all five live classes.
+- **`pipeline/relations.py` uses the dojo's public `llm_dojo_scoring.embed_texts`** instead of the private `_get_embedding()._embed`; behaviour (None when embeddings are off or unavailable) is unchanged.
+- **`test_dojo_parity` no longer xfails** `test_taxonomy_field_types_equal_dojo_defaults_for_live_classes`: the pinned dojo now matches the taxonomy field maps, so the strict guard is a normal passing test (plan Task 12 Step 2).
+
+- **llm-dojo-scoring pin bumped `v0.19.1` → `v0.21.0`** ([llm-dojo-scoring@v0.21.0](https://github.com/Exios66/llm-dojo-scoring/releases/tag/v0.21.0), tip `6a3053cc`): the dojo `production` family was re-vendored verbatim from a live mailroom checkout (five specialists now equal the frozen `production_prompts` v1 bytes, `reporter` is `kind: deterministic`, every row records `source_commit`), `llm_dojo_scoring.intents` added the controlled `intent` vocabularies, the exact-match `label` field type landed, and the six `production` classification prompts were re-synced from mailroom `6ddde73` (llm-mailroom#102 — the five-class doctrine no longer names the MAUD/CUAD corpora). Scoring semantics for the pinned behaviour are unchanged, so no pipeline code change is required; pins, badges, skills, wiki, README / landing, current-state GitBook pages (Overview, repos guides, architecture, Agents honest gaps, Scoring and performance, Running), the observability README, and the `## Corpus honesty` heading in generated HF-pilot reports now all cite `v0.21.0`. The pin was moved only via `PYTHONPATH=src python src/scripts/bump_dojo_scoring.py --apply --tag v0.21.0`.
+
 ### Fixed
+
+- Reject ambiguous legacy review filenames even when a same-name sibling has
+  an ID-qualified copy. Requested owned paths retain priority; unsafe IDs,
+  unique legacy fallback and atomic no-clobber publication retain their guards.
+
+- **Installed runtime taxonomy:** include `config/taxonomy.yaml` in built wheels so `pipeline.config` and all 18 managed prompt templates load from the installed payload without a source-checkout fallback. Source-only scripts and LegalBench packaging remain unchanged.
+- **Offline LegalBench tracing:** `trace_enabled=False` now skips per-question observations as well as the root trace, so ambient tracing credentials cannot enable question spans in notebook fixture runs.
+- **Consumer policy compatibility:** bind LegalBench to the pipeline's established subtype groups without changing global Dojo settings, delegate raw round-last pilot calibration to Dojo, and retain the five public diagnostic helper imports. Generated corpus-honesty headings report the loaded scoring version.
+- **Runtime review boundaries:** publish review files without overwriting concurrent different content, reject unsafe fallback IDs inside the resolver, and continue waiting for Windows warehouse-lock contention beyond the CRT retry window.
+
+- Warehouse payload temporaries are created private from the outset; a separate always-empty mode probe preserves umask-derived first-publication access without exposing later contents through an early retained descriptor. Non-object manifests fail closed at the review-file boundary.
+
+- Final runtime review: unreadable manifests fail closed for unverifiable legacy
+  review files while document-ID files remain available. New atomic warehouse
+  files honor the process umask and replacements retain existing permissions.
+  Upload documentation and real multipart tests distinguish empty form defaults
+  from rejected whitespace-only identifiers.
+
+- DMR-091 postfix: keyless providers receive an explicit placeholder rather
+  than unrelated SDK credentials; Arrow readers retain one open snapshot, and
+  small-batch audit exports retain their document join keys.
+
+- **DMR-091 independent runtime audit:** review files use durable document-ID
+  names and collision-safe lookup, including replay and legacy fallback; upload
+  matter IDs and archive destinations reject path traversal. LangChain agents
+  select environment credentials only after resolving their provider. Warehouse
+  exports serialize complete read/merge/write transactions across threads and
+  processes, publish files atomically, merge fresh daily manifests and preserve
+  advancing watermarks. Same-PR regressions exercise real files and Parquet.
+
+- **Loop-bound database connections** (DMR-091): asynchronous SQLite and
+  PostgreSQL engines use `NullPool`; sessions close their connections rather
+  than retaining idle pools after the owning event loop closes. Serialized
+  schema creation and per-loop engine/session state protect concurrent writers.
+
+- **Extraction schemas honour the empty-field contract (SAND-042 RCA)** (`schemas/documents.py`): `InsuranceClaimExtraction.insurer`, `insured_party`, `claim_type`, `damages_description` and `coverage_determination`, `CorporateRecordExtraction.entity_name` and `record_type`, and `CorrespondenceExtraction.communication_type` and `urgency` were `str = ""`, so a prompt-faithful `null` failed validation (insurance schema-valid 26–34 % on SAND-042). They are now `str | None = None`. `claimed_amount` and `demand_amount` accept the currency phrases the prompts allow (`"$18,530.00"`, `"1,250"`, `"USD 99.5"`, `"($40.00)"`; blank → `null`) and still reject prose. `src/tests/test_schema_null_contract.py` pins every scalar field of every extraction schema as nullable.
+- **`test_dojo_v019_wiring.py` no longer hardcodes the `0.19` series**: the two `scorer_version` assertions (per-document provenance payload, HF-pilot scorecard row) demanded `startswith("0.19")` and so failed the moment the pin moved. They now assert the payload value equals `SCORER_VERSION == llm_dojo_scoring.__version__`, i.e. the installed library's own version, so the check follows the pin instead of needing a hand edit per bump.
+- **`bump_dojo_scoring.py` no longer misses documented pins**: `docs/start-here/getting-started.md` and `docs/constellation/getting-started.md` are now in `PIN_FILES` (their `pip install "llm-dojo-scoring @ …@vX"` lines stayed on the old tag through the last two bumps); the "pinned as a git dependency (`@vX`)" pattern accepts either case (`docs/the-pipeline-in-depth/running.md`); a pattern covers this script's own documented `--apply --tag vX` invocation in `docs/sister-repos.md`; and the architecture dependency-table pattern accepts an `as of <date>` segment between the pin and `, auto-bumped` (`docs/constellation/architecture.md`). `--check` only compares the `pyproject.toml` pin, so these gaps were invisible to it.
 
 - **Gmail attachments never lost on I/O errors** (`pipeline/gmail_intake.py`): delivery is two-phase. Every accepted attachment of an email is staged before any is published; an I/O error while staging publishes nothing and the email is retried (counted toward the quarantine cap). The `.meta` sidecar is created exclusively before its file appears in the inbox (an existing sidecar is never overwritten; the file takes a suffixed name instead), a part-way publish failure never removes a published file, and `deliver_attachment` returns `"io"` instead of raising.
 - **Gmail smoke test** (`src/scripts/gmail_smoke_test.py`): the offline smoke starts the outbox worker, so its echo check passes again, and now checks one acknowledgment per email and one digest for the bundle.
@@ -818,7 +867,8 @@ Minor release covering everything since v0.4.1. Live pipeline is **five document
 - File moves in `pipeline/bins.py` now use `shutil.move`; default file-extension fallback added.
 - Watcher and ops-monitor robustness fixes; audit log writer made async-safe; `Matter.opened_at` made timezone-aware.
 
-[Unreleased]: https://github.com/Exios66/llm-mailroom/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/Exios66/llm-mailroom/compare/v0.8.1...HEAD
+[v0.8.1]: https://github.com/Exios66/llm-mailroom/compare/v0.8.0...v0.8.1
 [v0.8.0]: https://github.com/Exios66/llm-mailroom/compare/v0.7.1...v0.8.0
 [v0.7.1]: https://github.com/Exios66/llm-mailroom/compare/v0.7.0...v0.7.1
 [v0.7.0]: https://github.com/Exios66/llm-mailroom/compare/v0.6.0...v0.7.0

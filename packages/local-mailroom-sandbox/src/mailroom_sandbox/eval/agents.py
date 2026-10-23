@@ -308,7 +308,15 @@ def _score_extract(row: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(expected, dict):
         expected = {}
     doc_type = str(row.get("expected_doc_class") or row.get("doc_type") or "contract")
-    return scoring.score_extraction_row(doc_type, pred, expected, doc_text=_doc_text(row))
+    return scoring.score_extraction_row(
+        doc_type,
+        pred,
+        expected,
+        doc_text=_doc_text(row),
+        # Per-subclass scoring (sandbox #145): the row's GT subclass drives the
+        # vendored corporate-record alignment (see scoring.py).
+        expected_subclass=row.get("expected_subclass"),
+    )
 
 
 def _score_label(row: dict[str, Any], pred: dict[str, Any], key: str, expected_field: str) -> dict[str, Any]:

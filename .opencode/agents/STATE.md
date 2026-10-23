@@ -1,5 +1,42 @@
 # Audit State
 
+## DMR-091 / DMR-093 / DMR-095 reconciliation in progress — 2026-10-23T07:16Z
+
+Independent repositories own implementation. Source main → hub imports →
+source-generated vendors remains the required order. Hub PR162 and pruning
+PR167 remain draft and unmerged; rollback v0.9.1 and preservation refs are intact.
+
+Dojo v0.23.1 is published at 04ac152a, with1814 passed/5 skipped. The hub still
+imports v0.23.0 until final reviewed source composition. New source PR63
+prepares update awareness0.24.0; its frozen8386cc65 review passed1901/5 plus138
+adversarial assertions. Newly arrived CodeAnt/CodeRabbit example-import,
+equal-time cache and NaN-label findings hold publication for source repairs.
+No dependency pin is advanced to the unpublished release.
+
+Pipeline119 now contains current-main117 documentation, canonical scoring,
+verified runtime CodeAnt repairs, disabled-tracing and wheel-taxonomy repairs.
+The docs-only merge preserves both runtime files exactly;31 parent docs tests
+and19 generated pages pass. Source117 has already merged, so exact future main
+imports retain its pending-five-core documentation. Only hub167 removes members.
+Sandbox local branch retains upstream docstrings with16 AST-identical Python
+implementations and current-main dependency locks; lock check passes. Final
+vendors, source full gates and independent composition review remain pending.
+Visualizer41 includes source-owned runtime, eval and pipeline-forwarded advisory
+changes; parent488 passed/2 skipped and34 browser-fixture checks are bounded
+proof, not final producer-pin approval. Consumer-hook proposal has82 passes.
+
+Fresh review inventory covers all26 linked PRs with exact CodeAnt root matching
+and complete thread/comment pagination. A new legacy review ownership finding
+is under source-only verification. Live frozen corporate prompt findings remain
+open; offline candidates are not adopted defaults or measured model winners.
+
+Hub main PR160's10 new governance tests pass and are retained in67965f27. Full
+hub tooling is70/72 with2 pending vendor-drift failures; baseline board phantom
+references remain separate. The23:00 America/Chicago drift schedule is enabled;
+its queued first dispatch is not a completed clean audit. No completion claim.
+
+Earlier dated reports below remain historical evidence, not current approval.
+
 ## Latest Audit
 
 - **Date:** 2026-09-22 (UTC)
@@ -374,3 +411,18 @@ Extensive references in `packages/llm-mailroom/docs/wiki/` and `docs/sister-repo
 - **Audit consequence:** every path under those three packages cited in the entries above (e.g. `packages/llm-entity-extraction/deploy/modal_vllm.py` in DMR-024/DMR-030, the `agent-mailroom` / `llm-mailroom-graph` README findings, the llm-entity-extraction suite counts) is historical evidence only and is **no longer auditable** in this tree. Do not re-open those findings against the monorepo; the audit surface for deploy files is now `packages/llm-mailroom/deploy/modal_vllm.py` and `packages/local-mailroom-sandbox/deploy/modal_vllm.py`.
 - **Expected sync baseline:** `sync_packages.py status` now expects 7/7 (was 10/10).
 - **Entries above are left unedited** (append-only audit trail).
+
+
+## DMR-093 scope note (2026-10-23 UTC, proposal pending parent application)
+
+- Five active workspace/sync packages: dojo, pipeline, sandbox, visualizer and
+  corpus-EDA. Enron (86 tracked paths) and claims (63) are preserved without
+  source fixes at `59c879d9fb4480084e53137e2e9fb25650933944` on
+  [`feature/enron-evaluation-environment`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment/packages/Enron-Evaluation-Environment) and
+  [`feature/claims-data-eda`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda/packages/claims-data-eda). PR162 must retain both package trees
+  byte-identically; removal belongs to a separate PR dependent on #162.
+- The DMR-079 7/7 baseline and all prior audit entries remain dated history.
+  `feature/agent-mailroom`, taxonomy/data identities and historical labels stay.
+- No full feeder audits. Retained package docs need standalone-first merge/import;
+  core cursors must follow the parent's final source imports. No upstream parity
+  or final suite claim is made here. Parent owns gates, commits and card closure.

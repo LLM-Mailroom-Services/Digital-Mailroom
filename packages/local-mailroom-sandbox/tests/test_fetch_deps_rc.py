@@ -16,8 +16,8 @@ import pytest
 from mailroom_sandbox import cli
 
 _PINS = (
-    ("alpha", "v1", "https://example.invalid/alpha.git"),
-    ("beta", "v2", "https://example.invalid/beta.git"),
+    ("alpha", "v1", "https://example.invalid/alpha.git", None),
+    ("beta", "v2", "https://example.invalid/beta.git", None),
 )
 
 
@@ -32,7 +32,7 @@ def _run(monkeypatch, results: dict[str, int], *, workspace: bool):
         calls.append(name)
         return results[name]
 
-    def fake_tag(name, tag, url):
+    def fake_tag(name, pin, url, sha):
         calls.append(name)
         return results[name]
 

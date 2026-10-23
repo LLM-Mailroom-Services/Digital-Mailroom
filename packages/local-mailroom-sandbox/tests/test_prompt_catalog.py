@@ -61,7 +61,7 @@ def test_index_lists_every_version_with_defaults_and_collisions():
     for v in ALL:
         assert f"[{v.key}]({v.role}.md#{v.key.lower()})" in index
         assert v.sha256[:12] in index
-    assert "40 versions" in index and "15 roles" in index
+    assert "43 versions" in index and "15 roles" in index
     # the sandbox / eval-env defaults and "latest" are marked
     assert "[correspondence_specialist_v7](correspondence_specialist.md#correspondence_specialist_v7) (sandbox default, latest)" in index
     assert "[sorter_v1](sorter.md#sorter_v1) (eval-env default)" in index
@@ -71,6 +71,7 @@ def test_index_lists_every_version_with_defaults_and_collisions():
     assert "PROMPT_VERSIONS" in index and "sorter_v14" in index and "contracts_specialist_v33" in index
     assert "only from the dojo lineage" in index
     # sandbox stems whose key the lineage lacks are listed, not hidden
+    # (--prompt-version now selects all three; the old gap section shrank to none)
     assert "insurance_claims_specialist_v4" in index and "merger_agreement_specialist_v4" in index
 
 
@@ -109,7 +110,7 @@ def test_cli_list_versions_table_role_and_json(capsys):
     rows = json.loads(capsys.readouterr().out)
     assert {r["key"] for r in rows} == {v.key for v in ALL if v.lineage == "archived"}
     assert main(["prompts", "list-versions"]) == 0
-    assert capsys.readouterr().out.strip().endswith("40 version(s)")
+    assert capsys.readouterr().out.strip().endswith("43 version(s)")
 
 
 def test_cli_list_versions_unknown_role_exits_2(capsys):

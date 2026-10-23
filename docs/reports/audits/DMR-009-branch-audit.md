@@ -76,7 +76,7 @@ The board retains the September009 delivery (`da0ea35`: eight branch removals, S
 
 The old cleanup caveat named orphan commit `d026bc51df6c710279dd9b53505c32afbce72ea8`. The original branch was already absent before this session. Preserved `feature/agent-mailroom` commit `f5d97d98` documents its substantially equivalent independent fixes and adds adapted regression tests for containment, WebSocket auth, review state, resume cleanup, wildcard IDs and timestamps.
 
-One original behavior is **not** retained: `packages/agent-mailroom/src/agent_mailroom/pipeline/bins.py:214` still sorts `p.stat().st_mtime` without tolerating a disappearing file. This is tracked separately as **DMR-094 / [issue166](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/166)**; no retired source package is reintroduced or modified by this audit.
+One original behavior is **not** retained: `packages/agent-mailroom/src/agent_mailroom/pipeline/bins.py:214` still sorts `p.stat().st_mtime` without tolerating a disappearing file. This is tracked separately as **DMR-096 / [issue166](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/166)**; no retired source package is reintroduced or modified by this audit.
 
 Recovered the **full original commit**, tree `83d153140fb1f4737076fadfd4435a7cf2a38b9a`, from GitHub into a temporary custom ref. Created and verified `historical-agent-fix.bundle`, saved its patch and API metadata in the same backup directory, then removed the temporary custom ref. Bundle SHA256: `c7d78bf70c5c381ff58abee6ec6a7e9196054628d56b7a4c6e509c25b7d0204e`. No new remote branch was created. Recovery command:
 
@@ -131,7 +131,7 @@ Independent `archivist-file-organizer` audit returned SAFE for all three groups 
 
 ## Specialist evidence and validation
 
-The `orchestrator-governor` report established DMR009/issue13 ownership and preservation of prior evidence. `code-analyst` verified every open PR and exact integration ancestry; `archivist-file-organizer` audited all15 remote heads, locals, worktrees and unique changes. The caller executed all changes. Final independent `board-evidence-auditor` review: **PASS**, after checking live closures/refs, exact ancestry, both complete-history bundle hashes, all15 original heads in the fresh bundle, protected refs/tags, the recovered historical tree and DMR094/issue166 evidence. No remaining publication corrections.
+The `orchestrator-governor` report established DMR009/issue13 ownership and preservation of prior evidence. `code-analyst` verified every open PR and exact integration ancestry; `archivist-file-organizer` audited all15 remote heads, locals, worktrees and unique changes. The caller executed all changes. Final independent `board-evidence-auditor` review: **PASS**, after checking live closures/refs, exact ancestry, both complete-history bundle hashes, all15 original heads in the fresh bundle, protected refs/tags, the recovered historical tree and DMR096/issue166 evidence. No remaining publication corrections.
 
 Validation completed for this documentation/governance change:
 

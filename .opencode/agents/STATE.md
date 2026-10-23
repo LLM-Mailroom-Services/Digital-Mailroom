@@ -374,3 +374,13 @@ Extensive references in `packages/llm-mailroom/docs/wiki/` and `docs/sister-repo
 - **Audit consequence:** every path under those three packages cited in the entries above (e.g. `packages/llm-entity-extraction/deploy/modal_vllm.py` in DMR-024/DMR-030, the `agent-mailroom` / `llm-mailroom-graph` README findings, the llm-entity-extraction suite counts) is historical evidence only and is **no longer auditable** in this tree. Do not re-open those findings against the monorepo; the audit surface for deploy files is now `packages/llm-mailroom/deploy/modal_vllm.py` and `packages/local-mailroom-sandbox/deploy/modal_vllm.py`.
 - **Expected sync baseline:** `sync_packages.py status` now expects 7/7 (was 10/10).
 - **Entries above are left unedited** (append-only audit trail).
+
+
+## DMR-009 full branch and PR audit (2026-10-23 UTC)
+
+- **Scope:** all 15 Digital-Mailroom remote heads, four initial local branches, worktrees and every open PR; no standalone source implementations changed.
+- **Evidence:** `docs/reports/audits/DMR-009-branch-audit.md` and `DMR-009-branch-manifest.json`; verified all-ref recovery bundle/manifest under `~/.t3/backups/digital-mailroom-branches-20261023T024145Z/`. Closed #154/#153/#152 as superseded by still-open #162; removed their exact contained heads, merged #164 release remote/local head and contained obsolete production-staging snapshot. Remote count 15 -> 10.
+- **Preserved:** active #156/#159/#160/#157/#162, closed155 unique tests, all preservation refs, occupied prune branch and release tags. Staging v9.2 adoption is absent162, so it was not mislabeled superseded.
+- **Historical gap:** the older 20261021 bundle named by previous cleanup is absent here. Recovered full orphan d026bc51df6c710279dd9b53505c32afbce72ea8 from GitHub into a second verified bundle, patch and metadata. Preserved feature/agent-mailroom retains most independent fixes/tests but misses the mid-scan FileNotFoundError guard; follow-up DMR094 / issue166 tracks it. No claim of complete semantic supersession.
+- **Validation:** scripts suite 62 tests OK; label audit 33 in sync; independent board-evidence-auditor PASS; diff check clean. Board reproduces exactly five pre-existing phantom-card errors and two warnings, with zero new errors; they are disclosed rather than bypassed.
+- **Lesson:** a closed PR can retain useful unique tests; ancestry plus a fresh recovery bundle is stronger deletion evidence than age or branch naming. Historical backup paths must be checked, not assumed available.

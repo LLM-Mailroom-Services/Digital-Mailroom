@@ -11,9 +11,8 @@ Fields (§45/§58/§59/§31/§43):
 
 - ``expected_specialist`` (§59) — from the canonical class × specialist
   mapping read out of llm-mailroom's ``taxonomy.yaml`` (the same registry the
-  parity gate validates); ``merger_agreement`` stays a distinct class that
-  routes to its own ``merger_agreement_specialist`` (llm-mailroom
-  registry; formerly the shared ``contracts_specialist``).
+  parity gate validates); ``merger_agreement`` is a distinct class that routes
+  to its own ``merger_agreement_specialist`` (taxonomy.yaml, live registry).
 - ``expected_stage`` (§57–58) — pipeline terminal expectation. The live
   pipeline's terminal stages are ``archived`` / ``review`` / ``failed``
   (``pipeline.bins.TERMINAL_MANIFEST_STAGES``); every canonical GT row is a
@@ -47,17 +46,17 @@ from typing import Any
 #: Live Mailroom specialists (llm-mailroom taxonomy.yaml ``specialist:``).
 SPECIALISTS = (
     "contracts_specialist",
-    "merger_agreement_specialist",
     "corporate_records_specialist",
     "correspondence_specialist",
     "insurance_claims_specialist",
+    "merger_agreement_specialist",
 )
 
 #: Canonical class → specialist (§59). Read from taxonomy.yaml when available;
 #: this constant is the verified fallback and the docclass-arm truth.
 SPECIALIST_BY_CLASS: dict[str, str] = {
     "contract": "contracts_specialist",
-    "merger_agreement": "merger_agreement_specialist",  # own specialist (llm-mailroom a5bf7c8a registry)
+    "merger_agreement": "merger_agreement_specialist",  # distinct class + specialist (taxonomy.yaml)
     "corporate_record": "corporate_records_specialist",
     "correspondence": "correspondence_specialist",
     "insurance_claim": "insurance_claims_specialist",
@@ -182,7 +181,7 @@ def review_expected(row: dict[str, Any]) -> tuple[bool, str]:
     §31 incomplete/conflicting sources) that land with the v0.2 publication.
     """
     ood = str(row.get("fixture_kind") or "")
-    if ood == "ood_unknown":
+    if ood in ("ood_unknown", "ood_retired_class"):
         return True, "taxonomy_unknown"
     if ood == "low_confidence":
         return True, "low_confidence"
@@ -190,6 +189,8 @@ def review_expected(row: dict[str, Any]) -> tuple[bool, str]:
         return True, "incomplete_extraction"
     if ood == "conflicting":
         return True, "conflicting_information"
+    if ood == "ambiguous":
+        return True, "ambiguous"
     return False, ""
 
 
@@ -424,7 +425,7 @@ def enrich_row(row: dict[str, Any]) -> dict[str, Any]:
     out["review_expected"] = str(bool(review)).lower()
     out["review_reason"] = review_reason
     out["retry_expected"] = str(bool(retry)).lower()
-    out["expected_post_retry_state"] = post_retry_state(row) if retry else ""
+    out["expected_post_retry_state"] = post_retry if retry else ""
     provenance = annotation_provenance(row)
     out["annotation_source"] = provenance["source"]
     out["annotation_method"] = provenance["method"]
@@ -434,14 +435,6 @@ def enrich_row(row: dict[str, Any]) -> dict[str, Any]:
     out["annotation_reviewer"] = provenance["reviewer"]
     out["annotation_timestamp"] = provenance["timestamp"]
     return out
-
-
-def post_retry_state(row: dict[str, Any]) -> str:
-    """§31: expected_post_retry_state for retry fixtures (canonical: archived)."""
-    ood = str(row.get("fixture_kind") or "")
-    if ood == "retry_review":
-        return "human_review"
-    return "archived"
 
 
 def enrich_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

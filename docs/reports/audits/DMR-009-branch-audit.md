@@ -142,3 +142,17 @@ Validation completed for this documentation/governance change:
 - All three superseded PRs verified closed; all five deleted remote refs verified absent; preservation/default refs and full remote tag listing verified unchanged.
 
 No package implementation changed relative to main; package suites were not required for the board/report-only diff. PR157 remains the publication/review vehicle for this completed external cleanup; DMR009 closes with committed audit evidence and issue13 closure.
+
+## Continuation 2026-10-23 (post-#162, local checkout cleanup)
+
+Third pass, run after PR162 merged. Goal: remove ref-level and pack-level bloat, not to re-litigate any disposition above.
+
+**Remote heads.** `origin` moved 8 -> 6. Deleted `coderabbit/pr149-comprehensive-tests/d720b152` (`387c386e`, the unique-test artifact of closed PR155) only after bundling its single commit: `~/.t3/backups/digital-mailroom-coderabbit-pr149-20261023.bundle` (incremental against `main`, SHA256 `166cc7105f1bbb0a7d40df3c86b79b5d9b167778881d47e45233fe31be9fe0b7`). Recovery: `git fetch <bundle> refs/remotes/origin/coderabbit/pr149-comprehensive-tests/d720b152:refs/heads/restore-coderabbit-tests`. Remaining: `main`, `staging` (#159), `claude/dmr-090-local-ci` (#156), and the three preservation refs (`feature/agent-mailroom`, `feature/claims-data-eda`, `feature/enron-evaluation-environment`).
+
+**Standalone sources** (their own remotes, same audit rules). `Exios66/llm-dojo-scoring` 9 -> 1: deleted `STAGING`, `chore/drop-py310-for-pillow`, `coderabbit/add-pull-request-tests/871e08fb`, `codex/source-owned-{codeant-edges,intake-and-maud,length-guards,scoring-adoption}`, `feat/corporate-annotation-review-queue` — each re-verified `ahead_by=0` against `main` immediately before deletion, no open PRs. `Exios66/local-mailroom-sandbox` 6 -> 5: deleted `feat/corporate-records-subclass-v2` (`ahead_by=0`); `claude/project-thread-e31eha` and `runs/hub-{229,230,231}-*` stay because they back open PRs #113 and #82-#84.
+
+**Local checkout.** Deleted merged local `dmr-009-branch-prune` (`ae765ae9`, ancestor of `main`, upstream gone). Pruned 35 stale tracking refs: 28 for `upstream-local-mailroom-sandbox`, 4 for `upstream-llm-dojo-scoring`, 2 for the removed `upstream-llm-mailroom` remote (no longer in `git config`), 1 for the deleted coderabbit head. `refs/remotes` is now 13 and matches the live head sets exactly; `refs/t3/orchestration-v2/checkpoints/**` (39 T3-owned refs, zero objects reachable only through them) were left alone.
+
+**Pack consolidation.** `git gc --prune=now` collapsed 15 packs to 1 and 46,012 in-pack objects to 30,106, dropping ~15.9k duplicated/unreachable objects. `.git` went 194 MB -> 117 MB. Pre-cleanup complete-history bundle `~/.t3/backups/digital-mailroom-branches-20261021.bundle` re-verified (`git bundle verify`: complete history) before the run.
+
+Post-verification: `git status --porcelain` empty; `git ls-remote --heads` matches the six `origin` heads above; tags (33) and preservation refs unchanged; `git count-objects -vH` reports 0 loose, 0 garbage, 0 prune-packable. No package implementation changed, so no package suite applies; this section is the only tracked change.

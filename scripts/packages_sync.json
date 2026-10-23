@@ -21,8 +21,8 @@
     },
     "llm-dojo-scoring": {
       "branch": "main",
-      "synced_at": "2026-10-23T00:42:15Z",
-      "synced_sha": "377d00bdef110d096fbe25e267859d6bbcc905fe",
+      "synced_at": "2026-10-23T03:34:21Z",
+      "synced_sha": "1d7fac8e510b834977e452b25a761c66945ad464",
       "url": "https://github.com/Exios66/llm-dojo-scoring.git"
     },
     "llm-mailroom": {
@@ -39,8 +39,8 @@
     },
     "mailroom-corpus-eda": {
       "branch": "main",
-      "synced_at": "2026-10-23T00:49:45Z",
-      "synced_sha": "524d90a9a8bc65ae95339b5a81aa8971644e0a92",
+      "synced_at": "2026-10-23T03:34:30Z",
+      "synced_sha": "4735ee0208f14c224154aba8f09653b590d7a405",
       "url": "https://github.com/Exios66/Mailroom-Corpus-EDA.git"
     }
   },

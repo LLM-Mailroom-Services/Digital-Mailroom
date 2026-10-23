@@ -284,6 +284,7 @@ const App = (() => {
   }
 
   function applyPipelineOps(ops) {
+    DojoUpdateNotice.render($("dojo-update-notice"), ops);
     pipelineOps = ops || null;
     renderHeadlines(runs, pipelineOps);
     bindInboxQueue(ops);
@@ -1018,8 +1019,9 @@ const App = (() => {
       dbg("traces", { where: "floor", count: (data.runs || []).length });
       try {
         applyPipelineOps(await Obs.api.pipeline());
-      } catch (_e) { /* producer URL optional */ }
+      } catch (_e) { applyPipelineOps(null); /* producer unavailable */ }
     } catch (err) {
+      applyPipelineOps(null);
       dbg("traces-error", { message: err.message });
       showAlert(`Could not load traces — ${err.message}`);
     }
@@ -1081,7 +1083,10 @@ const App = (() => {
     if (msg.type === "status") {
       socketLive = !!msg.connected;
       if (msg.connected) setSource("live", "Live · WebSocket connected");
-      else setSource("stale", "Socket disconnected — reconnecting");
+      else {
+        applyPipelineOps(null);
+        setSource("stale", "Socket disconnected — reconnecting");
+      }
     } else if (msg.type === "snapshot") {
       applyRuns(msg.runs || []);
       applyPipelineOps(msg.pipeline);

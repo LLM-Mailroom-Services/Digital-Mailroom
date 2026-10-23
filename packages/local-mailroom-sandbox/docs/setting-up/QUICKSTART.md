@@ -88,13 +88,15 @@ sandbox health                          # provider /v1/models + chat + langfuse 
 ## 4. Vendored family (self-containment)
 
 ```bash
-sandbox fetch-deps        # refresh vendor/ snapshots from pinned tags (NETWORK, optional)
+sandbox fetch-deps        # workspace packages first; SHA-frozen standalone main refs otherwise (optional)
 sandbox fetch-deps --visualizer   # + clone The-Mailroom
 ```
 
-`fetch-deps` re-snapshots the pinned upstream trees into `vendor/` and leaves
-the diff for you to commit. It is layout-aware and non-destructive — a bad
-clone never half-wipes the tracked tree (DMR-058).
+`fetch-deps` mirrors monorepo workspace packages when present. Otherwise, it
+refreshes from reviewed standalone `main` refs frozen to the SHAs in
+`_VENDOR_PINS` (requires network). A moved-ref check rejects SHA mismatches
+before tracked vendor files are replaced. It leaves the diff for you to commit
+and validates the source layout before replacing the tracked tree (DMR-058).
 
 ## 5. Config surface — see what is wired where
 

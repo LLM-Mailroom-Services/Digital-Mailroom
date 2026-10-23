@@ -116,6 +116,9 @@ def fetch_list(path: str) -> Optional[list[dict]]:
     data = fetch(path)
     if data is None:
         return None
+    if data.get("stale") or data.get("degraded") or data.get("source") == "langfuse-cache":
+        LAST_ERRORS.append(f"GET {path}: cached/stale data — live source unavailable")
+        return None
     return data.get("runs") or []
 
 
@@ -164,6 +167,9 @@ def fetch_snapshot() -> Optional[list[dict]]:
         with connect(ws_url, open_timeout=8) as ws:
             msg = json.loads(ws.recv(timeout=8))
         if isinstance(msg, dict) and msg.get("type") == "snapshot":
+            if msg.get("stale"):
+                LAST_ERRORS.append("WS /ws: stale snapshot — live source unavailable")
+                return None
             return msg.get("runs") or []
         LAST_ERRORS.append(f"WS {ws_url}: unexpected frame {type(msg).__name__}")
         return None
@@ -182,7 +188,7 @@ def fetch_floor_runs() -> Optional[list[dict]]:
 
 def probe_health() -> bool:
     h = fetch("/api/health")
-    if h is None:
+    if h is None or h.get("stale") or h.get("degraded") or h.get("live_ok") is False:
         return False
     return bool(h.get("ok") if h.get("ok") is not None else h.get("langfuse"))
 
@@ -195,10 +201,10 @@ class LineEditor:
     """Minimal raw-mode line editor: printable chars, backspace, Tab
     completion, arrows (history), Ctrl+L (clear), Ctrl+C (cancel)."""
 
-    def __init__(self, console: Console) -> None:
+    def __init__(self, console: Console, *, history: Optional[list[str]] = None) -> None:
         self.console = console
         self.buf = ""
-        self.history: list[str] = []
+        self.history = history if history is not None else []
         self.history_idx: Optional[int] = None
         # Set by Ctrl+L; the REPL loop clears the scrollback and resets it.
         self.clear_requested = False
@@ -213,6 +219,7 @@ class LineEditor:
             line = self.buf
             if line.strip():
                 self.history.append(line)
+                del self.history[:-cmds.HISTORY_LIMIT]
             # Keep the submitted line: the buffer is reset here, and the REPL
             # used to read text() AFTER this — every typed command arrived
             # empty and nothing ever ran.
@@ -535,7 +542,7 @@ def _repl_loop(args: argparse.Namespace, console: Console,
     ctx.fetch_snapshot = fetch_snapshot
     ctx.corpus = CorpusClient()
 
-    editor = LineEditor(console)
+    editor = LineEditor(console, history=ctx.history)
     scrollback: list[Any] = []
     pending: deque = deque()
     desk = False

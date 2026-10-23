@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+- Bind locked execution and reusable API results to immutable generation/task,
+  dataset and resolved prompt identity; freeze initial operator knobs and refuse
+  damaged artifacts before activation. Keep every managed vendor refresh eligible
+  after an earlier source failure.
+
+### Fixed — DMR-091 source-owned sandbox lifecycle
+
+- Preserve existing matching preflight generations and their live remote identity;
+  refuse unsafe resets and archive cancellation/cold-boot artifacts with the generation.
+- Activate frozen profile/model, per-agent model and full generation-knob maps,
+  and prompt selections in cold workers and fresh-process resumes, including
+  subsequent activations by existing eval runners.
+- Add durable cooperative cancellation for row-resumable endpoint jobs: stop
+  submissions, drain in-flight work, acknowledge paused, and resume pending rows.
+- Require exact lock/spec/run identity for API-evals terminal reuse; safely append
+  after a valid unterminated JSONL tail; report resumed run-wide error totals.
+- Reconcile the corporate optional-subclass assertion with canonical detailed
+  alignment using three hand-counted matching keywords and unlabeled entity GT.
+
 ### Fixed — `corporate_records_specialist_subclass_v2` amended before first run
 
 - **`corporate_records_specialist_subclass_v2`** (eval-environment `corporate_records_specialist_v7`, now sha256

@@ -43,6 +43,7 @@ from mailroom_ui.hf_corpus import (  # noqa: E402
 from mailroom_ui.intake_normalize import deterministic_normalize, looks_messy  # noqa: E402
 from mailroom_ui.pipeline_eval import (  # noqa: E402
     aligned as _aligned,
+    exact as _exact,
     classify_failure,
     predicted_subclass_token,
     score_rows,
@@ -249,7 +250,7 @@ def traces_to_rows(traces: list[dict]) -> list[dict]:
             "filename": filename,
             "expected": expected,
             "predicted": predicted,
-            "exact_ok": bool(expected and predicted and expected == predicted),
+            "exact_ok": bool(expected and predicted and _exact(expected, predicted)),
             "aligned_ok": _aligned(expected, predicted) if expected else False,
             "expected_subclass": expected_sub,
             "predicted_subclass": predicted_sub,
@@ -342,12 +343,12 @@ def enrich_intake(rows: list[dict]) -> list[dict]:
         if expected:
             row["expected"] = expected
             pred = row.get("predicted") or out.get("doc_type")
-            row["exact_ok"] = expected == pred
+            row["exact_ok"] = _exact(expected, pred)
             row["aligned_ok"] = _aligned(expected, pred)
         if not row.get("predicted"):
             row["predicted"] = out.get("doc_type")
             if row.get("expected"):
-                row["exact_ok"] = row["expected"] == row.get("predicted")
+                row["exact_ok"] = _exact(row["expected"], row.get("predicted"))
                 row["aligned_ok"] = _aligned(row["expected"], row.get("predicted"))
         if not row.get("predicted_subclass"):
             token = _predicted_subclass_from(out)
@@ -405,7 +406,7 @@ def attach_hf_labels(rows: list[dict], split: str = "train") -> list[dict]:
     for r in rows:
         if not r.get("expected") and r.get("filename") in labels:
             r["expected"] = labels[r["filename"]]
-            r["exact_ok"] = r["expected"] == r.get("predicted")
+            r["exact_ok"] = _exact(r["expected"], r.get("predicted"))
             r["aligned_ok"] = _aligned(r["expected"], r.get("predicted"))
     return rows
 
@@ -439,7 +440,7 @@ def attach_manifest(rows: list[dict], path: str | None) -> list[dict]:
         )
         if expected:
             r["expected"] = expected
-            r["exact_ok"] = expected == r.get("predicted")
+            r["exact_ok"] = _exact(expected, r.get("predicted"))
             r["aligned_ok"] = _aligned(expected, r.get("predicted"))
     return rows
 

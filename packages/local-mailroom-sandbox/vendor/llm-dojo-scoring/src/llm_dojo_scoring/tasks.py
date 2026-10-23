@@ -19,6 +19,7 @@ from __future__ import annotations
 import re
 from typing import Any, Iterable
 
+from ._paired import require_equal_lengths
 from .bootstrap import bootstrap_ci
 from .classification import (
     ERROR_PREFIX,
@@ -28,7 +29,6 @@ from .classification import (
     macro_accuracy,
     macro_prf,
     normalize_label,
-    require_same_length,
     top_confusions,
 )
 from .config import (
@@ -178,11 +178,14 @@ def _label_score(task: str, expected: list, predicted: list, *,
                  valid=None, seed: int, n_boot: int) -> dict:
     """Shared score dict for label-classification kinds (subtype, doc_class,
     multiclass, court_opinion, maud_question)."""
+    require_equal_lengths(expected, predicted)
     norm = lambda v: normalize_task_answer(task, v, valid=valid)
-    pairs = [(norm(e), norm(p)) for e, p in zip(expected, predicted)]
+    pairs = [(norm(e), str(p) if str(p).startswith(ERROR_PREFIX) else norm(p))
+             for e, p in zip(expected, predicted)]
     exp = [e for e, _ in pairs]
     pred = [p for _, p in pairs]
-    per_row = [1.0 if e == p else 0.0 for e, p in pairs]
+    per_row = [1.0 if not p.startswith(ERROR_PREFIX) and e == p else 0.0
+               for e, p in pairs]
     matrix, labels = confusion_matrix(exp, pred)
     exact = round(sum(per_row) / len(per_row), 4) if per_row else 0.0
     per_class = _per_class(exp, pred)
@@ -237,26 +240,8 @@ def score_task(
     Returns a task-appropriate score dict (exact match, per-class, confusion,
     bootstrap CIs; doc_type + subclass for the hierarchical kinds). For
     ``chained`` runs use :func:`chained_composite` / :func:`chained_summary`.
-
-    Raises:
-        ValueError: If parallel document batches have different lengths, or the
-            task resolves to ``chained``. MAUD span lists for one document
-            are not parallel batches and may have different lengths.
-            Delegated scorers also propagate their length-mismatch errors.
     """
     kind = task_kind(task)
-
-    if isinstance(expected, (list, tuple)) and isinstance(predicted, (list, tuple)):
-        # MAUD span lists describe one document, not parallel document batches.
-        if kind != "maud_extraction" or (
-            isinstance(expected, list)
-            and isinstance(predicted, list)
-            and expected
-            and predicted
-            and isinstance(expected[0], dict)
-            and isinstance(predicted[0], dict)
-        ):
-            require_same_length(expected, predicted, what=f"score_task({task})")
 
     if kind == "enron_topic":
         from .content_scoring import score_content_topic
@@ -282,6 +267,13 @@ def score_task(
         from .intake import score_intake
 
         return score_intake(expected, predicted)
+
+    if kind != "chained":
+        require_equal_lengths(expected, predicted)
+    if kind in ("pipeline", "docclass"):
+        if expected_subclass is not None and predicted_subclass is not None:
+            require_equal_lengths(expected_subclass, predicted_subclass)
+            require_equal_lengths(expected, expected_subclass)
 
     if kind == "contracteval":
         return contracteval_metrics(
@@ -359,8 +351,11 @@ def score_task(
     if kind == "docclass":
         norm_dt = lambda v: normalize_label(v)
         doc_exp = [norm_dt(e) for e in expected]
-        doc_pred = [norm_dt(p) for p in predicted]
-        doc_ok = [1.0 if e == p else 0.0 for e, p in zip(doc_exp, doc_pred)]
+        doc_errors = [str(p).startswith(ERROR_PREFIX) for p in predicted]
+        doc_pred = [str(p) if error else norm_dt(p)
+                    for p, error in zip(predicted, doc_errors)]
+        doc_ok = [1.0 if not error and e == p else 0.0
+                  for e, p, error in zip(doc_exp, doc_pred, doc_errors)]
         doc_acc = round(sum(doc_ok) / len(doc_ok), 4) if doc_ok else 0.0
         per_class = _per_class(doc_exp, doc_pred)
         result = {
@@ -380,17 +375,21 @@ def score_task(
             sub_ok_equiv = []
             sub_exp_norm = []
             sub_pred_norm = []
-            for e, p, doc_type in zip(expected_subclass, predicted_subclass, doc_exp):
+            for e, p, doc_type, parent_error in zip(
+                expected_subclass, predicted_subclass, doc_exp, doc_errors
+            ):
                 # Scope the subclass catalog to the *expected* doc type so a
                 # CUAD family is not forced through the MAUD consideration
                 # normalizer (the pre-0.8.1 bug on the merged corpus).
                 en = normalize_corpus_subclass(doc_type, e)
-                pn = normalize_corpus_subclass(doc_type, p)
+                error = parent_error or str(p).startswith(ERROR_PREFIX)
+                pn = (ERROR_PREFIX + "parent classification failed" if parent_error
+                      else str(p) if error else normalize_corpus_subclass(doc_type, p))
                 sub_exp_norm.append(en)
                 sub_pred_norm.append(pn)
-                sub_ok.append(1.0 if en == pn else 0.0)
+                sub_ok.append(1.0 if not error and en == pn else 0.0)
                 sub_ok_equiv.append(
-                    1.0 if (en == pn or subclass_equivalent(doc_type, en, pn)) else 0.0
+                    1.0 if not error and (en == pn or subclass_equivalent(doc_type, en, pn)) else 0.0
                 )
             exact = [1.0 if (de == dp and se == sp)
                      else 0.0 for de, dp, se, sp in
@@ -568,6 +567,7 @@ def contracteval_metrics(
     POSITIVE pairs; no-related rate over all pairs; false-no-related rate over
     the positives.
     """
+    require_equal_lengths(expected_spans, outputs)
     tp = tn = fn = fp = 0
     jaccards: list[float] = []
     no_related_cnt = 0

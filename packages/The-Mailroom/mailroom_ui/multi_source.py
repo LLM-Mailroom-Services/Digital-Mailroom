@@ -9,7 +9,7 @@ delegate to whichever source actually holds the trace.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from .models import PipelineRun
@@ -39,6 +39,21 @@ class MultiSource:
                     continue
                 seen.add(tid)
                 out.append(t)
+        def stamp(row: dict[str, Any]) -> datetime:
+            for key in ("updated_at", "updatedAt", "timestamp", "created_at", "createdAt"):
+                value = row.get(key)
+                try:
+                    dt = value if isinstance(value, datetime) else datetime.fromisoformat(
+                        str(value).replace("Z", "+00:00")
+                    )
+                    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+                except (TypeError, ValueError, OverflowError):
+                    continue
+            return datetime.min.replace(tzinfo=timezone.utc)
+
+        # Stable timestamp ordering after primary-first deduplication: a
+        # full primary page must not hide newer secondary runs.
+        out.sort(key=stamp, reverse=True)
         return out[:limit]
 
     def _fanout(self, method: str, /, default: Any, **kw) -> list[Any]:

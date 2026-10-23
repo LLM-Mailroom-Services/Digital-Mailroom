@@ -35,9 +35,10 @@ Swap in OpenRouter when you need an API provider. This repo does **not** fork th
 pip install -e ".[dev]"
 cp config/.env.example .env
 # family code is already vendored under vendor/ (self-contained); fetch-deps
-# only refreshes the snapshots (workspace mirror in the monorepo; tag fallback
-# standalone, network, optional):
-sandbox fetch-deps                 # mirror the workspace packages onto vendor/ (or tag fallback in standalone clones)
+# only refreshes the snapshots (workspace packages first; reviewed standalone
+# main refs frozen to SHAs otherwise, requiring network). Moved refs are rejected
+# before tracked vendor files are replaced:
+sandbox fetch-deps                 # mirror workspace packages or refresh SHA-frozen standalone main refs
 sandbox up                         # Langfuse + Ollama
 sandbox pull-models                # ollama pull qwen3:8b
 sandbox health

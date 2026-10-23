@@ -290,13 +290,10 @@ def test_local_vs_api_scorecard_path_with_a_recording_emitter(tmp_path, monkeypa
     assert captured["path"] == tmp_path / "reports" / "scores" / "SAND-32" / "scores.jsonl"
 
 
-def test_dojo_pin_is_the_subclass_branch_beyond_v0_22():
-    """The sandbox pins the dojo branch cargo past the v0.22.0 tag (PR #145 bump).
+def test_dojo_pin_is_reviewed_main_beyond_v0_22():
+    """The snapshot consumes reviewed source main, including v0.22.0.
 
-    The pin is SHA-FROZEN, not just branch-named: the branch ref moves, so the
-    standalone-clone fallback pin in ``caller._VENDOR_PINS`` carries the
-    snapshot's frozen commit sha and `sandbox fetch-deps` fails loudly when
-    `git rev-parse HEAD` no longer matches (SAND-058).
+    Moving refs are SHA-frozen and rejected before tracked bytes are touched.
     """
     import re
 
@@ -309,19 +306,13 @@ def test_dojo_pin_is_the_subclass_branch_beyond_v0_22():
     vendor = vendored_dojo_src()
     assert vendor is not None, "vendored llm-dojo-scoring snapshot missing"
     vendor_md = (vendor.parent / "VENDOR.md").read_text(encoding="utf-8")
-    # the branch-pin snapshot supersedes the v0.22.0 tag (one sync cycle behind)
-    assert "feat/corporate-record-subclass-schemas" in vendor_md
-    assert "8e6566c1d1c52efeb5ebbb57ddee90a94586f7da" in vendor_md
-    # sha-frozen pin: "8e6566c + lineage JSON @ 3b2eeb4" — the lineage JSON is
-    # byte-equal to the dojo branch's own file at 3b2eeb4 (reviewer-verified)
-    assert "8e6566c + lineage JSON @ 3b2eeb4" in vendor_md.replace("`", "")
     from mailroom_sandbox import cli as cli_mod
 
-    pins = {name: (pin, sha) for name, pin, _url, sha in cli_mod._VENDOR_PINS}
+    pins = {name: (ref, sha) for name, ref, _url, sha in cli_mod._VENDOR_PINS}
     assert pins["llm-dojo-scoring"] == (
-        "feat/corporate-record-subclass-schemas",
-        "8e6566c1d1c52efeb5ebbb57ddee90a94586f7da",
-    ), "_VENDOR_PINS must keep the frozen sha alongside the branch clone ref"
+        "main", "bd5ed7c7f098f773b7e527f227cf2cf6e5e9e5f4",
+    ), "dojo must consume the reviewed source main commit"
+    assert pins["llm-dojo-scoring"][1] in vendor_md
     # the new per-subclass machinery is actually IN the snapshot
     import llm_dojo_scoring.corporate_record_schema as crs
 

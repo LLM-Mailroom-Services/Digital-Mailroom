@@ -102,22 +102,3 @@ def test_overwrite_experiment_is_opt_in(tmp_path, monkeypatch):
     assert sync.sync(check=False, overwrite_experiment=True) == 0
     for experiment_stem in mapping.values():
         assert (prompts / f"{experiment_stem}.txt").read_text(encoding="utf-8") == "NEW VENDOR\n"
-
-
-def test_corporate_export_preserves_evaluation_head():
-    """Keep sandbox v7 separate from the live mailroom corporate v6 freeze."""
-    import hashlib
-    from llm_dojo_scoring.prompts import get_prompt
-
-    sync = _load_sync()
-    exported = sync._load_texts()["corporate_records_specialist_production"]
-    assert hashlib.sha256(exported.encode()).hexdigest() == (
-        "253559fcb7ac6b36878453821a4fab0aa94228ad5add77d5aeabb06bb265134c"
-    )
-    assert exported == (
-        ROOT / "config" / "prompts" / "corporate_records_specialist_production.txt"
-    ).read_text(encoding="utf-8")
-    live = get_prompt("corporate_records_specialist", family="production").text
-    assert hashlib.sha256(live.encode()).hexdigest() == (
-        "fe13501f667fcd9f64f7dfbf8b0f124f81d9dd039f4109288b43f106f82b1399"
-    )

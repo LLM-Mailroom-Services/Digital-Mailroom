@@ -48,7 +48,6 @@ from mailroom_ui.trace_cache import (
     cache_status,
     load_run,
     load_traces,
-    persist_floor,
     persist_metrics,
     persist_run,
     snapshot_bundle,
@@ -307,7 +306,8 @@ def create_app(source: Optional[object] = None) -> FastAPI:
         if environment:
             runs = [r for r in runs if r.environment == environment]
         payload_runs = [_serialize(r) for r in runs]
-        persist_floor(payload_runs, source=_source_names(src))
+        # Only PollHub's configured canonical window writes the shared floor
+        # cache. A request's filters, limit or window must never replace it.
         return {
             "count": len(payload_runs),
             "source": _source_names(src),

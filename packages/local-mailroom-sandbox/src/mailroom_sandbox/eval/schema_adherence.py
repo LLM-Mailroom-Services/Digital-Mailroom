@@ -146,7 +146,13 @@ SCHEMA_ADHERENCE_ROW_KEYS = (
 
 
 def schema_keys_for(doc_type: str, doc_subclass: str | None = None) -> frozenset[str]:
-    """Live extraction-schema field names for ``doc_type``."""
+    """Return live extraction field names, or an empty set for an unknown type.
+
+    A corporate ``doc_subclass`` adds its registered extension fields to the
+    core keys. Other types use the pipeline schema when available, then
+    built-in fallback keys, including matches for agent names. Corporate
+    registry errors propagate; pipeline schema lookup errors use fallbacks.
+    """
     resolved = str(doc_type or "").strip()
     if resolved == "corporate_record" and doc_subclass:
         from llm_dojo_scoring.corporate_record_schema import entity_field_types
@@ -257,8 +263,32 @@ def _parse_object_text(text: str) -> tuple[dict[str, Any] | None, str | None]:
     return None, None
 
 
-def _pydantic_valid(doc_type: str, payload: Mapping[str, Any]) -> bool | None:
-    """True/False when a pydantic schema is importable; None if unavailable."""
+def _pydantic_valid(
+    doc_type: str, payload: Mapping[str, Any], doc_subclass: str | None = None
+) -> bool | None:
+    """Validate core fields and any selected corporate subclass extensions.
+
+    Present corporate extension values must be string lists or nullable
+    strings, according to their registered field type. Return False for
+    invalid values or model validation errors, and None when no core model
+    can be loaded. Corporate registry and core schema lookup errors outside
+    the import guard propagate.
+    """
+    if str(doc_type or "").strip() == "corporate_record" and doc_subclass:
+        from llm_dojo_scoring.corporate_record_schema import entity_field_types
+
+        # The core Pydantic model ignores extension keys. Their source schema
+        # declares string arrays for entity lists and nullable strings otherwise
+        # (including dates and money, which are extracted as written).
+        for key, field_type in entity_field_types(doc_subclass).items():
+            if key not in payload:
+                continue
+            value = payload[key]
+            if field_type.startswith("entity_list"):
+                if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+                    return False
+            elif value is not None and not isinstance(value, str):
+                return False
     try:
         from schemas.documents import get_extraction_schema
     except Exception:
@@ -289,6 +319,11 @@ def assess_extraction_payload(
     Returns additive keys only. ``schema_adherence`` is 1.0 when the payload
     parsed *and* validated; 0.0 otherwise. Extra/legacy keys are reported
     even when pydantic would ignore them (default ``extra='ignore'``).
+
+    ``doc_subclass`` selects corporate extension keys and value types.
+    Without a core validator, a nonempty parsed payload passes when the schema
+    is unknown, no public keys are extra, or at least one public key is known.
+    Corporate registry and uncaught schema lookup errors propagate.
     """
     payload, meta = coerce_predicted_payload(predicted)
     parse_error = bool(meta.get("parse_error"))
@@ -300,7 +335,7 @@ def assess_extraction_payload(
         public = [k for k in payload if k not in _META_KEYS]
         extra = sorted(k for k in public if keys and k not in keys)
         legacy = sorted(k for k in public if k in _LEGACY_CORRESPONDENCE_KEYS)
-        typed = _pydantic_valid(doc_type, payload)
+        typed = _pydantic_valid(doc_type, payload, doc_subclass)
         if typed is None:
             # Structural fallback: a dict whose public keys are a subset of the
             # known schema (or unknown doc type → any dict that parsed).

@@ -37,6 +37,7 @@ WORKSPACE = REPO.parent.parent
 # like the upstream clone the vendored snapshot normalizes (DMR-058).
 _STANDALONE_DOJO = REPO.parent / "llm-dojo-scoring"
 _STANDALONE_DOJO_PKG = _STANDALONE_DOJO / "llm_dojo_scoring"
+_STANDALONE_MAILROOM_PKG = REPO.parent / "llm-mailroom" / "src"
 
 # (vendored dir, workspace package root, relative subdir to compare)
 # - llm-mailroom: workspace src/ minus tests/ (VENDOR.md notes test-only files
@@ -129,8 +130,7 @@ def test_vendor_tracks_workspace(vendored_root, workspace_root, label):
     (the same file-hash machinery, same exclusions). Skips only when neither
     reference exists.
     """
-    if not vendored_root.is_dir():
-        pytest.skip(f"vendor tree not present: {vendored_root}")
+    assert vendored_root.is_dir(), f"required vendor tree not present: {vendored_root}"
     if not workspace_root.is_dir():
         if label == "llm-dojo-scoring" and _STANDALONE_DOJO_PKG.is_dir():
             print(
@@ -139,6 +139,8 @@ def test_vendor_tracks_workspace(vendored_root, workspace_root, label):
                 f"checkout {_STANDALONE_DOJO} instead"
             )
             workspace_root = _STANDALONE_DOJO_PKG
+    if not workspace_root.is_dir() and label == "llm-mailroom":
+        workspace_root = _STANDALONE_MAILROOM_PKG
     if not workspace_root.is_dir():
         pytest.skip(f"workspace package not present: {workspace_root}")
     problems = _diff_vs_workspace(vendored_root, workspace_root)

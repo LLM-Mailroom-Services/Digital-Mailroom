@@ -158,17 +158,19 @@ async def verify_checksum(doc_id: str, user: UserProfile = Depends(require_role(
         return {"doc_id": doc_id, "valid": False, "reason": "File missing"}
     sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
     expected = row["checksum_sha256"]
-    valid = expected is None or sha256 == expected
+    valid = bool(expected) and sha256 == expected
+    reason = None if valid else ("No expected checksum" if not expected else "Checksum mismatch")
     write_audit(
         action="archive_verify",
         user_id=user.user_id,
         target_doc_id=doc_id,
-        metadata={"valid": valid},
+        metadata={"valid": valid, "reason": reason},
     )
     return {
         "doc_id": doc_id,
         "valid": valid,
         "computed": sha256,
         "expected": expected,
+        "reason": reason,
         "path": path.name,  # never leak the absolute server path
     }

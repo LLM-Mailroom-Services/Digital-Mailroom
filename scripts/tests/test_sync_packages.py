@@ -234,6 +234,32 @@ class TestConflictHandling(SyncScriptTest):
         self.assertNotEqual(git(self.mono, "rev-parse", "-q", "--verify", "MERGE_HEAD").returncode, 0)
         self.assertEqual(git(self.mono, "status", "--porcelain").stdout.strip(), "")
 
+    def test_b3_existing_file_update_is_imported(self):
+        """An upstream edit to an existing path is not 'already contained'.
+
+        The pull fast path used to treat a matching filename as proof the new
+        blob had been imported, then advance the cursor while leaving the old
+        bytes in the package tree.
+        """
+        base = self.run_script("pull", "--package", PKG, "--json", env_extra=self.origin_env)
+        self.assertEqual(base.returncode, 0, base.stderr + base.stdout)
+        before = (self.mono / "packages" / PKG / "a.txt").read_text()
+        updated = "new source-owned scoring implementation\n"
+        (self.src / "a.txt").write_text(updated)
+        git(self.src, "add", "a.txt", check=True)
+        git(self.src, "commit", "-m", "upstream-only existing-file update", check=True)
+        git(self.src, "push", "origin", "main", check=True)
+        tip = sha_of(self.src)
+        res = self.run_script(
+            "pull", "--package", PKG, "--json", env_extra=self.origin_env
+        )
+        actual = (self.mono / "packages" / PKG / "a.txt").read_text()
+        self.assertEqual(res.returncode, 0, res.stderr + res.stdout)
+        self.assertEqual(actual, updated)
+        self.assertNotEqual(actual, before)
+        self.assertEqual(self.read_manifest()["packages"][PKG]["synced_sha"], tip)
+        self.assertNotIn("already contained", res.stdout + res.stderr)
+
 
 # --------------------------------------------------------------------------- #
 # network failure class (c), patch_push cleanup (d), manifest atomicity (e)

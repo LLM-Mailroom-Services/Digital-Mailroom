@@ -38,8 +38,6 @@ def load_specialist_v1(agent_name: str) -> str:
         raise KeyError(f"no frozen-v1 stem for {agent_name!r}")
     from llm_dojo_scoring.prompts import get_prompt
 
-    # The evaluation family may advance independently (corporate v7); the
-    # production family preserves the live freeze recorded in lineage.json.
     return get_prompt(agent_name, family="production").text
 
 

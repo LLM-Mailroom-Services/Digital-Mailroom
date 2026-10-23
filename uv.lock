@@ -2985,13 +2985,14 @@ wheels = [
 
 [[package]]
 name = "llm-dojo-scoring"
-version = "0.23.0"
+version = "0.24.0"
 source = { editable = "packages/llm-dojo-scoring" }
 dependencies = [
     { name = "jellyfish" },
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "openpyxl" },
+    { name = "packaging" },
     { name = "pandas" },
     { name = "python-dateutil" },
     { name = "pyyaml" },
@@ -3048,6 +3049,7 @@ requires-dist = [
     { name = "openpyxl", specifier = ">=3.1.0" },
     { name = "opentelemetry-exporter-otlp-proto-http", marker = "extra == 'tracing'", specifier = ">=1.20" },
     { name = "opentelemetry-sdk", marker = "extra == 'tracing'", specifier = ">=1.20" },
+    { name = "packaging", specifier = ">=23.2" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "pyarrow", marker = "extra == 'catalog'", specifier = ">=15.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
@@ -3182,7 +3184,7 @@ wheels = [
 
 [[package]]
 name = "mailroom"
-version = "0.8.0"
+version = "0.8.1"
 source = { editable = "packages/llm-mailroom" }
 dependencies = [
     { name = "aiosqlite" },
@@ -6449,9 +6451,13 @@ dependencies = [
 dev = [
     { name = "bcrypt" },
     { name = "httpx" },
+    { name = "llm-dojo-scoring" },
     { name = "pyjwt" },
     { name = "pytest" },
     { name = "watchdog" },
+]
+eval = [
+    { name = "llm-dojo-scoring" },
 ]
 operator = [
     { name = "bcrypt" },
@@ -6472,6 +6478,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.110" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "langfuse", specifier = ">=4.0,<5" },
+    { name = "llm-dojo-scoring", marker = "extra == 'eval'", editable = "packages/llm-dojo-scoring" },
     { name = "mailroom", marker = "extra == 'pipeline'", editable = "packages/llm-mailroom" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pyjwt", marker = "extra == 'dev'" },
@@ -6483,11 +6490,12 @@ requires-dist = [
     { name = "pyyaml", marker = "extra == 'pipeline'", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.0" },
     { name = "structlog", marker = "extra == 'pipeline'", specifier = ">=24.0" },
+    { name = "the-mailroom", extras = ["eval"], marker = "extra == 'dev'", editable = "packages/The-Mailroom" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.29" },
     { name = "watchdog", marker = "extra == 'dev'" },
     { name = "watchdog", marker = "extra == 'operator'" },
 ]
-provides-extras = ["dev", "pipeline", "operator", "ui"]
+provides-extras = ["eval", "dev", "pipeline", "operator", "ui"]
 
 [[package]]
 name = "threadpoolctl"

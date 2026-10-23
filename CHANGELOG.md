@@ -23,6 +23,19 @@ and is recorded there, not here.
 
 ### Changed
 
+- DMR-091: import the merged feeder tips before landing the reconciliation.
+  llm-dojo-scoring `d381b95f` (release notices and NaN-label refusal),
+  llm-mailroom `5e197b35` (Dojo adoption and review-file ownership),
+  The-Mailroom `89c664b9` (canonical Dojo status notices), and
+  local-mailroom-sandbox `8e228e9f` (generation-scoped runs and corporate
+  scoring). Package bytes were checked against those tips. Hub-only visualizer
+  files and `tests/test_fetch_deps_rc.py` stay. Sandbox vendor snapshots were
+  regenerated from the imported workspace packages. The workspace lock now
+  records llm-dojo-scoring 0.24.0 and mailroom 0.8.1.
+- DMR-091: `scripts/sync_packages.py` pull no longer treats an existing
+  filename as proof that a newer upstream blob was imported. A changed
+  existing file takes the subtree pull instead of advancing the cursor.
+
 - DMR-091: import canonical Dojo v0.23.0 from merged standalone main
   `3eb56be1`, including source-owned scoring engines, support/provenance fixes
   and their regression coverage. The workspace lock records 0.23.0; final

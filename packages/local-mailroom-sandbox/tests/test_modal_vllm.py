@@ -662,7 +662,7 @@ class TestVersionPins:
 
     def test_app_file_records_sdk_version(self):
         text = DEPLOY_APP.read_text(encoding="utf-8")
-        assert "1.6.1" in text
+        assert "1.6.2" in text
         assert "v0.29.0" in text
         assert "huggingface-secret" in text
 

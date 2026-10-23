@@ -13,6 +13,8 @@ import json
 import re
 from collections import Counter, defaultdict
 
+from ._paired import require_equal_lengths
+
 from llm_dojo_scoring.config import RETIRED_DOC_CLASS_KEYS
 
 ERROR_PREFIX = "ERROR: "  # task output sentinel for failed rows
@@ -34,20 +36,6 @@ def _default_valid_classes() -> dict[str, re.Pattern[str]]:
     """Return default class patterns excluding retired document classes."""
     retired = set(RETIRED_DOC_CLASS_KEYS)
     return {k: v for k, v in _DEFAULT_CLASSES_RE.items() if k not in retired}
-
-
-def require_same_length(expected, predicted, *, what: str = "scorer") -> None:
-    """Raise ``ValueError`` when paired sequences differ in length.
-
-    ``what`` identifies the scorer in the error message, which includes both
-    lengths. Inputs must support ``len``; unsized inputs raise ``TypeError``.
-    """
-    n_exp, n_pred = len(expected), len(predicted)
-    if n_exp != n_pred:
-        raise ValueError(
-            f"{what}: length mismatch: expected has {n_exp} items, "
-            f"predicted has {n_pred}"
-        )
 
 
 def normalize_label(value, valid: dict[str, re.Pattern[str]] | None = None) -> str:
@@ -83,13 +71,8 @@ def failure(output, expected) -> float:
 
 
 def accuracy(expected: list, predicted: list) -> float:
-    """Overall exact-match accuracy over paired predictions.
-
-    Labels are normalized and ``ERROR_PREFIX`` predictions are excluded.
-    Returns ``0.0`` when no pairs remain, otherwise the matching fraction
-    rounded to four decimals. Raises ``ValueError`` if input lengths differ.
-    """
-    require_same_length(expected, predicted, what="accuracy")
+    """Overall exact-match accuracy over paired predictions."""
+    require_equal_lengths(expected, predicted)
     if not expected:
         return 0.0
     pairs: list[tuple] = []
@@ -121,9 +104,8 @@ def per_class_stats(expected: list, predicted: list) -> dict[str, dict]:
 
     Returns ``{class: {n, correct, accuracy, precision, recall, f1, f2}}``.
     Failed rows (``ERROR_PREFIX`` predictions) are skipped entirely.
-    Raises ``ValueError`` if input lengths differ.
     """
-    require_same_length(expected, predicted, what="per_class_stats")
+    require_equal_lengths(expected, predicted)
     pairs: list[tuple[str, str]] = []
     for e, p in zip(expected, predicted):
         out = str(p)
@@ -167,12 +149,8 @@ def confusion_matrix(expected: list, predicted: list,
     Rows are expected (ground-truth) classes, columns predicted classes, in
     ``labels`` order (default: sorted union of observed classes). Failed
     predictions (ERROR_PREFIX) are dropped.
-
-    Explicit ``labels`` are copied and extended with missing observed labels
-    in sorted order. Returns the matrix and its final label order. Raises
-    ``ValueError`` if input lengths differ.
     """
-    require_same_length(expected, predicted, what="confusion_matrix")
+    require_equal_lengths(expected, predicted)
     pairs = [
         (normalize_label(e), normalize_label(p))
         for e, p in zip(expected, predicted)
@@ -198,10 +176,7 @@ def binary_metrics(expected: list, predicted: list, positive: str,
     ``normalize=True`` runs labels through :func:`normalize_label` (exact
     class keys); ``normalize=False`` treats inputs as raw binary flags
     (True/False, 1/0, "yes"/"no").
-    ``positive`` is compared with normalized labels and is ignored when
-    ``normalize=False``. Raises ``ValueError`` if input lengths differ.
     """
-    require_same_length(expected, predicted, what="binary_metrics")
     def _flag(value):
         """Interpret a prediction as positive using label normalization or truthy flags."""
         if not normalize:
@@ -210,6 +185,7 @@ def binary_metrics(expected: list, predicted: list, positive: str,
             return bool(value)
         return normalize_label(value) == positive
 
+    require_equal_lengths(expected, predicted)
     tp = tn = fp = fn = 0
     for e, p in zip(expected, predicted):
         is_pos = _flag(e)
@@ -241,9 +217,8 @@ def macro_prf(expected: list, predicted: list, *, normalize: bool = True) -> dic
 
     Standard multiclass macro-average for imbalanced doc-type / subclass
     catalogs (sorter T0 ``f1_macro``). Failed ``ERROR_PREFIX`` rows are skipped.
-    Raises ``ValueError`` if input lengths differ.
     """
-    require_same_length(expected, predicted, what="macro_prf")
+    require_equal_lengths(expected, predicted)
     pairs: list[tuple[str, str]] = []
     for e, p in zip(expected, predicted):
         if str(p).startswith(ERROR_PREFIX):

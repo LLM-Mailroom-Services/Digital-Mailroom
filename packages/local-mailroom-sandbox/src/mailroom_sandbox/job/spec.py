@@ -493,6 +493,7 @@ class RunSpec(BaseModel):
     job: JobSpec = Field(default_factory=JobSpec)
     trace: TraceSpec = Field(default_factory=TraceSpec)
     note: str | None = None
+    agent_models: dict[str, str] = Field(default_factory=dict)
 
     model_config = {"populate_by_name": True}
 
@@ -579,6 +580,7 @@ def _vllm_core(vllm: VLLMSpec) -> dict[str, Any]:
 def spec_core(spec: RunSpec) -> dict[str, Any]:
     """The behavioral core the spec_hash covers (excludes run_id/timestamps)."""
     return {
+        **({"agent_models": dict(sorted(spec.agent_models.items()))} if spec.agent_models else {}),
         "task": spec.task,
         "profile": spec.profile,
         "engine": {

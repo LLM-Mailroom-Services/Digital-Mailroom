@@ -1,6 +1,6 @@
 {
-  "checked_at_utc": "2026-10-23T00:49:56.708403+00:00",
-  "integration_commit": "67f9e55b4a573070ff328bb7bc0270e94b5d9f19",
+  "checked_at_utc": "2026-10-23T00:56:29.456127+00:00",
+  "integration_commit": "cb4f06a9441dcf486ca43557a9f8f5bbac071d5a",
   "notes": [
     "All upstream main tips verified by serialized fetch. Modified and additional paths are retained hub work or explicit integration adjustments, not missing imports.",
     "No feeder pushes, dataset publication, release, forced snapshot, or regenerated report artifacts."
@@ -99,7 +99,12 @@
       "missing_paths": [],
       "modified_paths": [
         "pyproject.toml",
-        "src/storage/db.py"
+        "src/llm/frozen_v1/README.md",
+        "src/llm/frozen_v1/__init__.py",
+        "src/llm/frozen_v1/lineage.json",
+        "src/storage/db.py",
+        "src/tests/test_dojo_parity.py",
+        "src/tests/test_frozen_v1_prompts.py"
       ],
       "additional_paths": [
         "src/tests/test_storage_db_concurrency.py"
@@ -114,8 +119,10 @@
         "requirements/all.txt",
         "requirements/modal-job.txt",
         "requirements/observability.txt",
+        "scripts/sync_specialist_prompts.py",
         "src/mailroom_sandbox/cli.py",
         "tests/test_modal_vllm.py",
+        "tests/test_sync_specialist_prompts.py",
         "vendor/llm-dojo-scoring/src/llm_dojo_scoring/asr.py",
         "vendor/llm-dojo-scoring/src/llm_dojo_scoring/bootstrap.py",
         "vendor/llm-dojo-scoring/src/llm_dojo_scoring/bundles.py",
@@ -158,6 +165,7 @@
         "vendor/llm-dojo-scoring/src/llm_dojo_scoring/tasks.py",
         "vendor/llm-dojo-scoring/src/llm_dojo_scoring/visualize.py",
         "vendor/llm-mailroom/src/llm/frozen_v1/README.md",
+        "vendor/llm-mailroom/src/llm/frozen_v1/__init__.py",
         "vendor/llm-mailroom/src/llm/frozen_v1/lineage.json",
         "vendor/llm-mailroom/src/pipeline/relations.py",
         "vendor/llm-mailroom/src/scripts/bump_dojo_scoring.py",

@@ -1,6 +1,6 @@
 # DMR-091: upstream-first feeder reconciliation
 
-Checked 2026-10-23 UTC. Tracking issue: [#161](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/161).
+Checked 2026-10-23 UTC. Draft reconciliation: [PR #162](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/pull/162). Tracking issue: [#161](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/161).
 
 All seven standalone `main` tips were fetched and compared with their recorded sync cursors and complete package trees. All current upstream paths are present. The four feeders with new work were imported **into this branch**; no standalone repository was pushed or modified. This report does not claim the reconciliation has merged into hub `main`.
 
@@ -12,19 +12,25 @@ All seven standalone `main` tips were fetched and compared with their recorded s
 | The-Mailroom | `d5358650e42d` | 0 | 21 | 3 |
 | claims-data-eda | `a3fbca3c9c76` | 0 | 5 | 0 |
 | llm-dojo-scoring | `377d00bdef11` | 0 | 5 | 1 |
-| llm-mailroom | `cb960a2c1ab3` | 0 | 2 | 1 |
-| local-mailroom-sandbox | `6d605cc184f1` | 0 | 51 | 1 |
+| llm-mailroom | `cb960a2c1ab3` | 0 | 7 | 1 |
+| local-mailroom-sandbox | `6d605cc184f1` | 0 | 54 | 1 |
 | mailroom-corpus-eda | `524d90a9a8bc` | 0 | 6 | 1 |
 
 The complete path inventory is [DMR-091-feeder-manifest.json](DMR-091-feeder-manifest.json). Cursor alignment means imported upstream state with explicit hub differences; it does not mean byte-identical packages or permission to push the hub over the feeders.
 
 - **Dojo:** 22 newer commits imported, including corporate subclass schemas/relabeling, audit export, strict malformed-GT handling, prompt lineage, Python minimum, dependency and documentation work. The five modified scorer modules and additional length-guard tests are the existing PR #152/#154 residuals, retained after confirming they are absent upstream.
-- **Mailroom:** 14 newer commits imported, including relations fixes, prompt lineage, pin-bump tooling and contract tests. The remaining differences are PR #153's existing storage concurrency fix/test and the explicit Modal dependency alignment.
-- **Sandbox:** 21 newer commits imported, including corporate v7 subclass prompts/defaults, scoring wiring, SHA-verified fallback pins, and dependency updates. The DMR-088 refresh-every-vendor fix/test remains necessary and now uses upstream's four-part pins. Generated requirements and the Modal test assertion were aligned with upstream declarations. Both vendor trees were regenerated from current workspace sources.
+- **Mailroom:** 14 newer commits imported, including relations fixes, prompt lineage, pin-bump tooling and contract tests. The remaining differences include PR #153's existing storage concurrency fix/test, the explicit Modal dependency alignment, and the tested live/evaluation prompt-family compatibility repair described below.
+- **Sandbox:** 21 newer commits imported, including corporate v7 subclass prompts/defaults, scoring wiring, SHA-verified fallback pins, and dependency updates. The DMR-088 refresh-every-vendor fix/test remains necessary and now uses upstream's four-part pins. Generated requirements and the Modal test assertion were aligned with upstream declarations. Both vendor trees were regenerated from current workspace sources. Its prompt-sync helper explicitly preserves the feeder-approved corporate evaluation v7 head independently of mailroom live v6.
 - **Corpus EDA:** 26 newer commits imported, including v9.3 corporate-presence staging tools, relabel/conformance tests, export/presence fixes and upstream routing corrections. The completed merger-specialist routing work was taken from upstream. Existing hub workflow/report-link/requirements normalization and surface-parity coverage were retained. Dojo provenance hashes were updated only after AST comparison confirmed identical mirrored registries; the EDA parser already implements dojo's newer rejection of falsey malformed GT values.
 - **The-Mailroom, Enron and claims:** upstream tips are unchanged. Their existing hub changes were preserved, including the Enron publish-verification fix already merged in #150.
 
 Sandbox corporate prompt bytes were independently preserved against its feeder: historical simplified v6 `fe13501f…`, current subclass-v2 and production v7 `253559fc…`. No prompt regeneration or blanket replacement of frozen stems was performed. Corpus reports were imported as upstream bytes; no Plotly figures or datasets were regenerated/published. The root `uv.lock` is the active workspace lock; tracked standalone lock artifacts remain upstream provenance.
+
+## Compatibility repair: preserve separate prompt families
+
+The imported dojo intentionally serves corporate v6 (`fe13501f…`) in its live `production` family and corporate v7 (`253559fc…`) in its evaluation `production_prompts` family. Mailroom's pre-existing loader selected the latter despite its frozen lineage requiring v6. Three existing full-suite/focused parity tests reproduced the failure. The consumer now selects `production` for all five live specialists, whose bytes exactly match all existing frozen hashes and lengths. The updated tests pin both corporate family hashes and retain cross-family equality for the other four roles; all 11 focused tests pass.
+
+Sandbox deliberately promoted its own evaluation default to v7 upstream. Its sync helper formerly inherited mailroom's loader transitively, which would now reset that completed promotion to v6. The helper now explicitly selects the corporate evaluation family, with a new exact-hash/existing-file regression test. Its existing repo-pin check was shown red before this fix and seven focused script checks pass afterward. No prompt text or frozen hash was changed in either repository.
 
 ## Every open hub PR
 
@@ -46,12 +52,12 @@ Dojo and mailroom used the sync driver's squash pull. Corpus's historical subtre
 
 A concurrent reader briefly replaced shared `FETCH_HEAD` and made status report the hub tree as the sandbox head. Direct GitHub API and remote reads proved sandbox main is valid `6d605cc1`; no feeder corruption occurred. The new root/wiki rule requires serialized shared-checkout fetches or dedicated refs with `--no-write-fetch-head`.
 
-Validation results are recorded below before publication. No claims of full green or delivery to main should be inferred while a listed blocker remains.
+Validation results are recorded below. No claims of full green or delivery to main should be inferred while a listed blocker remains.
 
 - Dojo: **1534 passed, 5 skipped** (full suite after integrating #152/#154).
 - Corpus EDA: **278 passed, 19 skipped** (full suite; snapshot-dependent skips retained honestly).
-- Sandbox: **1337 passed, 12 skipped, 1 failed**. Sole remaining failure: `test_modernbert_feeder_resolves_sibling`; this machine discovers external `/Users/morningstar/Desktop/Cold_Storage/mailroom-ml` with a model bundle but no `training/eval_modernbert.py`, so its status is correctly not ready. The seven imported packages do not include mailroom-ml. Integration-specific refresh, requirements, Modal and vendor checks: **85 passed**.
-- Mailroom: final workspace-kernel run pending below. A probe of both notebook working directories passes with `JUPYTER_PATH=/tmp/dmr091-kernel/share/jupyter`; the default global kernel previously produced environment failures.
+- Sandbox: **1338 passed, 12 skipped, 1 failed**. Sole remaining failure: `test_modernbert_feeder_resolves_sibling`; this machine discovers external `/Users/morningstar/Desktop/Cold_Storage/mailroom-ml` with a model bundle but no `training/eval_modernbert.py`, so its status is correctly not ready. The seven imported packages do not include mailroom-ml. Integration-specific refresh, requirements, Modal and vendor checks: **85 passed**.
+- Mailroom: **2031 passed, 37 skipped** (full suite, including notebook execution, after preserving live/evaluation prompt-family separation). Use the workspace kernel: `.venv/bin/python -m ipykernel install --prefix /tmp/dmr091-kernel --name python3`, then `JUPYTER_PATH=/tmp/dmr091-kernel/share/jupyter uv run --frozen pytest packages/llm-mailroom/src/tests -q`. The global kernel previously produced environment failures.
 - The-Mailroom: **421 passed**.
 - Enron: **91 passed**.
 - Claims: **40 passed**.

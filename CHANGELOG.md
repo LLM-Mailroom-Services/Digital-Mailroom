@@ -21,6 +21,12 @@ and is recorded there, not here.
 
 ## [Unreleased]
 
+### Changed
+
+- **Pre-PR162 rollback release** (DMR-092): preserve the package and runtime
+  source state of main `d77c9db2` before feeder reconciliation is merged.
+  This release changes hub release metadata only; it does not adopt PR162.
+
 ### Fixed
 
 - **`uv.lock` re-locked to the published hub v0.9.0** (DMR-084 residual): the

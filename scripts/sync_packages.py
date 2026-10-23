@@ -2,12 +2,14 @@
 """Sub-package <-> standalone-repo sync driver (issue #2, DMR-064).
 
 Each package under ``packages/`` mirrors an independent GitHub repository
-(``Exios66/<name>``). The monorepo is the single source of truth for active
-development; the sync flow keeps the mirrors reconciled with their upstreams:
+(``Exios66/<name>``). Standalone repositories own package implementations:
+merge source changes there first, then import their committed revisions here.
+The hub owns integration and governance. The sync flow compares and imports sources:
 
   status    compare each package against its upstream (drift report)
   pull      import upstream commits into the monorepo copy (git subtree pull)
-  push      publish monorepo commits back to the standalone repo (subtree push)
+  push      legacy outbound implementation; forbidden for package delivery
+            by the DMR-091 source-ownership policy (see root AGENTS.md)
   snapshot  re-baseline the sync manifest at the current upstream tips
 
 Usage:

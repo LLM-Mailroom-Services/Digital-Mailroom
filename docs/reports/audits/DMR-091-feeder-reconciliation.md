@@ -1,5 +1,15 @@
 # DMR-091: upstream-first feeder reconciliation
 
+> **Historical snapshot, superseded during DMR-091 source-first review.**
+> The statements and counts below describe the initial reconciliation recorded
+> at `46b24929` and its earlier manifest, not the current PR162 state. Subsequent
+> audits found additional defects; fixes now land in standalone repositories
+> before exact main imports. Current intermediate import evidence is
+> [DMR-091-source-main-imports.md](DMR-091-source-main-imports.md).
+> Final source/vendor verification remains pending; the historical zero-drift
+> and no-source-write statements below must not be read as current claims.
+
+
 Checked 2026-10-23 UTC. Draft reconciliation: [PR #162](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/pull/162). Tracking issue: [#161](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/161).
 
 All seven standalone `main` tips were fetched and compared with their recorded sync cursors and complete package trees. All current upstream paths are present. The four feeders with new work were imported **into this branch**; no standalone repository was pushed or modified. This report does not claim the reconciliation has merged into hub `main`.

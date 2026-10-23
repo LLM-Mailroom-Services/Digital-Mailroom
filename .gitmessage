@@ -1,0 +1,25 @@
+# DMR-0NN: <verb> <concrete behavior or outcome>
+#
+# Name the behavior, not the review tool or activity. Avoid subjects such as
+# "address comments", "misc fixes", "sync changes", or "update files".
+#
+# Problem
+# <Trigger, incorrect behavior, and its impact.>
+#
+# Changes
+# - <path>: <what changed and why; group closely related paths if clearer>.
+#
+# Validation
+# - <exact command or named gate>: <result, including failures and skips>.
+# - <bug fix>: <regression that failed before and passes after>.
+#
+# Compatibility and provenance
+# <Public behavior, preserved contracts, migration/rollback, or known limits.>
+# <For imports/vendors: source PR, merged SHA/release, generation command,
+#  exact-tree proof, and any intentionally retained integration overlays.>
+#
+# References
+# <Card/issue/PR IDs and durable evidence links where relevant.>
+#
+# Scale the body to the change. Keep only useful sections; never invent
+# validation, imply an unfinished gate passed, or leave placeholders in it.

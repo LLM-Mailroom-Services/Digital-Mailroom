@@ -128,6 +128,8 @@ Cross-package dependencies resolve to **workspace sources** during development (
 
 Standalone `Exios66/*` repositories own package implementations. Author, test, and commit changes there; import committed sources here with `scripts/sync_packages.py`. Digital-Mailroom owns hub wiring, governance, board, and integration tooling. Workspace package copies and generated vendors are never implementation sources; never implement a package change here and push it back.
 
+Commit messages follow the [shared template and examples](docs/COMMIT_MESSAGES.md): name the changed behavior, explain the affected files, and report validation and compatibility limits.
+
 ```bash
 python scripts/sync_packages.py status                  # live status
 python scripts/sync_packages.py pull --all              # sync from upstream

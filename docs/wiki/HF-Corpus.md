@@ -156,15 +156,19 @@ sister repo under `data/hf_cache/corpus/` (generation tracked on
 [mailroom-issues#201](https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/201);
 operator README: `data/hf_cache/README.md` once published there).
 
-**Pin for the v9.1 quality revision** (code-only drift — no new document
-sourcing — from the v9 tip; same 3,302 rows): the published tag `v9.1`
-(`bc9eab28`; data commit
-`ed7576b676343e0b402ec5412cded301e629bdee`) — keep it aligned with revision
-pins in
-[Digital-Mailroom#110](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/110)
-and `FULL_CORPUS_REVISION` in
-`packages/llm-mailroom/src/pipeline/hf_corpora.py` (currently the tag string
-`v9.2`).
+**Active cache pin: `v9.2`** (`670e8bc6`; parent data commit
+`d49f60a402ccc090617db58a8593aa971d63a2ff`) — the provenance/relations
+revision, with zero row-set/identity/content drift from v9.1 (same 3,302 rows)
+and `_published` dropped from `ground_truth` (35 columns). Keep the cache
+aligned with the pipeline pin, `FULL_CORPUS_REVISION` (`v9.2`), in
+`packages/llm-mailroom/src/pipeline/hf_corpora.py`, and the revision pins in
+[Digital-Mailroom#110](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/110).
+Prepare bins for both `ground_truth` and `default` at `v9.2` for the active cache.
+
+**Historical pin: `v9.1` quality revision** (`bc9eab28`; data commit
+`ed7576b676343e0b402ec5412cded301e629bdee`) — code-only drift from the v9 tip,
+with no new document sourcing (same 3,302 rows); superseded by `v9.2` for the
+active pipeline cache.
 
 ### Sparse checkout (engineers)
 

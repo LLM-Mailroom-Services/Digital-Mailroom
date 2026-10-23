@@ -20,6 +20,25 @@ from pipeline.hf_corpora import (
 )
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        None, "", "docclass-merged", "full", "merged", "corpus",
+        "mailroom-corpus", "mailroom-dataset", "v5", "v7", "v8", "v9",
+        "Lucius-Morningstar/mailroom-dataset",
+        "Lucius-Morningstar/docclass-merged",
+    ],
+)
+def test_full_corpus_aliases_use_v9_2_pin(name):
+    """Historical aliases follow the current pin while keeping trace identity."""
+    corpus = resolve_corpus(name)
+
+    assert FULL_CORPUS_REVISION == "v9.2"
+    assert corpus["revision"] == "v9.2"
+    assert corpus["id"] == "Lucius-Morningstar/mailroom-dataset"
+    assert corpus["source_tag"] == "source-docclass-merged"
+
+
 def test_v8_full_corpus_is_docclass_merged():
     # hub#65: the docclass-merged slug resolves to the v9 mailroom-dataset
     # full corpus (3,302 rows) — the registry entry tracks the live lineage,

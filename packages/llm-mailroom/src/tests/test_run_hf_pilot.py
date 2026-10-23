@@ -46,6 +46,43 @@ def test_pipeline_class_keeps_merger_agreement_distinct():
     assert ALIGN.get("merger_agreement") is None
 
 
+@pytest.mark.parametrize("split", ["train", "test"])
+@pytest.mark.parametrize(
+    "corpus_name,revision_kwargs",
+    [("full", {"revision": "v9.2"}), ("enron", {})],
+    ids=["full-corpus-pinned", "other-corpus-unpinned"],
+)
+def test_load_hf_rows_uses_active_corpus_revision(
+    monkeypatch, mocker, split, corpus_name, revision_kwargs,
+):
+    import sys
+    from types import SimpleNamespace
+
+    from pipeline.hf_corpora import resolve_corpus
+    from scripts import run_hf_pilot as pilot
+
+    corpus = resolve_corpus(corpus_name)
+    mocker.patch.object(pilot, "active_corpus", return_value=corpus)
+    load_dataset = mocker.Mock(side_effect=[
+        [{"filename": "message.txt", "expected": "correspondence", "expected_subclass": "email"}],
+        [{"filename": "message.txt", "doc_text": "Subject: Corpus revision regression. " * 20}],
+    ])
+    monkeypatch.setitem(sys.modules, "datasets", SimpleNamespace(load_dataset=load_dataset))
+    viewer = mocker.patch.object(pilot, "_paginate_viewer", side_effect=AssertionError("unexpected fallback"))
+
+    rows = pilot.load_hf_rows(split=split, max_scan=1)
+
+    assert load_dataset.call_args_list == [
+        mocker.call(corpus["id"], "ground_truth", split=split, **revision_kwargs),
+        mocker.call(corpus["id"], split=split, **revision_kwargs),
+    ]
+    viewer.assert_not_called()
+    assert len(rows) == 1
+    assert rows[0]["filename"] == "message.txt"
+    assert rows[0]["expected_hf_class"] == "correspondence"
+    assert rows[0]["expected_subclass"] == "email"
+
+
 def test_parse_hf_row_reads_nested_metadata():
     row = parse_hf_row({
         "filename": "contract_88_merger_agreement.txt",
@@ -216,6 +253,7 @@ def test_check_contract_prints_ok(capsys):
     payload = json.loads(out.split("check ok ", 1)[1])
     assert payload["dataset"] == DATASET_ID
     assert payload["schema"] == "v9"
+    assert payload["revision"] == "v9.2"
     assert payload["example_strata"] == 48
     assert payload["align"] == {}
     assert payload["aligned_equals_exact"] is True

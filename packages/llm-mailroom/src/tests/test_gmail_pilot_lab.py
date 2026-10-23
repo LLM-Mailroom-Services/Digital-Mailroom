@@ -41,6 +41,29 @@ def test_snapshot_rows_are_integrity_verified():
         )
 
 
+@pytest.mark.parametrize("field", ["hub_sha", "plan_revision_pin", "hub_sha_tip"])
+def test_snapshot_provenance_uses_v9_2_pin(field):
+    from pipeline.hf_corpus_loader import load_snapshot
+
+    rows, provenance = load_snapshot()
+
+    assert rows
+    assert provenance["dataset"] == "Lucius-Morningstar/mailroom-dataset"
+    assert provenance[field] == "v9.2"
+
+
+@pytest.mark.parametrize(
+    "role", ["insurance_claim", "correspondence", "contract", "handoff_case_contract"],
+)
+def test_offline_document_preserves_v9_2_provenance(role):
+    doc = lab.select_document(role=role, live=False)
+
+    assert doc["role"] == role
+    assert doc["provenance"]["source"] == "committed-snapshot"
+    assert doc["provenance"]["dataset"] == "Lucius-Morningstar/mailroom-dataset"
+    assert doc["provenance"]["hub_sha"] == "v9.2"
+
+
 def test_select_document_filters_by_class_and_budget(temp_base_dir):
     doc = lab.select_document(doc_class="insurance_claim", max_chars=12000)
     assert doc["labels"]["expected"] == "insurance_claim"
@@ -70,7 +93,15 @@ class _FakeResponse:
         return self._payload
 
 
-def test_load_corpus_join_and_integrity(temp_base_dir, monkeypatch):
+@pytest.mark.parametrize(
+    "load_kwargs,expected_revision",
+    [({}, "v9.2"), ({"revision": "v9.1"}, "v9.1"), ({"revision": None}, None)],
+    ids=["default-v9.2", "historical-override", "explicit-unpinned"],
+)
+@pytest.mark.parametrize("strategy", ["parquet", "rows_pagination"])
+def test_load_corpus_join_and_integrity(
+    temp_base_dir, monkeypatch, mocker, load_kwargs, expected_revision, strategy,
+):
     from pipeline import hf_corpus_loader as loader
 
     text_a, text_b = "alpha corpus text", "beta corpus text"
@@ -83,14 +114,18 @@ def test_load_corpus_join_and_integrity(temp_base_dir, monkeypatch):
         ]
     )
     blind = pd.DataFrame([{"filename": "a.txt", "doc_text": text_a}, {"filename": "b.txt", "doc_text": text_b}])
-    import io
-
     frames = {"ground_truth": gt, "default": blind}
 
     def fake_parquet_urls(repo_id, *, split="train", revision=None):
+        if strategy == "rows_pagination":
+            raise RuntimeError("parquet unavailable")
         return {name: f"https://viewer.test/{name}.parquet" for name in frames}
 
-    monkeypatch.setattr(loader, "parquet_urls", fake_parquet_urls)
+    parquet_urls = mocker.patch.object(loader, "parquet_urls", side_effect=fake_parquet_urls)
+    rows_ladder = mocker.patch.object(
+        loader, "_rows_ladder",
+        side_effect=lambda repo_id, config, **kwargs: frames[config].copy(),
+    )
     monkeypatch.setattr(loader, "dataset_sha", lambda repo_id=None: "fakesha")
     def fake_cache(url, label):
         config = "ground_truth" if label.endswith("ground_truth_train") else "default"
@@ -98,8 +133,27 @@ def test_load_corpus_join_and_integrity(temp_base_dir, monkeypatch):
 
     monkeypatch.setattr(loader, "_cached_get_bytes", fake_cache)
 
-    merged, prov = loader.load_corpus()
-    assert prov["ground_truth"]["strategy"] == "parquet"
+    merged, prov = loader.load_corpus(**load_kwargs)
+    assert parquet_urls.call_args_list == [
+        mocker.call(loader.FULL_CORPUS_ID, split="train", revision=expected_revision),
+        mocker.call(loader.FULL_CORPUS_ID, split="train", revision=expected_revision),
+    ]
+    if strategy == "rows_pagination":
+        assert rows_ladder.call_args_list == [
+            mocker.call(loader.FULL_CORPUS_ID, config, split="train", revision=expected_revision)
+            for config in ("ground_truth", "default")
+        ]
+    else:
+        rows_ladder.assert_not_called()
+    assert prov["revision_requested"] == expected_revision
+    assert prov["hub_sha_tip"] == "fakesha"
+    if expected_revision is not None:
+        assert prov["hub_tip_drift"] == {"tip": "fakesha", "pinned": expected_revision}
+    else:
+        assert "hub_tip_drift" not in prov
+    for config in ("ground_truth", "default"):
+        assert prov[config]["strategy"] == strategy
+        assert prov[config]["revision"] == expected_revision
     assert prov["integrity"] == {"checked": 2, "verified": 2, "mismatched": 0}
     assert list(merged["expected"]) == ["contract", "correspondence"]
     assert list(merged["doc_text"]) == [text_a, text_b]

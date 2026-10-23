@@ -429,5 +429,102 @@
       "new_errors": 0
     },
     "both_bundles_complete_history": true
+  },
+  "post_pr162_cleanup": {
+    "window_utc": {
+      "snapshot": "2026-10-23T14:40:37Z",
+      "verified": "2026-10-23T14:51:32Z"
+    },
+    "baseline_main": "9e65790fda51afa1078be6211fe78b0355cc47c9",
+    "backup": "/Users/morningstar/.t3/backups/digital-mailroom-branches-20261023T144037Z",
+    "bundle_sha256": "36b64083f7f464093639160e8d1e83d5f9638cdfa950e8b5dcc5b98600264f76",
+    "snapshot_sha256": "81972f8d7bfbe132c67d394972ab14931762007936bb92d9291174b0a7bad616",
+    "remote_counts": {
+      "before_non_main_heads": 10,
+      "after_non_main_heads": 8
+    },
+    "deleted_remote_heads": [
+      {
+        "branch": "codex/dmr-091-feeder-reconciliation",
+        "sha": "0689b008ce0d311c1876b9a029be4e816c319c91",
+        "pr": 162,
+        "pr_state": "MERGED"
+      },
+      {
+        "branch": "t3/surgical-hub-prune",
+        "sha": "001f0958f36ac17999f146003bba033cfd9db4a8",
+        "pr": 167,
+        "pr_state": "MERGED"
+      },
+      {
+        "branch": "coderabbit/add-pull-request-tests/dfc5f5b1",
+        "sha": "f96552050b5caad4a150dd328af67ec8200b428a",
+        "pr": 160,
+        "pr_state": "MERGED"
+      }
+    ],
+    "local_changes": {
+      "main_fast_forward": {
+        "from": "f3c56ec56eb38cbb79c590a8f59ffa012a0efd04",
+        "to": "9e65790fda51afa1078be6211fe78b0355cc47c9",
+        "commits": 57
+      },
+      "worktrees_removed": 48,
+      "worktrees_removed_detail": {
+        "t3_scratch": 47,
+        "detached_release": 1,
+        "forced": 0,
+        "reclaimed_bytes_approx": 8530000000
+      },
+      "local_branches_deleted": 48,
+      "local_branches_deleted_detail": {
+        "t3_scratch": 47,
+        "codex_dmr_091": 1,
+        "method": "git branch -d"
+      }
+    },
+    "retained": [
+      {
+        "ref": "claude/dmr-090-local-ci",
+        "sha": "8d7e9e820dc5d07ea8bbdff7f618ad78f75c585a",
+        "reason": "open PR 156; unique CI work"
+      },
+      {
+        "ref": "dmr-009-branch-prune",
+        "sha": "ae765ae9a170a96ece0b00d9a0915efbb5d1637c",
+        "reason": "open PR 157; this audit vehicle"
+      },
+      {
+        "ref": "staging",
+        "sha": "30ae291cd1c7d59daf704d8f3ea90120c292b21f",
+        "reason": "open PR 159; v9.2 consumer adoption absent from main"
+      },
+      {
+        "ref": "claude/readme-architecture-map",
+        "sha": "42ce73f41f8f0d988682b1a9d043f36ac200e871",
+        "reason": "open draft PR 171; created during window, untouched"
+      },
+      {
+        "ref": "coderabbit/pr149-comprehensive-tests/d720b152",
+        "sha": "387c386e23eec6797642f16c60a6690939b5e06d",
+        "reason": "closed-unmerged PR 155; unique tests absent from main"
+      },
+      {
+        "ref": "feature/agent-mailroom",
+        "sha": "f5d97d98678773865d7f18af046b15ee47b1fd08",
+        "reason": "DMR-079 preservation"
+      },
+      {
+        "ref": "feature/claims-data-eda",
+        "sha": "59c879d9fb4480084e53137e2e9fb25650933944",
+        "reason": "DMR-093 preservation"
+      },
+      {
+        "ref": "feature/enron-evaluation-environment",
+        "sha": "59c879d9fb4480084e53137e2e9fb25650933944",
+        "reason": "DMR-093 preservation"
+      }
+    ],
+    "specialist": "archivist-file-organizer (read-only): SAFE for all groups; ordering constraints honored"
   }
 }

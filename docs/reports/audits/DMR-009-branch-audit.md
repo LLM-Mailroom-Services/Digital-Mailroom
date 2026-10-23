@@ -84,6 +84,51 @@ Recovered the **full original commit**, tree `83d153140fb1f4737076fadfd4435a7cf2
 git fetch /Users/morningstar/.t3/backups/digital-mailroom-branches-20261023T024145Z/historical-agent-fix.bundle refs/archive/dmr009-agent-fix:refs/heads/recovered-agent-fix
 ```
 
+## Post-PR162 cleanup of merged branches and retired worktrees
+
+UTC window: 2026-10-23T14:40:37Z (snapshot) to 2026-10-23T14:51:32Z (verification). Baseline `origin/main` = `9e65790fda51afa1078be6211fe78b0355cc47c9` (PR162 merged at 2026-10-23T13:47:24Z; PR167 merged into it first). The earlier audit deliberately retained branches whose unique work was absent from the then-unmerged PR162. Once PR162 landed, that holding condition expired for the branches it carried, so this pass re-ran the decision against merged `main` instead of against an open integration branch.
+
+Three remote heads were merged-PR heads whose exact tips are ancestors of `main`, so each was deleted under an explicit expected-SHA lease:
+
+| Branch | Before SHA | PR | Evidence |
+|---|---|---|---|
+| `codex/dmr-091-feeder-reconciliation` | `0689b008ce0d311c1876b9a029be4e816c319c91` | #162 MERGED | Exact PR head; merge commit is `main` tip. |
+| `t3/surgical-hub-prune` | `001f0958f36ac17999f146003bba033cfd9db4a8` | #167 MERGED | Merged into the PR162 head `0689b008`, which is now on `main`. |
+| `coderabbit/add-pull-request-tests/dfc5f5b1` | `f96552050b5caad4a150dd328af67ec8200b428a` | #160 MERGED | Merge commit `8ee9d622` is a parent of `main` tip `9e65790f`. |
+
+Local worktree and branch state was also reconciled:
+
+- Local `main` was 57 commits behind and the primary checkout was parked on the merged `codex/dmr-091-feeder-reconciliation` head. `main` was fast-forwarded `f3c56ec5` -> `9e65790f` and the primary checkout returned to it.
+- 47 `t3/*` scratch worktrees under `~/.t3/worktrees/Digital-Mailroom/` (8.2 GB) were removed. Every one had an empty `git status --porcelain`, no stash entry, no submodule, and zero unique commits against `origin/main`; none required `--force`.
+- The 47 corresponding local `t3/*` branches and local `codex/dmr-091-feeder-reconciliation` were deleted with `git branch -d` (never `-D`), after the worktrees were removed.
+- Detached worktree `/private/tmp/dmr091-v091-release` at `f3c56ec5` was removed; that commit is contained in `main` and equals the pre-merge local `main` tip, so no ref was lost.
+
+Retained, with the reason each is not stale:
+
+| Ref | SHA | Reason |
+|---|---|---|
+| `claude/dmr-090-local-ci` | `8d7e9e82` | Open #156; CI runner and tests absent from `main`. |
+| `dmr-009-branch-prune` | `ae765ae9` | Open #157; this audit vehicle, checked out at `/private/tmp/dmr009-branch-audit`. |
+| `staging` | `30ae291c` | Open #159; v9.2 consumer adoption absent from `main`. |
+| `claude/readme-architecture-map` | `42ce73f4` | Open draft #171, created 2026-10-23T14:44:06Z, after this window's snapshot; untouched. |
+| `coderabbit/pr149-comprehensive-tests/d720b152` | `387c386e` | Closed-unmerged #155; unique negative validation tests still absent from `main`. |
+| `feature/agent-mailroom` | `f5d97d98` | DMR-079 preservation ref. |
+| `feature/claims-data-eda` | `59c879d9` | DMR-093 preservation ref. |
+| `feature/enron-evaluation-environment` | `59c879d9` | DMR-093 preservation ref. |
+
+`feature/claims-data-eda` and `feature/enron-evaluation-environment` are ancestors of `main` yet remain by explicit rule. Containment alone is never sufficient grounds to delete a preservation ref.
+
+Non-`main` remote heads moved 10 -> 8 across the window: three deletions, plus draft #171's head appearing during it. No tag, preservation ref or `main` changed. Remote deletions used `git push --force-with-lease=refs/heads/<branch>:<expected-sha> origin --delete <branch>` and each absent ref was re-verified with `git ls-remote`.
+
+Snapshot and recovery: `/Users/morningstar/.t3/backups/digital-mailroom-branches-20261023T144037Z` holds a complete-history bundle (`git bundle verify`: complete history), `before.txt`, and `SHA256SUMS`. Bundle SHA256 `36b64083f7f464093639160e8d1e83d5f9638cdfa950e8b5dcc5b98600264f76`; snapshot SHA256 `81972f8d7bfbe132c67d394972ab14931762007936bb92d9291174b0a7bad616`. Recovery for a deleted ref:
+
+```sh
+git fetch /Users/morningstar/.t3/backups/digital-mailroom-branches-20261023T144037Z/repository.bundle refs/remotes/origin/BRANCH:refs/heads/BRANCH
+git push origin refs/heads/BRANCH:refs/heads/BRANCH
+```
+
+Independent `archivist-file-organizer` audit returned SAFE for all three groups and flagged two ordering constraints that were honored: fast-forward `main` before any `-d`, and remove worktrees before branches. Post-verification: `git worktree list` shows only the primary checkout and `/private/tmp/dmr009-branch-audit`; local `t3/*` count is 0; `git worktree prune --dry-run -v` is empty; the three deleted remote refs return nothing from `git ls-remote`; all release tags and preservation refs match the pre-cleanup snapshot.
+
 ## Specialist evidence and validation
 
 The `orchestrator-governor` report established DMR009/issue13 ownership and preservation of prior evidence. `code-analyst` verified every open PR and exact integration ancestry; `archivist-file-organizer` audited all15 remote heads, locals, worktrees and unique changes. The caller executed all changes. Final independent `board-evidence-auditor` review: **PASS**, after checking live closures/refs, exact ancestry, both complete-history bundle hashes, all15 original heads in the fresh bundle, protected refs/tags, the recovered historical tree and DMR094/issue166 evidence. No remaining publication corrections.

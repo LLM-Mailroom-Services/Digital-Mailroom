@@ -413,6 +413,14 @@ Extensive references in `packages/llm-mailroom/docs/wiki/` and `docs/sister-repo
 - **Entries above are left unedited** (append-only audit trail).
 
 
+## DMR-009 full branch and PR audit (2026-10-23 UTC)
+
+- **Scope:** all 15 Digital-Mailroom remote heads, four initial local branches, worktrees and every open PR; no standalone source implementations changed.
+- **Evidence:** `docs/reports/audits/DMR-009-branch-audit.md` and `DMR-009-branch-manifest.json`; verified all-ref recovery bundle/manifest under `~/.t3/backups/digital-mailroom-branches-20261023T024145Z/`. Closed #154/#153/#152 as superseded by still-open #162; removed their exact contained heads, merged #164 release remote/local head and contained obsolete production-staging snapshot. Remote count 15 -> 10.
+- **Preserved:** active #156/#159/#160/#157/#162, closed155 unique tests, all preservation refs, occupied prune branch and release tags. Staging v9.2 adoption is absent162, so it was not mislabeled superseded.
+- **Historical gap:** the older 20261021 bundle named by previous cleanup is absent here. Recovered full orphan d026bc51df6c710279dd9b53505c32afbce72ea8 from GitHub into a second verified bundle, patch and metadata. Preserved feature/agent-mailroom retains most independent fixes/tests but misses the mid-scan FileNotFoundError guard; follow-up DMR094 / issue166 tracks it. No claim of complete semantic supersession.
+- **Validation:** scripts suite 62 tests OK; label audit 33 in sync; independent board-evidence-auditor PASS; diff check clean. Board reproduces exactly five pre-existing phantom-card errors and two warnings, with zero new errors; they are disclosed rather than bypassed.
+- **Lesson:** a closed PR can retain useful unique tests; ancestry plus a fresh recovery bundle is stronger deletion evidence than age or branch naming. Historical backup paths must be checked, not assumed available.
 ## DMR-093 scope note (2026-10-23 UTC, proposal pending parent application)
 
 - Five active workspace/sync packages: dojo, pipeline, sandbox, visualizer and
@@ -426,3 +434,12 @@ Extensive references in `packages/llm-mailroom/docs/wiki/` and `docs/sister-repo
 - No full feeder audits. Retained package docs need standalone-first merge/import;
   core cursors must follow the parent's final source imports. No upstream parity
   or final suite claim is made here. Parent owns gates, commits and card closure.
+
+## DMR-009 post-PR162 merged-branch cleanup (appended 2026-10-23T14:51:32Z)
+
+- **Trigger:** PR162 merged to `main` at `9e65790f` (2026-10-23T13:47:24Z) with PR167 merged into it first, so the earlier "absent from PR162" holding condition expired for the heads PR162 carried.
+- **Remote:** deleted merged heads `codex/dmr-091-feeder-reconciliation` (`0689b008`, #162), `t3/surgical-hub-prune` (`001f0958`, #167) and `coderabbit/add-pull-request-tests/dfc5f5b1` (`f9655205`, #160), each under an expected-SHA lease after re-proving containment in `main`.
+- **Local:** fast-forwarded `main` `f3c56ec5` -> `9e65790f` and returned the primary checkout to it; removed 47 `t3/*` scratch worktrees (8.2 GB, all porcelain-clean, zero unique commits) plus detached `/private/tmp/dmr091-v091-release` (`f3c56ec5`, contained); deleted 48 local branches with `git branch -d`, never `-D`.
+- **Retained:** open heads #156 (`8d7e9e82`), #157 (`ae765ae9`), #159 (`30ae291c`), draft #171 (`42ce73f4`); closed-unmerged #155 (`387c386e`); and all three preservation refs. Containment is not grounds to delete a preservation ref.
+- **Evidence:** `~/.t3/backups/digital-mailroom-branches-20261023T144037Z` complete-history bundle, SHA256 `36b64083f7f464093639160e8d1e83d5f9638cdfa950e8b5dcc5b98600264f76`; audit report + manifest extended in this commit; independent `archivist-file-organizer` verdict SAFE.
+- **Validation:** hub scripts suite 62 tests OK; board check reproduces the same five pre-existing phantom-card errors and two warnings with zero new errors.

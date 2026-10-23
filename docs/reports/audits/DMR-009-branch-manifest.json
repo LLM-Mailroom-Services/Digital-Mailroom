@@ -1,0 +1,530 @@
+{
+  "card": "DMR-009",
+  "repository": "LLM-Mailroom-Services/Digital-Mailroom",
+  "captured_before": "2026-10-23T02:41:45Z",
+  "captured_after": "2026-10-23T02:48:43Z",
+  "baseline_main": "f3c56ec56eb38cbb79c590a8f59ffa012a0efd04",
+  "baseline_pr162": "762402acac51edfb10ebd75a057b9ead7161ed61",
+  "backup": "/Users/morningstar/.t3/backups/digital-mailroom-branches-20261023T024145Z",
+  "bundle_sha256": "f63dbf454559cbf790569063c4bf0d40ad77bcd9175586783ddc28bd6bc96f22",
+  "before_manifest_sha256": "fca1d56b214a9c61b029ec30e9233c76c45fa928ceee5f07614cce8bd51eb2ff",
+  "remote_counts": {
+    "before": 15,
+    "after": 10
+  },
+  "actions": [
+    {
+      "time": "2026-10-23T02:44:17Z",
+      "action": "close_pr",
+      "number": 154,
+      "head": "2250a55a43e4a57b4d236a0e42bed7c27e6ebe82",
+      "replacement": 162,
+      "verified_state": "CLOSED"
+    },
+    {
+      "time": "2026-10-23T02:44:20Z",
+      "action": "close_pr",
+      "number": 153,
+      "head": "a2695d480f95fcb4f775d57c625866754d9bca63",
+      "replacement": 162,
+      "verified_state": "CLOSED"
+    },
+    {
+      "time": "2026-10-23T02:44:24Z",
+      "action": "close_pr",
+      "number": 152,
+      "head": "c0173ecee90e5f1e90ea8e734ff40de4b75d71f2",
+      "replacement": 162,
+      "verified_state": "CLOSED"
+    },
+    {
+      "time": "2026-10-23T02:45:19Z",
+      "action": "delete_remote_branch",
+      "name": "coderabbit/document-pr-152-functions/541e0d1e",
+      "sha": "2250a55a43e4a57b4d236a0e42bed7c27e6ebe82",
+      "pr": 154,
+      "contained_in": "origin/codex/dmr-091-feeder-reconciliation",
+      "verified_absent": true
+    },
+    {
+      "time": "2026-10-23T02:45:22Z",
+      "action": "delete_remote_branch",
+      "name": "claude/dmr-087-dojo-length-guard",
+      "sha": "c0173ecee90e5f1e90ea8e734ff40de4b75d71f2",
+      "pr": 152,
+      "contained_in": "origin/codex/dmr-091-feeder-reconciliation",
+      "verified_absent": true
+    },
+    {
+      "time": "2026-10-23T02:45:25Z",
+      "action": "delete_remote_branch",
+      "name": "claude/dmr-086-storage-race",
+      "sha": "a2695d480f95fcb4f775d57c625866754d9bca63",
+      "pr": 153,
+      "contained_in": "origin/codex/dmr-091-feeder-reconciliation",
+      "verified_absent": true
+    },
+    {
+      "time": "2026-10-23T02:45:27Z",
+      "action": "delete_remote_branch",
+      "name": "codex/dmr-092-pre-integration-v091",
+      "sha": "fc282d87ac03f13af0de53cfc0c6e7decbeaa450",
+      "pr": 164,
+      "contained_in": "origin/main",
+      "verified_absent": true
+    },
+    {
+      "time": "2026-10-23T02:45:30Z",
+      "action": "delete_remote_branch",
+      "name": "production-staging",
+      "sha": "2d1ff1c912046d5bd6c7db1fea89c2b2a9a7ccda",
+      "pr": null,
+      "contained_in": "origin/main",
+      "verified_absent": true
+    },
+    {
+      "time": "2026-10-23T02:45:30Z",
+      "action": "delete_local_branch",
+      "name": "codex/dmr-092-pre-integration-v091",
+      "sha": "fc282d87ac03f13af0de53cfc0c6e7decbeaa450",
+      "contained_in": "main"
+    }
+  ],
+  "branches": [
+    {
+      "name": "claude/dmr-086-storage-race",
+      "before_sha": "a2695d480f95fcb4f775d57c625866754d9bca63",
+      "tip_date_utc": "2026-10-21T01:41:14Z",
+      "prs_before": [
+        {
+          "number": 153,
+          "state": "OPEN",
+          "base": "main"
+        }
+      ],
+      "contained_in_main_at_start": false,
+      "contained_in_pr162_at_start": true,
+      "main_divergence_behind_ahead": "18\t4",
+      "pr162_divergence_behind_ahead": "47\t0",
+      "disposition": "deleted",
+      "reason": "Deleted after closing #153; exact ancestor of PR162 (storage fix, documentation and regression tests).",
+      "after_sha": null
+    },
+    {
+      "name": "claude/dmr-087-dojo-length-guard",
+      "before_sha": "c0173ecee90e5f1e90ea8e734ff40de4b75d71f2",
+      "tip_date_utc": "2026-10-21T01:45:38Z",
+      "prs_before": [
+        {
+          "number": 152,
+          "state": "OPEN",
+          "base": "main"
+        }
+      ],
+      "contained_in_main_at_start": false,
+      "contained_in_pr162_at_start": true,
+      "main_divergence_behind_ahead": "18\t3",
+      "pr162_divergence_behind_ahead": "48\t0",
+      "disposition": "deleted",
+      "reason": "Deleted after closing #152 and dependent #154; exact ancestor of PR162 (dojo length guards).",
+      "after_sha": null
+    },
+    {
+      "name": "claude/dmr-090-local-ci",
+      "before_sha": "b4c7fa67b39d7ceac6506e689aa9a358949c12e3",
+      "tip_date_utc": "2026-10-21T01:47:11Z",
+      "prs_before": [
+        {
+          "number": 156,
+          "state": "OPEN",
+          "base": "main"
+        }
+      ],
+      "contained_in_main_at_start": false,
+      "contained_in_pr162_at_start": false,
+      "main_divergence_behind_ahead": "18\t2",
+      "pr162_divergence_behind_ahead": "51\t2",
+      "disposition": "kept",
+      "reason": "Kept open #156: unique CI runner, pre-push hook and 53 tests absent from PR162; gate registry must follow five-package pruning.",
+      "after_sha": "b4c7fa67b39d7ceac6506e689aa9a358949c12e3"
+    },
+    {
+      "name": "coderabbit/add-pull-request-tests/dfc5f5b1",
+      "before_sha": "f96552050b5caad4a150dd328af67ec8200b428a",
+      "tip_date_utc": "2026-10-23T02:16:08Z",
+      "prs_before": [
+        {
+          "number": 160,
+          "state": "OPEN",
+          "base": "main"
+        }
+      ],
+      "contained_in_main_at_start": false,
+      "contained_in_pr162_at_start": false,
+      "main_divergence_behind_ahead": "0\t6",
+      "pr162_divergence_behind_ahead": "33\t6",
+      "disposition": "kept",
+      "reason": "Kept open #160: two unique governance test files absent from PR162; policy/doc changes in its broad title are already on main.",
+      "after_sha": "f96552050b5caad4a150dd328af67ec8200b428a"
+    },
+    {
+      "name": "coderabbit/document-pr-152-functions/541e0d1e",
+      "before_sha": "2250a55a43e4a57b4d236a0e42bed7c27e6ebe82",
+      "tip_date_utc": "2026-10-21T01:42:56Z",
+      "prs_before": [
+        {
+          "number": 154,
+          "state": "OPEN",
+          "base": "claude/dmr-087-dojo-length-guard"
+        }
+      ],
+      "contained_in_main_at_start": false,
+      "contained_in_pr162_at_start": true,
+      "main_divergence_behind_ahead": "18\t3",
+      "pr162_divergence_behind_ahead": "48\t0",
+      "disposition": "deleted",
+      "reason": "Deleted after closing #154 first; exact ancestor of PR162 (scorer documentation).",
+      "after_sha": null
+    },
+    {
+      "name": "coderabbit/pr149-comprehensive-tests/d720b152",
+      "before_sha": "387c386e23eec6797642f16c60a6690939b5e06d",
+      "tip_date_utc": "2026-10-21T01:43:30Z",
+      "prs_before": [
+        {
+          "number": 155,
+          "state": "CLOSED",
+          "base": "claude/agents-md-test-discipline"
+        }
+      ],
+      "contained_in_main_at_start": false,
+      "contained_in_pr162_at_start": false,
+      "main_divergence_behind_ahead": "18\t4",
+      "pr162_divergence_behind_ahead": "51\t4",
+      "disposition": "kept",
+      "reason": "Kept closed #155: unique negative CLI/validation tests absent from #160/#162; stale live-board assumptions need adaptation under DMR085 / issue148.",
+      "after_sha": "387c386e23eec6797642f16c60a6690939b5e06d"
+    },
+    {
+      "name": "codex/dmr-091-feeder-reconciliation",
+      "before_sha": "762402acac51edfb10ebd75a057b9ead7161ed61",
+      "tip_date_utc": "2026-10-23T02:34:28Z",
+      "prs_before": [
+        {
+          "number": 162,
+          "state": "OPEN",
+          "base": "main"
+        }
+      ],
+      "contained_in_main_at_start": false,
+      "contained_in_pr162_at_start": true,
+      "main_divergence_behind_ahead": "0\t33",
+      "pr162_divergence_behind_ahead": "0\t0",
+      "disposition": "kept",
+      "reason": "Kept active #162 and its occupied root worktree. This branch can advance concurrently.",
+      "after_sha": "d33b89533e7990f67d7941bda583417243692baa"
+    },
+    {
+      "name": "codex/dmr-092-pre-integration-v091",
+      "before_sha": "fc282d87ac03f13af0de53cfc0c6e7decbeaa450",
+      "tip_date_utc": "2026-10-23T01:58:30Z",
+      "prs_before": [
+        {
+          "number": 164,
+          "state": "MERGED",
+          "base": "main"
+        }
+      ],
+      "contained_in_main_at_start": true,
+      "contained_in_pr162_at_start": true,
+      "main_divergence_behind_ahead": "1\t0",
+      "pr162_divergence_behind_ahead": "34\t0",
+      "disposition": "deleted",
+      "reason": "Deleted remote and unoccupied local branch after merged #164; exact ancestor of main.",
+      "after_sha": null
+    },
+    {
+      "name": "dmr-009-branch-prune",
+      "before_sha": "82a649b027e9bb984f430fd1c54fa229083af712",
+      "tip_date_utc": "2026-10-22T05:02:08Z",
+      "prs_before": [
+        {
+          "number": 157,
+          "state": "OPEN",
+          "base": "main"
+        }
+      ],
+      "contained_in_main_at_start": false,
+      "contained_in_pr162_at_start": false,
+      "main_divergence_behind_ahead": "18\t1",
+      "pr162_divergence_behind_ahead": "51\t1",
+      "disposition": "kept",
+      "reason": "Kept/refreshed existing #157 as this audit vehicle; preserves its original 23-branch-prune history.",
+      "after_sha": "f170c4de7ba8e38a6a0c3c61be2475e21105e819"
+    },
+    {
+      "name": "feature/agent-mailroom",
+      "before_sha": "f5d97d98678773865d7f18af046b15ee47b1fd08",
+      "tip_date_utc": "2026-10-22T05:06:14Z",
+      "prs_before": [],
+      "contained_in_main_at_start": false,
+      "contained_in_pr162_at_start": false,
+      "main_divergence_behind_ahead": "70\t1",
+      "pr162_divergence_behind_ahead": "103\t1",
+      "disposition": "kept",
+      "reason": "Kept intentional DMR079 package-preservation branch, including its additional regression-test commit.",
+      "after_sha": "f5d97d98678773865d7f18af046b15ee47b1fd08"
+    },
+    {
+      "name": "feature/claims-data-eda",
+      "before_sha": "59c879d9fb4480084e53137e2e9fb25650933944",
+      "tip_date_utc": "2026-10-23T02:26:08Z",
+      "prs_before": [],
+      "contained_in_main_at_start": false,
+      "contained_in_pr162_at_start": true,
+      "main_divergence_behind_ahead": "0\t32",
+      "pr162_divergence_behind_ahead": "1\t0",
+      "disposition": "kept",
+      "reason": "Kept explicit DMR093 preservation branch for upcoming five-package pruning.",
+      "after_sha": "59c879d9fb4480084e53137e2e9fb25650933944"
+    },
+    {
+      "name": "feature/enron-evaluation-environment",
+      "before_sha": "59c879d9fb4480084e53137e2e9fb25650933944",
+      "tip_date_utc": "2026-10-23T02:26:08Z",
+      "prs_before": [],
+      "contained_in_main_at_start": false,
+      "contained_in_pr162_at_start": true,
+      "main_divergence_behind_ahead": "0\t32",
+      "pr162_divergence_behind_ahead": "1\t0",
+      "disposition": "kept",
+      "reason": "Kept explicit DMR093 preservation branch for upcoming five-package pruning.",
+      "after_sha": "59c879d9fb4480084e53137e2e9fb25650933944"
+    },
+    {
+      "name": "main",
+      "before_sha": "f3c56ec56eb38cbb79c590a8f59ffa012a0efd04",
+      "tip_date_utc": "2026-10-23T01:59:05Z",
+      "prs_before": [],
+      "contained_in_main_at_start": true,
+      "contained_in_pr162_at_start": true,
+      "main_divergence_behind_ahead": "0\t0",
+      "pr162_divergence_behind_ahead": "33\t0",
+      "disposition": "kept",
+      "reason": "Kept protected default/release branch.",
+      "after_sha": "f3c56ec56eb38cbb79c590a8f59ffa012a0efd04"
+    },
+    {
+      "name": "production-staging",
+      "before_sha": "2d1ff1c912046d5bd6c7db1fea89c2b2a9a7ccda",
+      "tip_date_utc": "2026-10-17T01:02:25Z",
+      "prs_before": [],
+      "contained_in_main_at_start": true,
+      "contained_in_pr162_at_start": true,
+      "main_divergence_behind_ahead": "23\t0",
+      "pr162_divergence_behind_ahead": "56\t0",
+      "disposition": "deleted",
+      "reason": "Deleted obsolete release-closeout snapshot; 0 commits ahead / 23 behind main; no open PR, worktree or observed configured deployment role.",
+      "after_sha": null
+    },
+    {
+      "name": "staging",
+      "before_sha": "30ae291cd1c7d59daf704d8f3ea90120c292b21f",
+      "tip_date_utc": "2026-10-23T00:34:30Z",
+      "prs_before": [
+        {
+          "number": 159,
+          "state": "OPEN",
+          "base": "main"
+        }
+      ],
+      "contained_in_main_at_start": false,
+      "contained_in_pr162_at_start": false,
+      "main_divergence_behind_ahead": "18\t4",
+      "pr162_divergence_behind_ahead": "51\t4",
+      "disposition": "kept",
+      "reason": "Kept open #159: unique v9.2 consumer adoption/provenance tests; PR162 still uses pipeline v9.1. Must be reviewed source-first.",
+      "after_sha": "30ae291cd1c7d59daf704d8f3ea90120c292b21f"
+    }
+  ],
+  "remaining_open_prs": [
+    {
+      "baseRefName": "main",
+      "headRefName": "codex/dmr-091-feeder-reconciliation",
+      "headRefOid": "d33b89533e7990f67d7941bda583417243692baa",
+      "number": 162,
+      "title": "DMR-091: reconcile current feeders and consolidate existing package fixes",
+      "url": "https://github.com/LLM-Mailroom-Services/Digital-Mailroom/pull/162"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "coderabbit/add-pull-request-tests/dfc5f5b1",
+      "headRefOid": "f96552050b5caad4a150dd328af67ec8200b428a",
+      "number": 160,
+      "title": "Add governance tests, strengthen test discipline, and clarify release guidance",
+      "url": "https://github.com/LLM-Mailroom-Services/Digital-Mailroom/pull/160"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "staging",
+      "headRefOid": "30ae291cd1c7d59daf704d8f3ea90120c292b21f",
+      "number": 159,
+      "title": "Merge staging into main: pin the v9.2 dataset revision (#145)",
+      "url": "https://github.com/LLM-Mailroom-Services/Digital-Mailroom/pull/159"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "dmr-009-branch-prune",
+      "headRefOid": "f170c4de7ba8e38a6a0c3c61be2475e21105e819",
+      "number": 157,
+      "title": "DMR-009: reopen for stale/artifact branch prune; record evidence",
+      "url": "https://github.com/LLM-Mailroom-Services/Digital-Mailroom/pull/157"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "claude/dmr-090-local-ci",
+      "headRefOid": "b4c7fa67b39d7ceac6506e689aa9a358949c12e3",
+      "number": 156,
+      "title": "DMR-090: local CI runner (scripts/ci.py) + real `ci` commit status",
+      "url": "https://github.com/LLM-Mailroom-Services/Digital-Mailroom/pull/156"
+    }
+  ],
+  "local_refs_after": "refs/heads/codex/dmr-091-feeder-reconciliation|d33b89533e7990f67d7941bda583417243692baa|2026-10-23T02:41:59Z|origin/codex/dmr-091-feeder-reconciliation\nrefs/heads/dmr-009-branch-prune|f170c4de7ba8e38a6a0c3c61be2475e21105e819|2026-10-23T02:43:17Z|origin/dmr-009-branch-prune\nrefs/heads/main|f3c56ec56eb38cbb79c590a8f59ffa012a0efd04|2026-10-22T20:59:05-05:00|origin/main\nrefs/heads/t3/surgical-hub-prune|59c879d9fb4480084e53137e2e9fb25650933944|2026-10-23T02:26:08Z|\n",
+  "worktrees_after": "worktree /Users/morningstar/Digital-Mailroom\nHEAD d33b89533e7990f67d7941bda583417243692baa\nbranch refs/heads/codex/dmr-091-feeder-reconciliation\n\nworktree /private/tmp/dmr009-branch-audit\nHEAD f170c4de7ba8e38a6a0c3c61be2475e21105e819\nbranch refs/heads/dmr-009-branch-prune\n\nworktree /private/tmp/dmr091-v091-release\nHEAD f3c56ec56eb38cbb79c590a8f59ffa012a0efd04\ndetached\n\nworktree /Users/morningstar/.t3/worktrees/Digital-Mailroom/t3-f04849c6\nHEAD 59c879d9fb4480084e53137e2e9fb25650933944\nbranch refs/heads/t3/surgical-hub-prune\n\n",
+  "release_tags_unchanged": true,
+  "historical_recovery": {
+    "commit": "d026bc51df6c710279dd9b53505c32afbce72ea8",
+    "tree": "83d153140fb1f4737076fadfd4435a7cf2a38b9a",
+    "bundle": "historical-agent-fix.bundle",
+    "sha256": "c7d78bf70c5c381ff58abee6ec6a7e9196054628d56b7a4c6e509c25b7d0204e",
+    "verified": true,
+    "temporary_custom_ref_removed": true,
+    "residual_card": "DMR-094",
+    "residual_issue": "https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/166",
+    "prior_20261021_bundle_available": false
+  },
+  "validation": {
+    "independent_board_evidence_auditor": "PASS",
+    "hub_unittest": {
+      "passed": 62,
+      "elapsed_seconds": 22.909
+    },
+    "label_audit": {
+      "manifest_labels_in_sync": 33
+    },
+    "diff_check": "clean",
+    "board_check": {
+      "exit_code": 1,
+      "known_phantom_cards": [
+        "DMR-120",
+        "DMR-176",
+        "DMR-182",
+        "DMR-188",
+        "DMR-191"
+      ],
+      "known_warnings": [
+        "DMR-078:done-not-archived",
+        "DMR-063:stale-in-progress"
+      ],
+      "new_errors": 0
+    },
+    "both_bundles_complete_history": true
+  },
+  "post_pr162_cleanup": {
+    "window_utc": {
+      "snapshot": "2026-10-23T14:40:37Z",
+      "verified": "2026-10-23T14:51:32Z"
+    },
+    "baseline_main": "9e65790fda51afa1078be6211fe78b0355cc47c9",
+    "backup": "/Users/morningstar/.t3/backups/digital-mailroom-branches-20261023T144037Z",
+    "bundle_sha256": "36b64083f7f464093639160e8d1e83d5f9638cdfa950e8b5dcc5b98600264f76",
+    "snapshot_sha256": "81972f8d7bfbe132c67d394972ab14931762007936bb92d9291174b0a7bad616",
+    "remote_counts": {
+      "before_non_main_heads": 10,
+      "after_non_main_heads": 8
+    },
+    "deleted_remote_heads": [
+      {
+        "branch": "codex/dmr-091-feeder-reconciliation",
+        "sha": "0689b008ce0d311c1876b9a029be4e816c319c91",
+        "pr": 162,
+        "pr_state": "MERGED"
+      },
+      {
+        "branch": "t3/surgical-hub-prune",
+        "sha": "001f0958f36ac17999f146003bba033cfd9db4a8",
+        "pr": 167,
+        "pr_state": "MERGED"
+      },
+      {
+        "branch": "coderabbit/add-pull-request-tests/dfc5f5b1",
+        "sha": "f96552050b5caad4a150dd328af67ec8200b428a",
+        "pr": 160,
+        "pr_state": "MERGED"
+      }
+    ],
+    "local_changes": {
+      "main_fast_forward": {
+        "from": "f3c56ec56eb38cbb79c590a8f59ffa012a0efd04",
+        "to": "9e65790fda51afa1078be6211fe78b0355cc47c9",
+        "commits": 57
+      },
+      "worktrees_removed": 48,
+      "worktrees_removed_detail": {
+        "t3_scratch": 47,
+        "detached_release": 1,
+        "forced": 0,
+        "reclaimed_bytes_approx": 8530000000
+      },
+      "local_branches_deleted": 48,
+      "local_branches_deleted_detail": {
+        "t3_scratch": 47,
+        "codex_dmr_091": 1,
+        "method": "git branch -d"
+      }
+    },
+    "retained": [
+      {
+        "ref": "claude/dmr-090-local-ci",
+        "sha": "8d7e9e820dc5d07ea8bbdff7f618ad78f75c585a",
+        "reason": "open PR 156; unique CI work"
+      },
+      {
+        "ref": "dmr-009-branch-prune",
+        "sha": "ae765ae9a170a96ece0b00d9a0915efbb5d1637c",
+        "reason": "open PR 157; this audit vehicle"
+      },
+      {
+        "ref": "staging",
+        "sha": "30ae291cd1c7d59daf704d8f3ea90120c292b21f",
+        "reason": "open PR 159; v9.2 consumer adoption absent from main"
+      },
+      {
+        "ref": "claude/readme-architecture-map",
+        "sha": "42ce73f41f8f0d988682b1a9d043f36ac200e871",
+        "reason": "open draft PR 171; created during window, untouched"
+      },
+      {
+        "ref": "coderabbit/pr149-comprehensive-tests/d720b152",
+        "sha": "387c386e23eec6797642f16c60a6690939b5e06d",
+        "reason": "closed-unmerged PR 155; unique tests absent from main"
+      },
+      {
+        "ref": "feature/agent-mailroom",
+        "sha": "f5d97d98678773865d7f18af046b15ee47b1fd08",
+        "reason": "DMR-079 preservation"
+      },
+      {
+        "ref": "feature/claims-data-eda",
+        "sha": "59c879d9fb4480084e53137e2e9fb25650933944",
+        "reason": "DMR-093 preservation"
+      },
+      {
+        "ref": "feature/enron-evaluation-environment",
+        "sha": "59c879d9fb4480084e53137e2e9fb25650933944",
+        "reason": "DMR-093 preservation"
+      }
+    ],
+    "specialist": "archivist-file-organizer (read-only): SAFE for all groups; ordering constraints honored"
+  }
+}

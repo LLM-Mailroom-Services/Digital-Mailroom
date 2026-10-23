@@ -6,8 +6,9 @@ to never run a 5-minute full suite for a one-line docs change, and never
 skip the cross-package suite for a change that touches two packages.
 
 Source of truth for the package list: `AGENTS.md` ("Per-package test
-suites"). All timings below are **measured wall-clock** (2026-09-14, shared
-`.venv`), approximate ±20% depending on machine load.
+suites"). Test counts below were re-measured 2026-10-21 (DMR-085). Wall times are
+measured wall-clock on a shared `.venv`, ±20% depending on machine load;
+rows marked *cov* were timed under `--cov`, which is slower than a plain run.
 
 ## Four tiers
 
@@ -16,7 +17,7 @@ suites"). All timings below are **measured wall-clock** (2026-09-14, shared
 | **1 — surgical** | The single test file/module touched by a change | seconds | Every edit, before committing |
 | **2 — package unit** | The full test suite of the one changed package | seconds–minutes | Every non-trivial change to a package |
 | **3 — cross-package** | The suites of every package a change touches, plus any package that imports the changed surface | 1–6 min | Cross-package refactors, shared-catalog changes (taxonomy, vendor, dojo), version bumps |
-| **4 — full + governance** | All 9 package suites + the governance gates | ~7 min suites + gates | Release cuts, CI gate verification, end-of-sprint sweeps |
+| **4 — full + governance** | All 7 package suites + `scripts/tests` + board-site JS + the governance gates | ~13.5 min suites + gates | Release cuts, CI gate verification, end-of-sprint sweeps |
 
 ## Per-package commands (measured)
 
@@ -26,12 +27,25 @@ invocation**.
 
 | Package | Command | Tests | Wall time |
 | --- | --- | --- | --- |
-| llm-dojo-scoring | `uv run pytest packages/llm-dojo-scoring/tests -q` | 369 pass / 5 skip | ~13 s |
-| llm-mailroom | `uv run pytest packages/llm-mailroom/src/tests -q` | 995 pass / 36 skip | ~4:50 |
-| local-mailroom-sandbox | `uv run pytest packages/local-mailroom-sandbox/tests -q` | 259 pass / 1 skip | ~12 s |
-| The-Mailroom | `uv run pytest packages/The-Mailroom/tests -q` | 334 pass / 2 skip | ~12 s |
-| claims-data-eda | `uv run pytest packages/claims-data-eda/tests -q` | 40 pass | ~6 s |
-| Enron-Evaluation-Environment | `uv run pytest packages/Enron-Evaluation-Environment/tests -q` | 87 pass | ~5 s |
+| llm-dojo-scoring | `uv run pytest packages/llm-dojo-scoring/tests -q` | 1219 pass / 5 skip | ~28 s *cov* |
+| llm-mailroom | `uv run pytest packages/llm-mailroom/src/tests -q` | 1864 pass / 37 skip / 2 fail* | ~9:40 *cov* |
+| local-mailroom-sandbox | `uv run pytest packages/local-mailroom-sandbox/tests -q` | 1324 pass / 5 skip | ~1:50 *cov* |
+| The-Mailroom | `uv run pytest packages/The-Mailroom/tests -q` | 421 pass | ~38 s *cov* |
+| mailroom-corpus-eda | `uv run pytest packages/mailroom-corpus-eda/tests -q` | 186 pass / 17 skip | ~23 s |
+| claims-data-eda | `uv run pytest packages/claims-data-eda/tests -q` | 40 pass | ~10 s |
+| Enron-Evaluation-Environment | `uv run pytest packages/Enron-Evaluation-Environment/tests -q` | 87 pass | ~12 s |
+| hub governance tooling | `python3 -m unittest discover scripts/tests` | 62 pass | ~9 s |
+| board-site API | `(cd board-site && node tests/api.test.js)` | 23 checks | <1 s |
+
+\* The two llm-mailroom failures (`test_audit_log.py::test_concurrent_appends_keep_chain_valid`,
+`test_relations.py::test_concurrent_ledger_writers_do_not_fork_chain`) are a
+real storage race (`storage/db.py` `ensure_schema` has no lock; `get_engine`
+shares one async engine across event loops), not flakes — see AGENTS.md
+§ Test discipline. Skips: llm-mailroom's 30 `docs/examples/samples/manifest.csv`
+skips and corpus-eda's 17 `data/parquet` snapshot skips mean the real-sample /
+real-corpus tests do not run in a fresh checkout.
+
+**No CI workflow runs any of these suites** — the local run is the gate.
 
 > llm-mailroom is the long pole (~5 min). Its sub-suites can be targeted for
 > faster surgical feedback: `src/tests/test_observability.py`,
@@ -50,7 +64,7 @@ invocation**.
 | Version bump / pin change | **3** | All packages referencing the pin + `docs/wiki/Releases.md` + `release_chain.py check` |
 | Board/tooling change (scripts/, board-site/) | **2–3** | `scripts/board_state.py check`, `board-site/tests/api.test.js`, relevant script tests |
 | Multi-package refactor | **3** | Every touched package's full suite |
-| Release cut / sprint sweep | **4** | All 9 suites + all governance gates below |
+| Release cut / sprint sweep | **4** | All 7 package suites + `scripts/tests` + board-site JS + all governance gates below |
 
 ## Governance gates (always run on governance/tooling changes and at tier 4)
 

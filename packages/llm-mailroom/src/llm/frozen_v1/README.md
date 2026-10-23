@@ -12,9 +12,10 @@ for the LangGraph `extract` / `retry_extract` nodes.
 | `insurance_claims_specialist` | `insurance_claims_specialist_simplified` | `insurance_claims_specialist_v1` |
 | `merger_agreement_specialist` | `merger_agreement_specialist_simplified` | `merger_agreement_specialist_v1` |
 
-Source: the `llm-dojo-scoring` `production_prompts` catalog (the dojo
-`production` family vendors the same bytes from this repo and records
-`source_commit`). Originally frozen from `Exios66/local-mailroom-sandbox`
+Source: the `llm-dojo-scoring` `production` catalog, which records
+`source_commit` and preserves the live freeze. Its `production_prompts`
+evaluation family can advance independently: corporate v7 is available
+there, while this pipeline remains on the recorded corporate v6 freeze. Originally frozen from `Exios66/local-mailroom-sandbox`
 `config/prompts/` on 2026-09-26 (sha256-locked in `lineage.json`) and
 re-frozen 2026-10-05. Do not edit the `.txt` files in place — a sanctioned
 re-freeze updates `lineage.json` and the stems together.
@@ -39,5 +40,5 @@ Entity-extraction lineage keys (`contracts_specialist_v1`…`v33`,
 history for eval loops. They are not the production specialist pin.
 
 > **Note:** the `*.txt` files in this directory are superseded by the
-> `llm-dojo-scoring` `production_prompts` catalog (see `__init__.py`). They are
+> `llm-dojo-scoring` live `production` catalog (see `__init__.py`). They are
 > no longer packaged and are slated for removal.

@@ -29,11 +29,11 @@ def test_frozen_v1_sha256_matches_lineage_catalog():
         assert len(text) == catalog[agent]["chars"]
 
 
-def test_specialists_are_dojo_production_prompts_verbatim():
+def test_specialists_are_dojo_live_production_verbatim():
     from llm_dojo_scoring.prompts import get_prompt
 
     for agent in SPECIALIST_AGENTS:
-        assert load_specialist_v1(agent) == get_prompt(agent, family="production_prompts").text
+        assert load_specialist_v1(agent) == get_prompt(agent, family="production").text
 
 
 def test_corrected_records_are_served():

@@ -25,7 +25,7 @@
       "sha256": "fe13501f667fcd9f64f7dfbf8b0f124f81d9dd039f4109288b43f106f82b1399",
       "chars": 5865,
       "opening": "You are the corporate-records specialist.",
-      "source": "llm-dojo-scoring production_prompts",
+      "source": "llm-dojo-scoring production",
       "refrozen_at": "2026-10-05"
     },
     "correspondence_specialist": {
@@ -40,7 +40,7 @@
       "sha256": "2b0b81ff98920b9207627707443e2b023db39212fda5bdcba7bfbded39fa38b6",
       "chars": 6113,
       "opening": "You are the correspondence specialist.",
-      "source": "llm-dojo-scoring production_prompts",
+      "source": "llm-dojo-scoring production",
       "refrozen_at": "2026-10-05"
     },
     "insurance_claims_specialist": {

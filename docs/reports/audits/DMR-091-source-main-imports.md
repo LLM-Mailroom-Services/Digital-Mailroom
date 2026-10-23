@@ -3,7 +3,33 @@
 2026-10-23 UTC. PR162 remains under review; final vendor composition and
 final consumer adoption are pending. This is not final completion.
 
-## Current canonical Dojo release import
+## Current source review stage — 2026-10-23T07:16Z
+
+Published source [Dojo v0.23.1](https://github.com/Exios66/llm-dojo-scoring/releases/tag/v0.23.1)
+is at `04ac152a611606e687faa8b78528f3373f4c43a2`; source full gate1814 passed,
+5 skipped and downloaded release hashes verify. The hub import below is still
+v0.23.0. Source [PR63](https://github.com/Exios66/llm-dojo-scoring/pull/63)
+prepares0.24.0 update awareness. Its frozen review at8386cc65 passed1901/5 and138
+adversarial assertions, but later review comments hold publication for localized
+source repairs. Consumers do not claim adoption of an unpublished release.
+
+Source pipeline [PR119](https://github.com/Exios66/llm-mailroom/pull/119), sandbox
+[PR153](https://github.com/Exios66/local-mailroom-sandbox/pull/153) and visualizer
+[PR41](https://github.com/Exios66/The-Mailroom/pull/41) remain under composition
+review. Current-main pipeline PR117 documentation has already merged upstream;
+its reviewed reconciliation preserves prepared0.8.1 and the runtime repairs,
+with31 parent docs tests and19 generated pages passing. Exact later source-main
+imports will retain the pending-five-core descriptions. Actual workspace
+membership stays seven in162; only separate167 performs the pruning.
+
+Fresh CodeAnt inventory spans26 linked PRs and exhausts thread/comment pages,
+matching only service-account/action-URL roots. New NaN-label, cache-timestamp,
+copyable-example and legacy ownership findings are being verified at their
+owners. Previously fixed runtime comments are not treated as final-import proof.
+Full package/vendor integration, cursor verification and final reviews remain
+required before either hub PR is marked ready.
+
+## Current hub Dojo import (awaiting final source adoption)
 
 Dojo PR61 merged at `3eb56be1c445b2f71c461ffa5f26660ca8516f98`.
 Annotated release [v0.23.0](https://github.com/Exios66/llm-dojo-scoring/releases/tag/v0.23.0)

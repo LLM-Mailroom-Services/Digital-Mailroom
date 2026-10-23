@@ -1,29 +1,41 @@
 # Audit State
 
-## DMR-091 / DMR-093 reconciliation in progress — 2026-10-23 UTC
+## DMR-091 / DMR-093 / DMR-095 reconciliation in progress — 2026-10-23T07:16Z
 
-The standalone repositories own implementation; imports flow source main → hub
-workspace → generated sandbox vendors. PR162 remains draft and unmerged. The
-v0.9.1 rollback release and verified assets preserve pre-integration package
-state. Source runtime PR118 has a full 2076-pass/37-skip gate, with the last
-private-publication/manifest boundary repair under review. Dojo PR61 was
-independently approved and merged at 3eb56be1; v0.23.0 is published and imported
-as the exact 220-path tree. Source and hub pass 1797 tests/5 skips, and the
-published wheel matches 105 committed Python/runtime-data paths. Pending
-consumer adoption is not treated as approved.
-Visualizer source PR40 merged at 77ded085 after independent recovery review.
-Sandbox source PR153 remains draft after independent remote-generation,
-dotenv-ordering and record-task findings; source repairs and final vendors are
-pending. Final hub import/review must preserve the existing visualizer overlays.
+Independent repositories own implementation. Source main → hub imports →
+source-generated vendors remains the required order. Hub PR162 and pruning
+PR167 remain draft and unmerged; rollback v0.9.1 and preservation refs are intact.
 
-Pruning PR167 is stacked on PR162, with structural approval at 001f0958 and
-exact preservation of 149 Enron/claims blobs/modes. It awaits final source docs,
-vendors and five-core gates before being marked ready. The enabled daily 23:00
-America/Chicago check has dispatched a queued audit; dispatch success is not a
-completed clean result. See the DMR-091/092/093 reports and board for evidence.
+Dojo v0.23.1 is published at 04ac152a, with1814 passed/5 skipped. The hub still
+imports v0.23.0 until final reviewed source composition. New source PR63
+prepares update awareness0.24.0; its frozen8386cc65 review passed1901/5 plus138
+adversarial assertions. Newly arrived CodeAnt/CodeRabbit example-import,
+equal-time cache and NaN-label findings hold publication for source repairs.
+No dependency pin is advanced to the unpublished release.
 
-The entries below remain historical audit records; they do not supersede this
-source-ownership direction or certify the current reconciliation complete.
+Pipeline119 now contains current-main117 documentation, canonical scoring,
+verified runtime CodeAnt repairs, disabled-tracing and wheel-taxonomy repairs.
+The docs-only merge preserves both runtime files exactly;31 parent docs tests
+and19 generated pages pass. Source117 has already merged, so exact future main
+imports retain its pending-five-core documentation. Only hub167 removes members.
+Sandbox local branch retains upstream docstrings with16 AST-identical Python
+implementations and current-main dependency locks; lock check passes. Final
+vendors, source full gates and independent composition review remain pending.
+Visualizer41 includes source-owned runtime, eval and pipeline-forwarded advisory
+changes; parent488 passed/2 skipped and34 browser-fixture checks are bounded
+proof, not final producer-pin approval. Consumer-hook proposal has82 passes.
+
+Fresh review inventory covers all26 linked PRs with exact CodeAnt root matching
+and complete thread/comment pagination. A new legacy review ownership finding
+is under source-only verification. Live frozen corporate prompt findings remain
+open; offline candidates are not adopted defaults or measured model winners.
+
+Hub main PR160's10 new governance tests pass and are retained in67965f27. Full
+hub tooling is70/72 with2 pending vendor-drift failures; baseline board phantom
+references remain separate. The23:00 America/Chicago drift schedule is enabled;
+its queued first dispatch is not a completed clean audit. No completion claim.
+
+Earlier dated reports below remain historical evidence, not current approval.
 
 ## Latest Audit
 

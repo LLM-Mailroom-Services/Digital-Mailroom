@@ -60,7 +60,10 @@ Merged source: `5c6af57a18ff0c9393ab8472a042e16a2e4f09ca` (source PR #162;
 implementation `4235b96`, source evidence `2c4dada`). Final source suite:
 **1,512 passed / 14 skipped / 0 failed** on the complete dependency set.
 Hub sandbox final suite: **1,514 passed / 12 skipped / 0 failed** (102.55 s).
-The other four hub package gates are running sequentially. Hub import PR:
+Additional hub results: scoring **1,936 passed / 5 skipped**;
+The-Mailroom **506 passed / 2 skipped**; corpus EDA **337 passed / 19 skipped**
+(exit 0 with complete progress output). Pipeline final verification is pending
+an environment-only build-cache preparation. Hub import PR:
 [#187](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/pull/187).
 Content-verified snapshot at `2026-10-24T03:58:05Z` records source
 `5c6af57a18ff0c9393ab8472a042e16a2e4f09ca`; status reports zero new upstream
@@ -117,3 +120,18 @@ issue stays in Evidence. Code-analyst verification found that board sync uses
 a single configured repository rather than routing by an issue URL. No broad
 sync was applied with a foreign issue link. DMR-103 also owns a future guard
 for that existing routing limitation.
+
+## Pipeline offline build-cache prerequisite
+
+The initial final pipeline run reported **2,172 passed / 37 skipped / 1 failed**.
+The sole failure was the unchanged wheel-smoke test: its isolated
+`uv build --offline` could not resolve uncached `setuptools`, before any wheel
+content or runtime assertion ran. Code-analyst review confirmed an environment
+prerequisite, with both test and package specification unchanged.
+
+Seeded the build-backend cache with an online
+`uv build --no-sources --wheel --out-dir /tmp/dmr097-wheel-seed packages/llm-mailroom`.
+The test's offline build and runtime socket guards remain enabled; no package
+code was modified. `docs/TESTING.md` now documents this setup prerequisite.
+The unchanged focused wheel test passes (1 passed in 4.40 s). The full pipeline
+suite is rerunning after seeding and must be green before merge.

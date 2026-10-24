@@ -23,7 +23,7 @@ and is recorded there, not here.
 
 ### Dependencies
 
-- Complete DMR-097 dependency follow-through: update the hub lock to certifi 2026.10.19 and filelock 4.2.1 after merging sandbox-fork Dependabot PRs #9–#11; pypdf 6.21.2 is already resolved in the hub. Import the verified standalone sandbox lock and test bootstrap repairs once its source PR merges.
+- Complete DMR-097 dependency follow-through: update the hub lock to certifi 2026.10.19 and filelock 4.2.1 after merging sandbox-fork Dependabot PRs #9–#11; pypdf 6.21.2 is already resolved in the hub. Import the verified standalone sandbox lock and test bootstrap repairs from source PR #162; preserve the existing generated vendors and record the offline wheel-build cache prerequisite.
 
 ### Documentation
 

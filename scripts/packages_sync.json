@@ -9,8 +9,8 @@
     },
     "llm-dojo-scoring": {
       "branch": "main",
-      "synced_at": "2026-10-24T19:50:44Z",
-      "synced_sha": "06b221b4965f133f4a0e905069c6679808135456",
+      "synced_at": "2026-10-24T22:54:55Z",
+      "synced_sha": "f53f2a3301d3bb7e42b00c475f253605286fd14f",
       "url": "https://github.com/Exios66/llm-dojo-scoring.git"
     },
     "llm-mailroom": {

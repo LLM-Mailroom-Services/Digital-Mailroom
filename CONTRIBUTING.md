@@ -1,4 +1,4 @@
-# Contributing to Digital Mailroom
+# Contributing to The Digital Mailroom
 
 Thanks for helping. This page is the short path from "I cloned it" to "my PR
 merged". [`AGENTS.md`](AGENTS.md) is the full rulebook and wins on any
@@ -6,7 +6,7 @@ conflict.
 
 ## 1. Know which repo your change belongs in
 
-Digital Mailroom is an **integration hub**. The package code is authored
+The Digital Mailroom is an **integration hub**. The package code is authored
 elsewhere:
 
 | You want to change… | Do it in… | Then |

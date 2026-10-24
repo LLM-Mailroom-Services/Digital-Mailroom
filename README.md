@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/readme/hero.svg" alt="Digital Mailroom: envelopes ride a conveyor through intake, classify, extract, judge, compile and archive gates" width="100%"/>
+<img src="docs/assets/readme/hero.svg" alt="The Digital Mailroom: envelopes ride a conveyor through intake, classify, extract, judge, compile and archive gates" width="100%"/>
 
 <br/>
 
@@ -12,7 +12,7 @@
 
 [![Dispatch board](https://img.shields.io/badge/📋_dispatch_board-live-000?style=flat-square&logo=vercel)](https://digital-mailroom-theta.vercel.app)
 [![Dataset](https://img.shields.io/badge/🤗_mailroom--dataset-v9_·_3,302_rows-FFD21E?style=flat-square)](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
-[![Wiki](https://img.shields.io/badge/📖_wiki-read_me_next-555?style=flat-square)](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/wiki)
+[![Wiki](https://img.shields.io/badge/📖_wiki-deep_dives-555?style=flat-square)](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/wiki)
 
 **[Quickstart](#-quickstart)** · **[How it works](#-a-day-in-the-life-of-a-document)** · **[The constellation](#-the-constellation)** · **[House rules](#-house-rules)** · **[Docs](#-where-to-go-next)**
 
@@ -27,15 +27,15 @@ someone **reads** them and pulls out the facts, a supervisor **checks the
 work**, and every envelope ends up **filed with a receipt**. Nothing gets
 lost and nobody gets to guess.
 
-Digital Mailroom does the same job with AI agents. It is the **integration
-hub** for the LLM-Mailroom constellation: one checkout that wires together a
-multi-agent legal-document pipeline, a deterministic scoring dojo, a pixel-art
-visualizer, an offline/GPU sandbox and corpus EDA. It uses **one uv workspace,
-one lockfile and one virtualenv**, and no package imports another repo
-outside the workspace.
+The Digital Mailroom does the same job with AI agents. It is the
+**integration hub** for the LLM-Mailroom constellation: one checkout that
+wires together a multi-agent legal-document pipeline, a deterministic scoring
+dojo, a pixel-art visualizer, an offline and GPU testing sandbox, and the
+corpus EDA that feeds them. It runs on **one uv workspace, one lockfile and
+one virtualenv**, and no member imports code from outside the workspace.
 
 <div align="center">
-<img src="docs/assets/readme/stats.svg" alt="By the numbers: 5 core packages, 13 pipeline nodes, 5 document classes, 3,302 corpus rows, 15 specialist agents, 1 lockfile" width="100%"/>
+<img src="docs/assets/readme/stats.svg" alt="By the numbers: 5 core packages, 13 pipeline nodes, 5 document classes, 3,302 corpus rows, a 15-agent roster, 1 lockfile" width="100%"/>
 </div>
 
 ## 🏭 A day in the life of a document
@@ -49,14 +49,14 @@ outside the workspace.
 
 | | Stage | What happens |
 | :---: | :--- | :--- |
-| 📥 | **Ingest** | One fused triage + clean + prepare pass turns a raw file into a claimed, normalized manifest |
-| 🏷️ | **Classify** | The `SorterAgent` assigns one of five live classes (`contract` · `merger_agreement` · `corporate_record` · `correspondence` · `insurance_claim`) with a confidence. High confidence goes to extract, medium retries, and low or unknown goes to a human |
+| 📥 | **Ingest** | One fused triage, clean and prepare pass claims the raw file, normalizes it and writes its manifest |
+| 🏷️ | **Classify** | The `SorterAgent` assigns one of five live classes (`contract` · `merger_agreement` · `corporate_record` · `correspondence` · `insurance_claim`) with a confidence score. High confidence goes straight to extraction, medium confidence retries, and low or unknown confidence goes to review |
 | 🔍 | **Extract** | A class specialist produces structured Pydantic output, gated on schema, confidence, factuality and completeness |
-| ⚖️ | **Judge → Arbiter** | Ambiguous completeness gets a second opinion. Matter conflicts go to the **Boss**, which never resolves them silently by recency |
-| 🧑‍⚖️ | **Human review** | The governance boundary: approve, correct, reconcile or reject. Corrections resume from the corrected state |
+| ⚖️ | **Judge → Arbiter → Boss** | The Judge checks ambiguous completeness and the Arbiter decides whether to stand, re-extract or send the document to a human. Matter conflicts go to the **Boss**, which never resolves them silently by recency |
+| 🧑‍⚖️ | **Human review** | The governance boundary: approve, correct, reconcile or reject. A correction resumes the run from the corrected state |
 | 🗂️ | **Compile → Catalog → Archive** | Deterministic matter-record assembly (no LLM call), persistence, and a hash-chained audit archive |
 
-> The full map is [`docs/assets/mailroom-pipeline.svg`](docs/assets/mailroom-pipeline.svg). Terminology is in the [v7 taxonomy spec](docs/v7-taxonomy.md). Both are the root-level sources of truth.
+> These six phases cover the 13 nodes of the `llm-mailroom` graph. The full map is [`docs/assets/mailroom-pipeline.svg`](docs/assets/mailroom-pipeline.svg) and the terminology is in the [v7 taxonomy spec](docs/v7-taxonomy.md); both are the root-level sources of truth.
 
 <details>
 <summary><b>🖼️ The classic six-stage processing banner</b></summary>
@@ -70,25 +70,25 @@ outside the workspace.
 ## 🌌 The constellation
 
 <div align="center">
-<img src="docs/assets/readme/constellation.svg" alt="Data-flow map: corpus EDA publishes to the HF Hub; sandbox and pipeline pull the pinned dataset; the sandbox executes the pipeline; both score with llm-dojo-scoring; traces flow through Langfuse to The-Mailroom" width="100%"/>
+<img src="docs/assets/readme/constellation.svg" alt="Data-flow map: corpus EDA publishes to the HF Hub; the sandbox and the pipeline pull the pinned dataset; the sandbox executes the pipeline; both score with llm-dojo-scoring; both send traces to Langfuse, which feeds The-Mailroom" width="100%"/>
 </div>
 
 Five core packages live in `packages/` as git subtrees imported from their
-authoritative standalone `Exios66/*` repositories. Four are built members and
-one is a virtual corpus-EDA member.
+authoritative standalone `Exios66/*` repositories. Four are built members;
+the fifth, the corpus EDA, is a virtual member.
 
 | | Package | Role | Source | Site |
 | :---: | :--- | :--- | :--- | :--- |
 | 🥋 | `llm-dojo-scoring` | **All** scoring engine logic and metrics, plus the error-analysis and interpretation suite | [`Exios66/llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring) | — |
 | 🧠 | `llm-mailroom` | LangGraph multi-agent legal-document pipeline (FastAPI producer) | [`Exios66/llm-mailroom`](https://github.com/Exios66/llm-mailroom) | — |
-| 👾 | `The-Mailroom` | Shared pixel-art visualizer for **both** the pipeline and the sandbox, plus the hosted Observatory | [`Exios66/The-Mailroom`](https://github.com/Exios66/The-Mailroom) | [🌐 Pages](https://exios66.github.io/The-Mailroom/) |
+| 👾 | `The-Mailroom` | Pixel-art visualizer shared by **both** the pipeline and the sandbox, driven by Langfuse traces, plus the hosted Observatory | [`Exios66/The-Mailroom`](https://github.com/Exios66/The-Mailroom) | [🌐 Pages](https://exios66.github.io/The-Mailroom/) |
 | 🧪 | `local-mailroom-sandbox` | Core offline/local and Modal/vLLM GPU testing interface for the pipeline | [`Exios66/local-mailroom-sandbox`](https://github.com/Exios66/local-mailroom-sandbox) | — |
 | 📊 | `mailroom-corpus-eda` | Corpus EDA (P0–P6) and the centralized HF upload helpers | [`Exios66/Mailroom-Corpus-EDA`](https://github.com/Exios66/Mailroom-Corpus-EDA) | [🌐 Pages](https://exios66.github.io/Mailroom-Corpus-EDA/) |
 
 The hub itself is [`LLM-Mailroom-Services/Digital-Mailroom`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom). It hosts the live [📋 Dispatch Board](https://digital-mailroom-theta.vercel.app).
 
 > [!NOTE]
-> `mailroom-corpus-eda` is the only virtual member (`package = false`). It has no build system and is not installed, and its EDA code and deliverables stay colocated with the four built members.
+> `mailroom-corpus-eda` is the only virtual member (`package = false`). It has no build system and is not installed; its EDA code and deliverables live alongside the four built members.
 
 <details>
 <summary><b>🧭 Plain-text architecture map</b> (for terminals and screen readers)</summary>
@@ -132,7 +132,7 @@ The hub itself is [`LLM-Mailroom-Services/Digital-Mailroom`](https://github.com/
 <br/>
 
 **Pruned in DMR-079.** `llm-entity-extraction` and `llm-mailroom-graph` left
-the monorepo. They exist only as standalone `Exios66/*` repos and are no
+the monorepo. They live on only as standalone `Exios66/*` repos and are no
 longer synced. `agent-mailroom` is preserved on the branch
 `feature/agent-mailroom`. Hub `v0.8.0` is the last release containing them
 and serves as the rollback point.
@@ -197,10 +197,10 @@ published git pins stay in the dependency lines for release builds.
 
 The mailroom runs on a few non-negotiables:
 
-1. **Standalone repos own the code.** Author, test and commit package changes in `Exios66/*`, then *import* them here. Never implement a package change in the hub and push it back, because legacy outbound pushes are forbidden.
-2. **Vendors are generated, never hand-edited.** `packages/local-mailroom-sandbox/vendor/` comes from `sync_vendor.py` and nothing else.
-3. **The board is the truth.** Read [`governance/TASKS.md`](governance/TASKS.md) first. Claim a card before you edit, and a card is not done without evidence.
-4. **Every commit tells a story.** Lead with the `DMR-0NN:` prefix and write a body that names each file and the reason. See the [template and examples](docs/COMMIT_MESSAGES.md).
+1. **Standalone repos own the code.** Author, test and commit package changes in their `Exios66/*` repo, then *import* them here. Never implement a package change in the hub, and never push hub copies back to a standalone repo.
+2. **Vendor snapshots are generated, never hand-edited.** `packages/local-mailroom-sandbox/vendor/` comes from `sync_vendor.py` and nothing else.
+3. **The board is the source of truth.** Read [`governance/TASKS.md`](governance/TASKS.md) first, claim a card before you edit, and don't call a card done without evidence.
+4. **Every commit tells a story.** Lead with the `DMR-0NN:` prefix and write a body that names each changed file and why it changed. See the [template and examples](docs/COMMIT_MESSAGES.md).
 5. **Tests must be able to fail.** Ship each bug fix with its regression test, hand-compute expected values, and use honest doubles. Details are in [`AGENTS.md`](AGENTS.md#test-discipline).
 
 ## 🔄 Sync & release
@@ -208,17 +208,18 @@ The mailroom runs on a few non-negotiables:
 ```bash
 python scripts/sync_packages.py status                           # live drift report
 python scripts/sync_packages.py pull --package <name> --squash   # import committed standalone source
-python scripts/sync_vendor.py                                    # regenerate vendors from imported sources
-python scripts/sync_vendor.py --check                            # verify vendor identity
+python scripts/sync_vendor.py                                    # regenerate vendor snapshots from imported sources
+python scripts/sync_vendor.py --check                            # verify the snapshots match the workspace
 python scripts/sync_packages.py snapshot                         # cursor verification
 ```
 
-Packages are released from their authoritative standalone repositories, and
-their consuming pins are updated there at release time. After that, import
-the committed sources into the hub, regenerate the vendors and verify the
-integration suites. Hub releases version the integration workspace
-separately. Commit the cut together with `uv.lock`, merge the PR, then tag
-the merged `main` tip. The runbooks are
+Packages are released from their standalone repositories, and consuming
+pins are bumped there at release time. The hub then imports the committed
+sources, regenerates the vendor snapshots and runs the integration suites.
+Hub releases version the integration workspace on their own track: cut with
+`release_chain.py cut X.Y.Z --apply`, run `uv lock`, commit the changelog,
+version and lockfile together, merge the PR, then tag the merged `main` tip.
+The runbooks are
 [Sub-Package Sync](docs/wiki/Sub-Package-Sync.md) and
 [Releases](docs/wiki/Releases.md).
 
@@ -295,9 +296,11 @@ Digital-Mailroom/
 
 **[llm-mailroom](https://github.com/Exios66/llm-mailroom)** ·
 **[llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring)** ·
-**[The-Mailroom](https://github.com/Exios66/The-Mailroom)**
+**[The-Mailroom](https://github.com/Exios66/The-Mailroom)** ·
+**[local-mailroom-sandbox](https://github.com/Exios66/local-mailroom-sandbox)** ·
+**[Mailroom-Corpus-EDA](https://github.com/Exios66/Mailroom-Corpus-EDA)**
 
-<sub>Built by the governed evaluation family under <a href="https://github.com/LLM-Mailroom-Services">LLM-Mailroom-Services</a> (Exios66 · grantmooslin) · 2026</sub>
+<sub>The Digital Mailroom · maintained by <a href="https://github.com/LLM-Mailroom-Services">LLM-Mailroom-Services</a> (Exios66 · grantmooslin) · 2026</sub>
 <br/>
 <sub>📮 <i>No envelope left behind.</i></sub>
 

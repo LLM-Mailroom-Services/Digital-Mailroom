@@ -41,7 +41,7 @@ tags:
 - prompts
 - evals
 - gepa
-home_package: llm-entity-extraction
+home_package: local-mailroom-sandbox
 roster_id: prompt-engineer
 ---
 

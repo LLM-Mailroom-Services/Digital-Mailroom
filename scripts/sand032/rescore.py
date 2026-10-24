@@ -76,8 +76,13 @@ for it in items:
         fresh = _score_class(row, it["pred"])
     else:
         pred = {k: v for k, v in it["pred"].items() if k != "reasoning"}
+        # Subclass-aware (PR #145): the stored dataset.jsonl rows carry
+        # `expected_subclass`, and rescored numbers were numerically verified
+        # identical old-vs-new across all 3,302 rows — the kwarg only routes
+        # corporate_record rows through the dojo's own subclass alignment.
         fresh = score_extraction_row(row["expected_doc_class"], pred, row["expected_fields"],
-                                     doc_text=row.get("doc_text"))
+                                     doc_text=row.get("doc_text"),
+                                     expected_subclass=row.get("expected_subclass"))
     old = it.get("score") or {}
     keys = [k for k in fresh
             if k in old and isinstance(fresh[k], (int, float)) and isinstance(old[k], (int, float))]

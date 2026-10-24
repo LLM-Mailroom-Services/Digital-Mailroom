@@ -54,7 +54,12 @@ def _intent_description(schema: dict) -> str:
 def test_intent_hint_names_only_registered_labels(doc_type):
     agents = pytest.importorskip("langchain_agents.specialist_agents")
     desc = _intent_description(getattr(agents, _SCHEMAS[doc_type]))
-    named = set(re.findall(r"\b[a-z]+(?:_[a-z]+)*\b", desc.split(":", 1)[-1]))
+    # Workspace llm-mailroom renders ``label = meaning; label = meaning. other = residual.``
+    # (INTENT_DESCRIPTIONS); the older hint was ``Exactly one label: a, b, c``.
+    if " = " in desc:
+        named = set(re.findall(r"\b([a-z]+(?:_[a-z]+)*) = ", desc))
+    else:
+        named = set(re.findall(r"\b[a-z]+(?:_[a-z]+)*\b", desc.split(":", 1)[-1]))
     assert named == set(INTENT_LABELS[doc_type]), desc
 
 

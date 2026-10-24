@@ -125,6 +125,7 @@ def test_runner_raises_when_pinned_override_unpatched(tmp_path, monkeypatch, job
     spec = RunSpec(
         run_id="run-ovr",
         task="sorter",
+        prompt={"agents": {"sorter": {"source": "local", "file": "sorter_local_v0"}}},
         dataset=DatasetSpec(local_path=f"file://{path}", limit=2),
         engine={"kind": "vllm-local", "modal": None},
         trace={"sink": "none"},
@@ -133,21 +134,6 @@ def test_runner_raises_when_pinned_override_unpatched(tmp_path, monkeypatch, job
     report = preflight.preflight(spec, offline=True)
     assert report["status"] == "prepared", report
     store = RunStore(run_dir(report["run_id"]))
-    store.write_prompt_lock(
-        {
-            "default": {"source": "code-default"},
-            "agents": {
-                "sorter": {
-                    "source": "local",
-                    "file": "sorter_x",
-                    "version": None,
-                    "label": None,
-                    "text": "PINNED SORTER TEXT",
-                    "prompt_text_sha": "abc123",
-                }
-            },
-        }
-    )
     monkeypatch.setattr(
         "mailroom_sandbox.prompt_registry.apply_runtime_overrides",
         lambda texts: [],

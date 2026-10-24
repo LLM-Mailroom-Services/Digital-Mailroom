@@ -175,7 +175,10 @@ def test_default_is_the_current_simplified_stem_and_never_asks_the_dojo(stub_doj
     key, text, sha = pv.resolve_prompt("correspondence_specialist")
     assert key == "correspondence_specialist_v7"
     assert text == load_variant("correspondence_specialist_simplified") and sha == _sha(text)
-    assert pv.resolve_prompt("corporate_records_specialist")[0] == "corporate_records_specialist_v6"
+    assert pv.resolve_prompt("corporate_records_specialist")[0] == "corporate_records_specialist_v7"
+    assert pv.resolve_prompt("corporate_records_specialist")[1] == load_variant(
+        "corporate_records_specialist_subclass_v2"
+    )
     assert stub_dojo == []
     with pytest.raises(pv.PromptSelectionError, match="no sandbox default"):
         pv.resolve_prompt("sorter")

@@ -49,7 +49,7 @@ def _sibling() -> Path | None:
 
 
 def test_lineage_is_the_expected_catalog():
-    assert len(ALL) == 40 and len(prompt_roles()) == 15
+    assert len(ALL) == 43 and len(prompt_roles()) == 15
     assert {v.lineage for v in ALL} == {"archived", "frozen", "mutation"}
     assert LINEAGE_SOURCE["source_repo"] == "LLM-Mailroom-Services/eval-environment"
 
@@ -108,10 +108,15 @@ SPECIALIST_MUTATIONS = [
 
 
 def test_all_specialist_mutations_are_covered():
-    assert len(SPECIALIST_MUTATIONS) == 17
-    assert {"correspondence_specialist_v3", "contracts_specialist_v2", "correspondence_specialist_v7"} <= set(
-        SPECIALIST_MUTATIONS
-    )
+    assert len(SPECIALIST_MUTATIONS) == 20
+    assert {
+        "correspondence_specialist_v3",
+        "contracts_specialist_v2",
+        "correspondence_specialist_v7",
+        "corporate_records_specialist_v7",
+        "insurance_claims_specialist_v4",
+        "merger_agreement_specialist_v4",
+    } <= set(SPECIALIST_MUTATIONS)
 
 
 def test_default_stems_are_bytes_equal_to_their_lineage_versions():
@@ -124,20 +129,32 @@ def test_default_stems_are_bytes_equal_to_their_lineage_versions():
         assert dkey == key and dtext == load_variant(str(row["sandbox_stem"]))
         assert dsha == in_lineage[key].sha256, f"{role}: stem {row['sandbox_stem']} differs from lineage {key}"
     assert pv.resolve_prompt("correspondence_specialist")[0] == "correspondence_specialist_v7"
-    assert pv.resolve_prompt("corporate_records_specialist")[0] == "corporate_records_specialist_v6"
+    # Default-pin move (deliberate re-freeze, PR #145): corporate default serves
+    # the canonical amended v7 text (253559fc…), which the vendored catalog carries.
+    assert pv.resolve_prompt("corporate_records_specialist")[0] == "corporate_records_specialist_v7"
+    assert pv.resolve_prompt("corporate_records_specialist")[1] == load_variant(
+        "corporate_records_specialist_subclass_v2"
+    )
 
 
-def test_sandbox_successor_keys_not_in_the_lineage_are_not_selectable():
-    """insurance/merger ``*_v4`` stems claim an eval-environment key the lineage does not catalog.
+def test_successor_stems_resolve_through_the_lineage_now():
+    """The vendored lineage knows the SAND-042 ``*_v4`` + corporate ``_v7`` keys.
 
-    Pinned so the gap is explicit: when the dojo catalogs them this test fails and the
-    stems get byte-verified instead (``--prompt <stem>`` keeps running them meanwhile).
+    Previously these stems claimed an eval-environment key the vendored registry
+    lacked (one sync cycle behind) and could only be run via ``--prompt <stem>``;
+    since the vendor bump they resolve through ``--prompt-version`` and are
+    byte-verified (the sibling-contact test pins the bytes themselves).
     """
-    missing = {str(r["eval_environment_key"]) for r in lineage.successor_rows()} - {v.key for v in ALL}
-    assert missing == {"insurance_claims_specialist_v4", "merger_agreement_specialist_v4"}
-    for key in sorted(missing):
-        with pytest.raises(pv.PromptSelectionError, match="unknown eval-environment prompt version"):
-            pv.resolve_selection([key])
+    keys = {v.key for v in ALL}
+    for r in lineage.successor_rows():
+        key = str(r["eval_environment_key"])
+        agent = str(r["agent"])
+        assert key in keys, f"{agent}: successor {key} missing from the vendored lineage"
+        resolved = pv.resolve_selection([key]).prompts[agent]
+        assert resolved.key == key and resolved.sha256 == str(r["sha256"])
+        assert resolved.text == load_variant(str(r["sandbox_stem"])), (
+            f"{agent}: lineage text differs from the frozen successor stem bytes"
+        )
 
 
 def test_unknown_key_error_carries_the_dojo_suggestions():

@@ -232,7 +232,11 @@ def test_simplified_prompts_stay_pared_vs_vendor_contracts_dump():
     for simplified, vendor in VENDOR_COUNTERPART.items():
         s = load_variant(simplified)
         v = load_variant(vendor)
-        assert s != v, simplified
+        # Vendor llm-mailroom promoted the sha256-locked frozen v1 text into its
+        # code defaults (issues #4-#8), so a non-contracts simplified stem may equal
+        # its vendor counterpart; contracts v33 (the length problem) must still diverge.
+        if simplified.startswith("contracts_"):
+            assert s != v, simplified
         assert len(s) < 12_000, simplified
     contracts_s = load_variant("contracts_specialist_v33_simplified")
     contracts_v = load_variant("contracts_specialist_v33")

@@ -7,6 +7,9 @@ import logging
 import os
 import sys
 from dataclasses import dataclass, field
+from contextlib import contextmanager
+from contextvars import ContextVar
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +41,30 @@ class Activation:
 
 
 _ACTIVE: Activation | None = None
+_LOCKED_RUNTIME: ContextVar[dict[str, Any] | None] = ContextVar("sandbox_locked_runtime", default=None)
+
+
+@contextmanager
+def locked_runtime(lock: dict[str, Any], prompt_lock: dict[str, Any]):
+    """Make activations in this context use copies of the frozen run settings.
+
+    Clear existing prompt overrides and selection on entry. Keep all knob keys
+    verbatim (including model, temperature, and chunk/input budgets); an empty
+    locked map defeats ambient knob overrides. Transport credentials/endpoints
+    remain operator configuration. Yield without activating the runtime.
+    Restore the prior context policy on exit, including on errors; applied
+    runtime globals, environment, and prompt patches are not restored.
+    """
+    from mailroom_sandbox.prompt_registry import deactivate_runtime_overrides
+    from mailroom_sandbox.prompt_versions import clear_active_selection
+
+    deactivate_runtime_overrides()
+    clear_active_selection()
+    token = _LOCKED_RUNTIME.set({"lock": deepcopy(lock), "prompt": deepcopy(prompt_lock)})
+    try:
+        yield
+    finally:
+        _LOCKED_RUNTIME.reset(token)
 
 
 def active() -> Activation | None:
@@ -146,6 +173,39 @@ def apply_profile_env(profile: dict, *, base_url_override: str | None = None) ->
     os.environ.setdefault("MAILROOM_BASE_DIR", str(repo_root() / "data"))
 
 
+def resolve_agent_knobs(agent_knobs: dict | None = None) -> dict:
+    """Return a deep copy of explicit knobs, or resolve them from the environment.
+
+    When ``agent_knobs`` is None, read ``SANDBOX_AGENT_KNOBS`` as JSON. Missing,
+    invalid, or non-object JSON yields an empty map. An explicit empty map
+    suppresses the environment fallback.
+    """
+    if agent_knobs is None:
+        raw = os.environ.get("SANDBOX_AGENT_KNOBS")
+        if raw:
+            try:
+                parsed = json.loads(raw)
+                agent_knobs = parsed if isinstance(parsed, dict) else None
+            except json.JSONDecodeError:
+                _log.warning("SANDBOX_AGENT_KNOBS is not valid JSON — ignoring run-scoped generation-budget override")
+    return deepcopy(agent_knobs or {})
+
+
+def stamp_locked_record(record: dict[str, Any]) -> None:
+    """Mutate a record with the active lock's run/spec/generation and task identity.
+
+    Set ``run_state`` to ``done`` when a locked context exists; otherwise leave
+    the record untouched.
+    """
+    policy = _LOCKED_RUNTIME.get()
+    if policy is not None:
+        from mailroom_sandbox.job.checkpoint import generation_identity
+
+        lock = policy["lock"]
+        record.update(run_id=lock["run_id"], spec_hash=lock["spec_hash"],
+                      run_generation=generation_identity(lock), run_task=lock["task"], run_state="done")
+
+
 def activate(
     profile_name: str | None = None,
     *,
@@ -166,22 +226,28 @@ def activate(
     own decode/input budget. When None, it is read from the
     ``SANDBOX_AGENT_KNOBS`` env var (JSON), which is how ``sandbox run`` carries
     it without threading a new field through every call site.
+
+    Inside ``locked_runtime``, the frozen profile, model, per-agent settings,
+    and prompt texts override these arguments; ambient knob JSON is ignored.
+    The explicit ``base_url`` argument is ignored there, while transport
+    configuration still comes from the profile and environment. Return and
+    retain the resulting Activation as the active runtime. Profile, taxonomy,
+    and required prompt-application errors propagate; timeout, credential,
+    and sampling patch failures are caught so activation can continue.
     """
     global _ACTIVE
+    policy = _LOCKED_RUNTIME.get()
+    if policy is not None:
+        lock = policy["lock"]
+        profile_name = lock.get("profile") or "ollama"
+        model = (lock.get("engine") or {}).get("model")
+        agent_models = deepcopy(lock.get("agent_models") or {})
+        agent_knobs = deepcopy(lock.get("agent_knobs") or {})
+        prompt_variant = None  # the locked TEXT, not today's local stem
+        base_url = None
     if load_env_file:
         _load_dotenv()
-    if agent_knobs is None:
-        raw = os.environ.get("SANDBOX_AGENT_KNOBS")
-        if raw:
-            try:
-                parsed = json.loads(raw)
-                agent_knobs = parsed if isinstance(parsed, dict) else None
-            except json.JSONDecodeError:
-                _log.warning(
-                    "SANDBOX_AGENT_KNOBS is not valid JSON — ignoring run-scoped "
-                    "generation-budget override"
-                )
-                agent_knobs = None
+    agent_knobs = resolve_agent_knobs(agent_knobs)
     name = profile_name or os.environ.get("SANDBOX_PROFILE") or "ollama"
     profile = load_profile(name)
     apply_profile_env(profile, base_url_override=base_url)
@@ -266,7 +332,12 @@ def activate(
     # apply their texts (loud when a role cannot be patched).
     from mailroom_sandbox.prompt_versions import apply_selection
 
-    if apply_selection():
+    if policy is not None:
+        from mailroom_sandbox.prompt_registry import apply_locked_prompts
+
+        apply_locked_prompts(policy["prompt"])
+        patched_prompts = True
+    elif apply_selection():
         patched_prompts = True
 
     activation = Activation(

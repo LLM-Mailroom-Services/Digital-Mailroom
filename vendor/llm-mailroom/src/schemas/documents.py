@@ -9,8 +9,9 @@ _MONEY_RE = re.compile(r"^\(?-?\$?\s*-?[\d,]*\.?\d+\)?$")
 def _money(value: Any) -> Any:
     """Accept the currency phrase the prompts allow ("$18,530.00", "1,250").
 
-    Prompts say "amount as stated"; the JSON-schema grammar sends a string.
-    A float-only field rejected every "$"/comma amount (SAND-042 RCA).
+    Prompts say "amount as stated", and paths without the numeric
+    JSON-schema grammar can still send a string. A float-only field rejected
+    every "$"/comma amount (SAND-042 RCA).
     Unparseable prose is left as-is so validation still fails loudly.
     """
     if isinstance(value, str):
@@ -84,7 +85,7 @@ class CorrespondenceExtraction(BaseModel):
     communication_date: str | None = None
     demand_amount: float | None = None
     action_items: list[str] = Field(default_factory=list)  # capped ≤3
-    urgency: str = ""
+    urgency: str | None = None  # routine, time-sensitive, urgent, critical
     intent: str | None = None
     subject_matter: str | None = None
     keywords: list[str] = Field(default_factory=list)

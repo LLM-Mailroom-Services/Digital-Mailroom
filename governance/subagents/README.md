@@ -14,6 +14,6 @@ sandbox subagents sync --harness all --package digital-mailroom --root /path/to/
 
 Or use **`sandbox subagents propagate`** with `DIGITAL_MAILROOM_ROOT` set.
 
-Sibling packages (`packages/llm-mailroom`, `packages/llm-entity-extraction`, …)
+Sibling packages (`packages/llm-mailroom`, `packages/llm-dojo-scoring`, …)
 receive the same manifest under their own `config/subagents/` plus filtered
 OpenCode/Cursor stubs for agents listed under that package in the family roster.

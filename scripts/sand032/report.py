@@ -30,7 +30,32 @@ ROOT = Path(__file__).resolve().parents[2]
 RUNS = ROOT / "data" / "runtime" / "runs"
 RT = ROOT / "data" / "runtime" / "sand032"
 SERVING = ROOT / "reports" / "serving" / "SAND-32"
-L4_USD_PER_HOUR = 0.80
+# Hourly GPU rates (USD per GPU-hour), keyed by canonical GPU id. Every cost line here is
+# ($/hr) × (seconds)/3600 × replicas, so the rate must track the run's actual GPU.
+#   L4   = 0.80 — Modal L4 list rate; the rate every SAND-032 L4 run to date was costed at
+#                 (reports/dashboard/export_hub_reports.py cites docs/RUN-COST-DERIVATION.md).
+#   A100 = 2.10 — Modal A100 40 GB, per _a100_inputs/cards/A100-Research-Report.md
+#                 ("GPU: Modal A100 40 GB ($2.10 per GPU-hour)"; source: A100 section,
+#                  experiments & cost-estimates deck, Grant Mooslin & Jack Burleson).
+GPU_USD_PER_HOUR = {"L4": 0.80, "A100": 2.10}
+DEFAULT_GPU = "L4"  # unknown/missing engine.modal.gpu resolves here — never a silent mis-cost
+L4_USD_PER_HOUR = GPU_USD_PER_HOUR[DEFAULT_GPU]  # back-compat alias for existing callers
+
+
+def gpu_hourly(gpu: str | None) -> tuple[str, float]:
+    """Resolve ``(label, USD/GPU-hour)`` from a run's ``engine.modal.gpu`` field.
+
+    Accepts Modal's GPU value with or without a size or replica suffix — ``"L4"``,
+    ``"L4:2"``, ``"A100"``, ``"A100-40GB"``, ``"A100-80GB:2"``. Unknown or missing GPUs
+    fall back to ``DEFAULT_GPU`` (L4) so a report never silently uses the wrong rate.
+    """
+    key = (gpu or "").strip().upper().split(":")[0]  # drop the replica suffix, e.g. ":2"
+    for gid in GPU_USD_PER_HOUR:
+        if key == gid or key.startswith(f"{gid}-"):
+            return gid, GPU_USD_PER_HOUR[gid]
+    return DEFAULT_GPU, GPU_USD_PER_HOUR[DEFAULT_GPU]
+
+
 CLASS_DIR = {
     "correspondence": "correspondence",
     "insurance_claim": "insurance",
@@ -107,9 +132,11 @@ def metrics(d: dict) -> dict:
     sv = [bool(i["score"].get("schema_valid")) for i in ok if "schema_valid" in (i.get("score") or {})]
     pe = sum(1 for i in ok if (i.get("score") or {}).get("parse_error"))
     s = d["serving"]
-    rep = int((d["spec"]["engine"]["modal"]).get("max_containers") or 1)
+    mo = d["spec"]["engine"]["modal"]
+    rep = int(mo.get("max_containers") or 1)
+    gpu, usd_per_hour = gpu_hourly(mo.get("gpu"))
     wall = s.get("wall_seconds")
-    busy_usd = wall / 3600 * L4_USD_PER_HOUR * rep if wall else None
+    busy_usd = wall / 3600 * usd_per_hour * rep if wall else None
     ptok = sum(int(i.get("prompt_tokens") or 0) for i in ok)
     ctok = sum(int(i.get("completion_tokens") or 0) for i in ok)
     t = d["times"]
@@ -124,10 +151,11 @@ def metrics(d: dict) -> dict:
         "wall": wall, "p50": statistics.median(lat) if lat else None, "p95": p95(lat) if lat else None,
         "lat_max": max(lat) if lat else None, "lat_sum": sum(lat), "ptok": ptok, "ctok": ctok,
         "tps": s.get("tokens_per_second"), "rep": rep, "conc": d["spec"]["job"]["concurrency"],
+        "gpu": gpu, "usd_per_hour": usd_per_hour,
         "busy_usd": busy_usd, "usd_doc": busy_usd / len(ok) if busy_usd and ok else None,
         "cold": (d["cold"] or {}).get("cold_boot_seconds"),
         "boot_ready_s": (t["ready"] - t["deploy_done"]) if "ready" in t and "deploy_done" in t else None,
-        "fleet_s": fleet, "fleet_usd": fleet / 3600 * L4_USD_PER_HOUR * rep if fleet else None,
+        "fleet_s": fleet, "fleet_usd": fleet / 3600 * usd_per_hour * rep if fleet else None,
     }
 
 
@@ -210,7 +238,7 @@ def figures(d: dict, m: dict, cls: str, by: dict) -> list[str]:
                 for i in ok]
     refs = [(round(m["p50"], 1), f"p50 {m['p50']:.1f}s"), (round(m["p95"], 1), f"p95 {m['p95']:.1f}s")] if m["p50"] else []
     lat_svg = viz.hbar(f"Per-document latency · {rid}",
-                       f"{m['ok']} docs, slowest first · c{m['conc']} on {m['rep']}×L4 · wall {m['wall']:.1f}s",
+                       f"{m['ok']} docs, slowest first · c{m['conc']} on {m['rep']}×{m['gpu']} · wall {m['wall']:.1f}s",
                        lat_rows, unit="s", fmt=lambda v: f"{v:.1f}", refs=refs)
     (fig_dir / f"{rid}-latency.svg").write_text(lat_svg)
     if m["score"] is None:  # merger/contracts: suite scorer emits no overall score
@@ -303,11 +331,12 @@ def sorter_report(rid: str) -> Path:
     ct = sorted(int(i.get("completion_tokens") or 0) for i in ok)
     med = lambda xs: xs[len(xs) // 2] if xs else None  # noqa: E731
     v, mo = d["spec"]["engine"]["vllm"], d["spec"]["engine"]["modal"]
+    sorter_gpu, _ = gpu_hourly(mo.get("gpu"))
     lines = [f"# SAND-032 {rid} — isolated LLM sorter (SorterAgent only)", "",
              "Public HF `mailroom-dataset` @ `ed7576b` only (no partner or proprietary data). "
              "`task: isolated` calls `SorterAgent` alone — no reviewer, specialist, or judge prompts.", "",
              "| field | value |", "| --- | --- |",
-             f"| engine | `{d['spec']['engine']['model']}`, {mo.get('max_containers')}× L4, "
+             f"| engine | `{d['spec']['engine']['model']}`, {mo.get('max_containers')}× {sorter_gpu}, "
              f"seqs {v.get('max_num_seqs')}, kv `{v.get('kv_cache_dtype')}`, `{v.get('quantization')}`, "
              f"graphs {v.get('cudagraph_capture_sizes')}, batched tokens {v.get('max_num_batched_tokens') or 'default'} |",
              f"| concurrency | {d['spec']['job']['concurrency']} |",
@@ -361,14 +390,14 @@ def run_report(rid: str) -> Path:
         f"# Run report — `{rid}`",
         "",
         f"SAND-032 Modal × vLLM specialist extract: **{m['n']} {cls} docs** on **{spec['engine']['model']}** at "
-        f"**concurrency {m['conc']}** on **{m['rep']}×L4** (MIN=MAX={m['rep']} pinned, dedicated app "
+        f"**concurrency {m['conc']}** on **{m['rep']}×{m['gpu']}** (MIN=MAX={m['rep']} pinned, dedicated app "
         f"`{mo['app']}`). Public HF `mailroom-dataset` only.",
         "",
         "| | |", "| --- | --- |",
         f"| run_id | `{rid}` |",
         f"| task / agent | `{agent}` |",
         f"| prompt | `{prompt}` (local pin) |",
-        f"| engine | `{spec['engine']['model']}`, vLLM `{mo['image_tag']}`, {m['rep']}× L4 "
+        f"| engine | `{spec['engine']['model']}`, vLLM `{mo['image_tag']}`, {m['rep']}× {m['gpu']} "
         f"({'data-parallel replicas' if m['rep'] > 1 else 'single replica'}) |",
         f"| context / quant | `max_model_len={v['max_model_len']}`, quant=`{v['quantization'] or 'bf16'}`, "
         f"gpu_util={v['gpu_memory_utilization']}, max_num_seqs={v['max_num_seqs']} |",
@@ -401,7 +430,7 @@ def run_report(rid: str) -> Path:
         f"| latency p50 / p95 / max | {_f(m['p50'], 2)} / {_f(m['p95'], 2)} / {_f(m['lat_max'], 2)} s |",
         f"| prompt / completion tokens | {m['ptok']} / {m['ctok']} |",
         f"| throughput | {_f(m['tps'], 1, ' tok/s')} |",
-        f"| GPU $ over busy wall (×{m['rep']} L4 @ ${L4_USD_PER_HOUR}/h) | {_f(m['busy_usd'], 6, '')} |",
+        f"| GPU $ over busy wall (×{m['rep']} {m['gpu']} @ ${m['usd_per_hour']}/h) | {_f(m['busy_usd'], 6, '')} |",
         f"| **$ per doc (busy)** | **{_f(m['usd_doc'], 6)}** |",
         f"| fleet window deploy→stop (upper est.) | {_f(m['fleet_s'], 0, ' s')} → {_f(m['fleet_usd'], 4)} USD |",
         f"| cost cap | ${spec['job']['cost_cap_usd']} (config) |",

@@ -7,10 +7,10 @@ the sandbox prepends these trees to `sys.path` on import.**
 | Tree | Pin | Content |
 | --- | --- | --- |
 | `llm-mailroom/` | `v0.7.1` (commit `2a212e76`) | `src/` (minus tests) — `pipeline.*`, `graph.*`, `agents.*`, `llm.*`, `legalbench.*`, `observability.*`, `langchain_agents.*`, `scripts.*` |
-| `llm-dojo-scoring/` | `v0.22.0` pre-tag (commit `852b05274a97`) | `src/llm_dojo_scoring/` — scoring engine (`serving`, `experiment`, `extraction_metrics`, …) |
+| `llm-dojo-scoring/` | `feat/corporate-record-subclass-schemas` (branch `8e6566c`, dojo draft #46) | `src/llm_dojo_scoring/` — scoring engine (`serving`, `experiment`, `extraction_metrics`, incl. the per-subclass `corporate_record_schema`) |
 
 Provenance + refresh details live in each tree's `VENDOR.md`. `sandbox fetch-deps`
-re-snapshots both trees from their pinned tags (network, optional). The
+re-snapshots both trees from their pinned refs (network, optional). The
 installed `mailroom` wheel does not ship `scripts/` or `legalbench/`; the
 vendored tree supplies `PYTHONPATH` for `sandbox pipeline watcher` /
 `sandbox pipeline api`.

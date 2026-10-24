@@ -53,7 +53,7 @@ Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 | --- | --- | --- | --- |
 | `run-30-correspondence-specialist` | `correspondence_specialist` | `correspondence_specialist_simplified` | `correspondence_specialist_v7` |
 | `run-30-insurance-claims-specialist` | `insurance_claims_specialist` | `insurance_claims_specialist_simplified` | `insurance_claims_specialist_v1` |
-| `run-30-corporate-records-specialist` | `corporate_records_specialist` | `corporate_records_specialist_simplified` | `corporate_records_specialist_v6` |
+| `run-30-corporate-records-specialist` | `corporate_records_specialist` | `corporate_records_specialist_simplified` | `corporate_records_specialist_v7` |
 | `run-30-contracts-specialist` | `contracts_specialist` | `contracts_specialist_v33_simplified` | `contracts_specialist_v1` |
 | `run-30-merger-specialist` | `merger_agreement_specialist` | `merger_agreement_specialist_simplified` | `merger_agreement_specialist_v1` |
 

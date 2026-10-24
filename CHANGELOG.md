@@ -2,17 +2,84 @@
 
 ## [Unreleased]
 
+- Make the ModernBERT feeder path tests hermetic: they build a fake `mailroom-ml` checkout under `tmp_path` instead of discovering a sibling on the developer's machine, and pin that `feeder_status()` reports not-ok when the eval entrypoint is missing.
+
+- Bind locked execution and reusable API results to immutable generation/task,
+  dataset and resolved prompt identity; freeze initial operator knobs and refuse
+  damaged artifacts before activation. Keep every managed vendor refresh eligible
+  after an earlier source failure.
+
+### Fixed — DMR-091 source-owned sandbox lifecycle
+
+- Preserve existing matching preflight generations and their live remote identity;
+  refuse unsafe resets and archive cancellation/cold-boot artifacts with the generation.
+- Activate frozen profile/model, per-agent model and full generation-knob maps,
+  and prompt selections in cold workers and fresh-process resumes, including
+  subsequent activations by existing eval runners.
+- Add durable cooperative cancellation for row-resumable endpoint jobs: stop
+  submissions, drain in-flight work, acknowledge paused, and resume pending rows.
+- Require exact lock/spec/run identity for API-evals terminal reuse; safely append
+  after a valid unterminated JSONL tail; report resumed run-wide error totals.
+- Reconcile the corporate optional-subclass assertion with canonical detailed
+  alignment using three hand-counted matching keywords and unlabeled entity GT.
+
+### Fixed — `corporate_records_specialist_subclass_v2` amended before first run
+
+- **`corporate_records_specialist_subclass_v2`** (eval-environment `corporate_records_specialist_v7`, now sha256
+  `253559fc…`): `certificate_of_formation` moved to its own line and the `subsidiary_list` line states where the listing
+  statement (`subject_matter`) and subsidiary names (`keywords`) go — resolving the PR #143 CodeRabbit finding; the
+  lineage lock and all stem pins were refreshed in the same change. The default pin moved to `v7` in the follow-up
+  re-freeze below (see "default-pin move").
+
 ### Changed — breaking (vendored dojo)
 
-- **Vendored llm-dojo-scoring re-vendored at dojo commit `852b052`** (the unreleased fixes toward
-  v0.22.0; the pin becomes the `v0.22.0` tag once cut). Mirrored with the repo's own
-  `_refresh_vendor_from_workspace` (the `sandbox fetch-deps` workspace leg) because the monorepo layout is
-  absent; every vendored-pin claim (`vendor/README.md`, `vendor/llm-dojo-scoring/VENDOR.md`, README,
-  QUICKSTART, SANDBOX-GUIDE, sister-repos, htcondor README, `deploy/modal_job.py`, `pyproject.toml`, the
-  `fetch-deps` fallback pin) now names it. New dojo contract: `Emitter.emit_score` requires provenance, a
-  serving leg that mixes identities is `identity_mixed`, `metric_id_for` is strict. The snapshot also
+- **Vendored llm-dojo-scoring re-vendored when the scoring engine was bumped** (2026-10-17,
+  the `feat/corporate-record-subclass-schemas` branch mechanics). Every vendored-pin claim
+  (`vendor/README.md`, `vendor/llm-dojo-scoring/VENDOR.md`, README, QUICKSTART, SANDBOX-GUIDE, sister-repos,
+  htcondor README, `deploy/modal_job.py`, `pyproject.toml`, the `fetch-deps` fallback pin) carries it. The snapshot
   ships the eval-environment prompt lineage API (`llm_dojo_scoring.prompts`: `get_prompt_version`,
-  `list_prompt_versions`, ... and `eval_environment_lineage.json`, 40 versions from eval-environment `bdba24c`).
+  `list_prompt_versions`, ... and `eval_environment_lineage.json`).
+
+### Changed — vendored dojo bump: per-subclass corporate scoring (sandbox #145)
+
+- **Re-vendored llm-dojo-scoring past `v0.22.0`** at the dojo PR branch `feat/corporate-record-subclass-schemas`
+  @ `8e6566c1d1c52efeb5ebbb57ddee90a94586f7da` (draft Exios66/llm-dojo-scoring#46) — the tag `a2862cec` was one
+  sync cycle behind. New in the snapshot: `corporate_record_schema.py` (per-subclass `SUBCLASS_SCHEMAS` incl.
+  `omit_entity_keys` + `core_guidance`), `corporate_record_relabel.py` (GT-row relabel CLI), `align_unlabeled` in
+  `suites._score_extraction`, per-subclass `required_ftypes` (key entities score when the dataset labels them but
+  are never required), and the amended `corporate_records_specialist_v7` (`253559fc…`) production template. See
+  `vendor/llm-dojo-scoring/VENDOR.md` — the pin is recorded there. The lineage JSON in the snapshot was
+  regenerated with the dojo's own `scripts/sync_eval_environment_lineage.py` against the sibling
+  eval-environment checkout @ `22d217ab…`, so the vendored registry now carries **43 versions** (5 archived /
+  15 frozen / 23 mutations) including `corporate_records_specialist_v7` **and** the SAND-042 frozen successors
+  `insurance_claims_specialist_v4` (`1ca6e83c…`) / `merger_agreement_specialist_v4` (`da316691…`) the tag-era
+  registry lacked.
+- **`score_extraction_row` wires the subclass into the vendored suite score path** (closing the
+  ISSUE_ALIGNMENT gap): `doc_subclass` / `expected_subclass` (the row's GT `expected_subclass`) flow into
+  `suite.score(..., doc_subclass=...)`, so `align_unlabeled` drops blank unlabeled key-entity fields from both
+  sides instead of scoring them as expected-empty, unlabeled extension keys are never spurious fills, and the
+  row carries the vendored per-row `unlabeled_fields` payload (`tests/test_corporate_scoring.py` computes the
+  dojo-side expectation IN TEST from the vendored module). Runner/agent call sites pass the row's
+  `expected_subclass`; without it the alignment normalizes to `"other"` as before.
+- **Emit provenance (dataset_revision)** — audited rather than changed: the gap is already closed upstream of the
+  emitter by SAND-032 (`--dataset-revision` CLI handling; serving fixtures record the pinned `FAMILY_HF_REVISION`
+  `bc9eab28…`; job records take the run-lock provenance), and the vendored `Emitter`/`serving.py` are untouched by
+  the branch diff, so `emit_serving_scorecard` already receives a provenance source everywhere it is called
+  (`validating` tests in `tests/test_serving_groups.py`).
+- **Default-pin move — corporate_records_specialist default v6→v7** (deliberate re-freeze, following the
+  coordinated amendment and the vendored scoring bump): the lineage lock's corporate default row now serves
+  `corporate_records_specialist_v7` (`253559fc…`, canonical amended text, 5462 chars, via stem
+  `corporate_records_specialist_subclass_v2`) — the text the vendored catalog's `production_prompts` template and
+  the `corporate_record_schema` prompt renderer now ship, so default runs stopped serving v6 doctrine that
+  conflicts with the per-subclass schema the scorer now enforces. The re-freeze keeps the successor chain honest:
+  `parent_key` = `_v6` (its bytes remain pinned as stem `corporate_records_specialist_simplified`),
+  `superseded` v1 block untouched, documented in the lock's `notes` + the row's `origin`. The vendored
+  `llm-mailroom` `llm/frozen_v1/lineage.json` row (frozen-v1 specialist serving via the dojo
+  `production_prompts` catalog) records the same promotion, and
+  `config/prompts/corporate_records_specialist_production.txt` was re-exported to the v7 bytes
+  (`scripts/sync_specialist_prompts.py`). Historical posture runs that pinned the then-default
+  `_simplified` stem are now intentional non-catalog pins. `--prompt-version` now selects all three successor
+  keys (`v7` + the two `*_v4`s) and `docs/prompts/` was re-rendered (43 versions).
 
 ### Changed — corrected v1 specialist stems (dojo #30)
 
@@ -23,7 +90,8 @@
   sha256/chars, a `refrozen_at` stamp and a `superseded` block holding the original v1 key, sha256, chars
   and `frozen_at`; the sibling check verifies both. **Runs that used these stems before this change
   scored the v1 bytes** (`*_v1`, `eab63b5a…` / `484e64dd…`); the default stem's logged eval-environment
-  key is now `_v7` / `_v6`. The generated archived runbooks were re-rendered to the current key.
+  key is now `_v7` / `_v6` (corporate's default moved on to `_v7` via the successor stem in the vendor
+  bump section below). The generated archived runbooks were re-rendered to the current key.
 
 ### Fixed — dojo v0.22 provenance + `identity_mixed`
 
@@ -54,8 +122,8 @@
 
 ### Added
 
-- **Prompt catalog `docs/prompts/`** (generated, deterministic): an index of all 40 eval-environment versions
-  (5 archived, 15 frozen, 20 mutations; 15 roles) and one page per role with, per version oldest -> newest, the
+- **Prompt catalog `docs/prompts/`** (generated, deterministic): an index of all 43 eval-environment versions
+  (5 archived, 15 frozen, 23 mutations; 15 roles) and one page per role with, per version oldest -> newest, the
   metadata, the full memo, what changed against the predecessor (sections, +/- lines, chars delta, dojo notes such
   as the `sorter_v3` duplicated block, non-monotonic dates), a unified diff, the full text and the exact
   `--prompt-version` command. The index marks the sandbox default / eval-environment default / latest per role and
@@ -64,11 +132,12 @@
   `tests/test_prompt_catalog.py` fails when the pages drift from the vendored dojo.
 - `sandbox prompts list-versions [--role R] [--lineage L] [--json]` and `sandbox prompts show <key> [--diff <other-key> | --memo | --json]`.
 - The `prompt_versions` seam is wired to the real dojo lineage (`llm_dojo_scoring.prompts.get_prompt_version`);
-  `tests/test_prompt_versions_dojo.py` checks all 40 versions, the sorter `v1..v4` and every specialist mutation
+  `tests/test_prompt_versions_dojo.py` checks all 43 versions, the sorter `v1..v4` and every specialist mutation
   against the lineage (and a sibling eval-environment checkout via `EVAL_ENVIRONMENT_ROOT` when present), that every
   accepted lineage role is a sandbox pipeline role, and that `pipeline_quality` / `pipeline_verdict` are refused.
-  Finding: the lineage lock's `insurance_claims_specialist_v4` / `merger_agreement_specialist_v4` keys are not in
-  eval-environment `bdba24c`; those stems run with `--prompt <stem>`, not `--prompt-version`.
+  Finding, since resolved by the vendor bump: the lineage lock's `insurance_claims_specialist_v4` /
+  `merger_agreement_specialist_v4` keys were not in the tag-era registry; those stems ran with `--prompt <stem>`
+  and now resolve through `--prompt-version` as well.
 - **Run with any eval-environment prompt version** (archived `_v0`, frozen `_v1`, every GEPA / manual
   mutation, sorter included): `sandbox eval <task> --prompt-version [role=]key` (repeatable),
   `sandbox run ... --prompt-version`, and `prompt.versions` in a run spec. New seam
@@ -89,7 +158,12 @@
   in either stem; `eval_environment_key_for(stem=…)` reports the v4 key on run records; the sibling check
   reads eval-environment `prompts/mutations.json`. The default v1 stems are unchanged.
 
-## [0.3.0] - 2026-10-15
+## [0.3.0] - 2026-10-17
+
+### Added
+
+- **`corporate_records_specialist_subclass_v2`** frozen successor (eval-environment `corporate_records_specialist_v7`, sha256 `253559fc…`): per-subclass
+  key-entity lines generated from the dojo's `corporate_record_schema`. The default pin is unchanged.
 
 ### Changed — v1 specialist stems re-frozen (Exios66/llm-dojo-scoring#30)
 

@@ -166,21 +166,44 @@ def _apply_hub_aliases(doc_type: str, fields: Mapping[str, Any] | None) -> dict[
     return out
 
 
+def _allowed_fields(doc_type: str) -> frozenset[str] | None:
+    """Return live schema keys, including all registered corporate extensions.
+
+    Return None for an unknown document type. Corporate registry import
+    errors propagate.
+    """
+    resolved = str(doc_type or "").strip()
+    allowed = LIVE_SCHEMA_FIELDS.get(resolved)
+    if resolved == "corporate_record":
+        from llm_dojo_scoring.corporate_record_schema import SUBCLASS_SCHEMAS
+
+        extensions = {e.key for schema in SUBCLASS_SCHEMAS.values() for e in schema.entities}
+        return frozenset(allowed or ()) | extensions
+    return allowed
+
+
 def applicable_expected_fields(
     doc_type: str,
     expected: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     """GT keys that may count as extraction events for ``doc_type``.
 
-    Drops (1) empty placeholders, (2) trace/Hub-metadata keys, and (3) keys
-    that belong to another live class's schema. Unknown ``doc_type`` still
-    drops empties / trace / metadata but keeps remaining keys (no invented
-    allow-list).
+    Applies Hub aliases, drops trace/Hub metadata, and keeps schema keys plus
+    shared content-scoring fields. Corporate records retain ``gt_presence`` and blank
+    schema values so Dojo can distinguish annotated absence from unlabeled
+    fields. Other classes drop empty placeholders. Unknown document types
+    keep remaining nonempty keys without an allow-list.
     """
-    allowed = LIVE_SCHEMA_FIELDS.get(str(doc_type or "").strip())
+    allowed = _allowed_fields(doc_type)
+    corporate = str(doc_type or "").strip() == "corporate_record"
     out: dict[str, Any] = {}
     for key, value in _apply_hub_aliases(doc_type, expected).items():
         if key in TRACE_ONLY_KEYS or key in HUB_METADATA_KEYS:
+            continue
+        # Dojo needs original annotation metadata and blank labeled values
+        # to distinguish explicit absence from fields never annotated.
+        if corporate and (key == "gt_presence" or key in (allowed or ())):
+            out[key] = value
             continue
         if is_empty_gt(value):
             continue
@@ -202,7 +225,7 @@ def scope_predicted_fields(
     A correspondence specialist must not be F1-penalized for omitting
     ``claim_number``. In-schema extras the model invented still count as FP.
     """
-    allowed = LIVE_SCHEMA_FIELDS.get(str(doc_type or "").strip())
+    allowed = _allowed_fields(doc_type)
     out: dict[str, Any] = {}
     for key, value in _apply_hub_aliases(doc_type, predicted).items():
         if key in TRACE_ONLY_KEYS or key in HUB_METADATA_KEYS:

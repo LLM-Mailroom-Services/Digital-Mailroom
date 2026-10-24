@@ -125,28 +125,35 @@ def _store_with_remote(tmp_path, fired_at: str) -> RunStore:
     return store
 
 
-def test_corrupt_fired_at_refuses_refire(tmp_path, monkeypatch):
-    """A malformed fired_at must FAIL CLOSED (hub#41 guard) — re-firing a
-    possibly-live worker is the corruption the guard exists to prevent."""
-    _stub_remote_modal(monkeypatch, live_status="SUCCESS")
-    monkeypatch.setattr(remote, "upload_run_dir", lambda d: (0, ""))
-    monkeypatch.setattr(remote, "_remote_lock_hash", lambda run_id: None)
+from test_generation_protocol import modal_fs
+from test_job_generation_residuals import source_root, spec_file
 
-    store = _store_with_remote(tmp_path, fired_at="not-a-timestamp")
+
+def test_corrupt_fired_at_refuses_refire(tmp_path, source_root, modal_fs, job_data_dir):
+    from mailroom_sandbox.job.preflight import preflight
+    spec, _, store, _ = spec_file(tmp_path, source_root)
+    assert preflight(spec, offline=True)["status"] == "prepared"
+    remote.fire(store)
+    cp=store.read_checkpoint();cp["remote"]["fired_at"]="not-a-timestamp"
+    store.checkpoint_path.write_text(json.dumps(cp));modal_fs.calls["fc-0"]="SUCCESS"
     with pytest.raises(RuntimeError, match="MALFORMED fired_at"):
         remote.ensure_running(store)
+    assert len(modal_fs.spawned)==1
 
 
-def test_fire_upload_failure_raises(tmp_path, monkeypatch):
-    """fire() must raise loudly when the volume upload fails — a silent skip
-    would have the worker score nothing while the CLI claims it fired."""
-    _stub_remote_modal(monkeypatch, live_status="PENDING")
-    monkeypatch.setattr(remote, "upload_run_dir", lambda d: (1, "denied by modal"))
-    monkeypatch.setattr(remote, "_remote_lock_hash", lambda run_id: "different")
-
-    store = _store_with_remote(tmp_path, fired_at="2026-09-14T00:00:00+00:00")
-    with pytest.raises(RuntimeError, match="modal volume put failed"):
+def test_fire_upload_failure_raises(tmp_path, source_root, modal_fs, monkeypatch, job_data_dir):
+    from mailroom_sandbox.job.preflight import preflight
+    spec, _, store, _ = spec_file(tmp_path, source_root)
+    assert preflight(spec, offline=True)["status"] == "prepared"
+    real_run=remote.subprocess.run
+    def deny_put(cmd, *args, **kwargs):
+        if cmd[:3]==["modal","volume","put"]:
+            return SimpleNamespace(returncode=1,stdout="",stderr="denied by modal")
+        return real_run(cmd,*args,**kwargs)
+    monkeypatch.setattr(remote.subprocess,"run",deny_put)
+    with pytest.raises(RuntimeError,match="modal volume put failed.*denied by modal"):
         remote.fire(store)
+    assert modal_fs.spawned==[]
 
 
 def test_read_progress_warns_when_state_dict_fails(tmp_path, monkeypatch, caplog):

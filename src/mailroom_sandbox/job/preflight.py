@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -313,10 +314,51 @@ def preflight(
     dry_run: bool = False,
     live: bool = False,
 ) -> dict[str, Any]:
-    """Confirm all spec domains, prepare artifacts, and write the lock.
+    """Prepare or validate a generation under the writer and control locks.
 
-    Returns a report dict with status ``prepared | drift_refused | failed``.
-    ``dry_run`` validates without writing; ``force`` re-locks a drifted run.
+    Load dotenv configuration before resolving prompts and probes. Return
+    the preflight report, or ``busy_refused`` when the writer lock is held.
+    ``force`` requests archival and a new generation but refuses possibly
+    active writers; ``offline`` avoids remote prompt/tracing requirements.
+    ``live`` probes the engine for a new generation. ``dry_run`` only checks
+    lock readability and returns without resolving or preparing artifacts;
+    the run directory and lock files may still be created.
+    Uncaught configuration and file-access errors propagate.
+    """
+    # Dotenv supplies prompt credentials, endpoint and tracing configuration.
+    # Loading it is independent of graph activation and preserves explicit env.
+    from mailroom_sandbox.runtime import load_env_file
+
+    load_env_file()
+    run_id = run_id or resolve_run_id(spec)
+    store = RunStore(run_dir(run_id))
+    try:
+        with store.acquire(blocking=False), store.control():
+            return _preflight(spec, run_id=run_id, config_path=config_path,
+                              offline=offline, force=force, dry_run=dry_run, live=live)
+    except BlockingIOError:
+        return {"status": "busy_refused", "run_id": run_id,
+                "detail": "run writer is active; cancel and wait for paused before resetting"}
+
+
+def _preflight(
+    spec: RunSpec,
+    *,
+    run_id: str = "",
+    config_path: str | Path | None = None,
+    offline: bool = False,
+    force: bool = False,
+    dry_run: bool = False,
+    live: bool = False,
+) -> dict[str, Any]:
+    """Validate an existing generation or prepare artifacts and write a new lock.
+
+    Return ``prepared``, ``failed``, ``drift_refused``, ``busy_refused``, or
+    ``foreign_store_refused`` in the report's status. ``dry_run`` checks only
+    existing lock readability, without validating domains or writing artifacts.
+    ``force`` archives an eligible existing generation before preparing its
+    replacement. Caught prompt, dataset, and tracing errors become failed
+    reports; uncaught configuration and file-access errors propagate.
     """
     run_id = run_id or resolve_run_id(spec)
     store = RunStore(run_dir(run_id))
@@ -409,6 +451,31 @@ def preflight(
                     "take it over deliberately."
                 ),
             }
+
+    if existing:
+        cp = store.read_checkpoint() or {}
+        remote_call = (cp.get("remote") or {}).get("call_id")
+        if force and remote_call:
+            from mailroom_sandbox.job.remote import terminal_confirmed
+
+            # A stale checkpoint or diagnostic call graph is not proof of death.
+            remote_busy = not terminal_confirmed(store)
+        else:
+            remote_busy = False
+        if force and (remote_busy or (cp.get("state") == "running" and not remote_call)):
+            return {"status": "busy_refused", "run_id": run_id,
+                    "detail": "generation may still have a live writer; cancel and confirm termination first"}
+        if not force:
+            # Existing lock is the generation's commit point. Validate its
+            # artifacts, never recreate missing bytes under that identity.
+            try:
+                store.verify_generation()
+            except RuntimeError as exc:
+                report["status"] = "failed"
+                report["checks"].append({"name": "generation", "ok": False, "detail": str(exc)})
+                return report
+            report.update({"spec_hash": existing["spec_hash"], "lock_path": str(store.lock_path)})
+            return report
 
     # write_lock refuses to overwrite in place, so a forced re-lock archives
     # the old generation first — new dataset bytes must never sit under an old
@@ -510,10 +577,12 @@ def preflight(
         "lock_kind": "spec.lock",
         "run_id": run_id,
         "created_at": checkpoint.utc_now(),
+        "generation_id": uuid.uuid4().hex,
         "spec_hash": spec.spec_hash(),
         "prompt_text_sha": prompt_text_sha,
         "task": spec.task,
         "profile": spec.profile,
+        "agent_models": dict(spec.agent_models),
         "prompt": prompt_block,
         "engine": spec.engine.model_dump(),
         "job": spec.job.model_dump(),
@@ -529,12 +598,10 @@ def preflight(
     # table, so editing a posture later silently rewrites what every historical card
     # claims the run was configured with — and the contracts whole-document change is
     # exactly such an edit.
-    try:
-        from mailroom_sandbox.job.specialist_posture import agent_knobs_for_run
+    from mailroom_sandbox.job.specialist_posture import agent_knobs_for_run
+    from mailroom_sandbox.runtime import resolve_agent_knobs
 
-        lock["agent_knobs"] = agent_knobs_for_run(run_id) or {}
-    except Exception:  # noqa: BLE001 — a lock must still be written
-        lock["agent_knobs"] = {}
+    lock["agent_knobs"] = resolve_agent_knobs(agent_knobs_for_run(run_id))
     selected = selection_from_lock(prompt_block)
     if selected:
         # The selected eval-environment keys + sha256 are part of the run's identity.

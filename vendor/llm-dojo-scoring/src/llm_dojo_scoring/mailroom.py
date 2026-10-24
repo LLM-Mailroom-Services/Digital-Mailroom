@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from ._paired import require_equal_lengths
+
 from .intake import (
     INTAKE_HANDOFF_NODE,
     INTAKE_LIVE_METHOD,
@@ -249,10 +251,12 @@ def resolve_extract_class(doc_type: str | None) -> str | None:
 
 
 def is_live_extract_class(doc_type: str | None) -> bool:
+    """Return whether a document type resolves to a live extraction class."""
     return resolve_extract_class(doc_type) is not None
 
 
 def is_retired_doc_type(doc_type: str | None) -> bool:
+    """Check whether a normalized document type is explicitly retired."""
     return (doc_type or "").strip().lower() in RETIRED_DOC_TYPES
 
 
@@ -285,6 +289,8 @@ def score_aligned_classification(
     is not equivalent to ``contract`` — predicting ``contract`` for a MAUD
     document is a miss. ``unknown`` and retired types stay distinct.
     """
+    expected, predicted = list(expected), list(predicted)
+    require_equal_lengths(expected, predicted)
     pairs = list(zip(expected, predicted))
     n = len(pairs)
     if not n:
@@ -313,6 +319,7 @@ def trace_identity(trace: dict[str, Any]) -> dict[str, Any]:
         meta = {}
 
     def _both(*keys: str) -> Any:
+        """Find the first nonempty key value, checking trace fields before metadata per key."""
         for key in keys:
             if trace.get(key) not in (None, ""):
                 return trace[key]

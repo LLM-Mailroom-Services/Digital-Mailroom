@@ -25,22 +25,49 @@ def test_family_corpus_size_constant():
     assert FAMILY_CLASS_COUNTS["merger_agreement"] == 152
 
 
-def test_modernbert_feeder_resolves_sibling(monkeypatch):
-    # Clear env so sibling discovery runs.
-    monkeypatch.delenv("MAILROOM_ML_SRC", raising=False)
+def _fake_mailroom_ml(root: Path, *, with_eval_cli: bool = True) -> Path:
+    """Build a minimal mailroom-ml checkout (src pkg, eval CLI, published bundle)."""
+    (root / "src" / "mailroom_ml").mkdir(parents=True)
+    (root / "src" / "mailroom_ml" / "__init__.py").write_text("", encoding="utf-8")
+    if with_eval_cli:
+        (root / "training").mkdir()
+        (root / "training" / "eval_modernbert.py").write_text("", encoding="utf-8")
+    bundle = root / "artifacts" / "run2-published"
+    bundle.mkdir(parents=True)
+    (bundle / "labels.json").write_text("{}", encoding="utf-8")
+    return root
+
+
+def _clear_model_env(monkeypatch):
     monkeypatch.delenv("MODERNBERT_MODEL_PATH", raising=False)
     monkeypatch.delenv("ML_MODEL_DIR", raising=False)
-    ml = resolve_mailroom_ml_src()
-    # Sibling may or may not exist in CI; when present, checkpoint must resolve.
-    if ml is None:
-        pytest.skip("mailroom-ml sibling not present")
-    assert (ml / "src" / "mailroom_ml").is_dir()
-    ckpt = resolve_modernbert_model_path()
-    assert ckpt is not None
-    assert (ckpt / "labels.json").is_file()
+
+
+def test_modernbert_feeder_resolves_ml_checkout(tmp_path, monkeypatch):
+    # Hermetic: never depends on a mailroom-ml checkout on the developer's machine.
+    ml = _fake_mailroom_ml(tmp_path / "mailroom-ml")
+    _clear_model_env(monkeypatch)
+    monkeypatch.setenv("MAILROOM_ML_SRC", str(ml))
+
+    assert resolve_mailroom_ml_src() == ml.resolve()
+    assert resolve_modernbert_model_path() == (ml / "artifacts" / "run2-published").resolve()
     status = feeder_status()
     assert status["ok"] is True
-    assert status["mailroom_ml_src"] == str(ml)
+    assert status["mailroom_ml_src"] == str(ml.resolve())
+    assert status["modernbert_model_path"] == str((ml / "artifacts" / "run2-published").resolve())
+    assert status["eval_entrypoint"] == str((ml / "training" / "eval_modernbert.py").resolve())
+
+
+def test_modernbert_feeder_status_not_ok_without_eval_entrypoint(tmp_path, monkeypatch):
+    # A checkout with weights but no eval CLI must report not-ok, loudly.
+    ml = _fake_mailroom_ml(tmp_path / "mailroom-ml", with_eval_cli=False)
+    _clear_model_env(monkeypatch)
+    monkeypatch.setenv("MAILROOM_ML_SRC", str(ml))
+
+    status = feeder_status()
+    assert status["ok"] is False
+    assert status["eval_entrypoint"] is None
+    assert status["modernbert_model_path"] is not None
 
 
 def test_modernbert_env_override(tmp_path, monkeypatch):

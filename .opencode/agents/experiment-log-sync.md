@@ -40,7 +40,7 @@ title: Experiment Log Sync
 tags:
 - observability
 - reporting
-home_package: llm-entity-extraction
+home_package: local-mailroom-sandbox
 roster_id: experiment-log-sync
 ---
 

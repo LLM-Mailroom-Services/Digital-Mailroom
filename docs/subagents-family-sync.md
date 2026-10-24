@@ -16,7 +16,6 @@ coding subagent, its **home package**, and which packages **materialize** it.
 | `local-mailroom-sandbox` | this repo / `packages/local-mailroom-sandbox` | `config/subagents/family-roster.yaml` |
 | `digital-mailroom` | monorepo hub | `governance/subagents/family-roster.yaml` |
 | `llm-mailroom` | `packages/llm-mailroom` | `config/subagents/family-roster.yaml` |
-| `llm-entity-extraction` | `packages/llm-entity-extraction` | `config/subagents/family-roster.yaml` |
 | `eval-environment` | eval runner repo | `config/subagents/family-roster.yaml` |
 
 ## Workflow

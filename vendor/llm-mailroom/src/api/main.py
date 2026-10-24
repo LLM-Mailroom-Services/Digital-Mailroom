@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 import uuid
@@ -143,29 +144,37 @@ app = FastAPI(
 async def _check_llm_provider() -> dict:
     """Best-effort LLM provider connectivity check.
 
-    Resolves the provider for the sorter agent (fails fast if the API key is
-    missing or is the mock placeholder) and pings the models endpoint with a
-    short timeout. Never spends completion tokens.
+    Resolve the sorter's wire model and gateway tier, then probe the models
+    endpoint with a five-second request timeout. Never spends completion tokens.
+    Return status, detail, and provider; resolution or probe errors become a
+    ``degraded`` result, with provider set to None if resolution fails.
     """
     import os
     try:
-        from llm.providers import resolve_provider
-        from pipeline.config import get_agent_config
+        from llm.client import resolve_agent_model
 
-        agent_cfg = get_agent_config("sorter")
-        provider, model = resolve_provider(agent_cfg)
+        resolved = resolve_agent_model("sorter")
+        provider, model = resolved.provider, resolved.model
         status = "ok"
-        detail = f"{provider.name}:{model}"
+        # Gateway runs report the tier too (e.g. litellm:mailroom-fast[fast]).
+        detail = f"{provider.name}:{model}" + (f"[{resolved.tier}]" if resolved.tier else "")
         try:
             from openai import OpenAI
 
-            kwargs = {"base_url": provider.base_url, "api_key": "not-needed", "timeout": 5.0}
+            kwargs = {
+                "base_url": provider.base_url,
+                "api_key": "not-needed",
+                "timeout": 5.0,
+                "max_retries": 0,
+            }
             if provider.api_key_env:
                 key = os.environ.get(provider.api_key_env)
                 if key:
                     kwargs["api_key"] = key
             client = OpenAI(**kwargs)
-            client.models.list()
+            # The sync client would block the event loop (and every other
+            # request) for the whole probe, so run it in a worker thread.
+            await asyncio.to_thread(client.models.list)
         except Exception as exc:
             status = "degraded"
             detail = f"{provider.name}:{model} — models endpoint unreachable: {type(exc).__name__}"
@@ -285,7 +294,13 @@ async def upload_document(
 
     _rate_limit_upload()
 
-    ext = Path(file.filename or "").suffix.lower()
+    # Only the base name is used: a client-supplied "../x.pdf" or absolute
+    # path must never write outside the inbox.
+    filename = Path((file.filename or "").replace("\\", "/")).name
+    if not filename or filename.startswith("."):
+        raise HTTPException(400, "Invalid file name")
+
+    ext = Path(filename).suffix.lower()
     accepted = load_config().get("file_extensions", [".txt", ".pdf", ".docx", ".md"])
     if not ext or ext not in accepted:
         raise HTTPException(
@@ -296,16 +311,6 @@ async def upload_document(
     inbox = inbox_dir()
     inbox.mkdir(parents=True, exist_ok=True)
 
-    # Avoid clobbering a document with the same name (the watcher keys claims
-    # by file name): write to a uniquified name when a collision exists.
-    dest = inbox / file.filename
-    if dest.exists():
-        stem, suffix = Path(file.filename).stem, Path(file.filename).suffix
-        counter = 1
-        while dest.exists():
-            dest = inbox / f"{stem}-{counter}{suffix}"
-            counter += 1
-
     # Size cap (audit L-18): read with a bound so a huge upload cannot exhaust
     # memory/disk before validation.
     content = await file.read(MAX_UPLOAD_BYTES + 1)
@@ -314,7 +319,34 @@ async def upload_document(
             413,
             f"File exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB upload limit",
         )
-    dest.write_bytes(content)
+
+    # Avoid clobbering a document with the same name (the watcher keys claims
+    # by file name): write to a uniquified name when a collision exists. The
+    # body goes to a hidden temp file first and is hard-linked into place, so
+    # the name claim is atomic (concurrent same-name uploads cannot overwrite
+    # each other) and the watcher never sees a half-written file.
+    stem, suffix = Path(filename).stem, Path(filename).suffix
+    tmp = inbox / f".upload-{uuid.uuid4().hex}.tmp"
+    tmp.write_bytes(content)
+    try:
+        counter = 0
+        while True:
+            dest = inbox / (filename if counter == 0 else f"{stem}-{counter}{suffix}")
+            try:
+                try:
+                    os.link(tmp, dest)
+                except FileExistsError:
+                    raise
+                except OSError:
+                    # No hard links on this filesystem: exclusive create.
+                    fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+                    with os.fdopen(fd, "wb") as fh:
+                        fh.write(content)
+                break
+            except FileExistsError:
+                counter += 1
+    finally:
+        tmp.unlink(missing_ok=True)
 
     # Persist the upload metadata (matter_id, tracking id, ...) as a `<file>.meta`
     # sidecar so the watcher files the document under the submitted matter and
@@ -328,7 +360,7 @@ async def upload_document(
         matter_id=matter_id,
         uploaded_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
         size=len(content),
-        original_filename=file.filename,
+        original_filename=filename,
     )
 
     logger.info("file_uploaded", file=str(dest), matter_id=matter_id, upload_id=upload_id, size=len(content))
@@ -1290,9 +1322,18 @@ def assert_bind_allowed(host: str | None = None) -> None:
 
 
 if __name__ == "__main__":
+    import argparse
+
     import uvicorn
     from observability.tracing import ensure_process_tracing
+    from pipeline.pager import Pager, load_pager_config, prompt_on_start
 
+    _ap = argparse.ArgumentParser(description="Serve the mailroom API.")
+    _ap.add_argument("--pager", action=argparse.BooleanOptionalAction, default=None,
+                     help="Turn operator text alerts on/off without the start prompt.")
+    _pager_cfg = prompt_on_start(load_pager_config(), flag=_ap.parse_args().pager)
+    if _pager_cfg.active:
+        Pager(_pager_cfg).start_background()
     host = listen_host()
     port = listen_port()
     assert_bind_allowed(host)

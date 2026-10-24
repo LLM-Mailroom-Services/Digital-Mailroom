@@ -464,3 +464,39 @@ def deactivate_runtime_overrides() -> None:
     state.original_prompt_versions = None
     state.table.clear()
     state.active = False
+
+
+def apply_locked_prompts(prompt_lock: dict[str, Any]) -> None:
+    """Set the active frozen prompt selection and apply its stored agent texts.
+
+    Missing or empty texts are skipped. Raise RuntimeError when a non-default
+    source has text that cannot be applied; unpatchable code-default texts do
+    not raise this error. Selection and override errors propagate. Selection
+    and any successful patches remain applied if a later check fails.
+    """
+    # eval-environment prompt versions: remember the locked selection so every
+    # record the delegated runners write is stamped with its key + sha256.
+    from mailroom_sandbox.prompt_versions import selection_from_lock, set_active_selection
+
+    set_active_selection(selection_from_lock(prompt_lock))
+    texts = {}
+    must_apply = {}
+    for agent, ref in (prompt_lock.get("agents") or {}).items():
+        if isinstance(ref, dict) and ref.get("text"):
+            texts[agent] = ref["text"]
+            if ref.get("source") not in (None, "code-default"):
+                must_apply[agent] = ref.get("source")
+    if not texts:
+        return
+    patched = apply_runtime_overrides(texts)
+    missing = [a for a in must_apply if a not in patched]
+    if missing:
+        # Live-or-loud (hub#40, DMR-049 class): the lock pins local/langfuse
+        # text that the run cannot apply — failing loud beats a lock that
+        # claims a prompt text that never executed.
+        raise RuntimeError(
+            "prompt overrides not applied for %s (pinned %s) — the run would "
+            "execute code-default prompts; install the [pipeline] extra or "
+            "restore the vendored llm-mailroom tree"
+            % (sorted(missing), {a: must_apply[a] for a in sorted(missing)})
+        )

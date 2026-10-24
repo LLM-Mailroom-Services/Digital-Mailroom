@@ -104,7 +104,7 @@ are listed in `config/components.yaml` and skipped.
 ## Experiment log
 
 `reports/experiment_log.jsonl` is **sandbox-local**. It is not a mirror of
-llm-entity-extraction. Each record carries profile, provider, `serving_kind`
+the monorepo hub's experiment logs. Each record carries profile, provider, `serving_kind`
 (`local` | `modal` | `api`), model, prompt version, dataset fingerprint, scores +
 bootstrap CI when available, tracing backend, tags, session id, and a git
 snapshot. Mixed local + API-key matrix runs attach a `local_vs_api` block

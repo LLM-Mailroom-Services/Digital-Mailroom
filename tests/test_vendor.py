@@ -19,27 +19,16 @@ import pytest
 from mailroom_sandbox.paths import repo_root, vendored_dojo_src, vendored_mailroom_src
 from mailroom_sandbox.runtime import resolve_dojo_src, resolve_mailroom_src
 
-# hub#62 doctrine: both vendor snapshots track the monorepo workspace
-# packages, not a fixed upstream tag. llm-mailroom's last TAGGED pin was
-# v0.7.1 (2a212e76); the five-class taxonomy removal (59c47401) landed
-# upstream afterwards and the snapshot tracks the post-removal workspace
-# (DMR-057/DMR-070 — the docclass-era compliance files are intentionally
-# absent).
-MAILROOM_PIN = "workspace snapshot"
-MAILROOM_COMMIT = "tracks `packages/llm-mailroom` in the"
-DOJO_PIN = "workspace snapshot — see monorepo"
-DOJO_COMMIT = "workspace snapshot — see monorepo"
-
-
 def test_vendored_trees_are_tracked_and_pinned():
-    for name, pin, commit in (
-        ("llm-mailroom", MAILROOM_PIN, MAILROOM_COMMIT),
-        ("llm-dojo-scoring", DOJO_PIN, DOJO_COMMIT),
-    ):
+    from mailroom_sandbox.cli import _VENDOR_PINS
+
+    for name, ref, url, sha in _VENDOR_PINS:
         tree = repo_root() / "vendor" / name
         assert (tree / "VENDOR.md").is_file(), f"vendor/{name}/VENDOR.md missing"
         md = (tree / "VENDOR.md").read_text(encoding="utf-8")
-        assert pin in md and commit in md
+        assert sha and len(sha) == 40, f"{name} must pin an immutable source commit"
+        assert sha in md and url.removesuffix(".git") in md
+        assert ref in md
         assert not (tree / ".git").exists(), "vendored tree must not carry .git"
 
 

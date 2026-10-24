@@ -19,6 +19,8 @@ All notable changes to The-Mailroom are documented here, following
 
 ### Fixed
 
+- Observatory BERT lane panels (#111) are source-owned again: `PipelineRun.intake_bert`, the `trace_interpreter` lift of the terminal manifest's `intake.bert` block, the poller payload field, `hosted/js/bert_panels.js` with its section and CSS, and `tests/test_bert_panels.py`. The panels previously lived only in the Digital-Mailroom hub copy, so a hub import of this repo dropped the model field while the hub poller kept reading it (`AttributeError: 'PipelineRun' object has no attribute 'intake_bert'`, 37 hub tests).
+
 - Reuse exact-hash default-admin password safety checks across requests, with
   serialized misses and immediate hash-change invalidation. Poller iteration
   exceptions broadcast stale snapshots to already-connected clients while

@@ -1,6 +1,6 @@
 [project]
 name = "mailroom-hub"
-version = "0.9.1"
+version = "0.10.0"
 description = "Core Digital Mailroom monorepo: pipeline (llm-mailroom), scoring engine (llm-dojo-scoring), local sandbox (local-mailroom-sandbox), corpus EDA (mailroom-corpus-eda), and visualizer (The-Mailroom)"
 readme = "README.md"
 requires-python = ">=3.11"

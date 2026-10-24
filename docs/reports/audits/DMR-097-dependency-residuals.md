@@ -106,8 +106,14 @@ Follow-ups were opened before closing the dependency card:
 
 - DMR-102 / [#185](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/185): deliberate source-owned Tailwind 4 migration. Source #45 currently keeps Tailwind 3.4.19 with its reviewed selector-parser override. No migration is implemented here.
 - DMR-103: reconcile historical hub governance tests and gate findings without weakening them; preserve separate DMR-080/081 decisions.
-- DMR-104 / [The-Mailroom #46](https://github.com/Exios66/The-Mailroom/issues/46): repair source ArchiveBrowser filters (missing merger_agreement, retired compliance_filing remains), then import.
+- DMR-104 / [hub #189](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/189) and [The-Mailroom #46](https://github.com/Exios66/The-Mailroom/issues/46): repair source ArchiveBrowser filters (missing merger_agreement, retired compliance_filing remains), then import.
 
 The unrelated untracked source `data/provider_health.json` and `.lock` artifacts
 are excluded from every commit. All source/import commits, full gate counts and
 scoped status must be recorded before the parent card is archived.
+
+The DMR-104 Issue cell uses its hub mirror #189; the source implementation
+issue stays in Evidence. Code-analyst verification found that board sync uses
+a single configured repository rather than routing by an issue URL. No broad
+sync was applied with a foreign issue link. DMR-103 also owns a future guard
+for that existing routing limitation.

@@ -5,7 +5,47 @@ Format based on Keep a Changelog; versioning is SemVer.
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-10-23
+
+### Added
+
+- Shared Dojo release awareness (DMR-095): opt-in shared Dojo release
+  awareness, cached nonblocking application startup checks, cache-only health
+  status, and `dojo-version` with explicit/offline/forced JSON checks. Daily
+  per-user state, error backoff, consumer/release notice limits and an environment
+  opt-out leave imports and scoring offline; upgrades and release pins remain
+  operator controlled.
+
+### Fixed
+
+- Concurrent release checks retain newer cached versions and intervening
+  failures when attempt timestamps tie; explicit results reflect retained cache
+  knowledge. Epoch-zero observations and sequential forced recovery remain valid.
+- The copyable startup example imports `sys` before writing notices to stderr.
+- LegalBench excludes float NaN labels from support, equivalence credit and
+  calibration, while preserving supplied zero/false labels and literal strings.
+
+## [0.23.1] - 2026-10-23
+
+### Fixed
+
+- CodeAnt boundary review: non-finite integer intake metadata is a mismatch;
+  blank LegalBench labels and unresolved pilot subclass candidates cannot earn
+  equivalence credit; metadata-only structural fallback payloads are invalid;
+  JSON null MAUD answers do not become the meaningful catalog string "None".
+  Existing valid-label matching, literal catalog answers and typed schema
+  validation remain supported. Regression tests execute the canonical engines.
+- LegalBench accepts explicit producer equivalence groups without mutating
+  global settings. Pilot report calibration has a canonical round-last raw
+  aggregation API, preserving the existing three-decimal report contract.
+
+## [0.23.0] - 2026-10-23
+
 ### Changed
+
+- Paired batch scorers reject unequal document counts, including direct and
+  dispatched intake and recognized mixed MAUD batches. Span-list and scalar
+  interpretations remain supported; no scoring formula changes.
 
 - **`corporate_records_specialist_v7` amendment coordinated across the four
   repos.** The frozen eval-environment mutation text — the `production_prompts`
@@ -21,6 +61,12 @@ Format based on Keep a Changelog; versioning is SemVer.
 
 ### Fixed
 
+- DMR-091 independent source audit: retain missing/malformed predictions in
+  content, MAUD and presence populations; preserve raw classifier errors as
+  headline misses; inspect completion failure signals independently; sum pooled
+  serving costs rather than averaging run totals. Hand-counted regressions
+  cover padding, hierarchy, error sentinels, and known/unknown costs.
+
 - Corporate label repair and audit no longer treat malformed falsey GT values
   (`[]`, `0`, `False`) as empty mappings. Text audit summaries retain
   wrong-subclass entity defects instead of reporting those rows as clean.
@@ -30,6 +76,27 @@ Format based on Keep a Changelog; versioning is SemVer.
   shipped with; this correction happened after the v0.22.0 tag.
 
 ### Added
+
+- Source-owned pipeline verdict thresholds, sandbox schema/floor policies and
+  the fixed chained-evaluation composite. The canonical scored-only reducer
+  supports unrounded consumer arithmetic without changing its existing default.
+  Typed-unavailable schema results retain their truthiness as JSON-safe booleans
+  instead of leaking nonserializable sets; schema key collections are accepted
+  consistently.
+
+- Canonical pilot classification/subclass policies, required-field and schema
+  support summaries, factuality support, and exact sandbox agent compatibility
+  rubrics. Missing extraction GT remains unscorable rather than a zero score.
+  Source/vendor version reporting ignores unrelated installed distributions.
+
+- Dojo-owned strict pipeline classification, LegalBench report/calibration,
+  offline visualizer lifecycle/quality and isolated-agent rubrics. Consumer
+  facades preserve existing report populations and keys; new class APIs reject
+  unequal paired lengths and do not score missing/blank labels as hits.
+
+- Dojo-owned sandbox MAUD/CUAD compatibility rubrics, distinct metric identities,
+  registry-valid emission maps and count-based benchmark pooling. Consumers
+  re-export these engines after adopting the committed source vendor.
 
 - Complete explicit Python docstrings, including private/nested helpers,
   scripts, examples, and tests, with a repository-wide regression gate.

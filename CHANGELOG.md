@@ -46,6 +46,17 @@ and is recorded there, not here.
   animated constellation data-flow map, typing quickstart terminal and a
   by-the-numbers strip (all under `docs/assets/readme/`, with their generator
   scripts); reference material moves into collapsible sections.
+- Import the three merged constellation README refreshes (DMR-101
+  follow-through): llm-mailroom `0f3fe732` (#121), llm-dojo-scoring
+  `b42d87dd` (#64) and mailroom-corpus-eda `da7db352` (#32, plus the
+  source-side llm-entity-extraction prune note via Corpus-EDA #33; the
+  standalone mailroom-ml README refresh #59 is out of sync scope). All
+  diffs are docs-only README + generated `docs/assets/readme/` assets.
+  Every conflicted hub-side file was resolved by taking the verified source
+  version verbatim; this also restores hub copies of corpus-EDA
+  requirements.txt, SUMMARY_REPORT.md and workflow pins that an earlier
+  hub-side import had rewound. Sandbox vendor snapshots verified current
+  (0 drift); suites re-run green afterwards.
 
 ### Removed
 

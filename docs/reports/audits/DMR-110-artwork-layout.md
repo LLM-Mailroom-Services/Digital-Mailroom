@@ -33,4 +33,20 @@ Local source checks: Dojo documentation/docstrings 157 passed; pipeline landing/
 
 ## Hub imports and gates
 
-Pending sequential verified source imports. Final evidence will name cursor/import commits, suite results, vendor drift and governance baseline. The-Mailroom heavy-media exclusions and its pre-existing hub-only credentials file must remain unchanged.
+All five merged sources were imported with `sync_packages.py pull --squash --verify-suite`; no force cursor or package implementation edits were used. Subtree merge metadata is retained.
+
+| Imported package | Import merge | Verified cursor commit | Full package gate |
+| --- | --- | --- | --- |
+| llm-dojo-scoring | `1522c75f7` | `2cd8d3717` | Passed (driver recorded green; exact count not retained) |
+| llm-mailroom | `65fa0eb4c` | `22bb15820` | 2,173 passed, 37 skipped |
+| mailroom-corpus-eda | `78c2e3fdc` | `5dfc1e796` | 337 passed, 19 skipped |
+| The-Mailroom | `f931f44ae` | `cb87f5a1e` | 507 passed, 2 skipped |
+| local-mailroom-sandbox | `2e3d86b45` | `cd1a78218` | 1,514 passed, 12 skipped |
+
+The supported `SYNC_VERIFY_CMD` override selected the shared project interpreter, with imported sources explicitly on `PYTHONPATH`, without changing the environment, lockfile or dependency specifications. The first sandbox attempt stopped at `test_launcher_passes_beacon_and_board_through` because its shell launcher selected system Python without `dotenv` (43 passed before the failure). Rerunning the same full gate with the launcher's documented `SANDBOX_PY` override selected the shared interpreter and passed; only then did the driver advance the cursor.
+
+Final checks: all five manifest cursors match the reviewed source merge SHAs; live sync status is 5/5 in sync. Source artwork trees are byte-identical to those source objects. All six source kits/checkers are identical, and the hub shares the browser checker. All five imported generators and the hub generator pass `--check`; `git diff --check` passes. The hermetic hub scripts suite passes **81 tests**.
+
+`sync_vendor.py --check` reports zero drift for both snapshots. The vendor tree remains `7661e257f2f9b356d941656685a84dfa04fa8e76`. The-Mailroom heavy-media exclusions remain pruned; its pre-existing hub-only `operator_desk/credentials.py` retains SHA256 `1cd48ed4abd64c77fe9c4ef7ba66faad654a6f308af07a7cd9e8959cca1fbce9`. Independent general import review verified all package changes are confined to README artwork assets and confirmed these integration exceptions. No runtime, dependency, version, lockfile or vendor diff.
+
+`board_state.py check` remains at its pre-existing baseline: five phantom-card errors (DMR-120/176/182/188/191) and one stale DMR-063 warning, tracked under DMR-103. This gate is **not green**. The phantom required `ci` context remains the separately tracked DMR-080 branch-policy defect; the branch protection was not changed. The v0.10.0 minor release was already delivered under DMR-106; this documentation correction stays in Unreleased.

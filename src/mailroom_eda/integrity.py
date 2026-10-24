@@ -1,6 +1,8 @@
 """P1 — structural integrity & provenance audit (full, no sampling)."""
 from __future__ import annotations
 
+import logging
+
 import json
 from collections import Counter
 
@@ -9,10 +11,24 @@ import pandas as pd
 
 from .config import TABLE_DIR, split_rule
 from .download import load_default, load_ground_truth, load_jsonl
+from .gt_presence import is_populated
 
 
 def _meta_series(blind: pd.DataFrame) -> pd.DataFrame:
-    return pd.DataFrame([dict(m) for m in blind["metadata"]])
+    return pd.DataFrame([dict(m) for m in blind["metadata"]], index=blind.index)
+
+
+def _align_configs(blind: pd.DataFrame, gt: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Join independently ordered configurations by unique filename identity."""
+    for name, frame in (("default", blind), ("ground_truth", gt)):
+        if "filename" not in frame or frame["filename"].isna().any():
+            raise ValueError(f"{name}: missing/null filename identity")
+        if not frame["filename"].is_unique:
+            raise ValueError(f"{name}: duplicate filename identity")
+    if set(blind["filename"]) != set(gt["filename"]):
+        raise ValueError("default/ground_truth filename sets differ")
+    aligned = gt.set_index("filename", drop=False).loc[blind["filename"].tolist()]
+    return blind.reset_index(drop=True), aligned.reset_index(drop=True)
 
 
 def audit_config_join(blind: pd.DataFrame, gt: pd.DataFrame) -> dict:
@@ -33,6 +49,7 @@ def audit_config_join(blind: pd.DataFrame, gt: pd.DataFrame) -> dict:
 
 
 def audit_split_rule(blind: pd.DataFrame, gt: pd.DataFrame) -> dict:
+    blind, gt = _align_configs(blind, gt)
     out = {}
     for name, df in (("default", blind), ("ground_truth", gt)):
         recomputed = df["filename"].map(split_rule)
@@ -57,7 +74,10 @@ def audit_split_rule(blind: pd.DataFrame, gt: pd.DataFrame) -> dict:
         "rule": "md5(record_id) % 10 (source placement)",
         "checked": checked,
         "rows_moved_by_family_rule": moved,
-        "manifest_claim": "65/400 moved",
+        # v9 note: the family split rule (md5(filename)) is authoritative; this
+        # counter records how many claims landed in a different split than their
+        # source record_id placement would imply (informational, not an error).
+        "manifest_claim": f"{moved}/{checked} rows differ from source placement",
     }
     return out
 
@@ -116,10 +136,22 @@ def audit_schema(blind: pd.DataFrame, gt: pd.DataFrame) -> dict:
 
 
 def metadata_coverage(blind: pd.DataFrame, gt: pd.DataFrame) -> pd.DataFrame:
+    """Per-doc_type fill rate for every metadata key.
+
+    Metadata is cast-safe (KANBAN-076): every row carries the full key
+    union, with '' (or the JSON no-item markers '[]'/'{}') standing in for
+    "not applicable to this row" -- never a real ``NaN``. Coverage must
+    therefore be measured with the corpus-wide populated/absent rule
+    (``gt_presence.is_populated``), not ``.notna()``, which is true for an
+    empty string and would report ~100% fill on every field regardless of
+    whether it actually carries a value.
+    """
+    blind, gt = _align_configs(blind, gt)
+    # Sparse audit inputs can still contain missing keys/NaN before casting.
     meta = _meta_series(blind)
     cov = pd.concat([gt["expected"].rename("doc_type"), meta], axis=1)
     tbl = cov.set_index("doc_type").groupby(level=0).apply(
-        lambda g: g.notna().mean().T
+        lambda g: g.astype(object).fillna("").map(is_populated).mean().T
     )
     return tbl
 
@@ -163,6 +195,7 @@ def audit_cuad_clause_offsets(blind: pd.DataFrame, gt: pd.DataFrame) -> dict:
 
 
 def audit_maud_labels(blind: pd.DataFrame, gt: pd.DataFrame) -> dict:
+    blind, gt = _align_configs(blind, gt)
     n = 0
     task_counts = Counter()
     label_counts = []
@@ -176,7 +209,12 @@ def audit_maud_labels(blind: pd.DataFrame, gt: pd.DataFrame) -> dict:
         n += 1
         task_counts.update(labels.keys())
         label_counts.append(len(labels))
-        mc = meta_series.iloc[i].get("maud_label_count")
+        # B1 (v9.1): `maud_label_count` is GT-only now — removed from the blind
+        # `metadata` blob and relocated to `gt_fields` (expanded to a flat GT
+        # column). Read it from the GT surface so the cross-surface check stays
+        # meaningful: GT count == blind `maud_categories` sum == upstream count.
+        # (Reading blind metadata here shipped a false 0/152 after B1.)
+        mc = gt.iloc[i].get("maud_label_count")
         cats = meta_series.iloc[i].get("maud_categories")
         try:
             cat_sum = sum(json.loads(cats).values()) if isinstance(cats, str) and cats.strip() else None
@@ -187,21 +225,28 @@ def audit_maud_labels(blind: pd.DataFrame, gt: pd.DataFrame) -> dict:
             try:
                 if int(float(str(cat_sum))) == int(float(str(mc))) and int(float(str(mc))) >= len(labels):
                     meta_counts_ok += 1
-            except Exception:
-                pass
+            except Exception as exc:
+                logging.getLogger(__name__).warning(
+                    "MAUD meta-count comparison skipped for row %s (cat_sum=%r mc=%r): %s",
+                    i,
+                    cat_sum,
+                    mc,
+                    exc,
+                )
     return {
         "rows_with_labels": n,
         "distinct_tasks": len(task_counts),
         "labels_per_row_mean": float(np.mean(label_counts)) if label_counts else None,
         "labels_per_row_min_max": (int(min(label_counts)), int(max(label_counts))) if label_counts else None,
         "task_frequency_top10": dict(task_counts.most_common(10)),
-        "metadata_count_semantics": "maud_label_count == sum(maud_categories) == upstream annotation count; >= per-task GT column size",
+        "metadata_count_semantics": "gt_fields.maud_label_count == sum(metadata.maud_categories) == upstream annotation count; >= per-task GT column size",
         "metadata_count_consistency_ok": meta_counts_ok,
         "metadata_count_checked": meta_checked,
     }
 
 
 def audit_metadata_label_consistency(blind: pd.DataFrame, gt: pd.DataFrame) -> dict:
+    blind, gt = _align_configs(blind, gt)
     meta = _meta_series(blind)
     if "expected_doc_type" not in meta.columns:
         return {"available": False}

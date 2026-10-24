@@ -1,4 +1,4 @@
-"""Export data from docclass corpus to HF/Braintrust export format."""
+"""Export data from the mailroom-dataset corpus (v9; successor of docclass-merged)."""
 from __future__ import annotations
 
 import json
@@ -10,7 +10,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .config import DOC_TYPES, JSONL_PATH, PARQUET_DIR, CHARS_PER_TOKEN
+from .config import DOC_TYPES, JSONL_PATH, PARQUET_DIR, CHARS_PER_TOKEN, split_rule
+from .release_sections import GT_SCALAR_KEYS
 
 
 LINE_BOUNDARY_HAZARDS = ("\u2028", "\u2029", "\u0085")
@@ -22,8 +23,11 @@ def sanitize_line_boundary_chars(s: str) -> str:
 
 
 def safe_jsonl_line(row: dict) -> str:
-    """Write a JSONL line with line-boundary safety."""
-    return sanitize_line_boundary_chars(json.dumps(row, default=str, ensure_ascii=False))
+    """Write a JSONL line with line-boundary safety and deterministic
+    key ordering (sort_keys) so rebuilds are byte-identical regardless of
+    dict insertion order (e.g. set-derived matter/group keys)."""
+    return sanitize_line_boundary_chars(
+        json.dumps(row, default=str, ensure_ascii=False, sort_keys=True))
 
 
 def normalize_metadata_rows(rows: list[dict]) -> list[dict]:
@@ -51,9 +55,14 @@ def normalize_metadata_rows(rows: list[dict]) -> list[dict]:
 
 
 def assign_split(filename: str) -> str:
-    """Deterministic 90/10 train/test split keyed on filename (md5 % 10 == 0 -> test)."""
-    digest = int(hashlib.md5(filename.strip().encode("utf-8")).hexdigest(), 16)
-    return "test" if digest % 10 == 0 else "train"
+    """Deterministic 90/10 train/test split keyed on filename (md5 % 10 == 0
+    -> test). Single-sourced from ``config.split_rule`` (never re-declared —
+    a second, independently-maintained copy of this rule previously
+    stripped the filename before hashing while ``config.split_rule`` (the
+    rule ``integrity.audit_split_rule`` verifies against) did not, so the
+    two could silently disagree on any filename carrying incidental
+    whitespace)."""
+    return split_rule(filename)
 
 
 def estimate_tokens(text: str, chars_per_token: float = CHARS_PER_TOKEN) -> float:
@@ -89,7 +98,9 @@ def stage_parquet(
         rows: List of merged docclass rows with keys:
             filename, doc_text, prompt, expected, expected_subclass, split, metadata, gt_fields
         stage_dir: Output directory for parquet files
-        gt_scalar_keys: Ground truth scalar column names
+        gt_scalar_keys: Ground truth scalar column names. Defaults to the
+            current v9 surface (`release_sections.GT_SCALAR_KEYS`); legacy
+            v7/v8 callers must pass `release_sections.LEGACY_V7_GT_KEYS`.
 
     Returns:
         Dict of (config, split) -> row count
@@ -98,17 +109,7 @@ def stage_parquet(
     import pyarrow.parquet as pq
 
     if gt_scalar_keys is None:
-        gt_scalar_keys = [
-            "label_evidence", "content_topic", "topic_evidence",
-            "sentiment_score", "sentiment_label", "sentiment_evidence",
-            "claim_number", "policy_number", "insurer", "insured_party",
-            "claim_type", "date_of_loss", "date_filed", "claimed_amount",
-            "adjuster", "damages_description", "coverage_determination",
-            "denial_reasons", "supporting_documents",
-            "cuad_clause_labels", "maud_clause_labels",
-            "intent", "subject_matter", "keywords",
-            "intent_source", "intent_confidence", "intent_status",
-        ]
+        gt_scalar_keys = list(GT_SCALAR_KEYS)
 
     def _blind_row(r: dict) -> dict:
         return {
@@ -168,7 +169,13 @@ def build_manifest(
     stripped_n: int,
     intent_stats: dict | None = None,
 ) -> str:
-    """Generate manifest.txt content."""
+    """Generate the v7-era manifest.txt content (LEGACY — hub#57).
+
+    Retained for the archived v8 builder (``scripts/archive/v8/build_v8.py``)
+    which is the only caller. The v9 builder uses its own
+    ``build_manifest_v9`` (``mailroom_eda.v9_build``); the v7 schema/marker
+    text below describes the v7 lineage, not the current v9 surface.
+    """
     from collections import Counter
 
     types = Counter(r["expected"] for r in rows)
@@ -222,7 +229,7 @@ def build_manifest(
         intent_segment = ""
 
     built = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return f"""docclass-merged manifest — schema v7 (issue #5 intent hydration)
+    return f"""mailroom-corpus manifest — schema v7 (issue #5 intent hydration)
 =================================================
 built_utc        : {built}
 schema_version   : 7

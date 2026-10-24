@@ -7,9 +7,34 @@ from pathlib import Path
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-REPO_ID = "Lucius-Morningstar/docclass-merged"
+# Canonical dataset (v9 of the mailroom corpus family; standalone successor
+# of the frozen v8 `mailroom-corpus` baseline). Pinned tip sha for
+# reproducible pulls; see docs for the v8/v9 lineage. (hub#57: re-pinned
+# 2026-09-14 to the live tip 46a4d3c2 — the prior a7067844 pin was stale.
+# Re-pinned again 2026-09-26 to ed7576b6 — the v9.1 quality revision,
+# mailroom-issues#196 Phase B: weak-indirect-signal removal, row-level GT
+# presence codes, context-window bands. Zero identity/content drift; row
+# set unchanged. See mailroom_eda.v9_1_revision.
+# Re-pinned 2026-10-01 to the Hub tag v9.1 (bc9eab28), the docs commit that
+# sits on ed7576b6. Same 3,302 rows; bc9eab28 is the current tag.
+# Re-pinned 2026-10-06 to the Hub tag v9.2 (670e8bc6), the docs/card commit
+# that sits on the v9.2 data commit d49f60a4 (plan
+# docs/plans/v9.2-relations-provenance-revision.md, mailroom_eda.v9_2_revision):
+# six-regime annotation provenance, relation producer + gt_fields mirror SSOT,
+# build-internal `_published` removal, GT-registry single-sourcing. Zero
+# row-set/identity/content drift from v9.1; row set unchanged (3,302).)
+REPO_ID = "Lucius-Morningstar/mailroom-dataset"
+REPO_TAG = "v9.2"
+REPO_REVISION = "670e8bc6f8d82221f741d5da479ee88bed8cac4a"
+REPO_DATA_REVISION = "d49f60a402ccc090617db58a8593aa971d63a2ff"
 REPO_URL = f"https://huggingface.co/datasets/{REPO_ID}"
 HF_USERNAME = "Lucius-Morningstar"
+
+# Frozen v8 baseline of the corpus family — the lineage parent of
+# `mailroom-dataset` (2,000 rows, pinned at eafe1ab4). Legacy v8 tooling
+# (build_v8, reconcile_gt_v8, the v7-era docclass_uploader) targets THIS repo,
+# never REPO_ID.
+V8_REPO_ID = "Lucius-Morningstar/mailroom-corpus"
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
@@ -21,7 +46,10 @@ REPORT_DIR = ROOT / "reports"
 INTERACTIVE_FIG_DIR = ROOT / "reports" / "figures_interactive"
 
 MANIFEST_PATH = DATA_DIR / "manifest.txt"
-JSONL_PATH = DATA_DIR / "docclass_merged.jsonl"
+# v9 ships the hardened ground-truth sidecar instead of the legacy merged
+# JSONL; P1 jsonl-parity audits against this file (doc_text + metadata +
+# labels, 3,302 rows).
+JSONL_PATH = DATA_DIR / "ground_truth_hardened.jsonl"
 HF_EXPORT_DIR = DATA_DIR / "hf_export"
 
 DOC_TYPES = ["contract", "merger_agreement", "corporate_record", "correspondence", "insurance_claim"]

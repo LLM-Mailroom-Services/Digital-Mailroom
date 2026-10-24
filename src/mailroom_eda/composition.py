@@ -9,7 +9,7 @@ from scipy import stats
 
 from .config import DOC_TYPES, FIG_DIR, TABLE_DIR, TYPE_COLORS, setup_matplotlib
 from .download import load_default, load_ground_truth
-from .integrity import _meta_series, metadata_coverage
+from .integrity import _align_configs, _meta_series, metadata_coverage
 
 
 def strata_table(gt: pd.DataFrame) -> pd.DataFrame:
@@ -47,6 +47,7 @@ def imbalance_metrics(gt: pd.DataFrame) -> dict:
 
 
 def provenance(blind: pd.DataFrame, gt: pd.DataFrame) -> pd.DataFrame:
+    blind, gt = _align_configs(blind, gt)
     meta = _meta_series(blind)
     rows = []
     for dt in DOC_TYPES:
@@ -119,7 +120,7 @@ def fig_strata(gt: pd.DataFrame) -> None:
     ax.set_yticks(y)
     ax.set_yticklabels(labels, fontsize=7)
     ax.invert_yaxis()
-    ax.set_title("All 48 strata: expected × expected_subclass (train/test)")
+    ax.set_title(f"All {len(order)} strata: expected × expected_subclass (train/test)")
     ax.set_xlabel("rows")
     ax.legend()
     fig.tight_layout()
@@ -134,7 +135,7 @@ def fig_metadata_heatmap(cov: pd.DataFrame) -> None:
     cov = cov.reindex([d for d in DOC_TYPES if d in cov.index])
     fig, ax = plt.subplots(figsize=(10, 9))
     sns.heatmap(cov, annot=True, fmt=".2f", cmap="viridis", vmin=0, vmax=1, cbar_kws={"label": "fill rate"}, ax=ax)
-    ax.set_title("Metadata field fill rate by doc_type (43-key union)")
+    ax.set_title(f"Metadata field fill rate by doc_type ({cov.shape[1]}-key union)")
     ax.set_xlabel("")
     fig.tight_layout()
     fig.savefig(FIG_DIR / "03_metadata_fill_rate_heatmap.png")
@@ -155,7 +156,6 @@ def run(save: bool = True) -> dict:
     if save:
         strata.to_csv(TABLE_DIR / "strata_counts.csv", index=False)
         provenance(blind, gt).to_csv(TABLE_DIR / "provenance_by_type.csv", index=False)
-        strata.to_json(TABLE_DIR / "imbalance_metrics.json", orient="records", indent=2)
         with open(TABLE_DIR / "imbalance_metrics.json", "w") as f:
             json.dump(out["imbalance"], f, indent=2, default=str)
         fig_type_distribution(gt)

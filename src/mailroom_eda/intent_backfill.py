@@ -1,7 +1,9 @@
-"""Correspondence intent backfill for docclass-merged v7 (KANBAN issue #5).
+"""Correspondence intent backfill for mailroom-dataset v9 (successor of the
+frozen v8 `mailroom-corpus`; issue #5 lineage).
 
 Implements the four-phase plan from
-https://github.com/Exios66/mailroom-dev/issues/5:
+https://github.com/Exios66/mailroom-dev/issues/5 (the issue tracker now
+lives in the org monorepo LLM-Mailroom-Services/Digital-Mailroom):
 
 Phase 1 — Taxonomy cross-walk: the canonical Enron intent vocabulary is
     vendored from llm-mailroom's ``INTENT_LABELS["correspondence"]`` (8
@@ -50,6 +52,7 @@ from pathlib import Path
 import pandas as pd
 
 from .config import DATA_DIR, RANDOM_STATE
+from .release_sections import LEGACY_V7_GT_KEYS
 
 BACKFILL_DIR = DATA_DIR / "backfill"
 INDEX_CACHE = BACKFILL_DIR / "enron_body_sha256.parquet"
@@ -321,7 +324,11 @@ def llm_label_one(text: str, model: str, api_key: str, base_url: str, subject_li
 # Orchestration
 # ---------------------------------------------------------------------------
 
-INTENT_SOURCES = ("manual", "aeslc_join", "llm_zero_shot")
+# Canonical intent provenance enum. v9 (issue #3/#9) adds ``heuristic``: the
+# +650 correspondence draws hydrate intent via §20/§43 subject-line heuristics
+# (deterministic, ``intent_status = auto_labeled``), joining the v7 trio
+# (manual / aeslc_join / llm_zero_shot).
+INTENT_SOURCES = ("manual", "aeslc_join", "llm_zero_shot", "heuristic")
 
 
 def load_existing_labels() -> dict[str, dict]:
@@ -342,6 +349,34 @@ def load_existing_labels() -> dict[str, dict]:
                 row["intent_source"] = "aeslc_join"
             out[row["filename"]] = row
     return out
+
+
+def preserve_existing_provenance(
+    *, intent: object, intent_source: object, intent_confidence: object, intent_status: object,
+) -> dict:
+    """Provenance for a row this run's backfill did not touch (not in ``need``).
+
+    "manual" is only backfilled for legacy rows that predate provenance
+    tracking (intent populated but ``intent_source`` empty) -- an
+    already-recorded source (e.g. v9's ``heuristic`` draws) must never be
+    overwritten, or a re-run of this backfill on a later corpus revision
+    would silently relabel every heuristic-sourced row as manual.
+    """
+    has_intent = str(intent or "").strip()
+    existing_source = str(intent_source or "").strip()
+    if existing_source:
+        return {
+            "intent": intent,
+            "intent_source": existing_source,
+            "intent_confidence": intent_confidence,
+            "intent_status": intent_status,
+        }
+    return {
+        "intent": intent,
+        "intent_source": "manual" if has_intent else "",
+        "intent_confidence": 1.0 if has_intent else intent_confidence,
+        "intent_status": "manual" if has_intent else intent_status,
+    }
 
 
 def backfill_correspondence(
@@ -422,8 +457,9 @@ def backfill_correspondence(
             break
         if not api_key:
             raise SystemExit(
-                "LLM pass requires OPENROUTER_API_KEY (set it in the environment "
-                "or ~/.hermes/.env). Rows not in the sidecar cannot be labeled."
+                "LLM pass requires a provider key — set OPENROUTER_API_KEY, or "
+                "VLLM_API_KEY (+VLLM_BASE_URL for a self-hosted vLLM/Modal "
+                "endpoint). Rows not in the sidecar cannot be labeled."
             )
         text = doc_text_map.get(fn, "")
         subject = (join_hits.get(fn) or {}).get("subject_line", "")
@@ -462,14 +498,12 @@ def backfill_correspondence(
     def _row_values(fn: str, src: pd.Series) -> dict:
         entry = merged.get(fn)
         if entry is None:
-            # preserve pre-existing labels as-is
-            has_intent = str(src.get("intent", "") or "").strip()
-            return {
-                "intent": src.get("intent", ""),
-                "intent_source": "manual" if has_intent else src.get("intent_source", ""),
-                "intent_confidence": 1.0 if has_intent else src.get("intent_confidence", ""),
-                "intent_status": "manual" if has_intent else src.get("intent_status", ""),
-            }
+            return preserve_existing_provenance(
+                intent=src.get("intent", ""),
+                intent_source=src.get("intent_source", ""),
+                intent_confidence=src.get("intent_confidence", ""),
+                intent_status=src.get("intent_status", ""),
+            )
         return {
             "intent": entry["intent"],
             "intent_source": entry["intent_source"],
@@ -499,7 +533,8 @@ def backfill_correspondence(
     )
     # Merge totals (sidecar-resumed rows count as labeled too) so the manifest
     # reflects the final corpus state, not just this run's new calls. The
-    # three intent_source values are DISJOINT and sum to the correspondence
+    # four intent_source values (v9 adds ``heuristic`` for the §20/§43
+    # subject-line-hydrated draws) are DISJOINT and sum to the correspondence
     # row count; aeslc_joined counts the rows hydrated through the exact-body
     # join (== aeslc_join_total).
     stats["manual_total"] = int(
@@ -511,6 +546,9 @@ def backfill_correspondence(
     stats["llm_zero_shot_total"] = int(
         (gt.loc[corr_mask, "intent_source"] == "llm_zero_shot").sum()
     )
+    stats["heuristic_total"] = int(
+        (gt.loc[corr_mask, "intent_source"] == "heuristic").sum()
+    )
     stats["aeslc_joined"] = stats["aeslc_join_total"]
     stats["flagged_review"] = int(
         (gt.loc[corr_mask, "intent_status"] == "flagged_review").sum()
@@ -518,11 +556,17 @@ def backfill_correspondence(
     stats["other_fallback"] = int(
         (gt.loc[corr_mask, "intent"] == "other").sum()
     )
-    total_sources = stats["manual_total"] + stats["aeslc_join_total"] + stats["llm_zero_shot_total"]
+    total_sources = (
+        stats["manual_total"]
+        + stats["aeslc_join_total"]
+        + stats["llm_zero_shot_total"]
+        + stats["heuristic_total"]
+    )
     assert total_sources == int(corr_mask.sum()), (
         f"intent_source totals do not sum to correspondence rows: "
         f"{stats['manual_total']} manual + {stats['aeslc_join_total']} aeslc_join + "
-        f"{stats['llm_zero_shot_total']} llm_zero_shot != {int(corr_mask.sum())}"
+        f"{stats['llm_zero_shot_total']} llm_zero_shot + "
+        f"{stats['heuristic_total']} heuristic != {int(corr_mask.sum())}"
     )
     return gt, stats
 
@@ -569,17 +613,9 @@ def test_split_intent_coverage(gt: pd.DataFrame) -> dict:
     return report
 
 
-GT_PUBLISH_KEYS = [
-    "label_evidence", "content_topic", "topic_evidence",
-    "sentiment_score", "sentiment_label", "sentiment_evidence",
-    "claim_number", "policy_number", "insurer", "insured_party",
-    "claim_type", "date_of_loss", "date_filed", "claimed_amount",
-    "adjuster", "damages_description", "coverage_determination",
-    "denial_reasons", "supporting_documents",
-    "cuad_clause_labels", "maud_clause_labels",
-    "intent", "subject_matter", "keywords",
-    "intent_source", "intent_confidence", "intent_status",
-]
+#: v7 publish surface (frozen); current surfaces use
+#: `release_sections.GT_SCALAR_KEYS`.
+GT_PUBLISH_KEYS = LEGACY_V7_GT_KEYS
 
 
 def build_v7_rows(
@@ -621,4 +657,3 @@ def build_v7_rows(
             fh.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
     print(f"v7 rows -> {path} ({len(rows)} rows)")
     return rows
-    return report

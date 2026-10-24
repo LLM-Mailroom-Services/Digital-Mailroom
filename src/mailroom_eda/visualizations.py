@@ -18,8 +18,9 @@ from .config import (
     setup_matplotlib,
 )
 from .download import load_default, load_ground_truth
-from .integrity import _meta_series
-from .token_budget import budget_coverage, budget_coverage_by_type, compute_token_stats, estimate_tokens, token_ecdf_by_type
+from .gt_presence import is_populated
+from .integrity import _align_configs, _meta_series
+from .token_budget import budget_coverage, compute_token_stats
 
 
 def _load_all() -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -39,6 +40,7 @@ def _parse_labels(v):
 
 
 def _text_frame(blind: pd.DataFrame, gt: pd.DataFrame) -> pd.DataFrame:
+    blind, gt = _align_configs(blind, gt)
     df = pd.DataFrame({
         "filename": blind["filename"],
         "doc_type": gt["expected"],
@@ -89,8 +91,6 @@ def fig_token_budget_coverage(blind: pd.DataFrame, gt: pd.DataFrame) -> None:
     import matplotlib.pyplot as plt
 
     df = _text_frame(blind, gt)
-    cov = budget_coverage_by_type([{"expected": r.doc_type, "doc_text": ""} for r in df.itertuples()])
-    # rebuild properly
     rows = []
     for d in DOC_TYPES:
         if d not in df["doc_type"].values:
@@ -174,10 +174,35 @@ def fig_length_by_subclass(blind: pd.DataFrame, gt: pd.DataFrame) -> None:
 # 3.2 CUAD clause deep-dive (contracts)
 # ---------------------------------------------------------------------------
 
+def _pending_annotation_filenames(gt: pd.DataFrame, field: str) -> set:
+    """Filenames whose ``field`` is a catalogued pending-annotation gap
+    (single-sourced from ``mailroom_eda.gt_presence`` via the published
+    ``gt_presence`` column) -- never a genuine absence."""
+    if "gt_presence" not in gt.columns:
+        return set()
+    out = set()
+    for fn, raw in zip(gt["filename"], gt["gt_presence"]):
+        presence = _parse_labels(raw)
+        if presence.get(field) == "pending_annotation":
+            out.add(fn)
+    return out
+
+
 def _cuad_matrix(gt: pd.DataFrame) -> pd.DataFrame:
-    """Return (n_contracts x n_clauses) presence DataFrame + span count df."""
+    """Return (n_contracts x n_clauses) presence DataFrame + span count df.
+
+    Excludes contract rows whose ``cuad_clause_labels`` is a catalogued
+    *pending annotation* gap (issue #30: the 91 SEC EDGAR EX-10 rows the
+    clause-classification pass has not yet run over) rather than folding
+    them into the "0 spans" bucket -- an unannotated row is not evidence
+    the clause is absent, and counting it as such biases every coverage /
+    mean / co-occurrence statistic derived from this matrix downward.
+    """
+    pending = _pending_annotation_filenames(gt, "cuad_clause_labels")
     rows = []
     for _, r in gt[gt["expected"] == "contract"].iterrows():
+        if r["filename"] in pending:
+            continue
         labels = _parse_labels(r["cuad_clause_labels"])
         row = {}
         for c in CUAD_CLAUSES:
@@ -246,7 +271,7 @@ def fig_cuad_top_clauses(gt: pd.DataFrame) -> None:
     for i, v in enumerate(coverage.values):
         ax.text(100 * v + 0.6, i, f"{100*v:.0f}%", va="center", fontsize=8)
     ax.set_xlabel("% of contracts containing clause")
-    ax.set_title("Top 20 CUAD clauses by contract coverage (n=509)")
+    ax.set_title(f"Top 20 CUAD clauses by contract coverage (n={len(mat)})")
     fig.tight_layout()
     fig.savefig(FIG_DIR / "10_cuad_top_clauses.png")
     plt.close(fig)
@@ -344,12 +369,13 @@ def fig_maud_task_frequency(gt: pd.DataFrame) -> None:
     import matplotlib.pyplot as plt
 
     mf = _maud_frame(gt)
+    n_agreements = int(mf["filename"].nunique())
     counts = mf.groupby("task")["filename"].nunique().sort_values()
     fig, ax = plt.subplots(figsize=(9, 8))
     ax.barh(counts.index, counts.values, color="#55A868")
     for i, v in enumerate(counts.values):
         ax.text(v + 0.8, i, str(v), va="center", fontsize=8)
-    ax.set_xlabel("merger agreements containing task (n=152)")
+    ax.set_xlabel(f"merger agreements containing task (n={n_agreements})")
     ax.set_title("MAUD task frequency across merger agreements")
     fig.tight_layout()
     fig.savefig(FIG_DIR / "13_maud_task_frequency.png")
@@ -381,8 +407,9 @@ def fig_maud_category_coverage(gt: pd.DataFrame) -> None:
     import matplotlib.pyplot as plt
 
     mf = _maud_frame(gt)
+    n_agreements = int(mf["filename"].nunique())
     cats = sorted(mf["category"].unique())
-    task_cov = mf.groupby("task")["filename"].nunique() / 152
+    task_cov = mf.groupby("task")["filename"].nunique() / n_agreements
     data = {}
     for cat in cats:
         tasks = mf[mf["category"] == cat]["task"].unique()
@@ -397,7 +424,7 @@ def fig_maud_category_coverage(gt: pd.DataFrame) -> None:
         ax.set_yticks([])
         ax.set_ylim(0, 1.05)
         ax.tick_params(labelsize=7)
-    axes[0].set_title("MAUD task coverage by category (share of 152 agreements)")
+    axes[0].set_title(f"MAUD task coverage by category (share of {n_agreements} agreements)")
     axes[-1].set_xlabel("tasks within category")
     fig.tight_layout()
     fig.savefig(FIG_DIR / "15_maud_category_coverage.png")
@@ -500,8 +527,11 @@ def fig_claim_subtype_fields(gt: pd.DataFrame) -> None:
         "supporting_documents",
     ]
     subtypes = claims["expected_subclass"].unique()
+    # Absence is '' / '[]' / '{}' (corpus-wide convention), never a real
+    # NaN once loaded from the cast-safe gt_fields columns -- .notna()
+    # would report ~100% fill on every field regardless of content.
     fill = pd.DataFrame({
-        st: [claims.loc[claims["expected_subclass"] == st, f].notna().mean() for f in fields]
+        st: [claims.loc[claims["expected_subclass"] == st, f].map(is_populated).mean() for f in fields]
         for st in subtypes
     }, index=fields)
 
@@ -663,6 +693,11 @@ def fig_minority_strata(gt: pd.DataFrame) -> None:
 # ---------------------------------------------------------------------------
 
 def _temporal_frame(blind: pd.DataFrame, gt: pd.DataFrame, meta: pd.DataFrame) -> pd.DataFrame:
+    # The supplied metadata follows blind order; GT configs may use another
+    # shard order and unrelated indexes. Keep their filename identity paired.
+    _, gt = _align_configs(blind, gt)
+    if len(meta) != len(blind):
+        raise ValueError("metadata row count differs from blind filename count")
     rows = []
     for i, dt in enumerate(gt["expected"]):
         m = meta.iloc[i]
@@ -797,7 +832,7 @@ def fig_metadata_cardinality(meta: pd.DataFrame) -> None:
     ax.barh(card.index, card.values, color="#55A868")
     ax.set_xscale("log")
     ax.set_xlabel("unique values (log)")
-    ax.set_title("Metadata field cardinality (43 keys)")
+    ax.set_title(f"Metadata field cardinality ({len(card)} keys)")
     fig.tight_layout()
     fig.savefig(FIG_DIR / "30_metadata_cardinality.png")
     plt.close(fig)
@@ -812,9 +847,12 @@ def save_eda_tables(blind: pd.DataFrame, gt: pd.DataFrame, meta: pd.DataFrame) -
     TABLE_DIR.mkdir(parents=True, exist_ok=True)
     df = _text_frame(blind, gt)
 
-    # Text stats
+    # Text stats (real doc_text — the tokens/chars must describe the corpus,
+    # not zero-fill; rows are aligned to `blind` by filename)
+    text_by_fn = blind.set_index("filename")["doc_text"]
     text_stats = compute_token_stats(
-        [{"expected": r.doc_type, "doc_text": ""} for r in df.itertuples()], by_type=True
+        [{"expected": r.doc_type, "doc_text": text_by_fn[r.filename]} for r in df.itertuples()],
+        by_type=True,
     )
     text_stats.to_csv(TABLE_DIR / "text_length_stats_by_type.csv", index=False)
 
@@ -878,7 +916,7 @@ def save_eda_tables(blind: pd.DataFrame, gt: pd.DataFrame, meta: pd.DataFrame) -
         ]
         subtypes = claims["expected_subclass"].unique()
         fill = pd.DataFrame({
-            st: [claims.loc[claims["expected_subclass"] == st, f].notna().mean() for f in fields]
+            st: [claims.loc[claims["expected_subclass"] == st, f].map(is_populated).mean() for f in fields]
             for st in subtypes
         }, index=fields)
         fill.to_csv(TABLE_DIR / "claim_field_coverage.csv")
@@ -974,7 +1012,10 @@ def run(save: bool = True) -> dict:
     fig_metadata_cardinality(meta)
 
     tables = save_eda_tables(blind, gt, meta) if save else {}
-    return {"figures": 30, "tables": tables}
+    # Count what was actually written (figures may legitimately be skipped
+    # when a class/corpus subset is empty — never hard-wire the count).
+    n_figs = len(list(FIG_DIR.glob("*.png"))) if save else 30
+    return {"figures": n_figs, "tables": tables}
 
 
 if __name__ == "__main__":

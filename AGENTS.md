@@ -1,14 +1,39 @@
 # AGENTS.md — Mailroom-Corpus-EDA
 
 Exploratory data analysis (and the centralized HF upload helpers) for the
-[`Lucius-Morningstar/docclass-merged`](https://huggingface.co/datasets/Lucius-Morningstar/docclass-merged)
-corpus — 1,650 legal documents across 5 doc_types (insurance_claim,
-merger_agreement, contract, correspondence, corporate_record), 48 strata.
+[`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
+corpus (v1, canonically **v9** of the mailroom corpus family) — **3,302** legal
+documents across 5 doc_types (insurance_claim, merger_agreement, contract,
+correspondence, corporate_record), 55 strata. Canonical Hub tag **`v9.2`**
+(`670e8bc6…`, docs/card pin on the data commit `d49f60a4…` — relations &
+provenance revision; zero row/identity/content drift from the v9.1 tip
+`bc9eab28…` / data `ed7576b6…` it revises); standalone successor of the
+frozen v8 `mailroom-corpus` baseline (2,000 rows, `eafe1ab4` — never
+destroyed).
 
-Mirror of the standalone `Exios66/Mailroom-Corpus-EDA` repo; in the monorepo
-it lives at `packages/mailroom-corpus-eda` as a virtual uv member (no build).
-Never edit it from both places in one session — develop here, sync via
-`scripts/sync_packages.py` in mailroom-dev.
+The standalone `Exios66/Mailroom-Corpus-EDA` repository is authoritative
+for corpus acquisition, EDA, dataset labels, and centralized HF publishing.
+Digital-Mailroom consumes it at `packages/mailroom-corpus-eda` as a virtual
+uv member (no build).
+
+## Source ownership & downstream imports
+
+- Author and review corpus changes in this standalone repository first.
+  Import merged standalone changes into Digital-Mailroom with its governed
+  `scripts/sync_packages.py pull --squash` workflow, then re-baseline the
+  sync cursor. Never hand-edit a downstream mirror or author the same fix
+  independently on both surfaces.
+- `Exios66/llm-dojo-scoring` owns scoring metrics and corporate schema;
+  this producer's dependency-free registry is a provenance-pinned mirror
+  with explicit parity checks, not a second source of scoring doctrine.
+- `Exios66/llm-mailroom` owns the pipeline; the standalone
+  `local-mailroom-sandbox` owns offline execution and Modal/vLLM serving;
+  `The-Mailroom` owns the visualizer. Changes to those concerns originate
+  in their respective standalone repositories before hub imports.
+- Corpus releases are published via the centralized HF helpers below.
+  Code imports do not authorize corpus rebuilds, data regeneration, or
+  publication. Digital-Mailroom import/release runbooks live in its root
+  `AGENTS.md`, `docs/wiki/Sub-Package-Sync.md`, and `docs/wiki/Releases.md`.
 
 ## Layout
 
@@ -25,8 +50,30 @@ Never edit it from both places in one session — develop here, sync via
   - `intent_backfill.py` — correspondence intent hydration (issue #5):
     cross-walk, Enron/AESLC sha256 join, constrained LLM pass, provenance
   - `token_budget.py` — token estimation & budget coverage
-- `scripts/` — CLI wrappers: `publish_docclass.py`, `backfill_intent.py`,
-  `export_docclass.py`, `verify_hf.py`
+  - `identity.py` — P0 document identity (document_id, content hashes,
+    source provenance — cast-safe, absence is '')
+  - `eval_contract.py` — P1 evaluation-contract derivations (§59 routing,
+    §57–58 stage, §31 review/retry, §43 provenance) + closed vocabularies
+    (fixture kinds, calibration quartet, matter/group, failure stages)
+  - `matter.py` — P2 grouping derivations (§14A: header threads — verified
+    absent here; subject+custodian+window reconstruction; never-mix guard)
+  - `bundles.py` — P2 §14 synthetic bundle-family generator (flagged
+    scaffold over real anchors; publish rides §84)
+  - `fixtures.py` — §68–§72A fixture content (calibration quartet at live
+    bands, arbiter scenarios, failure-stage matrix; publish rides §84)
+- `scripts/` — CLI wrappers, organized by purpose:
+  - `build/build_v9.py` — build + publish the v9 `mailroom-dataset`
+  - `publish/verify_hf.py` — byte-verify a local export against the Hub
+  - `audit/` — `baseline_audit.py`, `coverage_matrix.py` (→
+    `docs/reports/audits/docclass_coverage_matrix.*`), `expansion_priorities.py`
+    (→ `docs/reports/audits/docclass_expansion_priorities.*`)
+  - `reports/` — `generate_index.py`, `generate_summary_md.py` (data-driven
+    report generators)
+  - `backfill/backfill_intent.py` — correspondence intent hydration (issue #5)
+  - `archive/v8/` — frozen `mailroom-corpus` tooling (build_v8,
+    publish_hardened, reconcile_gt_v8, publish_docclass, export_docclass)
+  - `archive/v9-acquisition/` — one-time v9 EDGAR/draw sourcing
+  - `_bootstrap.py` — shared repo-root + `src/` path bootstrap for all CLIs
 - `run_all.py` — 7-phase pipeline (P0 download → P6 intent coverage audit)
 - `reports/` — generated artifacts (figures/, figures_interactive/, tables/, SUMMARY_REPORT.md)
   - ALL of `reports/` is tracked in full per human directive (HUB-008) — never
@@ -40,8 +87,9 @@ Never edit it from both places in one session — develop here, sync via
 ```bash
 .venv/bin/python run_all.py                      # full pipeline P0-P6
 .venv/bin/python run_all.py --phases P3 P4       # figures only
-.venv/bin/python scripts/backfill_intent.py --check
-.venv/bin/python scripts/publish_docclass.py --help
+.venv/bin/python scripts/backfill/backfill_intent.py --check
+.venv/bin/python scripts/build/build_v9.py --help
+.venv/bin/python scripts/audit/coverage_matrix.py --check
 ```
 
 **Summary writes**: `reports/SUMMARY_REPORT.json` is written only by a
@@ -64,7 +112,7 @@ runs used to clobber the full-corpus summary with phase-partial stats.)
   regenerating can never be byte-identical — the committed files are the
   canonical upstream bytes; treat local regeneration as scratch only.
 - **Intent backfill** (issue #5): never hand-edit `data/backfill/intent_labels.jsonl`;
-  re-run `scripts/backfill_intent.py` (checkpointed — the LLM pass skips rows
+  re-run `scripts/backfill/backfill_intent.py` (checkpointed — the LLM pass skips rows
   already in the sidecar). The canonical vocabulary is the closed 8-class set
   in `intent_backfill.CANONICAL_INTENTS`; `other` is the explicit fallback,
   never null.
@@ -72,24 +120,223 @@ runs used to clobber the full-corpus summary with phase-partial stats.)
 - **Determinism**: `RANDOM_STATE = 42`; rebuilds of JSONL/parquet must be
   byte-identical (sorted rows, deterministic order).
 
-## HF facts (verified 2026-09-01)
+## Cursor Cloud specific instructions
 
-- Repo: `Lucius-Morningstar/docclass-merged` (v7, 1,650 rows; provenance-fix
-  data tip `bb57c5ad` — intent_source corrected to the issue #5 hydration
-  paths, labels/confidences byte-identical to `1acd2600`).
-- Composition: insurance_claim 600, contract 509, correspondence 350,
-  merger_agreement 152, corporate_record 39.
-- Configs: `default` (blind, 4 cols) + `ground_truth` (31 cols incl. labels +
-  intent provenance `intent_source`/`intent_confidence`/`intent_status`).
-- Split: train 1,474 / test 176 on both configs; filename sets equal.
-- v7 intent hydration (issue #5): 350/350 correspondence rows carry a
-  canonical 8-class intent (payment_demand, notice, analysis, request, update,
-  meeting_invite, press_communication, other); `intent_source` = hydration
-  path, disjoint and summing to 350: 96 manual + 162 aeslc_join (sha256
-  exact-body join-assisted pass vs the AESLC/Enron mirrors — the mirrors
-  carry no intent annotations) + 92 llm_zero_shot (deepseek-chat,
-  OpenRouter), 1 flagged_review. All 8 classes present in the test split.
+The default Cloud Agent image ships Python 3.12 without `python3.12-venv`, so
+`python3 -m venv` fails until that package is installed (`ensurepip` is
+missing). Use a repo-local `.venv`. Cloud Agent `install` starts at the
+workspace root, not this checkout, so locate `Mailroom-Corpus-EDA` first
+(typically `/agent/repos/Mailroom-Corpus-EDA`). The checkout parent is not
+always writable; create the sibling taxonomy clone with `sudo` before
+`git init`.
+
+```bash
+sudo apt-get update
+sudo apt-get install -y python3.12-venv
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt 'pytest>=8.0'
+sudo mkdir -p ../llm-mailroom
+sudo chown "$(id -u):$(id -g)" ../llm-mailroom
+git init ../llm-mailroom
+git -C ../llm-mailroom remote get-url origin >/dev/null 2>&1 || git -C ../llm-mailroom remote add origin https://github.com/Exios66/llm-mailroom.git
+git -C ../llm-mailroom fetch --depth 1 origin cb960a2c1ab323a7d9cb1ebf9e9aaf77652ca622
+git -C ../llm-mailroom checkout --force --detach FETCH_HEAD
+.venv/bin/python -m pytest tests/
+.venv/bin/python run_all.py --phases P0
+.venv/bin/python scripts/audit/coverage_matrix.py --check
+```
+
+`pytest` is a dev extra and is absent from `requirements.txt`. Without the
+sibling pin, `test_mailroom_contract_fixture` and
+`test_expected_specialist_matches_live_taxonomy_yaml` cannot read
+`../llm-mailroom/src/config/taxonomy.yaml`. The pin is `llm-mailroom`
+`main` at `cb960a2c1ab323a7d9cb1ebf9e9aaf77652ca622` (2026-10-17); the
+older pin `417d5a0814cb14f5c3834c063045c9a8c7801cfb` predates the routing
+change and fails three routing tests. `main` routes `merger_agreement` to
+`merger_agreement_specialist`; `eval_contract` aligns that routing as of
+2026-10-17 (live-taxonomy alignment — see the D6 amendment in
+`docs/plans/v9.2-relations-provenance-revision.md`), so these tests expect
+`merger_agreement_specialist`. The 152 published merger
+`expected_specialist` values on the Hub still read `contracts_specialist`
+until the v9.3 label revision.
+
+`run_all.py --phases P0` fetches the public
+`Lucius-Morningstar/mailroom-dataset` snapshot into gitignored `data/`
+(3,302 rows at the v9.2 data commit `d49f60a4`). Publishing needs `HF_TOKEN`.
+Reading the public snapshot does not. Full-corpus tests skip until that
+snapshot exists. `tests/test_contract.py::test_mailroom_contract_snapshot`
+asserts the v9.2 schema (35 top-level columns; 34-key `gt_fields` union) and
+registers the five quality-revision meta keys (`clause_count`, `maud_label_count`,
+`gt_presence`, `token_estimate`, `context_window_band`) via `GT_META_KEYS`,
+so the §64 checker skips them instead of failing on the B2/B4 additions.
+`scripts/audit/coverage_matrix.py --check` is the read-only corpus audit.
+
+## HF facts (verified 2026-10-06, dataset v1 / corpus v9.2 quality revision)
+
+Code-only revision of the v9.1 tip below (relations & provenance
+completion; plan doc `docs/plans/v9.2-relations-provenance-revision.md`).
+No new document sourcing; zero row-set/identity/content drift
+(`document_id`, `content_sha256`, `doc_text`, every metadata key
+byte-identical). Built + published by `mailroom_eda.v9_2_revision` /
+`scripts/build/build_v9_2_quality_revision.py`.
+
+- Repo: `Lucius-Morningstar/mailroom-dataset`, tag `v9.2`, docs/card commit
+  `670e8bc6f8d82221f741d5da479ee88bed8cac4a`, data commit
+  `d49f60a402ccc090617db58a8593aa971d63a2ff` (revises v9.1 tip `bc9eab28…` /
+  data `ed7576b6…` below; same 3,302 rows, train 2,979 / test 323).
+- **C1 — annotation provenance SSOT**: published `annotation_method` now
+  carries all six §20 regimes instead of only `source_native` + `synthetic`
+  — `verified_join` 162 · `llm_zero_shot` 637 · `human_annotated` 96 ·
+  `synthetic` 1,100 · `heuristic` 646 · `source_native` 661. `annotation_source`
+  aligns to the published `source_corpus` (SEC EDGAR EX-10 contracts move to
+  `sec_edgar`; CUAD 600→509, EDGAR 450→541); `annotation_model` =
+  `deepseek-chat` on the 637 LLM rows, `annotation_reviewer` = `human` on
+  the 96 manual rows.
+- **C2 — `_published` removal**: the undocumented build-internal `_published`
+  migration column no longer ships; GT parquet is now **35** top-level
+  columns (was 36). The nested `gt_fields` union is **34** keys (32 scalar +
+  2 matter lists: `relationships`, `related_document_ids`). Staging rejects
+  any `_`-prefixed key.
+- **C3 — relations completion**: `related_document_ids` is now populated on
+  the 23 heuristic matter rows (9 subject threads, all-pairs `document_id`
+  targets); the nested `gt_fields.relationships` / `related_document_ids`
+  mirrors are canonical copies of the top-level columns (the permanent-`[]`
+  split-brain is gone).
+- **C4 — `source_revision` override gate** extended to SEC EDGAR EX-10
+  contracts, aligning with `source_corpus` (zero live effect today).
+- **C5 — GT registry single-sourced**: `release_sections.GT_SCALAR_KEYS`
+  (32) / `LEGACY_V7_GT_KEYS` (27) replace three stale inline 27-key lists.
+- Workstream S (bundles/streams/fixtures column overlay) is **deferred to
+  v9.3** (decision D8).
+- `config.py` now pins `REPO_TAG="v9.2"`, `REPO_REVISION=670e8bc6…`,
+  `REPO_DATA_REVISION=d49f60a4…`.
+
+## HF facts (verified 2026-09-26, dataset v1 / corpus v9.1 quality revision)
+
+The v9.1 facts below describe the tip the v9.2 revision above revises in
+place (same repo, same 3,302 rows) — kept for the pre-C-series schema
+(36-column GT parquet, `_published`-bearing, single-regime provenance).
+
+Code-only revision of the v9 tip below (mailroom-issues#196 Phase B —
+"Modal + LLM-ingestion formatting"; plan doc
+`docs/plans/v9.1-data-quality-hf-revision.md`). No new document sourcing;
+zero row-set/identity/content drift (`document_id`, `content_sha256`,
+`doc_text`, every pre-existing `gt_fields`/`metadata` key byte-identical).
+Built + published by `mailroom_eda.v9_1_revision` /
+`scripts/build/build_v9_1_quality_revision.py`.
+
+- Repo: `Lucius-Morningstar/mailroom-dataset`, tip `ed7576b676343e0b402ec5412cded301e629bdee`
+  (revises v9 tip `46a4d3c2…` below; same 3,302 rows, train 2,979 / test 323).
+- **B1 — weak-indirect signal removal**: `metadata.clause_count` /
+  `metadata.maud_label_count` (a direct function of the hidden clause-label
+  GT — non-zero leaked "this doc has labeled clauses" to anything scoring
+  the blind `default` config) removed from blind metadata; now GT-only in
+  `gt_fields.clause_count` / `gt_fields.maud_label_count`.
+- **B2 — row-level GT presence codes** (`mailroom_eda.gt_presence`, single-
+  sourced with `scripts/audit/coverage_matrix.py`): every row's `gt_fields`
+  gained `gt_presence` (JSON) — one of `populated` / `schema_documented_absence`
+  / `pending_annotation` / `not_applicable` per label-bearing field. Verified
+  **zero `genuine_gap`** at publish time. Live distribution: `populated`
+  22,591 · `schema_documented_absence` 2,020 · `not_applicable` 41,338 ·
+  `pending_annotation` 91 (the 91 SEC EDGAR EX-10 `contract.cuad_clause_labels`
+  rows — issue #30 — now honestly diagnosed as blocked on the Modal/vLLM
+  clause-pass credential, not silently `{}`/100%-eligible).
+- **B4 — context-window budget bands**: `gt_fields.token_estimate` /
+  `gt_fields.context_window_band` (`<=4k` 2,530 · `<=16k` 428 · `<=32k` 120 ·
+  `>32k` 224 rows).
+- `docclass_uploader.GT_SCALAR_KEYS` extended with the 5 new fields
+  (`clause_count`, `maud_label_count`, `gt_presence`, `token_estimate`,
+  `context_window_band`) now that they are live on the Hub — `config.py`'s
+  `REPO_REVISION` is re-pinned to this tip.
+- `bundles` / `streams` / `fixtures` configs and sidecars are byte-identical
+  to the v9 tip — read-only inputs, never restaged by this revision.
+
+## HF facts (verified 2026-09-13, dataset v1 / corpus v9)
+
+The v9 facts below describe the tip the v9.1 quality revision above revises
+in place (same repo, same 3,302 rows) — kept for the pre-revision schema
+(`ground_truth`'s 29-key `gt_fields` set, before B1/B2/B4).
+
+- Repo: `Lucius-Morningstar/mailroom-dataset` (v1, canonically v9; data tip
+  `46a4d3c2…`). 3,302 rows (train 2,979 / test 323): insurance_claim 1,100
+  (carrier/inpatient/outpatient/pde 600 CMS DE-SynPUF + property 200 GNOTHEIA
+  + auto 150 BDR motor + 150 INSURBIAS/§36), correspondence 1,000,
+  contract 600 (509 CUAD + 91 SEC EDGAR EX-10), corporate_record 450,
+  merger_agreement 152 — 55 strata. Lineage: standalone successor of
+  `Lucius-Morningstar/mailroom-corpus` (frozen v8 baseline, 2,000 rows,
+  `eafe1ab4` — never destroyed); old `docclass-merged` repo DELETED.
+- Configs: `default` (blind, 4 cols) + `ground_truth` (36 top-level cols incl.
+  identity/provenance/matter + a `gt_fields` JSON column carrying the 29-key
+  §84 complete-GT label set — the EDA layer expands it via
+  `download._expand_gt_fields`) + `bundles` (50) + `streams` (62) +
+  `fixtures` (32). Sidecars: `ground_truth_hardened.jsonl`,
+  `bundles.jsonl`, `streams.jsonl`, `fixtures.jsonl`, `manifest.txt`.
+- Split: train 2,979 / test 323 on both configs; filename sets equal.
+- v9 expansion (tracking epic #18): correspondence +650 (intent hydrated via
+  §20/§43 subject-line heuristics — new `intent_source = heuristic`
+  provenance), corporate records +411, contract +91 (EX-10 — no CUAD
+  clause annotations), insurance +150 (INSURBIAS narratives + §36 workflow
+  docs). The v8 synthetic LOB expansion (property/auto) and the §84 hardened
+  columns carry over.
+- Correspondence intent (issue #5 + v9): 1,000/1,000 rows carry a canonical
+  8-class intent; sources 637 llm_zero_shot + 162 aeslc_join + 105 heuristic
+  + 96 manual; 25 flagged_review; all 8 classes in the test split (85 rows).
 - Related: `enron-correspondence-dedup`, `mailroom-cuad-contracts-full`,
   `mailroom-s1-corporate-records`, `mailroom-maud-contracts`.
+
+License note: the corpus card is CC-BY-4.0; v8 additions are Apache-2.0
+(GNOTHEIA) + MIT (BDR); INSURBIAS is CC-BY-4.0. XpertSystems ins001/ins007/
+hlt015 samples are CC-BY-NC-4.0 and were excluded.
+
+## HF facts (verified 2026-09-02, schema v8 — historical baseline)
+
+The v8 facts below describe the frozen baseline repo
+(`Lucius-Morningstar/mailroom-corpus`), which remains pinned at `eafe1ab4`
+for lineage and is superseded by `mailroom-dataset` above.
+
+- Repo: `Lucius-Morningstar/mailroom-corpus` (v8, 2,000 rows; data tip
+  `bba2f750`; hardened release rebuilt on v8 at `eafe1ab4`).
+- Composition: insurance_claim 950 (carrier/inpatient/outpatient/pde 600 CMS
+  DE-SynPUF + property 200 GNOTHEIA + auto 150 BDR motor),
+  contract 509, correspondence 350, merger_agreement 152,
+  corporate_record 39.
+- Configs: `default` (blind, 4 cols) + `ground_truth` (60 cols incl. labels,
+  intent provenance `intent_source`/`intent_confidence`/`intent_status`, AND
+  the §84 hardened columns — identity/hashes, evaluation contract,
+  matter/group) + `bundles` (38 cols, 50 rows) + `streams` (39 cols, 62 rows
+  — §27–§29/§48 STREAM tier: `RUN-SIM-001` interleaved ingress stream over
+  the bundle matters, 12 no-matter distractors) + `fixtures` (30 cols, 32
+  rows). Built via `scripts/archive/v8/publish_hardened.py` (HUB-022) on
+  the v8 base:
+  v7 `document_id`s unchanged (0 drift), v8 LOB rows carry their own
+  `source_corpus`/`annotation_source` (GNOTHEIA/BDR) + pinned
+  `source_revision` via `metadata.source_dataset` / `.source_revision`
+  (identity / eval_contract precedence: class map stays authoritative except
+  the insurance LOB override — never churn published document_ids).
+- Split: train 1,792 / test 208 on both configs; filename sets equal.
+- v8 insurance LOB expansion (HUB-028): property rows from
+  `gratex/GNOTHEIA-synthetic-insurance-dataset` (Apache-2.0) — FNOL bundles
+  stratified by loss event, determination `pending` (no adjudication in
+  source); auto rows from
+  `bdr-ai-org/insurance-motor-claims-decision-v1` (MIT) — decision letters
+  stratified by accident type × APPROVE/REVIEW/REJECT (all reject rows
+  included), feature-grounded denial reasons, adjuster pseudonyms. Full GT
+  conformance: all 950 insurance rows carry intent/subject/keywords +
+  provenance (CMS template-derived backfill); claimed_amount recovered from
+  doc text on 10 v7 gap rows; 3 train-only outpatient `:2` date gaps
+  documented as source-N/A; test-split nullification enforced (zero empty
+  class-relevant keys).
+- v7 intent hydration (issue #5): 350/350 correspondence rows carry a
+  canonical 8-class intent (payment_demand, notice, analysis, request, update,
+  meeting_invite, press_communication, other); 96 manual + 254 llm_zero_shot
+  (deepseek-chat, OpenRouter), 162 sha256-exact-body AESLC/Enron joins,
+  1 flagged_review. All 8 classes present in the test split.
+- Related: `enron-correspondence-dedup`, `mailroom-cuad-contracts-full`,
+  `mailroom-s1-corporate-records`, `mailroom-maud-contracts`.
+
+License note: the corpus card is CC-BY-4.0; v8 additions are Apache-2.0
+(GNOTHEIA) + MIT (BDR). XpertSystems ins001/ins007/hlt015 samples are
+CC-BY-NC-4.0 and were excluded; INSURBIAS (CC-BY-4.0) is deferred to v9
+(narratives only, no decision GT).
 
 See the `huggingface` opencode skill for the full Hub-interfacing workflow.

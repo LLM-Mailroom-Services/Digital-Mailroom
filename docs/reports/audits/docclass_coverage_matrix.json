@@ -1,0 +1,615 @@
+{
+  "generated_from": "local snapshot @ ground_truth config (network-free)",
+  "rows_total": 3302,
+  "classes": 5,
+  "strata": 55,
+  "class_view": {
+    "contract": {
+      "rows": 600,
+      "strata": 26,
+      "source": "theatticusproject/cuad",
+      "specialist": "contracts_specialist",
+      "field_coverage": {
+        "cuad_clause_labels": 509
+      },
+      "absence_classification": {
+        "cuad_clause_labels": {
+          "populated": 509,
+          "eligible": 600,
+          "documented_absence": 0,
+          "pending_annotation": 91,
+          "genuine_gap": 0,
+          "coverage_pct": 85
+        }
+      },
+      "tested": 0,
+      "regression": 0,
+      "challenge": 0,
+      "multi_document": 0
+    },
+    "corporate_record": {
+      "rows": 450,
+      "strata": 10,
+      "source": "sec_edgar",
+      "specialist": "corporate_records_specialist",
+      "field_coverage": {
+        "intent": 450,
+        "subject_matter": 450,
+        "keywords": 450
+      },
+      "absence_classification": {
+        "intent": {
+          "populated": 450,
+          "eligible": 450,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "subject_matter": {
+          "populated": 450,
+          "eligible": 450,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "keywords": {
+          "populated": 450,
+          "eligible": 450,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        }
+      },
+      "tested": 0,
+      "regression": 0,
+      "challenge": 0,
+      "multi_document": 0
+    },
+    "correspondence": {
+      "rows": 1000,
+      "strata": 8,
+      "source": "Lucius-Morningstar/enron-correspondence-dedup",
+      "specialist": "correspondence_specialist",
+      "field_coverage": {
+        "intent": 1000,
+        "subject_matter": 1000,
+        "keywords": 1000,
+        "sentiment_label": 1000,
+        "content_topic": 1000
+      },
+      "absence_classification": {
+        "intent": {
+          "populated": 1000,
+          "eligible": 1000,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "subject_matter": {
+          "populated": 1000,
+          "eligible": 1000,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "keywords": {
+          "populated": 1000,
+          "eligible": 1000,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "sentiment_label": {
+          "populated": 1000,
+          "eligible": 1000,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "content_topic": {
+          "populated": 1000,
+          "eligible": 1000,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        }
+      },
+      "tested": 0,
+      "regression": 0,
+      "challenge": 0,
+      "multi_document": 0
+    },
+    "insurance_claim": {
+      "rows": 1100,
+      "strata": 6,
+      "source": "cms_desynpuf (+ GNOTHEIA, BDR, INSURBIAS)",
+      "specialist": "insurance_claims_specialist",
+      "field_coverage": {
+        "claim_number": 1100,
+        "policy_number": 1100,
+        "insurer": 1100,
+        "insured_party": 1100,
+        "claim_type": 1100,
+        "date_of_loss": 1100,
+        "date_filed": 1100,
+        "claimed_amount": 1100,
+        "adjuster": 150,
+        "damages_description": 1100,
+        "coverage_determination": 1100,
+        "denial_reasons": 36,
+        "supporting_documents": 1094,
+        "intent": 1100,
+        "subject_matter": 1100,
+        "keywords": 1100
+      },
+      "absence_classification": {
+        "claim_number": {
+          "populated": 1100,
+          "eligible": 1100,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "policy_number": {
+          "populated": 1100,
+          "eligible": 1100,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "insurer": {
+          "populated": 1100,
+          "eligible": 1100,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "insured_party": {
+          "populated": 1100,
+          "eligible": 1100,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "claim_type": {
+          "populated": 1100,
+          "eligible": 1100,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "date_of_loss": {
+          "populated": 1100,
+          "eligible": 1100,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "date_filed": {
+          "populated": 1100,
+          "eligible": 1100,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "claimed_amount": {
+          "populated": 1100,
+          "eligible": 1100,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "adjuster": {
+          "populated": 150,
+          "eligible": 150,
+          "documented_absence": 950,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "damages_description": {
+          "populated": 1100,
+          "eligible": 1100,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "coverage_determination": {
+          "populated": 1100,
+          "eligible": 1100,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "denial_reasons": {
+          "populated": 36,
+          "eligible": 36,
+          "documented_absence": 1064,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "supporting_documents": {
+          "populated": 1094,
+          "eligible": 1094,
+          "documented_absence": 6,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "intent": {
+          "populated": 1100,
+          "eligible": 1100,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "subject_matter": {
+          "populated": 1100,
+          "eligible": 1100,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        },
+        "keywords": {
+          "populated": 1100,
+          "eligible": 1100,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        }
+      },
+      "tested": 0,
+      "regression": 0,
+      "challenge": 0,
+      "multi_document": 0
+    },
+    "merger_agreement": {
+      "rows": 152,
+      "strata": 5,
+      "source": "maud",
+      "specialist": "contracts_specialist",
+      "field_coverage": {
+        "maud_clause_labels": 152
+      },
+      "absence_classification": {
+        "maud_clause_labels": {
+          "populated": 152,
+          "eligible": 152,
+          "documented_absence": 0,
+          "pending_annotation": 0,
+          "genuine_gap": 0,
+          "coverage_pct": 100
+        }
+      },
+      "tested": 0,
+      "regression": 0,
+      "challenge": 0,
+      "multi_document": 0
+    }
+  },
+  "strata_view": [
+    {
+      "class": "contract",
+      "subclass": "Affiliate_Agreements",
+      "rows": 11
+    },
+    {
+      "class": "contract",
+      "subclass": "Agency Agreements",
+      "rows": 13
+    },
+    {
+      "class": "contract",
+      "subclass": "Co_Branding",
+      "rows": 22
+    },
+    {
+      "class": "contract",
+      "subclass": "Collaboration",
+      "rows": 26
+    },
+    {
+      "class": "contract",
+      "subclass": "Consulting Agreements",
+      "rows": 38
+    },
+    {
+      "class": "contract",
+      "subclass": "Development",
+      "rows": 28
+    },
+    {
+      "class": "contract",
+      "subclass": "Distributor",
+      "rows": 32
+    },
+    {
+      "class": "contract",
+      "subclass": "Endorsement",
+      "rows": 24
+    },
+    {
+      "class": "contract",
+      "subclass": "Franchise",
+      "rows": 15
+    },
+    {
+      "class": "contract",
+      "subclass": "Hosting",
+      "rows": 20
+    },
+    {
+      "class": "contract",
+      "subclass": "IP",
+      "rows": 35
+    },
+    {
+      "class": "contract",
+      "subclass": "Joint Venture",
+      "rows": 9
+    },
+    {
+      "class": "contract",
+      "subclass": "Joint Venture _ Filing",
+      "rows": 14
+    },
+    {
+      "class": "contract",
+      "subclass": "License_Agreements",
+      "rows": 43
+    },
+    {
+      "class": "contract",
+      "subclass": "Maintenance",
+      "rows": 34
+    },
+    {
+      "class": "contract",
+      "subclass": "Manufacturing",
+      "rows": 17
+    },
+    {
+      "class": "contract",
+      "subclass": "Marketing",
+      "rows": 17
+    },
+    {
+      "class": "contract",
+      "subclass": "Non_Compete_Non_Solicit",
+      "rows": 3
+    },
+    {
+      "class": "contract",
+      "subclass": "Outsourcing",
+      "rows": 18
+    },
+    {
+      "class": "contract",
+      "subclass": "Promotion",
+      "rows": 12
+    },
+    {
+      "class": "contract",
+      "subclass": "Reseller",
+      "rows": 12
+    },
+    {
+      "class": "contract",
+      "subclass": "Service",
+      "rows": 34
+    },
+    {
+      "class": "contract",
+      "subclass": "Sponsorship",
+      "rows": 31
+    },
+    {
+      "class": "contract",
+      "subclass": "Strategic Alliance",
+      "rows": 32
+    },
+    {
+      "class": "contract",
+      "subclass": "Supply",
+      "rows": 47
+    },
+    {
+      "class": "contract",
+      "subclass": "Transportation",
+      "rows": 13
+    },
+    {
+      "class": "corporate_record",
+      "subclass": "articles_of_incorporation",
+      "rows": 62
+    },
+    {
+      "class": "corporate_record",
+      "subclass": "board_resolution",
+      "rows": 32
+    },
+    {
+      "class": "corporate_record",
+      "subclass": "bylaws",
+      "rows": 28
+    },
+    {
+      "class": "corporate_record",
+      "subclass": "charter_amendment",
+      "rows": 80
+    },
+    {
+      "class": "corporate_record",
+      "subclass": "indenture",
+      "rows": 57
+    },
+    {
+      "class": "corporate_record",
+      "subclass": "officer_certificate",
+      "rows": 61
+    },
+    {
+      "class": "corporate_record",
+      "subclass": "other",
+      "rows": 3
+    },
+    {
+      "class": "corporate_record",
+      "subclass": "powers_of_attorney",
+      "rows": 28
+    },
+    {
+      "class": "corporate_record",
+      "subclass": "rights_instrument",
+      "rows": 46
+    },
+    {
+      "class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "rows": 53
+    },
+    {
+      "class": "correspondence",
+      "subclass": "attorney_demand",
+      "rows": 3
+    },
+    {
+      "class": "correspondence",
+      "subclass": "demand",
+      "rows": 66
+    },
+    {
+      "class": "correspondence",
+      "subclass": "email",
+      "rows": 557
+    },
+    {
+      "class": "correspondence",
+      "subclass": "letter",
+      "rows": 79
+    },
+    {
+      "class": "correspondence",
+      "subclass": "meeting_request",
+      "rows": 53
+    },
+    {
+      "class": "correspondence",
+      "subclass": "memo",
+      "rows": 83
+    },
+    {
+      "class": "correspondence",
+      "subclass": "notice",
+      "rows": 81
+    },
+    {
+      "class": "correspondence",
+      "subclass": "press_release",
+      "rows": 78
+    },
+    {
+      "class": "insurance_claim",
+      "subclass": "auto",
+      "rows": 300
+    },
+    {
+      "class": "insurance_claim",
+      "subclass": "carrier",
+      "rows": 150
+    },
+    {
+      "class": "insurance_claim",
+      "subclass": "inpatient",
+      "rows": 150
+    },
+    {
+      "class": "insurance_claim",
+      "subclass": "outpatient",
+      "rows": 150
+    },
+    {
+      "class": "insurance_claim",
+      "subclass": "pde",
+      "rows": 150
+    },
+    {
+      "class": "insurance_claim",
+      "subclass": "property",
+      "rows": 200
+    },
+    {
+      "class": "merger_agreement",
+      "subclass": "all_cash",
+      "rows": 57
+    },
+    {
+      "class": "merger_agreement",
+      "subclass": "all_stock",
+      "rows": 24
+    },
+    {
+      "class": "merger_agreement",
+      "subclass": "mixed_cash_stock",
+      "rows": 13
+    },
+    {
+      "class": "merger_agreement",
+      "subclass": "mixed_cash_stock_election",
+      "rows": 1
+    },
+    {
+      "class": "merger_agreement",
+      "subclass": "other",
+      "rows": 57
+    }
+  ],
+  "absence_rules": {
+    "insurance_claim.adjuster": {
+      "rule": "v8_build.py ALLOWED_EMPTY = {'adjuster'}; v9_build.py ALLOWED_EMPTY['insurance_claim'] = {'adjuster'} \u2014 source-absent on every insurance subclass except the BDR auto draw, which carries adjuster pseudonyms.",
+      "documented_absence": 950,
+      "populated_matching_absence_predicate": 0
+    },
+    "insurance_claim.denial_reasons": {
+      "rule": "v8_build.py _auto_row: denial reasons exist only on denied claims; non-denied rows ship '[]' (a complete no-items answer per v9_build.LIST_GT_FIELDS).",
+      "documented_absence": 1064,
+      "populated_matching_absence_predicate": 0
+    },
+    "insurance_claim.supporting_documents": {
+      "rule": "v9_build.py complete_gt_fields + _insurbias_supporting_documents / _insurbias_supporting_doc_absent (issue #29): INSURBIAS rows ship claim narratives only; supporting_documents is derived from referenced features. '[]' is a documented absence only when the narrative grounds no such feature (bare accident report, 6/150 on the v9 draw).",
+      "documented_absence": 6,
+      "populated_matching_absence_predicate": 0
+    }
+  },
+  "pending_rules": {
+    "contract.cuad_clause_labels": {
+      "rule": "issue #30 (dated 2026-09-13): the 91 SEC EDGAR EX-10 contract rows ship no CUAD clause annotation \u2014 the clause-classification pass could not run (no working OPENROUTER_API_KEY / VLLM_BASE_URL / Modal endpoint at build time). '{}' is a complete no-annotations answer per v9_build.DICT_GT_FIELDS, but the gap is a catalogued pending annotation, not a schema-documented absence: it closes as soon as a working clause-pass credential re-runs the DMR-052 provider seam over exactly these 91 filenames (docs/reports/audits/cuad_ex10_annotation_review.md).",
+      "pending_annotation": 91,
+      "populated_matching_pending_predicate": 0
+    }
+  },
+  "coverage_basis_note": "\u00a741 coverage is reported over ELIGIBLE rows only (populated / eligible, where eligible = populated + genuine_gap + pending_annotation). Unpopulated cells are classified schema_documented_absence \u2014 the v8_build/v9 conformance law says the field is empty on this row (e.g. adjuster on CMS/GNOTHEIA/INSURBIAS rows, denial_reasons on non-denied claims, supporting_documents on the 6 INSURBIAS bare-accident narratives that reference no supporting-document feature \u2014 issue #29) and excluded from eligible entirely (absent by design, never a coverage target) \u2014 or pending_annotation \u2014 a genuine, catalogued gap blocked on a specific dependency (cuad_clause_labels on the 91 SEC EDGAR EX-10 contracts \u2014 issue #30: the LLM clause pass could not run on 2026-09-13, no working provider credential; see pending_rules for the re-verified count) \u2014 or genuine_gap \u2014 the field should be populated and no rule explains the absence. Documented absences are tallied in absence_classification / absence_rules but never counted as gaps; pending annotations ARE counted against coverage_pct (honest: they close only when the dependency clears, mailroom-issues#196 Phase B2) (issue #28, epic #27).",
+  "scenario_columns_note": "tested/regression/challenge/multi-document are \u00a740 template columns at zero: the sandbox/pilot fixtures (P1) and the matter/grouping (P2) + recovery (P3) families fill them at their phases \u2014 the corpus does not overstate coverage (\u00a714A/\u00a753)."
+}

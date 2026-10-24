@@ -9,7 +9,7 @@ from pathlib import Path
 from collections import Counter
 from typing import Any
 
-from .config import DOC_TYPES, REPO_ID
+from .config import DOC_TYPES, V8_REPO_ID
 from .dataset_export import (
     normalize_metadata_rows,
     stage_parquet,
@@ -17,22 +17,15 @@ from .dataset_export import (
     safe_jsonl_line,
 )
 from .hf_interface import get_hf_api, upload_folder, sha256_file
+from .release_sections import GT_SCALAR_KEYS, LEGACY_V7_GT_KEYS  # noqa: F401
 
 
 REPAIRABLE_BLIND_KEYS = {"expected_doc_type", "expected_subclass"}
 HARD_LEAK_KEYS = {"ground_truth", "intent", "subject_matter", "keywords", "expected"}
 
-GT_SCALAR_KEYS = [
-    "label_evidence", "content_topic", "topic_evidence",
-    "sentiment_score", "sentiment_label", "sentiment_evidence",
-    "claim_number", "policy_number", "insurer", "insured_party",
-    "claim_type", "date_of_loss", "date_filed", "claimed_amount",
-    "adjuster", "damages_description", "coverage_determination",
-    "denial_reasons", "supporting_documents",
-    "cuad_clause_labels", "maud_clause_labels",
-    "intent", "subject_matter", "keywords",
-    "intent_source", "intent_confidence", "intent_status",
-]
+# `GT_SCALAR_KEYS` is re-exported from `release_sections` (the single source
+# for the current v9 surface); `LEGACY_V7_GT_KEYS` is the frozen 27-key v7/v8
+# surface this v7-era publisher stages explicitly (it targets V8_REPO_ID).
 
 PURPOSE_GT_KEYS = ("intent", "subject_matter", "keywords")
 
@@ -117,7 +110,7 @@ def render_card_v6(rows: list[dict], append_stats: dict, file_stats: dict) -> st
 
     import subprocess
     r = subprocess.run(
-        ["curl", "-sL", "--max-time", "60", f"https://huggingface.co/datasets/{REPO_ID}/raw/main/README.md"],
+        ["curl", "-sL", "--max-time", "60", f"https://huggingface.co/datasets/{V8_REPO_ID}/raw/main/README.md"],
         capture_output=True, text=True, timeout=90)
     card = r.stdout
     if not card.startswith("---"):
@@ -235,7 +228,7 @@ convenience layer, not load-bearing:
 `metadata.original_file` carries the Hub-relative path on every row that has
 one (cast-safe `""` elsewhere: correspondence rows are maildir text and
 insurance_claim rows are synthetic renders — the render IS the original).
-Fetch one: `hf_hub_download("Lucius-Morningstar/docclass-merged",
+Fetch one: `hf_hub_download("Lucius-Morningstar/mailroom-corpus",
 "files/contract/Part_I/License_Agreements/<file>.pdf", repo_type="dataset")`.
 Per-file sha256 + sizes: `original_files_mapping.jsonl` sidecar.
 
@@ -345,7 +338,7 @@ def publish_docclass(
     print(f"Loaded {len(rows)} v7 rows")
     print(f"composition: parent {PARENT_ROWS} + corr {corr_n(rows)} + ins {ins_n(rows)}")
 
-    counts = stage_parquet(rows, stage_dir)
+    counts = stage_parquet(rows, stage_dir, gt_scalar_keys=list(LEGACY_V7_GT_KEYS))
     file_stats = stage_original_files(stage_dir, files_dir) if files_dir else {"n": 0, "bytes": 0, "by_class": {}}
 
     append_stats = {
@@ -374,7 +367,7 @@ def publish_docclass(
     if publish:
         api = get_hf_api()
         revision = f"rev2 (+{append_stats['ins_n']} insurance)" if ins_n(rows) else "rev1 (correspondence + original files)"
-        upload_folder(api, stage_dir, REPO_ID, commit_message or f"issue #5: schema v7 intent hydration — {len(rows)} rows")
-        return {"status": "published", "repo": f"https://huggingface.co/datasets/{REPO_ID}"}
+        upload_folder(api, stage_dir, V8_REPO_ID, commit_message or f"issue #5: schema v7 intent hydration — {len(rows)} rows")
+        return {"status": "published", "repo": f"https://huggingface.co/datasets/{V8_REPO_ID}"}
 
     return {"status": "staged", "stage_dir": str(stage_dir), "counts": counts}

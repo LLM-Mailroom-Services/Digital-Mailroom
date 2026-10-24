@@ -1,18 +1,18 @@
-# Enron Correspondence — docclass-merged source card
+# Enron Correspondence — mailroom-dataset source card
 
-> `correspondence` · 350 rows (21.2% of the corpus) · 8 strata · train 310 / test 40
+> `correspondence` · 1000 rows (30.3% of the corpus) · 8 strata · train 915 / test 85
 > · license **research use (inherited from the CMU Enron Email Dataset)** ·
 > one of the five source corpora of
-> [`Lucius-Morningstar/docclass-merged`](https://huggingface.co/datasets/Lucius-Morningstar/docclass-merged)
+> [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
 
 ## Identity
 
 | Field | Value |
 |---|---|
 | doc_type | `correspondence` |
-| Rows | 350 (21.2% of 1,650): v4 drew 110, v6 appended 240 |
-| Splits | train 310 / test 40 (`md5(filename) % 10 == 0 → test`; each email keeps its split across this dataset and the dedup corpus) |
-| Strata | 8 `expected_subclass` values: demand 51, notice 50, email 50, letter 49, meeting_request 49, press_release 49, memo 49, attorney_demand 3 |
+| Rows | 1000 (30.3% of 3,302): v4 drew 110, v6 appended 240, v9 appended +650 |
+| Splits | train 915 / test 85 (`md5(filename) % 10 == 0 → test`; each email keeps its split across this dataset and the dedup corpus) |
+| Strata | 8 `expected_subclass` values: email 557, memo 83, notice 81, letter 79, press_release 78, demand 66, meeting_request 53, attorney_demand 3 |
 | Content topics | 11 (general_business 165, energy_market 40, marketing_clients 32, hr_personnel 36, legal_contracts 21, regulatory 20, scheduling 19, finance_earnings 5, announcements 4, it_systems 4, travel_logistics 4) |
 | Provenance keys | `metadata.source = cmu_enron_maildir`, `metadata.source_dataset = Lucius-Morningstar/enron-correspondence-dedup`, `metadata.license = "Enron corpus — released for research use"` |
 | Entered at | v4 (+110) and v6 (+240); v7 hydrated `intent` on all rows |
@@ -52,7 +52,7 @@ rows.
 | Family derivative | [`Lucius-Morningstar/enron-correspondence-dedup`](https://huggingface.co/datasets/Lucius-Morningstar/enron-correspondence-dedup) — sha256-verified parquet shards the draw was made from |
 | Provenance-join mirrors (v7) | [`snoop2head/enron_aeslc_emails`](https://huggingface.co/datasets/snoop2head/enron_aeslc_emails) (535k mails) and [`Yale-LILY/aeslc`](https://huggingface.co/datasets/Yale-LILY/aeslc) — used **only** for sha256 exact-body provenance joins and recovered subject lines; they carry no intent annotations |
 | Labelers | [Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment) — `correspondence_subclasses.py`, `content_topics.py`, `sentiment_scorer.py`, `dedupe.py` |
-| Form in docclass-merged | maildir text in `doc_text` (the maildir path is the filename); no separate original file — the mail text is the original |
+| Form in mailroom-dataset | maildir text in `doc_text` (the maildir path is the filename); no separate original file — the mail text is the original |
 
 ## Attribution
 
@@ -92,7 +92,7 @@ flagged per-row in `metadata.license` and `metadata.source_dataset`. No
 redistribution of raw PII outside research contexts; no production or
 consumer use of the correspondence subset.
 
-## Purpose in docclass-merged
+## Purpose in mailroom-dataset
 
 1. **doc_type supervision** — 350 gold `correspondence` labels across 8
    mail subtypes, including the hard minority `attorney_demand` (3 rows, an
@@ -137,7 +137,7 @@ Intent distribution (v7 EDA): notice 74, request 73, meeting_invite 57,
 press_communication 51, update 51, other 22, analysis 12, payment_demand
 10. Every canonical class appears in the 10% test split (test sources:
 aeslc_join 26, llm_zero_shot 14). The checkpointed backfill is reproducible
-via `scripts/backfill_intent.py` (never hand-edit
+via `scripts/backfill/backfill_intent.py` (never hand-edit
 `data/backfill/intent_labels.jsonl`).
 
 ## Subset statistics (v7 EDA)
@@ -173,5 +173,5 @@ via `scripts/backfill_intent.py` (never hand-edit
 - EDA figures: `20`–`22` (`reports/figures/`) — correspondence topic,
   intent, sentiment
 - Backfill module: `src/mailroom_eda/intent_backfill.py`; CLI:
-  `scripts/backfill_intent.py --check`
+  `scripts/backfill/backfill_intent.py --check`
 - Full corpus: <https://huggingface.co/datasets/Lucius-Morningstar/enron-correspondence-dedup>

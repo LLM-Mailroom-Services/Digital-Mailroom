@@ -21,6 +21,10 @@ and is recorded there, not here.
 
 ## [Unreleased]
 
+### Documentation
+
+- DMR-108: README v2.1 for the hub and the constellation. The patterns shared by the top repositories in the 2026-10-22 agent-ecosystem catalog are added at source to the llm-dojo-scoring, llm-mailroom, Mailroom-Corpus-EDA, The-Mailroom and mailroom-ml READMEs: a collapsible Contents list, a "When to reach for it" use/avoid table, a FAQ, Built-on credits and a "Contributing, security and license" footer. The four workspace packages are imported here; mailroom-ml is a standalone contractor and is not imported. The hub README gets the same sections, and its release badge is corrected from v0.9.1 to v0.10.0. The-Mailroom's two sister-repos links pointed at a moved file and now target `docs/pipeline-reference-llm-mailroom/sister-repos.md`.
+
 ## [0.10.0] - 2026-10-24
 ### Dependencies
 

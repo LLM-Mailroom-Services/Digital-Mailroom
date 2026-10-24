@@ -101,6 +101,11 @@ python scripts/release_chain.py check        # hub release-chain invariants (CI 
 
 - **Network-free by default.** The suites use local fixtures and the local HF
   cache; only explicit `--live` / integration flags touch the network.
+- **Pipeline wheel-smoke prerequisite.** Its isolated wheel build uses
+  `uv build --offline`, so a fresh uv cache must first contain the build-backend
+  requirements (`setuptools` and `wheel`). During environment setup, seed them
+  with `uv build --no-sources --wheel --out-dir /tmp/mailroom-wheel-seed packages/llm-mailroom` before the offline suite. Keep the test's offline build
+  and runtime socket guards enabled.
 - **Vendor drift:** if you touch `packages/llm-mailroom` or
   `packages/llm-dojo-scoring`, the sandbox vendor tree MUST be refreshed in
   the same commit (`cd packages/local-mailroom-sandbox && python

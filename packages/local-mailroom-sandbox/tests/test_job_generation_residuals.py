@@ -28,6 +28,7 @@ KNOBS = {"sorter": {"model": "env-sorter-model", "max_tokens": 137,
 @pytest.fixture
 def source_root(tmp_path, monkeypatch):
     archive = Path(__file__).resolve().parents[1]
+    monkeypatch.syspath_prepend(str(archive / "api-evals"))
     root = tmp_path / "sandbox"
     shutil.copytree(archive / "config", root / "config")
     (root / "vendor").symlink_to(archive / "vendor", target_is_directory=True)
@@ -55,6 +56,7 @@ def spec_file(tmp_path, source_root, *, count=1, task="sorter"):
 
 # These are real OpenAI clients. Only their HTTP transport is substituted.
 SDK_SETUP = r'''
+import mailroom_sandbox  # Bootstrap vendored imports in fresh subprocesses.
 import json, httpx, openai
 requests = []
 fail_provider = False

@@ -163,10 +163,13 @@ uv run --frozen pytest packages/<name>/tests -q | tail -3          # baseline
 git checkout -q sync/<name>/import-<sha12>
 ```
 
-(`llm-mailroom` uses `packages/llm-mailroom/src/tests`.) Identical pass/fail
-counts mean the import changed nothing: push the branch yourself and open the
-PR with `gh pr create`, putting BOTH count lines in the body. Different counts
-mean the import broke something: do not push; report the new failing tests.
+(`llm-mailroom` uses `packages/llm-mailroom/src/tests`.) Compare exact failure
+identities and investigate their causes on both revisions; matching totals alone
+do not prove that an import is regression-free. If the same failures have the
+same pre-existing causes and the changed surfaces pass their gates, push the
+branch yourself and open the PR with `gh pr create`, recording BOTH count lines
+and the failure comparison. New or changed failures require investigation before
+pushing; totals can also change because optional dependencies enable tests.
 A red baseline is its own bug; open or update a board card for it.
 
 **Step 5 — advance the cursor.** The PR flow never touches the cursor, so do
@@ -193,13 +196,34 @@ produces spurious conflicts (as happened with The-Mailroom on 2026-10-23).
 Main reads BLOCKED on the phantom `ci` check (DMR-080); `--admin` is the
 known workaround.
 
-**Step 6 — vendors (only if you imported llm-dojo-scoring or llm-mailroom;
-the sandbox vendors exactly those two. The-Mailroom and mailroom-corpus-eda are
-not vendored, skip this step for them).**
+**Step 6 — verify vendors after a llm-dojo-scoring, llm-mailroom or sandbox import.**
+The sandbox vendors the first two packages. A sandbox import can reintroduce
+its standalone snapshots over newer hub-generated copies, even when the source
+change only updates a lockfile. The-Mailroom and mailroom-corpus-eda are not
+vendored; skip this step for them.
 
 ```bash
-python3 scripts/sync_vendor.py && python3 scripts/sync_vendor.py --check
+python3 scripts/sync_vendor.py --check
 ```
+
+If that check reports drift, regenerate with the driver, then check again:
+
+```bash
+python3 scripts/sync_vendor.py
+python3 scripts/sync_vendor.py --check
+```
+
+Commit those regenerated vendor files on the import branch. Run
+`python3 scripts/sync_vendor.py --check` again on the committed tree and
+confirm it is clean before merging. An uncommitted regeneration still fails
+the drift check for the next reader of the branch.
+
+Never hand-edit vendor files. Review generated changes against the imported
+workspace packages. If `pull --verify-suite` stopped before advancing its
+cursor, it leaves the import merge in place: regenerate vendors, run the full
+package suite on the corrected tree, confirm the upstream tip has not moved,
+then use Step 5's content-verified `snapshot`. Preserve the subtree merge and
+squash metadata when landing the PR.
 
 **Step 7 — close out.** Run the package's full suite (`docs/TESTING.md`), then
 record in the card: source SHA range, import PR, exact pass/fail/skip counts,

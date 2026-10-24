@@ -25,6 +25,25 @@
 
 ---
 
+<!-- readme-v2.1 -->
+<details>
+<summary><b>📑 Contents</b></summary>
+
+- [🏤 What is this?](#what-this-does)
+- [🤔 When to reach for it](#when-to-reach-for-it)
+- [👀 See it run](#see-it-run)
+- [🧭 How it works](#how-it-works)
+- [📟 At a glance](#at-a-glance)
+- [🚀 Quick start](#quick-start)
+- [🖼️ Screenshots](#screenshots)
+- [🔁 Mailroom Reloaded](#mailroom-reloaded)
+- [🌌 Where it fits](#where-it-fits)
+- [❓ FAQ](#faq)
+- [🙏 Built on](#built-on)
+- [🤝 Contributing, security and license](#contributing-security-and-license)
+
+</details>
+
 <a id="what-this-does"></a>
 
 ## 🏤 What is this?
@@ -77,6 +96,16 @@ plus pixel, Observatory, live floor, schema sync, Pages, TUI, operator desk):
   <img src="docs/assets/readme/stats.svg" alt="By the numbers: four surfaces on one display API, seven floor stations including the review siding, six pixel-console desks, Langfuse as the only display source, version 0.5.1 and Python 3.11 or newer" width="100%"/>
 </picture>
 </div>
+
+<a id="when-to-reach-for-it"></a>
+
+## 🤔 When to reach for it
+
+| ✅ Reach for it when… | ↪️ Look elsewhere when… |
+| :--- | :--- |
+| You want to watch llm-mailroom runs move through the stations, live or replayed from stored traces | You want to process documents. The pipeline is [llm-mailroom](https://github.com/Exios66/llm-mailroom); this repository only displays it |
+| A person needs to approve, reject or requeue documents parked for human review | You want static accuracy reports. Use [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) (`dojo-analyze`, `dojo-export`) |
+| You need a public operations desk (the Observatory) or a terminal view over the same traces | You need live runs on GitHub Pages. The Observatory needs a real host; Pages carries a static edition and the terminal site |
 
 <a id="see-it-run"></a>
 
@@ -655,7 +684,7 @@ board, one discussion log, and one trace contract:
 | [atticus-investigation](https://github.com/Exios66/atticus-investigation) | LegalBench classification prompt-engineering pipeline | Eval sibling — same methodology family, LegalBench focus |
 | [llm-mailroom-graph](https://exios66.github.io/llm-mailroom-graph/) · [llm-entity-extraction-graph](https://exios66.github.io/llm-entity-extraction-graph/) | Interactive graphify knowledge graphs | Derived sites mapping the pipeline's and the loop's code structure |
 
-Full relationship map: [`llm-mailroom/docs/sister-repos.md`](https://github.com/Exios66/llm-mailroom/blob/main/docs/sister-repos.md).
+Full relationship map: [`llm-mailroom/docs/pipeline-reference-llm-mailroom/sister-repos.md`](https://github.com/Exios66/llm-mailroom/blob/main/docs/pipeline-reference-llm-mailroom/sister-repos.md).
 
 </details>
 
@@ -681,14 +710,69 @@ Full relationship map: [`llm-mailroom/docs/sister-repos.md`](https://github.com/
 The older governed-family table, with the sibling prompt-loop and corpus repositories, is under
 [The governed constellation](#governed-constellation).
 
+<a id="faq"></a>
+
+## ❓ FAQ
+
+<details>
+<summary><b>Where does the data on screen come from?</b></summary>
+
+Langfuse traces, always, plus the Phoenix source for Mailroom Reloaded. Even demo runs are seeded **into** Langfuse with `scripts/seed_demo.py`, so nothing on screen is canned data.
+
+</details>
+
+<details>
+<summary><b>Do I need the pipeline running?</b></summary>
+
+Not to watch. The floor, inspector, history and metrics read Langfuse. Review actions (Approve / Reject / Requeue) need `MAILROOM_PIPELINE_URL` and `MAILROOM_PIPELINE_TOKEN` pointing at the llm-mailroom API on `:8000`.
+
+</details>
+
+<details>
+<summary><b>Why does the TUI say not to point `MAILROOM_API_URL` at `:8000`?</b></summary>
+
+The TUI talks to this visualizer's display API (`/api/*` + `/ws`), not to the producer. Resolutions still reach the producer because the visualizer forwards them.
+
+</details>
+
+<details>
+<summary><b>Is the Observatory the same as the GitHub Pages site?</b></summary>
+
+No. The Observatory (`mailroom-hosted`, `/live`) is a live site for a real host such as a Hugging Face Docker Space or Railway. GitHub Pages carries a static edition and the terminal site.
+
+</details>
+
+<details>
+<summary><b>Can I try it without a live run?</b></summary>
+
+Yes. Seed the 13 demo runs with `python scripts/seed_demo.py`, or start the review-tray stub with `PYTHONPATH=. python scripts/demo_review_tray.py --port 8006`.
+
+</details>
+
+<a id="built-on"></a>
+
+## 🙏 Built on
+
+The visualizer is built on:
+
+| Project | What it does here |
+| :--- | :--- |
+| [Langfuse](https://langfuse.com/) | The sole display source for llm-mailroom runs |
+| [Arize Phoenix](https://phoenix.arize.com/) (optional) | The trace source for [Mailroom Reloaded](#mailroom-reloaded) |
+| [FastAPI](https://github.com/fastapi/fastapi) · [Uvicorn](https://github.com/encode/uvicorn) | The shared display API and WebSocket |
+| [AgentLaboratory](https://github.com/SamuelSchmidgall/AgentLaboratory) | The visual palette and character direction derive from its artwork |
+
+<a id="contributing-security-and-license"></a>
 <a id="license--credits"></a>
 
-## 📜 License & credits
+## 🤝 Contributing, security and license
 
-Visual palette and character direction derived from the AgentLaboratory
-project's artwork. Built for the `llm-mailroom` pipeline — see that repo and
-its [sister-repos map](https://github.com/Exios66/llm-mailroom/blob/main/docs/sister-repos.md)
-for the full governed constellation. No license published yet.
+| | |
+| :--- | :--- |
+| **Contributing** | Read [`AGENTS.md`](AGENTS.md) before changing code. This repository owns the visualizer used by both the pipeline and the sandbox; the hub [contributing guide](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/CONTRIBUTING.md) covers the card workflow and the import into Digital-Mailroom. For the full governed constellation, see the llm-mailroom [sister-repos map](https://github.com/Exios66/llm-mailroom/blob/main/docs/pipeline-reference-llm-mailroom/sister-repos.md). |
+| **Security** | Report vulnerabilities privately as described in the hub [security policy](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/SECURITY.md), which covers this package. Keep Langfuse keys and the pipeline token in `.env` or host secrets, never in the repository. |
+| **License** | No license published yet. |
+
 
 ---
 

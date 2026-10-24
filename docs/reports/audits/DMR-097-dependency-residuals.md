@@ -59,7 +59,12 @@ passed 1,512 tests with 14 skips. Final results are recorded below.
 Merged source: `5c6af57a18ff0c9393ab8472a042e16a2e4f09ca` (source PR #162;
 implementation `4235b96`, source evidence `2c4dada`). Final source suite:
 **1,512 passed / 14 skipped / 0 failed** on the complete dependency set.
-Final hub package results: pending final execution.
+Hub sandbox final suite: **1,514 passed / 12 skipped / 0 failed** (102.55 s).
+The other four hub package gates are running sequentially. Hub import PR:
+[#187](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/pull/187).
+Content-verified snapshot at `2026-10-24T03:58:05Z` records source
+`5c6af57a18ff0c9393ab8472a042e16a2e4f09ca`; status reports zero new upstream
+commits and zero cursor gaps. The other four cursor entries are unchanged.
 
 The driver import recovered the old standalone vendor snapshots. Its initial
 automatic gate was interrupted before claiming success; the cursor remained

@@ -163,10 +163,13 @@ uv run --frozen pytest packages/<name>/tests -q | tail -3          # baseline
 git checkout -q sync/<name>/import-<sha12>
 ```
 
-(`llm-mailroom` uses `packages/llm-mailroom/src/tests`.) Identical pass/fail
-counts mean the import changed nothing: push the branch yourself and open the
-PR with `gh pr create`, putting BOTH count lines in the body. Different counts
-mean the import broke something: do not push; report the new failing tests.
+(`llm-mailroom` uses `packages/llm-mailroom/src/tests`.) Compare exact failure
+identities and investigate their causes on both revisions; matching totals alone
+do not prove that an import is regression-free. If the same failures have the
+same pre-existing causes and the changed surfaces pass their gates, push the
+branch yourself and open the PR with `gh pr create`, recording BOTH count lines
+and the failure comparison. New or changed failures require investigation before
+pushing; totals can also change because optional dependencies enable tests.
 A red baseline is its own bug; open or update a board card for it.
 
 **Step 5 — advance the cursor.** The PR flow never touches the cursor, so do

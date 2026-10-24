@@ -9,8 +9,7 @@ No. Member dependency lines keep their published git pins (plain
 `pip install .` release builds depend on them). Dev redirection happens
 ONLY through `[tool.uv.sources]`; bump pins only at release time ([[Releases]]).
 
-**Q: Why did a subtree pull bring back `docs/data/` / `docs/posit/` in
-llm-entity-extraction?**
+**Q: Why did a subtree pull bring back heavy-asset paths (`docs/data/`, `docs/posit/`)?**
 Those are monorepo-pruned heavy-asset paths (root `.gitignore`), but
 gitignore does not apply to tracked files — a subtree merge re-tracks them.
 Re-apply the prune: `git rm -r --cached <paths>` + tree removal (HUB-004).
@@ -34,7 +33,7 @@ One-time interactive grant: `gh auth refresh -s read:project`, then
 **Q: Where do prompts flow?**
 llm-dojo → llm-mailroom, never the reverse. Prompt versions are the
 experiment identity — never mutate a prompt that has run; derive a new
-version key (convention from the pruned llm-entity-extraction package; see its standalone repo).
+version key (a convention carried over from the pre-DMR-079 llm-entity-extraction package).
 
 **Q: Which HF dataset is canonical?**
 [mailroom-dataset](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)

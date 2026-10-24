@@ -16,9 +16,9 @@
 | [`github_labels.py`](github_labels.py) | Label taxonomy audit (CI gate) | `python scripts/github_labels.py audit` |
 | [`taxonomy_parity.py`](taxonomy_parity.py) | Doc-class taxonomy drift (CI gate) | `python scripts/taxonomy_parity.py` |
 | [`release_chain.py`](release_chain.py) | Hub release chain: changelog ↔ semver tags ↔ hub version (CI gate) | `python scripts/release_chain.py check` |
-| [`sync_packages.py`](sync_packages.py) | Reconcile package mirrors (status/pull/push/snapshot) | `python scripts/sync_packages.py status` |
+| [`sync_packages.py`](sync_packages.py) | Import committed standalone sources (status/pull/snapshot; `push` is legacy and forbidden for package delivery) | `python scripts/sync_packages.py status` |
 | [`sync_vendor.py`](sync_vendor.py) | Refresh sandbox vendor snapshots (byte-identical workspace packages) | `python scripts/sync_vendor.py` (`--check` for CI drift gate) |
-| [`release_notes.py`](release_notes.py) | Generate release notes from the changelog | `python scripts/release_notes.py` |
+| [`release_notes.py`](release_notes.py) | Render the GitHub Release body from the changelog section | `python scripts/release_notes.py X.Y.Z` |
 | [`audit_references.py`](audit_references.py) | Org-migration reference audit (CI gate) | `python scripts/audit_references.py` |
 | [`deploy_gh_pages.py`](deploy_gh_pages.py) | Deploy core corpus EDA reports to its standalone Pages site | `python scripts/deploy_gh_pages.py --package mailroom-corpus-eda` |
 | [`apply_hub064_board.py`](archive/apply_hub064_board.py) | **Archived (historical)** — HUB-era one-shot, do not run on the DMR board | see `docs/reports/audits/APPLY-HUB-064.md` |
@@ -27,8 +27,8 @@
 
 ```bash
 python scripts/sync_packages.py status     # show sync status
-python scripts/sync_packages.py pull       # pull from all mirrors
-python scripts/sync_packages.py snapshot   # create snapshot
+python scripts/sync_packages.py pull --package <name> --squash   # import committed standalone source
+python scripts/sync_packages.py snapshot   # content-verified cursor re-baseline
 ```
 
 Cursor state for the five active core packages is stored in `scripts/packages_sync.json`. Implement package changes in the standalone source first, then import committed changes; outbound commands are historical and forbidden for package delivery.

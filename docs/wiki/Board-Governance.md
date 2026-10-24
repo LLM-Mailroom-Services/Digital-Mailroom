@@ -2,8 +2,9 @@
 
 `governance/TASKS.md` is the monorepo's task board and the **single source
 of truth** for cross-agent task state. Read it FIRST every session, before
-any task. Package-scoped work keeps its own board (the
-`llm-entity-extraction` `MESSAGE_BOARD.md` left with that package in DMR-079).
+any task. Package-scoped work keeps its own board in its standalone
+repository (the `llm-entity-extraction` `MESSAGE_BOARD.md` left the hub with
+that package in DMR-079).
 
 ## The five lanes
 

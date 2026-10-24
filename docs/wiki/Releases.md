@@ -13,7 +13,7 @@ Sync and release integration now select five core packages: `llm-dojo-scoring`,
 feeds, preserved as complete hub checkouts on
 [`feature/enron-evaluation-environment`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment/packages/Enron-Evaluation-Environment) and
 [`feature/claims-data-eda`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda/packages/claims-data-eda) at `59c879d9fb4480084e53137e2e9fb25650933944`.
-The prune PR depends on #162, whose two feeder trees must match that commit.
+The prune landed as #167 on top of #162; `main` carries none of those trees.
 Historical seven-member release/test evidence retains its original scope.
 For restoration use a separate checkout; reconcile membership, sync, dependencies
 and tests before any selective import, without replacing current root metadata.
@@ -123,10 +123,19 @@ publishes package implementation back into authoritative standalone sources.
 
 ## Current family pins
 
-| Package | Pin | Consumed by |
+Pins as committed in the imported sources (2026-10-23, hub v0.9.1 line):
+
+| Pin | Value | Declared in |
 | --- | --- | --- |
-| llm-mailroom | v0.7.1 | sandbox `fetch-deps` / `[pipeline]` extra |
-| llm-dojo-scoring | v0.19.1 | llm-mailroom, sandbox |
+| llm-dojo-scoring | `v0.23.1` | llm-mailroom dependency line; The-Mailroom `eval` extra |
+| llm-mailroom (vendored) | `v0.7.1` snapshot lineage | local-mailroom-sandbox `pyproject.toml` comment; hub vendors are regenerated from the workspace, never tag-refreshed |
+
+Imported source versions are newer than the consuming pins: the hub currently
+carries llm-dojo-scoring 0.24.0 (published `v0.24.0`), llm-mailroom 0.8.1
+(latest published tag `v0.8.0`), local-mailroom-sandbox 0.3.0 (latest tag
+`v0.2.0`) and The-Mailroom 0.5.1 (latest tag `v0.5.0`). Consuming pins move
+only at release time of the pinned package, in the consuming standalone repo.
+Check `python scripts/sync_packages.py status` for current cursors.
 
 ## Deploy surfaces
 

@@ -26,18 +26,21 @@ The board is also served live at **https://digital-mailroom-theta.vercel.app**
 - [[Offline-Sandbox]] — local providers, reduced agent profile, Docker
 - [[Releases]] — release train, pins, upstream publish
 - [[FAQ]] — gotchas and common questions
+- [[Troubleshooting]] — symptoms we have hit (tests, sync, vendors, board, commits) and their fixes
+- [[Glossary]] — workspace, board, pipeline and scoring terms
+- Contributing? Read [`CONTRIBUTING.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/CONTRIBUTING.md) first; security reports: [`SECURITY.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/SECURITY.md)
 
 ## Key facts
 
 | Thing | Value |
 | --- | --- |
-| Hub repo | [LLM-Mailroom-Services/Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) — latest hub release **v0.7.0** |
+| Hub repo | [LLM-Mailroom-Services/Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) — latest hub release **v0.9.1** (`pyproject.toml` 0.9.1) |
 | Task board | [`governance/TASKS.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/governance/TASKS.md) — machine-readable via `scripts/board_state.py` |
 | Served board | [digital-mailroom-theta.vercel.app](https://digital-mailroom-theta.vercel.app) — live, issue-backed ([[Served-Board]]) |
 | Conventions | [`AGENTS.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/AGENTS.md) — read first, every session |
 | Subagents | 15-agent roster ([[Subagents]]) — project + global agent files under `.opencode/agents/` (see DMR-062) |
 | Packages | 5 (4 built + 1 virtual member: mailroom-corpus-eda) |
 | Python | 3.11+ (workspace `requires-python >= 3.11`) |
-| Family pins | llm-mailroom **v0.7.1** · llm-dojo-scoring **v0.19.1** |
+| Imported package versions | llm-dojo-scoring **0.24.0** · llm-mailroom **0.8.1** · local-mailroom-sandbox **0.3.0** · The-Mailroom **0.5.1** · mailroom-corpus-eda **0.1.0** (see [[Releases]] for consuming pins) |
 | HF corpus | [mailroom-dataset](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset) — schema v9, 3,302 rows (frozen v8 baseline: [mailroom-corpus](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-corpus)) |
-| CI gate | `.github/workflows/board-governance.yml` — board invariants + label drift |
+| CI gates | `board-governance.yml` (board invariants + label drift) · `release-governance.yml` (changelog ↔ tag ↔ version). No workflow runs the package suites — the local run is the gate ([`docs/TESTING.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/docs/TESTING.md)) |

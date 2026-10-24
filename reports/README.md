@@ -12,7 +12,7 @@
 
 | Path | Contents |
 |:---|:---|
-| [`scores_manifest.jsonl`](scores_manifest.jsonl) | Top-level score-manifest index beside this README |
+| _(this directory)_ | Pointer README only — the stale root `scores_manifest.jsonl` is gitignored (its canonical copy left with `llm-entity-extraction`, DMR-079) |
 | [`docs/reports/audits/docclass_merged_baseline.md`](../docs/reports/audits/docclass_merged_baseline.md) | Canonical baseline audit for the mailroom corpus (docclass-merged lineage) |
 | [`docs/reports/audits/docclass_merged_baseline.json`](../docs/reports/audits/docclass_merged_baseline.json) | Machine-readable baseline data |
 

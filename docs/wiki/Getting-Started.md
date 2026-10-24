@@ -45,6 +45,13 @@ Do not copy the archived root metadata over current main. Selective restoration
 requires explicit membership, sync, dependency and test reconciliation. See
 [[Architecture]] and `docs/TESTING.md` for dated pre-prune measurements.
 
+Hub governance tooling and the served-board API have their own suites:
+
+```bash
+python3 -m unittest discover scripts/tests
+(cd board-site && node tests/api.test.js)
+```
+
 Surgical by default; run a package's FULL suite only for significant
 changes (packaging/imports, cross-cutting refactors, scoring) and always
 before a release.

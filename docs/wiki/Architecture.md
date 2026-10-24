@@ -57,9 +57,10 @@ Pages sites.
 ## External corpus feeds and preserved checkouts
 
 Enron and claims remain usable standalone feeds; their datasets, taxonomy and
-published sites retain their identities. DMR-093 removes their local copies
-from the active workspace after #162. Both preservation branches point to
-`59c879d9fb4480084e53137e2e9fb25650933944`; PR162 must keep these package trees byte-identical.
+published sites retain their identities. DMR-093 removed their local copies
+from the active workspace (#167, merged 2026-10-23). Both preservation
+branches point to `59c879d9fb4480084e53137e2e9fb25650933944`, the last commit
+that carried the complete package trees.
 
 | Layer | Repository | GitHub Pages |
 | --- | --- | --- |
@@ -73,7 +74,7 @@ hub chart generator). To selectively restore a package, reconcile membership,
 sync entries, dependencies and tests explicitly; keep current root metadata.
 The earlier `feature/agent-mailroom` preservation branch remains unchanged.
 
-## The 13-node pipeline (llm-mailroom v0.7.1)
+## The 13-node pipeline (llm-mailroom)
 
 `intake → after_intake → classify → (retry_classify) → review_classify → extract →
 (retry_extract) → judge_verify → arbiter → human_review / boss_escalation →

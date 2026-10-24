@@ -13,3 +13,5 @@
   - [[Sandbox-Modal]]
 - [[Releases]]
 - [[FAQ]]
+- [[Troubleshooting]]
+- [[Glossary]]

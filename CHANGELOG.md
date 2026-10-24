@@ -21,6 +21,7 @@ and is recorded there, not here.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-24
 ### Dependencies
 
 - Complete DMR-097 dependency follow-through: update the hub lock to certifi 2026.10.19 and filelock 4.2.1 after merging sandbox-fork Dependabot PRs #9–#11; pypdf 6.21.2 is already resolved in the hub. Import the verified standalone sandbox lock and test bootstrap repairs from source PR #162; preserve the existing generated vendors and record the offline wheel-build cache prerequisite.
@@ -1125,7 +1126,8 @@ agent-mailroom v0.2.0, local-mailroom-sandbox v0.1.0.
 - Upstream drift reconciled across all packages; `sync status` 10/10 in sync
   (HUB-004, HUB-018); stale pins/counts swept (HUB-010/016/018).
 
-[Unreleased]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.10.0...HEAD
+[0.24.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.24.0...v0.10.0
 [0.8.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.8.0...v0.9.0
 [0.7.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.7.0...v0.8.0
 [0.6.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/compare/v0.6.0...v0.7.0
@@ -1140,3 +1142,4 @@ agent-mailroom v0.2.0, local-mailroom-sandbox v0.1.0.
 [0.8.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.8.0
 [0.9.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.9.0
 [0.9.1]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.9.1
+[0.10.0]: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/releases/tag/v0.10.0

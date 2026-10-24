@@ -1,9 +1,33 @@
-# The-Mailroom
+<div align="center">
+
+<picture>
+  <source media="(max-width: 640px)" srcset="docs/assets/readme/hero-mobile.svg"/>
+  <img src="docs/assets/readme/hero.svg" alt="The-Mailroom: a retro CRT shows the pixel-art mailroom floor, with envelopes riding a conveyor past the SORTER, EXTRACT, JUDGE, BOSS, REPORT and ARCHIVE stations and a flagged one parked on the REVIEW siding" width="100%"/>
+</picture>
+
+<br/>
+
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
+[![Langfuse only](https://img.shields.io/badge/source-Langfuse_only-6C5CE7?style=for-the-badge)](docs/architecture.md)
+[![Four surfaces](https://img.shields.io/badge/surfaces-console_·_Observatory_·_TUI_·_site-22C55E?style=for-the-badge)](#quick-start)
+[![Observatory](https://img.shields.io/badge/🤗_live-Observatory-FFD21E?style=for-the-badge)](https://lucius-morningstar-mailroom-observatory.hf.space/)
 
 ![version](https://img.shields.io/badge/version-0.5.1-blue)
 [![release](https://img.shields.io/badge/release-v0.5.1-blue)](https://github.com/Exios66/The-Mailroom/releases/tag/v0.5.1)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![data source](https://img.shields.io/badge/data%20source-Langfuse%20only-6C5CE7)
+[![Hub](https://img.shields.io/badge/🏛️_hub-Digital--Mailroom-000?style=flat-square)](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
+[![Demos](https://img.shields.io/badge/🎬_demos-gallery-555?style=flat-square)](docs/demos.md)
+
+**[Quick start](#quick-start)** · **[How it works](#how-it-works)** · **[Screenshots](#screenshots)** · **[Mailroom Reloaded](#mailroom-reloaded)** · **[Where it fits](#where-it-fits)** · **[Docs](docs/README.md)**
+
+</div>
+
+---
+
+<a id="what-this-does"></a>
+
+## 🏤 What is this?
 
 **Pixel-art visual engine for the [`llm-mailroom`](https://github.com/Exios66/llm-mailroom)
 multi-agent legal-document pipeline.** The Mailroom renders every pipeline run as an
@@ -47,42 +71,54 @@ Agent skills (Langfuse / Phoenix / Braintrust / Ollama / Modal / Hugging Face
 plus pixel, Observatory, live floor, schema sync, Pages, TUI, operator desk):
 [`.cursor/skills/README.md`](.cursor/skills/README.md).
 
----
+<div align="center">
+<picture>
+  <source media="(max-width: 640px)" srcset="docs/assets/readme/stats-mobile.svg"/>
+  <img src="docs/assets/readme/stats.svg" alt="By the numbers: four surfaces on one display API, seven floor stations including the review siding, six pixel-console desks, Langfuse as the only display source, version 0.5.1 and Python 3.11 or newer" width="100%"/>
+</picture>
+</div>
 
-<details>
-<summary>The governed constellation</summary>
+<a id="see-it-run"></a>
 
-The-Mailroom is one node of a governed family of repositories sharing one kanban
-board, one discussion log, and one trace contract:
+## 👀 See it run
 
-```
-        ┌─────────────────────────┐         ┌─────────────────────────┐
-        │  llm-entity-extraction  │ breeds  │      llm-mailroom       │
-        │  prompt-experiment loop │ ──────▶ │   the document pipeline │
-        └─────────────────────────┘         └────────────┬────────────┘
-                                                         │ Langfuse traces (US cloud)
-                                                         ▼
-                                        ┌──────────────────────────────┐
-                             YOU ARE    │         THE-MAILROOM         │
-                               HERE ▶   │    pixel-art visual engine   │
-                                        └──────────────────────────────┘
-```
+<table>
+<tr>
+<td width="33%"><a href="docs/screenshots/floor.png"><img src="docs/screenshots/floor.png" alt="The pixel-art console floor: stations along a conveyor, envelopes and the review siding" width="100%"/></a><br/><sub><b>Pixel console</b> · the FLOOR: stations, envelopes and the review siding</sub></td>
+<td width="33%"><a href="docs/screenshots/observatory-review.png"><img src="docs/screenshots/observatory-review.png" alt="The Observatory review queue with inline Approve, Reject and Requeue" width="100%"/></a><br/><sub><b>Observatory</b> · the human-review queue with inline resolve</sub></td>
+<td width="33%"><a href="docs/screenshots/tui-console.png"><img src="docs/screenshots/tui-console.png" alt="The terminal UI: per-document table, verdicts, station banners and live log" width="100%"/></a><br/><sub><b>Terminal UI</b> · per-doc table, verdicts and station banners</sub></td>
+</tr>
+</table>
 
-| Repository | Role | Relationship to The-Mailroom |
-| --- | --- | --- |
-| [llm-mailroom](https://github.com/Exios66/llm-mailroom) | LangGraph state machine processing legal documents through specialist LLM agents (classify → extract → report → archive); pin `@959bb0bce152` / **0.7.1+** (main after v0.7.1) (package `mailroom` 0.7.1) | **Upstream** — its Langfuse project is this visualizer's sole data source; optional `pip install -e ".[pipeline]"` imports `pipeline.review_resolve` |
-| [llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction) | Prompt-experiment loop (prompt versions × models, paired-bootstrap ablations) | Breeds the pipeline's sorter/specialist prompts; hosts the shared kanban board + governance log for the whole chain |
-| [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Canonical scoring engine (`@v0.23.1`) | Upstream engine for pipeline and sandbox; visualizer offline evaluation uses optional `[eval]` |
-| [Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment) | EDA + pipeline-ready correspondence dataset (CMU Enron corpus) | Corpus feed for the pipeline's `correspondence` doc class |
-| [claims-data-eda](https://github.com/Exios66/claims-data-eda) | Insurance-claims candidate-corpus EDA (CMS DE-SynPUF direction) | Candidate corpus feed for the `insurance_claim` doc class |
-| [atticus-investigation](https://github.com/Exios66/atticus-investigation) | LegalBench classification prompt-engineering pipeline | Eval sibling — same methodology family, LegalBench focus |
-| [llm-mailroom-graph](https://exios66.github.io/llm-mailroom-graph/) · [llm-entity-extraction-graph](https://exios66.github.io/llm-entity-extraction-graph/) | Interactive graphify knowledge graphs | Derived sites mapping the pipeline's and the loop's code structure |
+<div align="center"><sub>Every still, the walkthrough videos and the PR recording are in <a href="#screenshots">Screenshots</a> below and in the <a href="docs/demos/The-Mailroom-Demos.ipynb">demos notebook</a>.</sub></div>
 
-Full relationship map: [`llm-mailroom/docs/sister-repos.md`](https://github.com/Exios66/llm-mailroom/blob/main/docs/sister-repos.md).
+<a id="how-it-works"></a>
 
-</details>
+## 🧭 How it works
 
-## Quick start
+<div align="center">
+<picture>
+  <source media="(max-width: 640px)" srcset="docs/assets/readme/flow-mobile.svg"/>
+  <img src="docs/assets/readme/flow.svg" alt="A trace from Langfuse or Phoenix is interpreted into stations, served over one display API and rendered by four surfaces; review decisions go back to the producer. It reads llm-mailroom and mailroom-reloaded and runs on a Hugging Face Space or GitHub Pages" width="100%"/>
+</picture>
+</div>
+
+<a id="at-a-glance"></a>
+
+## 📟 At a glance
+
+<div align="center">
+<img src="docs/assets/readme/tui.svg" alt="Terminal dashboard: the four surfaces and the Langfuse-only source, and a sample of what the terminal UI prints as runs advance" width="90%"/>
+</div>
+
+<a id="quick-start"></a>
+<a id="quickstart"></a>
+
+## 🚀 Quick start
+
+<div align="center">
+<img src="docs/assets/readme/terminal.svg" alt="Animated terminal: clone, install, add Langfuse keys, start the pixel console, print one terminal frame and seed demo runs" width="90%"/>
+</div>
 
 ```bash
 pip install -e ".[dev]"
@@ -142,7 +178,9 @@ producer. `--source TRACE` prints parked document text. Never point
 
 </details>
 
-## Screenshots
+<a id="screenshots"></a>
+
+## 🖼️ Screenshots
 
 Live captures of the three surfaces against the same display API. Values on
 screen are interpreted traces (fixture-shaped exactly like the test suite);
@@ -261,7 +299,47 @@ Keys: `[f]loor` `[r]eview` `[s]essions` `[m]etrics` `[i]nspect` `[` `]` `[d]ebug
 
 </details>
 
----
+<a id="mailroom-reloaded"></a>
+
+## 🔁 Mailroom Reloaded
+
+[`mailroom-reloaded`](https://github.com/Exios66/mailroom-reloaded) is the compressed, deployment-ready
+Digital Mailroom: a CrewAI-Flows pipeline that classifies, extracts and archives documents with a
+verifiable audit chain. The-Mailroom reads it through the **Phoenix source**: its `mailroom.document` root
+and `mailroom.node.<node>` spans map onto the floor's stations (`RELOADED_NODE_STAGES` in
+`mailroom_ui/pipeline_schema.py`), `parked` runs land on the REVIEW siding, and repeated `sort` / `extract`
+spans fold into the retry stages. Set `MAILROOM_SOURCE=phoenix` (or `both`) and `MAILROOM_PHOENIX_PROJECT`
+to the Reloaded project; eval runs use `eval-<run_id>`. Details: [`docs/architecture.md`](docs/architecture.md).
+
+Reloaded ships its own terminal, replay viewer, run table and offline sandbox UI in the same visual
+language. These are its committed captures (1200×800, dark theme), pinned to
+[`mailroom-reloaded@0e1dbd0`](https://github.com/Exios66/mailroom-reloaded/tree/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo).
+
+<table>
+<tr><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/01-tui-help.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/01-tui-help.png?raw=true" alt="The /tui terminal after boot, running help" width="100%"/></a><br/><sub><b>01</b> · The /tui terminal after boot, running `help`.</sub></td><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/02-replay-viewer.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/02-replay-viewer.png?raw=true" alt="Replay viewer paused at 01:30: station grid with per-station counts, scrub bar and the run metrics line" width="100%"/></a><br/><sub><b>02</b> · Replay viewer paused at 01:30: station grid with per-station counts, scrub bar and the run metrics line.</sub></td></tr>
+<tr><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/03-replay-panel-metrics.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/03-replay-panel-metrics.png?raw=true" alt="Replay insight panel metrics (first p)" width="100%"/></a><br/><sub><b>03</b> · Replay insight panel `metrics` (first `p`).</sub></td><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/08-inspector-retry.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/08-inspector-retry.png?raw=true" alt="Inspector on the retry document (gate_decision then retry events)" width="100%"/></a><br/><sub><b>08</b> · Inspector on the retry document (gate_decision then retry events).</sub></td></tr>
+<tr><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/11-inspector-boss.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/11-inspector-boss.png?raw=true" alt="Inspector on the boss-escalated document (arbiter and escalation events)" width="100%"/></a><br/><sub><b>11</b> · Inspector on the boss-escalated document (arbiter and escalation events).</sub></td><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/14-ledger.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/14-ledger.png?raw=true" alt="The ledger listing followed by ledger verify (hash-chain check)" width="100%"/></a><br/><sub><b>14</b> · The `ledger` listing followed by `ledger verify` (hash-chain check).</sub></td></tr>
+<tr><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/13-ui-replay-links.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/13-ui-replay-links.png?raw=true" alt="/ui Eval runs table with replay, grafana and phoenix links per run" width="100%"/></a><br/><sub><b>13</b> · /ui Eval runs table with `replay`, `grafana` and `phoenix` links per run.</sub></td><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/17-sandbox-dock-open.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/17-sandbox-dock-open.png?raw=true" alt="Boss mailbox dock expanded: draft awaiting approval and the hostile_forward entry (pending Release / Quarantine)" width="100%"/></a><br/><sub><b>17</b> · Boss mailbox dock expanded: draft awaiting approval and the hostile_forward entry (pending Release / Quarantine).</sub></td></tr>
+</table>
+
+<details>
+<summary>The other 13 captures: replay panels, inspectors, outbound links, ledger, sandbox dock</summary>
+
+<table>
+<tr><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/04-replay-panel-tokens.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/04-replay-panel-tokens.png?raw=true" alt="Replay insight panel tokens (second p)" width="100%"/></a><br/><sub><b>04</b> · Replay insight panel `tokens` (second `p`).</sub></td><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/05-replay-panel-decisions.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/05-replay-panel-decisions.png?raw=true" alt="Replay insight panel decisions (third p)" width="100%"/></a><br/><sub><b>05</b> · Replay insight panel `decisions` (third `p`).</sub></td></tr>
+<tr><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/06-replay-panel-latency.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/06-replay-panel-latency.png?raw=true" alt="Replay insight panel latency (fourth p)" width="100%"/></a><br/><sub><b>06</b> · Replay insight panel `latency` (fourth `p`).</sub></td><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/07-outbound-links.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/07-outbound-links.png?raw=true" alt="Inspector (no document selected) listing the Phoenix and Grafana links, after pressing o and g (each opens a new tab)" width="100%"/></a><br/><sub><b>07</b> · Inspector (no document selected) listing the Phoenix and Grafana links, after pressing `o` and `g` (each opens a new tab).</sub></td></tr>
+<tr><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/09-inspector-failed.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/09-inspector-failed.png?raw=true" alt="Inspector on the failed document (failure run_budget, cause extraction_miss)" width="100%"/></a><br/><sub><b>09</b> · Inspector on the failed document (failure `run_budget`, cause `extraction_miss`).</sub></td><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/10-inspector-parked.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/10-inspector-parked.png?raw=true" alt="Inspector on the parked document (parked in review, cause judge_partial)" width="100%"/></a><br/><sub><b>10</b> · Inspector on the parked document (parked in review, cause `judge_partial`).</sub></td></tr>
+<tr><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/12-links-json.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/12-links-json.png?raw=true" alt="Raw GET /links: the public base URLs the UI and viewer link out to" width="100%"/></a><br/><sub><b>12</b> · Raw `GET /links`: the public base URLs the UI and viewer link out to.</sub></td><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/15-pipeline-ls-runs.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/15-pipeline-ls-runs.png?raw=true" alt="Pipeline commands ls (catalog documents, hostile filename shown as literal text) and runs (eval runs)" width="100%"/></a><br/><sub><b>15</b> · Pipeline commands `ls` (catalog documents, hostile filename shown as literal text) and `runs` (eval runs).</sub></td></tr>
+<tr><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/16-sandbox-dock-badge.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/16-sandbox-dock-badge.png?raw=true" alt="Sandbox UI with the docked Boss mailbox collapsed: unread badge on the toggle" width="100%"/></a><br/><sub><b>16</b> · Sandbox UI with the docked Boss mailbox collapsed: unread badge on the toggle.</sub></td><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/18-sandbox-pending-review.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/18-sandbox-pending-review.png?raw=true" alt="Pending boss review tab: payment_fraud hostile_forward from E1 awaiting a Boss decision (nothing is decided by the capture)" width="100%"/></a><br/><sub><b>18</b> · Pending boss review tab: payment_fraud hostile_forward from E1 awaiting a Boss decision (nothing is decided by the capture).</sub></td></tr>
+<tr><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/19-tui-inbox-command.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/19-tui-inbox-command.png?raw=true" alt="The inbox --print command in /tui: the sandbox deep link it would open (Ingress queue, Boss mailbox dock open, Correspondent filter) and the hint that the token is never put in the link" width="100%"/></a><br/><sub><b>19</b> · The `inbox --print` command in /tui: the sandbox deep link it would open (Ingress queue, Boss mailbox dock open, Correspondent filter) and the hint that the token is never put in the link.</sub></td><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/20-sandbox-inbox-deeplink.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/20-sandbox-inbox-deeplink.png?raw=true" alt="Sandbox UI opened through the inbox deep link: Ingress queue tab active, Boss mailbox dock open with the filter: role=correspondent line and the seeded A1 + E1 mail" width="100%"/></a><br/><sub><b>20</b> · Sandbox UI opened through the `inbox` deep link: Ingress queue tab active, Boss mailbox dock open with the `filter: role=correspondent` line and the seeded A1 + E1 mail.</sub></td></tr>
+<tr><td width="50%"><a href="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/21-tui-status-links.png?raw=true"><img src="https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/21-tui-status-links.png?raw=true" alt="The /tui status bar (top of the terminal window) with both outbound links: ui ↗ (/ui, same tab) and inbox ↗ (the sandbox ingress simulator, new tab)" width="100%"/></a><br/><sub><b>21</b> · The /tui status bar (top of the terminal window) with both outbound links: `ui ↗` (/ui, same tab) and `inbox ↗` (the sandbox ingress simulator, new tab).</sub></td><td></td></tr>
+</table>
+
+Images 19 and 21 were captured on Reloaded's `feature/ingress-sandbox` branch. Regeneration steps and the
+capture manifest live in the
+[`docs/demo` README](https://github.com/Exios66/mailroom-reloaded/blob/0e1dbd0ce15b8ee661901cd16faec923b178c13c/docs/demo/README.md).
+
+</details>
 
 <details>
 <summary>Demo data (play-testing without a live run)</summary>
@@ -546,9 +624,88 @@ updates on major changes, and annotated `vX.Y.Z` tags matching the changelog.
 
 ---
 
-## License & credits
+<a id="governed-constellation"></a>
+
+<details>
+<summary>The governed constellation</summary>
+
+The-Mailroom is one node of a governed family of repositories sharing one kanban
+board, one discussion log, and one trace contract:
+
+```
+        ┌─────────────────────────┐         ┌─────────────────────────┐
+        │  llm-entity-extraction  │ breeds  │      llm-mailroom       │
+        │  prompt-experiment loop │ ──────▶ │   the document pipeline │
+        └─────────────────────────┘         └────────────┬────────────┘
+                                                         │ Langfuse traces (US cloud)
+                                                         ▼
+                                        ┌──────────────────────────────┐
+                             YOU ARE    │         THE-MAILROOM         │
+                               HERE ▶   │    pixel-art visual engine   │
+                                        └──────────────────────────────┘
+```
+
+| Repository | Role | Relationship to The-Mailroom |
+| --- | --- | --- |
+| [llm-mailroom](https://github.com/Exios66/llm-mailroom) | LangGraph state machine processing legal documents through specialist LLM agents (classify → extract → report → archive); pin `@959bb0bce152` / **0.7.1+** (main after v0.7.1) (package `mailroom` 0.7.1) | **Upstream** — its Langfuse project is this visualizer's sole data source; optional `pip install -e ".[pipeline]"` imports `pipeline.review_resolve` |
+| [llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction) | Prompt-experiment loop (prompt versions × models, paired-bootstrap ablations) | Breeds the pipeline's sorter/specialist prompts; hosts the shared kanban board + governance log for the whole chain |
+| [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Canonical scoring engine (`@v0.23.1`) | Upstream engine for pipeline and sandbox; visualizer offline evaluation uses optional `[eval]` |
+| [Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment) | EDA + pipeline-ready correspondence dataset (CMU Enron corpus) | Corpus feed for the pipeline's `correspondence` doc class |
+| [claims-data-eda](https://github.com/Exios66/claims-data-eda) | Insurance-claims candidate-corpus EDA (CMS DE-SynPUF direction) | Candidate corpus feed for the `insurance_claim` doc class |
+| [atticus-investigation](https://github.com/Exios66/atticus-investigation) | LegalBench classification prompt-engineering pipeline | Eval sibling — same methodology family, LegalBench focus |
+| [llm-mailroom-graph](https://exios66.github.io/llm-mailroom-graph/) · [llm-entity-extraction-graph](https://exios66.github.io/llm-entity-extraction-graph/) | Interactive graphify knowledge graphs | Derived sites mapping the pipeline's and the loop's code structure |
+
+Full relationship map: [`llm-mailroom/docs/sister-repos.md`](https://github.com/Exios66/llm-mailroom/blob/main/docs/sister-repos.md).
+
+</details>
+
+<a id="where-it-fits"></a>
+
+## 🌌 Where it fits
+
+<div align="center">
+<picture>
+  <source media="(max-width: 640px)" srcset="docs/assets/readme/constellation-mobile.svg"/>
+  <img src="docs/assets/readme/constellation.svg" alt="Data-flow map of the Mailroom constellation with The-Mailroom highlighted: the pipeline sends traces to Langfuse, which feed this visualizer, shared by the pipeline and the sandbox" width="100%"/>
+</picture>
+</div>
+
+| | Neighbour | Relationship |
+| :---: | :--- | :--- |
+| 🏛️ | [`Digital-Mailroom`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) | The integration hub. It imports this repository as `packages/The-Mailroom` and owns the wiring |
+| 🧠 | [`llm-mailroom`](https://github.com/Exios66/llm-mailroom) | The pipeline whose Langfuse traces are this visualizer's data source |
+| 🔁 | [`mailroom-reloaded`](https://github.com/Exios66/mailroom-reloaded) | The CrewAI-Flows pipeline, read through the Phoenix source (see [Mailroom Reloaded](#mailroom-reloaded)) |
+| 🧪 | [`local-mailroom-sandbox`](https://github.com/Exios66/local-mailroom-sandbox) | The offline and GPU testing interface that shares this visualizer |
+| 🥋 | [`llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring) | The scoring engine, used here only by the optional `[eval]` extra |
+
+The older governed-family table, with the sibling prompt-loop and corpus repositories, is under
+[The governed constellation](#governed-constellation).
+
+<a id="license--credits"></a>
+
+## 📜 License & credits
 
 Visual palette and character direction derived from the AgentLaboratory
 project's artwork. Built for the `llm-mailroom` pipeline — see that repo and
 its [sister-repos map](https://github.com/Exios66/llm-mailroom/blob/main/docs/sister-repos.md)
 for the full governed constellation. No license published yet.
+
+---
+
+<div align="center">
+
+**[Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)** ·
+**[llm-mailroom](https://github.com/Exios66/llm-mailroom)** ·
+**[llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring)** ·
+**[The-Mailroom](https://github.com/Exios66/The-Mailroom)** ·
+**[local-mailroom-sandbox](https://github.com/Exios66/local-mailroom-sandbox)** ·
+**[Mailroom-Corpus-EDA](https://github.com/Exios66/Mailroom-Corpus-EDA)** ·
+**[mailroom-ml](https://github.com/LLM-Mailroom-Services/mailroom-ml)**
+
+<sub>The-Mailroom · one of the Mailroom constellation's independent source repositories, with shared interfaces.</sub>
+<br/>
+<sub>Core packages integrate in Digital-Mailroom; mailroom-ml is a standalone contractor.</sub>
+<br/>
+<sub>🏤 <i>Watch the work move.</i> · Artwork: <a href="docs/assets/readme/README.md">design and regeneration</a></sub>
+
+</div>

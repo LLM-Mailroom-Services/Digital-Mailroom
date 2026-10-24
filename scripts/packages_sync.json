@@ -9,14 +9,14 @@
     },
     "llm-dojo-scoring": {
       "branch": "main",
-      "synced_at": "2026-10-24T04:24:44Z",
-      "synced_sha": "b42d87dda06f2d1b248a126ceb4c456f5dd4d112",
+      "synced_at": "2026-10-24T08:18:56Z",
+      "synced_sha": "263bbd6f9fd32802dd934858ceedf7a0a910eb14",
       "url": "https://github.com/Exios66/llm-dojo-scoring.git"
     },
     "llm-mailroom": {
       "branch": "main",
-      "synced_at": "2026-10-24T04:24:45Z",
-      "synced_sha": "0f3fe732a840fdd68eedc8918c046cc3f95daac1",
+      "synced_at": "2026-10-24T08:27:46Z",
+      "synced_sha": "abf8d51b04dc4b83b4a16a327484de3d04aac4fb",
       "url": "https://github.com/Exios66/llm-mailroom.git"
     },
     "local-mailroom-sandbox": {
@@ -27,8 +27,8 @@
     },
     "mailroom-corpus-eda": {
       "branch": "main",
-      "synced_at": "2026-10-24T04:24:45Z",
-      "synced_sha": "da7db3521f0138ea5237c7ca5c25420237f8263d",
+      "synced_at": "2026-10-24T08:20:20Z",
+      "synced_sha": "73509080b5d880095d9350f02a27be56c9767e5c",
       "url": "https://github.com/Exios66/Mailroom-Corpus-EDA.git"
     }
   },

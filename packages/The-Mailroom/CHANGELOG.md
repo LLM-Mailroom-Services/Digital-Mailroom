@@ -19,6 +19,8 @@ All notable changes to The-Mailroom are documented here, following
 
 ### Fixed
 
+- The operator `ArchiveBrowser` type filter now offers the five live document classes: `merger_agreement` was missing and the retired `compliance_filing` was still offered. A contract test pins the options to `DOC_CLASSES`.
+
 - Observatory BERT lane panels (#111) are source-owned again: `PipelineRun.intake_bert`, the `trace_interpreter` lift of the terminal manifest's `intake.bert` block, the poller payload field, `hosted/js/bert_panels.js` with its section and CSS, and `tests/test_bert_panels.py`. The panels previously lived only in the Digital-Mailroom hub copy, so a hub import of this repo dropped the model field while the hub poller kept reading it (`AttributeError: 'PipelineRun' object has no attribute 'intake_bert'`, 37 hub tests).
 
 - Reuse exact-hash default-admin password safety checks across requests, with

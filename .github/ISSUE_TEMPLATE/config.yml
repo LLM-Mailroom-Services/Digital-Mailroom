@@ -1,8 +1,0 @@
-blank_issues_enabled: true
-contact_links:
-  - name: Hub task board (governance/TASKS.md)
-    url: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/governance/TASKS.md
-    about: Single source of truth for cross-agent task state — read it FIRST every session, before any task
-  - name: Agent conventions (AGENTS.md)
-    url: https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/AGENTS.md
-    about: Board laws (claim before edit, update don't duplicate), commit discipline, test gates, sync rules

@@ -1,8 +1,8 @@
 <div align="center">
 
-# 📚 Monorepo Documentation
+# 📚 The-Mailroom Documentation
 
-**The documentation hub for the Digital-Mailroom monorepo — architecture, contracts, audits, and wiki pages.**
+**Documentation and reports for the Mailroom visualizer package.**
 
 </div>
 
@@ -11,33 +11,21 @@
 ## Structure
 
 | Path | Contents |
-| :--- | :--- |
-| [`assets/`](assets/) | Shared documentation assets (images, diagrams) |
-| [`reports/`](reports/) | Evaluation reports, audits, and analysis documents |
-| [`reports/audits/`](reports/audits/) | Corpus baseline audits plus DMR-009/091/092/093 branch, import and release audits |
-| [`wiki/`](wiki/) | GitHub-wiki pages (synced via `sync-wiki.sh`) |
-
-## Key Documents
-
-| Document | Description |
-| :--- | :--- |
-| `../README.md` | Root monorepo README |
-| `../CONTRIBUTING.md` | Contributor guide: repo routing, card workflow, testing, commits, PRs |
-| `../SECURITY.md` | Vulnerability reporting, secrets and data handling |
-| `TESTING.md` | Test tiers, per-package commands and the change-type → required-suite matrix |
-| `COMMIT_MESSAGES.md` | Shared commit-message template and examples (`.gitmessage`) |
-| `v7-taxonomy.md` | Canonical five-class taxonomy definition |
-| `DOCCLASS_CONTRACT.md` | Dataset contract and versioning rules |
-| `docclass-merged-plan.md` | Strategic plan for corpus development |
+|:---|:---|
+| [`reports/`](reports/) | Evaluation reports and pipeline analytics |
+| [`reports/evaluations/`](reports/evaluations/) | Agent evaluation results |
 
 ## Related Documentation
 
-| Package | Docs |
-| :--- | :--- |
-| `llm-mailroom` | `packages/llm-mailroom/docs/` — full pipeline documentation |
-| `local-mailroom-sandbox` | `packages/local-mailroom-sandbox/docs/` — sandbox, Modal and vLLM guides |
-| `mailroom-corpus-eda` | `packages/mailroom-corpus-eda/docs/` — dataset cards, source corpora |
+- `README.md` — Package overview
+- `hosted/README.md` — Mailroom Observatory (hosted edition)
+- `ui/README.md` — React operator desk
+- `wiki/` — GitHub wiki pages
 
-## Wiki
+## Key Concepts
 
-The GitHub wiki is pushed from `wiki/` via `sync-wiki.sh`. Edit wiki-native pages directly in `wiki/`; mirror pages are generated from canonical sources at sync time.
+The-Mailroom provides multiple visualization surfaces:
+- **Pixel console** (`web/`) — CRT/conveyor canvas for operators
+- **Observatory** (`hosted/`) — Modern editorial desk for public access
+- **React desk** (`ui/`) — Optional React operator interface
+- **TUI** (`tui/`) — Terminal user interface

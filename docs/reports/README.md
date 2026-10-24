@@ -1,8 +1,8 @@
 <div align="center">
 
-# 📊 Evaluation Reports
+# 📊 The-Mailroom Reports
 
-**Evaluation reports for the Digital-Mailroom monorepo.**
+**Evaluation reports and pipeline analytics for The-Mailroom visualizer.**
 
 </div>
 
@@ -12,10 +12,16 @@
 
 | Path | Contents |
 |:---|:---|
-| [`audits/`](audits/) | Baseline audits and structural analysis |
+| [`evaluations/`](evaluations/) | Agent evaluation results |
+
+## Report Types
+
+- **Pipeline analytics** — Processing throughput, latency, success rates
+- **Agent evaluations** — Sorter, specialist, judge performance metrics
+- **Floor status** — Live tray counts and queue depths
 
 ## Related Files
 
-- `../assets/` — Documentation assets
-- `../wiki/` — GitHub wiki pages
-- `../` — Documentation root
+- `hosted/` — Mailroom Observatory (live dashboard)
+- `web/` — Pixel console (CRT canvas)
+- `scripts/` — Report generation scripts

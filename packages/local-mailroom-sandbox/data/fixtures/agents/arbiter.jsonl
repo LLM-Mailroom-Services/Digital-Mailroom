@@ -1,2 +1,0 @@
-{"id":"arbiter_incomplete","expected_doc_class":"contract","judge_verdict":"incomplete","judge_score":0.4,"judge_findings":["missing governing_law"],"expected_decision":"accept_with_caveats","extracted_data":{"parties":["Northwind Logistics Corporation"]}}
-{"id":"arbiter_review","expected_doc_class":"correspondence","judge_verdict":"incomplete","judge_score":0.2,"judge_findings":["source unreadable"],"expected_decision":"human_review","extracted_data":{}}

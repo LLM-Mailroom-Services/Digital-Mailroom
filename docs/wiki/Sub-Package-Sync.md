@@ -169,17 +169,29 @@ PR with `gh pr create`, putting BOTH count lines in the body. Different counts
 mean the import broke something: do not push; report the new failing tests.
 A red baseline is its own bug; open or update a board card for it.
 
-**Step 5 — after the PR merges, advance the cursor.** The PR flow never
-touches the cursor. On up-to-date `main`:
+**Step 5 — advance the cursor.** The PR flow never touches the cursor, so do
+it once the tree really equals the source. Run `status` FIRST and check that
+`upstream=` is the exact commit you imported: `snapshot` records the CURRENT
+upstream tip, so if the source moved while you worked (it did on 2026-10-23:
+The-Mailroom #44 landed an hour after #45) the cursor would claim commits you
+never imported. If the tip moved, go back to Step 3 and import again. Then:
 
 ```bash
 python3 scripts/sync_packages.py snapshot --package <name>
 python3 scripts/sync_packages.py status      # that package must now say "in sync"
 ```
 
-Commit the changed `scripts/packages_sync.json` (card-prefixed message). If
+Commit the changed `scripts/packages_sync.json` (in the import PR, as its own commit) (card-prefixed message). If
 `snapshot` refuses with missing content, the import is incomplete: do NOT pass
 `--force`.
+
+**Landing the import PR.** Merge it with a MERGE COMMIT (`gh pr merge <n>
+--merge`), not a squash: git-subtree finds the previous import point by the
+`Squashed 'packages/<name>/' changes from A..B` commit in main's history, and a
+squash-merge discards it, so the next pull starts from an older base and
+produces spurious conflicts (as happened with The-Mailroom on 2026-10-23).
+Main reads BLOCKED on the phantom `ci` check (DMR-080); `--admin` is the
+known workaround.
 
 **Step 6 — vendors (only if you imported llm-dojo-scoring or llm-mailroom;
 the sandbox vendors exactly those two. The-Mailroom and mailroom-corpus-eda are

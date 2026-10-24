@@ -34,6 +34,20 @@ def test_retired_compliance_filing_not_offered_in_fallback_class_lists():
         assert "compliance_filing" not in _read(rel), rel
 
 
+def test_archive_browser_filter_offers_exactly_the_live_classes():
+    # The operator ArchiveBrowser type filter must match DOC_CLASSES (minus the
+    # `unknown` bucket, which is not an archivable class): it dropped
+    # merger_agreement and still offered the retired compliance_filing.
+    from mailroom_ui.pipeline_schema import DOC_CLASSES
+
+    src = _read("ui/src/components/ArchiveBrowser.tsx")
+    offered = re.findall(r'<option value="([a-z_]+)">([^<]+)</option>', src)
+    live = {k: v for k, v in DOC_CLASSES.items() if k != "unknown"}
+    assert sorted(value for value, _ in offered) == sorted(live)
+    assert dict(offered)["merger_agreement"] == "Merger Agreement"
+    assert "compliance_filing" not in src
+
+
 def test_terminal_escape_covers_quotes_and_links_are_scheme_checked():
     src = _read("terminal/js/terminal.js")
     esc = re.search(r"function escapeHtml\(s\) \{(.*?)\n\}", src, re.S).group(1)

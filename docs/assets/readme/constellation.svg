@@ -13,9 +13,9 @@
     <path id="e4" d="M440 300 H650"/>
     <path id="e5" d="M360 340 C390 420 440 450 480 470"/>
     <path id="e6" d="M740 340 C700 420 650 450 610 470"/>
-    <path id="e7" d="M870 290 C930 250 960 200 990 185"/>
-    <path id="e8" d="M1080 220 V380"/>
-    <path id="e9" d="M260 340 C250 680 1010 680 1060 460"/>
+    <path id="e7" d="M870 310 C930 330 950 400 990 415"/>
+    <path id="e8" d="M1080 385 V230"/>
+    <path id="e9" d="M260 340 C250 680 1010 680 1080 455"/>
   </defs>
 
   <rect width="1280" height="640" rx="24" fill="url(#bg)"/>
@@ -37,9 +37,9 @@
     <text x="510" y="290">executes</text>
     <text x="352" y="440">scores with</text>
     <text x="680" y="440">scores with</text>
-    <text x="930" y="218">traces</text>
-    <text x="1092" y="306">feeds</text>
-    <text x="637" y="594" text-anchor="middle">traces / API → visualized</text>
+    <text x="872" y="394">traces</text>
+    <text x="1092" y="312">feeds</text>
+    <text x="637" y="594" text-anchor="middle">sandbox traces</text>
   </g>
 
   <!-- particles -->
@@ -88,15 +88,15 @@
     <text x="453" y="538" fill="#64748b">error analysis &amp; interpretation</text>
 
     <!-- langfuse -->
-    <rect x="990" y="150" width="180" height="70" rx="14" fill="#0f172a" stroke="#f472b6" stroke-width="2" stroke-dasharray="7 5"/>
-    <text x="1008" y="180" font-size="16" font-weight="700" fill="#fbcfe8">Langfuse</text>
-    <text x="1008" y="202">external · traces</text>
+    <rect x="990" y="385" width="180" height="70" rx="14" fill="#0f172a" stroke="#f472b6" stroke-width="2" stroke-dasharray="7 5"/>
+    <text x="1008" y="415" font-size="16" font-weight="700" fill="#fbcfe8">Langfuse</text>
+    <text x="1008" y="437">external · trace store</text>
 
     <!-- The-Mailroom -->
-    <rect x="980" y="380" width="200" height="80" rx="14" fill="#0f172a" stroke="#f472b6" stroke-width="2"/>
-    <text x="998" y="410" font-size="16" font-weight="700" fill="#e2e8f0">The-Mailroom</text>
-    <text x="998" y="432">pixel-art visualizer</text>
-    <text x="998" y="448" fill="#64748b">shared by pipeline + sandbox</text>
+    <rect x="980" y="150" width="200" height="80" rx="14" fill="#0f172a" stroke="#f472b6" stroke-width="2"/>
+    <text x="998" y="180" font-size="16" font-weight="700" fill="#e2e8f0">The-Mailroom</text>
+    <text x="998" y="202">pixel-art visualizer</text>
+    <text x="998" y="218" fill="#64748b">shared by pipeline + sandbox</text>
   </g>
 
   <!-- pulse on the pipeline -->

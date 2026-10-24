@@ -156,7 +156,7 @@ def frame(f: int, big: ImageFont.ImageFont, small: ImageFont.ImageFont) -> Image
 
     big_im = im.resize((LW * SCALE, LH * SCALE), Image.NEAREST)
     bd = ImageDraw.Draw(big_im)
-    bd.text((36 * SCALE, 3 * SCALE), "THE MAILROOM · LIVE SORTING FLOOR", font=big, fill=(203, 213, 225))
+    bd.text((36 * SCALE, 3 * SCALE), "THE DIGITAL MAILROOM · LIVE SORTING FLOOR", font=big, fill=(203, 213, 225))
     bd.text(((BELT_X0 + 4) * SCALE, 8 * SCALE), "INBOX", font=small, fill=(148, 163, 184), anchor="mm")
     bd.text(((SORTER_X - 6) * SCALE, 21 * SCALE), "SORTER", font=small, fill=(148, 163, 184))
     bd.text(((JUDGE_X - 2) * SCALE, 20 * SCALE), "JUDGE", font=small, fill=(148, 163, 184))

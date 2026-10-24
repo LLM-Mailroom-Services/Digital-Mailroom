@@ -8,8 +8,8 @@ stats = [
     ("13", "pipeline nodes", "#22c55e"),
     ("5", "document classes", "#a3e635"),
     ("3,302", "corpus rows (v9)", "#facc15"),
-    ("15", "specialist agents", "#c084fc"),
-    ("1", "lockfile to rule them", "#f472b6"),
+    ("15", "agent roster", "#c084fc"),
+    ("1", "lockfile for them all", "#f472b6"),
 ]
 W, H, PAD = 1200, 170, 20
 cw = (W - PAD * 2) / len(stats)

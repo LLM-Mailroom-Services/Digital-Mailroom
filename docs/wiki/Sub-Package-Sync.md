@@ -213,6 +213,11 @@ python3 scripts/sync_vendor.py
 python3 scripts/sync_vendor.py --check
 ```
 
+Commit those regenerated vendor files on the import branch. Run
+`python3 scripts/sync_vendor.py --check` again on the committed tree and
+confirm it is clean before merging. An uncommitted regeneration still fails
+the drift check for the next reader of the branch.
+
 Never hand-edit vendor files. Review generated changes against the imported
 workspace packages. If `pull --verify-suite` stopped before advancing its
 cursor, it leaves the import merge in place: regenerate vendors, run the full

@@ -62,8 +62,9 @@ implementation `4235b96`, source evidence `2c4dada`). Final source suite:
 Hub sandbox final suite: **1,514 passed / 12 skipped / 0 failed** (102.55 s).
 Additional hub results: scoring **1,936 passed / 5 skipped**;
 The-Mailroom **506 passed / 2 skipped**; corpus EDA **337 passed / 19 skipped**
-(exit 0 with complete progress output). Pipeline final verification is pending
-an environment-only build-cache preparation. Hub import PR:
+(exit 0 with complete progress output). Final pipeline suite after the
+build-cache seed: **2,173 passed / 37 skipped / 0 failed** in 210.49 s.
+Hub import PR:
 [#187](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/pull/187).
 Content-verified snapshot at `2026-10-24T03:58:05Z` records source
 `5c6af57a18ff0c9393ab8472a042e16a2e4f09ca`; status reports zero new upstream
@@ -108,8 +109,9 @@ Other baseline gates:
 Follow-ups were opened before closing the dependency card:
 
 - DMR-102 / [#185](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/185): deliberate source-owned Tailwind 4 migration. Source #45 currently keeps Tailwind 3.4.19 with its reviewed selector-parser override. No migration is implemented here.
-- DMR-103: reconcile historical hub governance tests and gate findings without weakening them; preserve separate DMR-080/081 decisions.
+- DMR-103 / [hub #190](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/190): reconcile historical hub governance tests and gate findings without weakening them; preserve separate DMR-080/081 decisions.
 - DMR-104 / [hub #189](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/189) and [The-Mailroom #46](https://github.com/Exios66/The-Mailroom/issues/46): repair source ArchiveBrowser filters (missing merger_agreement, retired compliance_filing remains), then import.
+- DMR-105 / [hub #191](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/191): the recovered source `data/cache/README.md` documents cache directory `ed7576b67634` (`FAMILY_HF_DATA_REVISION[:12]`). `full_corpus_cache_path()` writes `bc9eab280044` from `FAMILY_HF_REVISION[:12]`. The README blob is identical at source `2e4289ed` and `5c6af57a`, so this import does not edit it.
 
 The unrelated untracked source `data/provider_health.json` and `.lock` artifacts
 are excluded from every commit. All source/import commits, full gate counts and
@@ -133,5 +135,5 @@ Seeded the build-backend cache with an online
 `uv build --no-sources --wheel --out-dir /tmp/dmr097-wheel-seed packages/llm-mailroom`.
 The test's offline build and runtime socket guards remain enabled; no package
 code was modified. `docs/TESTING.md` now documents this setup prerequisite.
-The unchanged focused wheel test passes (1 passed in 4.40 s). The full pipeline
-suite is rerunning after seeding and must be green before merge.
+The unchanged focused wheel test passes (1 passed in 4.40 s). The rerun of the
+full pipeline suite passes: **2,173 passed / 37 skipped / 0 failed** in 210.49 s.

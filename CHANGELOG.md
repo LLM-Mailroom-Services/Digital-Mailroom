@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Add the DMR-088 `fetch-deps` regression test (`tests/test_fetch_deps_rc.py`), previously carried only in the Digital-Mailroom hub copy: every vendor refresh runs after an earlier failure and the command exits non-zero if any failed.
+
 - Make the ModernBERT feeder path tests hermetic: they build a fake `mailroom-ml` checkout under `tmp_path` instead of discovering a sibling on the developer's machine, and pin that `feeder_status()` reports not-ok when the eval entrypoint is missing.
 
 - Bind locked execution and reusable API results to immutable generation/task,

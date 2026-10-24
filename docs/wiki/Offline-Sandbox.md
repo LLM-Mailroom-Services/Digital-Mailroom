@@ -130,7 +130,7 @@ sandbox cutover --profile ollama --agent-model judge=qwen3:14b
 sandbox up / down                         # compose services
 sandbox pull-models                       # Ollama model pull
 sandbox health                            # probe active provider
-sandbox fetch-deps                        # clone vendored deps (llm-mailroom v0.7.1)
+sandbox fetch-deps                        # refresh vendored deps (hub: mirrors the workspace; standalone: tag-based)
 sandbox fetch-deps --visualizer           # also The-Mailroom
 ```
 

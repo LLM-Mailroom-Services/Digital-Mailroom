@@ -6,9 +6,9 @@ to never run a 5-minute full suite for a one-line docs change, and never
 skip the cross-package suite for a change that touches two packages.
 
 Source of truth for the package list: `AGENTS.md` ("Per-package test
-suites"). Test counts below were re-measured 2026-10-21 (DMR-085). Wall times are
-measured wall-clock on a shared `.venv`, ±20% depending on machine load;
-rows marked *cov* were timed under `--cov`, which is slower than a plain run.
+suites"). Test counts below were re-measured 2026-10-23 on the five-core
+workspace (after #162/#167), with plain runs (no `--cov`). Wall times are
+measured wall-clock on a shared `.venv`, ±20% depending on machine load.
 
 ## Four tiers
 
@@ -17,7 +17,7 @@ rows marked *cov* were timed under `--cov`, which is slower than a plain run.
 | **1 — surgical** | The single test file/module touched by a change | seconds | Every edit, before committing |
 | **2 — package unit** | The full test suite of the one changed package | seconds–minutes | Every non-trivial change to a package |
 | **3 — cross-package** | The suites of every package a change touches, plus any package that imports the changed surface | 1–6 min | Cross-package refactors, shared-catalog changes (taxonomy, vendor, dojo), version bumps |
-| **4 — full + governance** | All 5 core package suites + `scripts/tests` + board-site JS + the governance gates | five-core timing pending | Release cuts, CI gate verification, end-of-sprint sweeps |
+| **4 — full + governance** | All 5 core package suites + `scripts/tests` + board-site JS + the governance gates | ~7 min + gates | Release cuts, CI gate verification, end-of-sprint sweeps |
 
 ## Per-package commands (measured)
 
@@ -27,31 +27,37 @@ invocation**.
 
 | Package | Command | Tests | Wall time |
 | --- | --- | --- | --- |
-| llm-dojo-scoring | `uv run pytest packages/llm-dojo-scoring/tests -q` | 1219 pass / 5 skip | ~28 s *cov* |
-| llm-mailroom | `uv run pytest packages/llm-mailroom/src/tests -q` | 1864 pass / 37 skip / 2 fail* | ~9:40 *cov* |
-| local-mailroom-sandbox | `uv run pytest packages/local-mailroom-sandbox/tests -q` | 1324 pass / 5 skip | ~1:50 *cov* |
-| The-Mailroom | `uv run pytest packages/The-Mailroom/tests -q` | 421 pass | ~38 s *cov* |
-| mailroom-corpus-eda | `uv run pytest packages/mailroom-corpus-eda/tests -q` | 186 pass / 17 skip | ~23 s |
-| hub governance tooling | `python3 -m unittest discover scripts/tests` | 62 pass | ~9 s |
+| llm-dojo-scoring | `uv run pytest packages/llm-dojo-scoring/tests -q` | 1936 pass / 5 skip | ~36 s |
+| llm-mailroom | `uv run pytest packages/llm-mailroom/src/tests -q` | 2173 pass / 37 skip | ~3:35 |
+| local-mailroom-sandbox | `uv run pytest packages/local-mailroom-sandbox/tests -q` | 1512 pass / 12 skip / 1 fail† | ~1:45 |
+| The-Mailroom | `uv run pytest packages/The-Mailroom/tests -q` | 468 pass / 2 skip / 38 fail* | ~22 s |
+| mailroom-corpus-eda | `uv run pytest packages/mailroom-corpus-eda/tests -q` | 337 pass / 19 skip | ~10 s |
+| hub governance tooling | `python3 -m unittest discover scripts/tests` | 80 pass | ~33 s |
 | board-site API | `(cd board-site && node tests/api.test.js)` | 23 checks | <1 s |
 
-\* The two llm-mailroom failures (`test_audit_log.py::test_concurrent_appends_keep_chain_valid`,
-`test_relations.py::test_concurrent_ledger_writers_do_not_fork_chain`) are a
-real storage race (`storage/db.py` `ensure_schema` has no lock; `get_engine`
-shares one async engine across event loops), not flakes — see AGENTS.md
-§ Test discipline. Skips: llm-mailroom's 30 `docs/examples/samples/manifest.csv`
-skips and corpus-eda's 17 `data/parquet` snapshot skips mean the real-sample /
-real-corpus tests do not run in a fresh checkout.
+\* The-Mailroom's 38 failures on 2026-10-23 are a real package defect, not
+flakes: 37 raise `AttributeError: 'PipelineRun' object has no attribute
+'intake_bert'` (`server/poller.py` and `hosted/js/bert_panels.js` read a field
+that `mailroom_ui/models.py` `PipelineRun` does not declare), plus
+`test_trace_cache.py::test_live_traces_still_hit_langfuse`. They reproduce on
+clean `main`; the fix belongs in the standalone `Exios66/The-Mailroom` source,
+then a hub import. † The sandbox failure
+(`test_modernbert_feeder.py::test_modernbert_feeder_resolves_sibling`) depends
+on a local `mailroom-ml` sibling checkout: it skips when the sibling is absent
+and fails when a present sibling's `feeder_status()` is not ok. The 2026-10-21
+llm-mailroom storage-race failures (`test_audit_log.py`, `test_relations.py`)
+did not reproduce in this run. Skips: llm-mailroom's
+`docs/examples/samples/manifest.csv` skips and corpus-eda's `data/parquet`
+snapshot skips mean the real-sample / real-corpus tests do not run in a fresh
+checkout.
 
 **No CI workflow runs any of these suites** — the local run is the gate.
 
 ## Historical seven-member measurements (2026-10-21, before DMR-093)
 
-The five core rows above and the two feeder rows below were measured together
-in the seven-member checkout on 2026-10-21. These are historical results, not
-new verification of the pruned workspace or final PR162 imports. The original
-four-tier sweep was ~13.5 minutes plus gates. DMR-093's five-core verification
-must record fresh results separately.
+The two feeder rows below were measured in the seven-member checkout on
+2026-10-21, before DMR-093 pruned the feeds (#167, merged 2026-10-23). The
+seven-member four-tier sweep then took ~13.5 minutes plus gates under `--cov`.
 
 | Preserved package | Historical command | Tests | Wall time |
 | --- | --- | --- | --- |
@@ -60,14 +66,13 @@ must record fresh results separately.
 
 Run these commands only in a separate checkout of the complete preserved
 workspace: [Enron](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment/packages/Enron-Evaluation-Environment), [claims](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda/packages/claims-data-eda), commit `59c879d9fb4480084e53137e2e9fb25650933944`.
-PR162 must leave both package trees byte-identical. No feeder audit or source
-fix is required for this prune. Keep the package-local ignores and tracked
+#162 left both package trees byte-identical before #167 removed them. Keep the package-local ignores and tracked
 sample PDFs when restoring. Do not overlay the old root pyproject, lock or
 sync manifest onto current main; reconcile those contracts explicitly.
 
 
 
-> llm-mailroom is the long pole (~5 min). Its sub-suites can be targeted for
+> llm-mailroom is the long pole (~3.5 min). Its sub-suites can be targeted for
 > faster surgical feedback: `src/tests/test_observability.py`,
 > `src/tests/test_agents/`, `src/tests/test_doc_inventories.py`, etc.
 

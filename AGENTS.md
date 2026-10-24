@@ -15,8 +15,13 @@ workspace redirects.
 
 Hub-level (no package): `governance/TASKS.md` (the board), `scripts/`
 (sync/board/release tooling + its hermetic `scripts/tests`), `board-site/`
-(the served Vercel board), `docs/` (`TESTING.md`, `wiki/`), `.github/`
-(workflows, labels, issue templates).
+(the served Vercel board), `docs/` (`TESTING.md`, `COMMIT_MESSAGES.md`,
+`wiki/`, `reports/audits/`), `.github/` (workflows, labels, issue/PR/release
+templates), `tools/feeder-resync/` (historical resync bundle).
+
+Human contributors: start at `CONTRIBUTING.md`; security reports go through
+`SECURITY.md`; snags and jargon live in the wiki pages `Troubleshooting` and
+`Glossary` (`docs/wiki/`).
 
 Most packages carry their own `AGENTS.md` with project-specific conventions —
 read it in the authoritative standalone checkout before changing package code.
@@ -28,14 +33,14 @@ read it in the authoritative standalone checkout before changing package code.
 only as standalone `Exios66/*` repos (no longer synced); `agent-mailroom` is
 preserved on the branch `feature/agent-mailroom` (cut from tag `v0.8.0`).
 
-**DMR-093 (2026-10-23):** five active core members remain (four built plus
-virtual `mailroom-corpus-eda`). Noncore feeds are external standalone repos;
-their complete hub checkouts are preserved on
+**DMR-093 (2026-10-23, merged as #167 on top of #162):** five active core
+members remain (four built plus virtual `mailroom-corpus-eda`). Noncore feeds
+are external standalone repos; their complete hub checkouts are preserved on
 [`feature/enron-evaluation-environment`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment/packages/Enron-Evaluation-Environment) and
 [`feature/claims-data-eda`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda/packages/claims-data-eda), both at
-`59c879d9fb4480084e53137e2e9fb25650933944`. PR162 must retain those two package trees byte-identically;
-pruning lands in a separate PR dependent on #162. For the original complete
-workspace, use a separate checkout of the preservation branch. Selective
+`59c879d9fb4480084e53137e2e9fb25650933944` (the last commit carrying those
+package trees). For the original complete workspace, use a separate checkout
+of the preservation branch. Selective
 restoration must reconcile explicit membership, sync selection, dependencies
 and tests; never overwrite the current root workspace/lock/cursors with the
 archived versions. Keep the existing `feature/agent-mailroom` unchanged.
@@ -327,7 +332,8 @@ or team to claim) → `assigned` (claimed, nothing underway) → `in_progress`
   messages (human directive 2026-09-04):** every
   commit carries a fully detailed, explanatory message — subject line plus
   a body that names each file changed and describes what/why (reference the
-  card, note test evidence and gates). A terse "Update X" without a body is
+  card, note test evidence and gates; template and examples in
+  `docs/COMMIT_MESSAGES.md`; enable the `.gitmessage` template once per clone). A terse "Update X" without a body is
   a defect. Rewrites of pushed history are reserved for human-directed
   corrections (see the 2026-09-04 reword session note in TASKS.md). **UTC is
   the canonical timezone (hub#plan-Phase7):** timestamps in evidence, board
@@ -426,9 +432,11 @@ durations, and the change-type → required-suite matrix.** Docs currency:
 when a change alters behavior described by `README.md`, `AGENTS.md`, or
 `governance/TASKS.md`, update those files in the same commit.
 
-**CI does not run the package suites.** The only workflows are
+**CI does not run the package suites.** The gate workflows are
 `board-governance.yml` (path-filtered governance gates) and
-`release-governance.yml`; no workflow runs any `packages/*` pytest suite,
+`release-governance.yml`; `dependabot-auto-merge.yml` only automates
+Dependabot patch/minor merges and `apply-feeder-resync-bundle.yml` is the
+historical one-shot behind `tools/feeder-resync/` (2026-09-27). No workflow runs any `packages/*` pytest suite,
 `scripts/tests`, or the board-site JS tests. Your local run IS the gate:
 quote the exact pass/skip/fail counts in the card's Evidence and the PR
 body. A green PR check list says nothing about the package suites. (Every

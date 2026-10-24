@@ -21,6 +21,23 @@ and is recorded there, not here.
 
 ## [Unreleased]
 
+### Documentation
+
+- Refresh hub-level docs after #162/#167: README repository map, structure
+  tree and dev commands; AGENTS.md workflow list, layout and commit-template
+  pointers; wiki Home/Releases/Sub-Package-Sync/Architecture/Getting-Started/
+  Offline-Sandbox/FAQ (current hub and package versions, consuming pins,
+  prune now merged); `docs/TESTING.md` re-measured five-core counts;
+  scripts/reports/audits README indexes. Vendored package trees untouched.
+- Add contributor documentation: `CONTRIBUTING.md` (repo routing, card
+  workflow, testing and commit rules, PR notes), `SECURITY.md` (reporting path,
+  secrets and data handling) and wiki `Troubleshooting` + `Glossary` pages,
+  linked from the README, AGENTS.md, wiki Home and sidebar.
+- Restyle the root README: animated conveyor hero, pixel-art sorting-floor GIF,
+  animated constellation data-flow map, typing quickstart terminal and a
+  by-the-numbers strip (all under `docs/assets/readme/`, with their generator
+  scripts); reference material moves into collapsible sections.
+
 ### Removed
 
 - **DMR-093 five-core workspace**: remove the 149 tracked paths under the
@@ -28,8 +45,8 @@ and is recorded there, not here.
   survive on [`feature/enron-evaluation-environment`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment)
   and [`feature/claims-data-eda`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda),
   both preserved at `59c879d9fb4480084e53137e2e9fb25650933944`.
-  The separate prune PR depends on #162 retaining both trees byte-identically;
-  no feeder source fix is included. The original `feature/agent-mailroom`,
+  The prune landed as #167 on top of #162, which retained both trees
+  byte-identically; no feeder source fix is included. The original `feature/agent-mailroom`,
   standalone repos/sites, dataset identities, taxonomies and historical labels remain.
 - Retire the feeder-only hub `gen_interactive_charts.py`; its implementation
   remains in the complete preserved checkouts.

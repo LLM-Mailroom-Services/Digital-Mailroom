@@ -145,7 +145,9 @@ python3 scripts/sync_packages.py pull --package <name> --squash --open-pr --reso
 conflicted files are NOT in the upstream diff (check the Step 2 `git diff --stat`; the PR diff must contain only those files). If the upstream commits DO
 touch a conflicted file, do not use `ours` blindly: ask the board owner.
 The driver makes branch `sync/<name>/import-<sha12>`, merges, and, if the test
-suite passes, pushes and opens a PR. Read stderr for `resolution_divergences`;
+suite passes, pushes and opens a PR. It may print `could not return to main`
+and leave you on the sync branch: that is expected in a worktree where `main`
+is checked out elsewhere; just stay on the branch. Read stderr for `resolution_divergences`;
 any entry there must be reviewed against the source commit before merge.
 
 If it prints `verify-suite FAILED` and does not push, go to Step 4b.
@@ -179,8 +181,9 @@ Commit the changed `scripts/packages_sync.json` (card-prefixed message). If
 `snapshot` refuses with missing content, the import is incomplete: do NOT pass
 `--force`.
 
-**Step 6 — vendors (only if you imported llm-dojo-scoring, llm-mailroom or
-The-Mailroom, because the sandbox vendors those).**
+**Step 6 — vendors (only if you imported llm-dojo-scoring or llm-mailroom;
+the sandbox vendors exactly those two. The-Mailroom and mailroom-corpus-eda are
+not vendored, skip this step for them).**
 
 ```bash
 python3 scripts/sync_vendor.py && python3 scripts/sync_vendor.py --check
@@ -198,7 +201,8 @@ new errors.
   through the source repo + `pull`. The hub's own resolution is the ROOT
   `uv.lock`; it is hub-owned and is bumped here with
   `uv lock --upgrade-package <pkg>` (then `uv lock --check`), as its own card
-  and commit. An import does not change the root lock.
+  and commit. An import normally does not change the root lock (it can if the imported
+  package changed its `pyproject.toml`; `uv lock --check` tells you).
 - **npm lockfiles** (`packages/The-Mailroom/ui/package-lock.json`) are source
   files and arrive by `pull`.
 - **Dependabot PRs must be merged in the source repo.** Dependabot also runs on
@@ -207,6 +211,14 @@ new errors.
   isFork,parent`); merging dependabot PRs there changes the fork only and the
   hub never sees them. Before merging any dependabot PR, run that check and
   merge only on the repo named in `scripts/packages_sync.json` (`url`).
+- **Read the manifest diff of every dependabot PR, not the title.** A grouped
+  security PR can carry an unannounced MAJOR (2026-10-23: The-Mailroom #43 moved
+  `tailwindcss` 3 -> 4 under the title "4 updates" and broke `npm run build`).
+  Before merging, in the PR's `package.json`/`pyproject.toml` diff look for any
+  changed major version, then run the real build (`cd packages/The-Mailroom/ui
+  && npm ci && npm run build && npm audit`) or the package suite. If a major
+  sneaks in, fix it in the source repo first (an `overrides`/constraint PR),
+  never in the hub, then re-run the import.
 - A bump already present in the source lock (check the version in the package
   `uv.lock`) is obsolete: close the dependabot PR instead of merging.
 

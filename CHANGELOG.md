@@ -33,6 +33,11 @@ and is recorded there, not here.
   workflow, testing and commit rules, PR notes), `SECURITY.md` (reporting path,
   secrets and data handling) and wiki `Troubleshooting` + `Glossary` pages,
   linked from the README, AGENTS.md, wiki Home and sidebar.
+- Import The-Mailroom `4c213bf6` and local-mailroom-sandbox `2e4289ed`, which
+  make the previously failing tests pass for the right reason (BERT lane
+  panels source-owned; hermetic ModernBERT feeder tests; DMR-088 regression
+  test source-owned). All five core suites are green; `docs/TESTING.md` and
+  the wiki reflect it. Close DMR-075/078/085-089/091/093-095/098 on the board.
 - Restyle the root README: animated conveyor hero, pixel-art sorting-floor GIF,
   animated constellation data-flow map, typing quickstart terminal and a
   by-the-numbers strip (all under `docs/assets/readme/`, with their generator

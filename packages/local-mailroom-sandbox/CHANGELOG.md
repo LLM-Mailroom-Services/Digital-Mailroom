@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Make the ModernBERT feeder path tests hermetic: they build a fake `mailroom-ml` checkout under `tmp_path` instead of discovering a sibling on the developer's machine, and pin that `feeder_status()` reports not-ok when the eval entrypoint is missing.
+
 - Bind locked execution and reusable API results to immutable generation/task,
   dataset and resolved prompt identity; freeze initial operator knobs and refuse
   damaged artifacts before activation. Keep every managed vendor refresh eligible

@@ -21,15 +21,13 @@ pytest invocation** ([[Getting-Started]]).
 
 **A suite fails and I did not touch that package.**
 Reproduce it on clean `main` (`git stash`, rerun) before you start debugging.
-The package may carry a real defect that belongs in its standalone repo. The
-2026-10-23 measurements in `docs/TESTING.md` record the known failures (for
-example The-Mailroom's `intake_bert` errors). Report the difference, don't
-paper over it.
+A red hub suite usually means hub-only code that the standalone never owned
+(the 2026-10-23 `intake_bert` failures were exactly that). Fix it in the
+standalone repo, then import; don't patch the hub copy.
 
-**`test_modernbert_feeder_resolves_sibling` skips or fails.**
-It depends on a local `mailroom-ml` sibling checkout. It skips when the
-sibling is missing and fails when a present sibling's `feeder_status()` is not
-ok. That is a machine-local condition, not a hub regression.
+**A test passes on my machine but depends on a sibling checkout.**
+Tests must build their fixtures under `tmp_path` (as the ModernBERT feeder
+tests now do) rather than discover checkouts in your home directory.
 
 **Many `docs/examples/samples` or `data/parquet` tests are skipped.**
 The real-sample and real-corpus fixtures are not in a fresh checkout. Those

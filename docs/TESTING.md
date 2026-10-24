@@ -29,24 +29,20 @@ invocation**.
 | --- | --- | --- | --- |
 | llm-dojo-scoring | `uv run pytest packages/llm-dojo-scoring/tests -q` | 1936 pass / 5 skip | ~36 s |
 | llm-mailroom | `uv run pytest packages/llm-mailroom/src/tests -q` | 2173 pass / 37 skip | ~3:35 |
-| local-mailroom-sandbox | `uv run pytest packages/local-mailroom-sandbox/tests -q` | 1512 pass / 12 skip / 1 fail† | ~1:45 |
-| The-Mailroom | `uv run pytest packages/The-Mailroom/tests -q` | 468 pass / 2 skip / 38 fail* | ~22 s |
+| local-mailroom-sandbox | `uv run pytest packages/local-mailroom-sandbox/tests -q` | 1514 pass / 12 skip | ~1:45 |
+| The-Mailroom | `uv run pytest packages/The-Mailroom/tests -q` | 506 pass / 2 skip | ~22 s |
 | mailroom-corpus-eda | `uv run pytest packages/mailroom-corpus-eda/tests -q` | 337 pass / 19 skip | ~10 s |
 | hub governance tooling | `python3 -m unittest discover scripts/tests` | 80 pass | ~33 s |
 | board-site API | `(cd board-site && node tests/api.test.js)` | 23 checks | <1 s |
 
-\* The-Mailroom's 38 failures on 2026-10-23 are a real package defect, not
-flakes: 37 raise `AttributeError: 'PipelineRun' object has no attribute
-'intake_bert'` (`server/poller.py` and `hosted/js/bert_panels.js` read a field
-that `mailroom_ui/models.py` `PipelineRun` does not declare), plus
-`test_trace_cache.py::test_live_traces_still_hit_langfuse`. They reproduce on
-clean `main`; the fix belongs in the standalone `Exios66/The-Mailroom` source,
-then a hub import. † The sandbox failure
-(`test_modernbert_feeder.py::test_modernbert_feeder_resolves_sibling`) depends
-on a local `mailroom-ml` sibling checkout: it skips when the sibling is absent
-and fails when a present sibling's `feeder_status()` is not ok. The 2026-10-21
-llm-mailroom storage-race failures (`test_audit_log.py`, `test_relations.py`)
-did not reproduce in this run. Skips: llm-mailroom's
+All five core suites were green on 2026-10-23 after DMR-098. Before it, The-Mailroom
+carried 38 failures (37 `AttributeError: 'PipelineRun' object has no attribute
+'intake_bert'` plus one trace-cache test): the BERT lane panels existed only in
+the hub copy, so importing the standalone dropped the model field. They are now
+source-owned (`Exios66/The-Mailroom#44`) and imported. The sandbox's
+`test_modernbert_feeder_resolves_sibling` depended on a `mailroom-ml` checkout in
+the maintainer's home directory; it was replaced by hermetic `tmp_path` fakes
+(`Exios66/local-mailroom-sandbox#160`). Skips: llm-mailroom's
 `docs/examples/samples/manifest.csv` skips and corpus-eda's `data/parquet`
 snapshot skips mean the real-sample / real-corpus tests do not run in a fresh
 checkout.

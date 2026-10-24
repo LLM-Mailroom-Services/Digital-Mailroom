@@ -54,3 +54,23 @@ artwork. The visualizer stills live in `docs/screenshots/` (the walkthrough vide
 Mailroom Reloaded captures are linked at a pinned commit of
 [`mailroom-reloaded`](https://github.com/Exios66/mailroom-reloaded/tree/main/docs/demo), which documents how to
 regenerate them. Re-pin the commit in the README when you refresh them.
+
+## Label-layout regression
+
+After regeneration, serve the repository from its root:
+
+```bash
+python3 -m http.server 8008 --bind 127.0.0.1
+```
+
+Open `http://127.0.0.1:8008/docs/assets/readme/layout-check.html`. The page
+must report **PASS**. It uses actual browser glyph bounds, including rotated
+labels, to check padded callouts, card/badge/canvas clearances, particle paint
+order, and mobile stat spacing. It samples the diagrams at 0, 0.7, 1.5 and
+3 seconds. No browser packages or network services are required beyond the
+local HTTP server. Keep `layout-check.js` identical with the shared kit.
+
+DMR-110 reserves 12px canvas margins and opaque connector captions, enlarges
+the current-location pill to 136×34 with 12px text, and keeps particles behind
+all labels. Review the maps at 320px and 375px rendered widths as well as at
+native size; the test measures SVG coordinates, not the reader's zoom.

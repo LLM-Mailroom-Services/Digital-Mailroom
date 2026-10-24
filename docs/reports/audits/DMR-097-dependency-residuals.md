@@ -56,7 +56,20 @@ passed 1,512 tests with 14 skips. Final results are recorded below.
 
 ## Verification
 
-Final package results and imported source SHA: pending final execution.
+Merged source: `5c6af57a18ff0c9393ab8472a042e16a2e4f09ca` (source PR #162;
+implementation `4235b96`, source evidence `2c4dada`). Final source suite:
+**1,512 passed / 14 skipped / 0 failed** on the complete dependency set.
+Final hub package results: pending final execution.
+
+The driver import recovered the old standalone vendor snapshots. Its initial
+automatic gate was interrupted before claiming success; the cursor remained
+unchanged. `scripts/sync_vendor.py` regenerated the reviewed workspace copies,
+then `--check` passed. All **318** pre-import tracked vendor files were compared
+byte-for-byte and remain unchanged. The net package diff contains only the four
+expected source files and a recovered 15-line `data/cache/README.md`. That README
+has the identical longstanding source blob at both `2e4289ed` and `5c6af57a`;
+no cached dataset was imported. The sync runbook now covers this sandbox vendor
+reconciliation before final suite/cursor verification.
 
 Both locks pass `uv lock --check`; the source passes `uv pip check`. Offline
 smokes exercise notebook HTML export, OTEL SDK span/exporter initialization,

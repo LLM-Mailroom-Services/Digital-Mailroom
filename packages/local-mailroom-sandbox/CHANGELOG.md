@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Complete the SAND-062 dependency lock updates: pypdf 6.21.2, filelock 4.2.1, nbconvert 7.17.2 and OpenTelemetry API/SDK/exporters 1.45.1 (semantic conventions and shared HTTP transport 0.66b1). Initialize sandbox vendor paths in the cold-resume test subprocess before patching its real OpenAI client, and scope the API-evals import path to the test fixture so the module also passes independently; no runtime behavior changes. Related: DMR-097.
+
 - Add the DMR-088 `fetch-deps` regression test (`tests/test_fetch_deps_rc.py`), previously carried only in the Digital-Mailroom hub copy: every vendor refresh runs after an earlier failure and the command exits non-zero if any failed.
 
 - Make the ModernBERT feeder path tests hermetic: they build a fake `mailroom-ml` checkout under `tmp_path` instead of discovering a sibling on the developer's machine, and pin that `feeder_status()` reports not-ok when the eval entrypoint is missing.

@@ -186,6 +186,17 @@ def write_audit(
         conn.close()
 
 
+def admin_users() -> list[sqlite3.Row]:
+    """Stored admins, independent of the environment used to seed an empty DB."""
+    conn = connect()
+    try:
+        return conn.execute(
+            "SELECT id, username, password_hash, role FROM ui_users WHERE role = 'admin'"
+        ).fetchall()
+    finally:
+        conn.close()
+
+
 def lookup_user(username: str) -> Optional[sqlite3.Row]:
     conn = connect()
     try:

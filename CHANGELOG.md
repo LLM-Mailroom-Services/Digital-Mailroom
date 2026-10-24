@@ -8,6 +8,47 @@ All notable changes to The-Mailroom are documented here, following
 
 ### Added
 
+- Cache-only Dojo release awareness from producer health through the existing
+  pipeline ops bridge. Observatory, pixel console and TUI show loaded producer
+  versions, cached/stale qualification and a fixed release link; invalid or
+  absent advisories leave health unchanged and clear previous notices.
+
+### Changed
+
+- Offline evaluation delegates class/subclass quality, confusion, failure and row metrics to the canonical Dojo v0.23.1 engine through the optional `[eval]` extra. Ordinary display and producer-contract imports stay lazy; missing scoring dependencies fail with an install instruction.
+
+### Fixed
+
+- Observatory BERT lane panels (#111) are source-owned again: `PipelineRun.intake_bert`, the `trace_interpreter` lift of the terminal manifest's `intake.bert` block, the poller payload field, `hosted/js/bert_panels.js` with its section and CSS, and `tests/test_bert_panels.py`. The panels previously lived only in the Digital-Mailroom hub copy, so a hub import of this repo dropped the model field while the hub poller kept reading it (`AttributeError: 'PipelineRun' object has no attribute 'intake_bert'`, 37 hub tests).
+
+- Reuse exact-hash default-admin password safety checks across requests, with
+  serialized misses and immediate hash-change invalidation. Poller iteration
+  exceptions broadcast stale snapshots to already-connected clients while
+  retaining the last successful rows and fetch timestamp.
+
+- Failed refreshes of previously enriched review/archived rows remain eligible
+  for retry on the next budgeted poll instead of renewing successful-detail TTL.
+- Validate operator completion payloads through pure producer schemas in sibling
+  and pinned-contract modes, preserving import isolation and loud failures.
+
+- Public operator login checks every persisted admin for the documented
+  default password even after seed environment settings change. Existing
+  accounts are never reset implicitly.
+- Parked and terminal detail refreshes respect their TTL and bypass the
+  source run cache, while retaining the cold-start enrichment budget.
+  Reconnect snapshots retain outage status and the last successful fetch time.
+- Only the poller writes the canonical outage floor snapshot; filtered or
+  limited trace reads cannot replace it. The TUI refuses stale/cache reads
+  as live data, and its history command shares the editor's bounded history.
+- Operator source failures propagate as errors instead of successful zero
+  metrics. Archive verification requires an expected checksum and explains
+  unverified/mismatched results in the operator desk.
+- Corpus catalogs retain independent ground-truth row offsets, and the
+  terminal checks live filenames before rendering text or ground truth.
+  Multi-source windows sort the deduplicated union before applying the limit.
+
+### Added
+
 - **Phoenix source reads mailroom-reloaded runs.** `mailroom.document` roots
   and `mailroom.node.{ingest,bert_primary,sort,extract,verify,boss,
   human_review,report_catalog_archive}` spans map to the floor stations and

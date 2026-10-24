@@ -1,6 +1,6 @@
 ---
 name: huggingface
-description: Hugging Face usage for The-Mailroom eval/pilot scripts (mailroom-dataset GT, HF_TOKEN, run_production_pilot, eval_pipeline). Use for Hub datasets and copied dojo catalogs; prefer offline pytest fixtures; never import llm-dojo-scoring at runtime or start a live Qwen/Hub pilot unless the user explicitly asks.
+description: Hugging Face usage for The-Mailroom eval/pilot scripts (mailroom-dataset GT, HF_TOKEN, run_production_pilot, eval_pipeline). Use for Hub datasets and copied dojo catalogs; prefer offline pytest fixtures; offline scoring uses the canonical Dojo eval extra; keep display imports light and start a live Qwen/Hub pilot only when explicitly requested.
 ---
 
 # Hugging Face (eval + catalogs, not serving)
@@ -33,7 +33,7 @@ so eval / sync stay light — no full `load_dataset` on the visualizer path.
 | --- | --- | --- |
 | Pytest traces | `tests/fake_langfuse.py` | No |
 | Copied Hub subclass / CUAD keys | `mailroom_ui/pipeline_schema.py` | No |
-| Dojo scoring pin | docs + copied constants (`@v0.16.0`) | No runtime import |
+| Dojo scoring pin | optional `[eval]` (`@v0.23.0`) | Offline engine; live display stays light |
 | Live `mailroom-dataset` eval | `scripts/eval_pipeline.py` | **Yes** (explicit) |
 | Sync merged → Langfuse dataset | `scripts/sync_pilot_dataset.py` | **Yes** (explicit) |
 | Live Qwen 3.7-Flash pilot | `scripts/run_production_pilot.py --real` | **Yes** (explicit) |
@@ -56,7 +56,7 @@ Space SDK or a Hub model server here.
 
 ## Boundaries
 
-- **Do not** `import llm_dojo_scoring` in this process — catalogs stay copied.
+- Offline evaluation delegates scoring to Dojo through `[eval]`; do not implement competing local scorers. Keep live display imports light and topology catalogs copied.
 - **Do not** start a live Langfuse/HF/Qwen pilot unless explicitly requested.
 - Default pytest: no Hub calls.
 - For Hub CLI depth, follow the Cursor **hf-cli** plugin skill; this skill stays
@@ -66,5 +66,5 @@ Space SDK or a Hub model server here.
 
 - Schema mirror: [pipeline-schema-sync](../pipeline-schema-sync/SKILL.md)
 - Router: [mailroom-tool-router](../mailroom-tool-router/SKILL.md)
-- Pin: README constellation table (`llm-dojo-scoring` `@v0.16.0`;
+- Pin: README constellation table (`llm-dojo-scoring` `@v0.23.0`;
   llm-mailroom dist `mailroom` `@959bb0bce152` / 0.7.1+ (main after v0.7.1) via extra `[pipeline]`)

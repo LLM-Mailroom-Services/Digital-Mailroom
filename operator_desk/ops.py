@@ -38,11 +38,9 @@ def set_runs_provider(provider: Optional[Callable[[], list]]) -> None:
 def current_runs() -> list:
     if _runs_provider is None:
         return []
-    try:
-        rows = _runs_provider() or []
-    except Exception:
-        return []
-    return list(rows)
+    # Source failures must reach the app's 503/error handlers. A successful
+    # empty list remains a genuine empty window, never an outage substitute.
+    return list(_runs_provider() or [])
 
 
 class OpsStatus(BaseModel):

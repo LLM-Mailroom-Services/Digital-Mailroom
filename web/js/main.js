@@ -223,7 +223,8 @@ const Main = (() => {
   }
 
   function applyPipeline(ops) {
-    if (!ops) return;
+    DojoUpdateNotice.render(document.getElementById("dojo-update-notice"), ops);
+    ops = ops || { configured: false };
     const prev = lastPipeline || {};
     lastPipeline = ops;
     if (ops.configured && prev.watcher && prev.watcher !== ops.watcher) {
@@ -330,12 +331,13 @@ const Main = (() => {
         ConsoleView.banner("MAILROOM ONLINE — WATCHING LANGFUSE");
       } else {
         wsOk = false;
+        applyPipeline(null);
         ConsoleView.log("connection lost — reconnecting…", "c-warn");
       }
       applySource();
     } else if (msg.type === "snapshot") {
       applySnapshot(msg.runs || [], !!msg.stale);
-      if (msg.pipeline) applyPipeline(msg.pipeline);
+      applyPipeline(msg.pipeline);
       if (msg.fetched_at) lastFetchedAt = msg.fetched_at;
       if (typeof msg.poll_interval_s === "number" && msg.poll_interval_s > 0) {
         pollIntervalMs = Math.max(1000, Math.round(msg.poll_interval_s * 1000));
@@ -361,8 +363,9 @@ const Main = (() => {
         applySnapshot(data.runs || [], data.source === "langfuse-cache");
         try {
           applyPipeline(await Mailroom.api.pipeline());
-        } catch (_e) { /* pipeline URL optional */ }
+        } catch (_e) { applyPipeline(null); /* producer unavailable */ }
       } catch (err) {
+        applyPipeline(null);
         const msg = err.message || String(err);
         ConsoleView.log(`poll fallback failed: ${msg}`, "c-warn");
         Mailroom.showError(`fallback poll: ${msg}`);

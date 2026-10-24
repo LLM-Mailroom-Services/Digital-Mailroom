@@ -18,6 +18,12 @@ at `/desk` only after `npm run build`.
 
 Display `/api/*` and the floor WebSocket `/ws` stay unauthenticated.
 
+Ops reads propagate source outages as errors (503 for source unavailable);
+a successful empty source remains a valid zero-document window. Archive
+verification without a reference checksum returns `valid: false` with
+`reason: "No expected checksum"`; matching digests verify, and mismatches
+return `reason: "Checksum mismatch"`. The React desk displays the reason.
+
 ## Run
 
 ```bash
@@ -29,8 +35,11 @@ MAILROOM_OBSERVER=1 mailroom-web # in-process bin watcher
 mailroom-observer                # standalone → POST /v1/ops/events (not with MAILROOM_OBSERVER=1)
 ```
 
-Default admin is `admin` / `changeme` until `MAILROOM_OPERATOR_ADMIN_PASSWORD`
-is set — **loopback only**. On a public bind (hosted edition or a non-loopback
+An empty store seeds `admin` / `changeme` unless
+`MAILROOM_OPERATOR_ADMIN_PASSWORD` supplies a different initial password —
+**loopback only**. Seed settings never rotate existing accounts: update the
+persisted admin password explicitly before exposing a reused volume. Changing
+the seed username does not bypass the stored-admin check. On a public bind (hosted edition or a non-loopback
 `MAILROOM_HOST`) login is refused until `MAILROOM_OPERATOR_JWT_SECRET` (or
 `JWT_SECRET`) is set and the admin password is rotated; review resolve and
 inbox upload then require a reviewer (or admin) token. Never reuse

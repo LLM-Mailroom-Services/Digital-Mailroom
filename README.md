@@ -25,6 +25,24 @@ listing, live per-row `doc_text` + ground truth) and a **constellation
 repo browser** (`repos …` — every mirror package plus the hub copies and
 derived graph sites).
 
+When the configured producer health response includes a valid `dojo_update`,
+the live Observatory, pixel console, and existing TUI ops header show a
+nonblocking **Dojo update available for pipeline** notice. Installed/available
+versions describe the engine loaded by that producer, independently of this
+visualizer's optional local `[eval]` engine. The notice labels the cached
+check time and stale results; its fixed
+[Dojo release link](https://github.com/Exios66/llm-dojo-scoring/releases/latest)
+does not certify the current release page against cached knowledge.
+
+This uses the existing `/api/pipeline` and `/ws` pipeline payloads, with no
+release checks in the viewer. Absent, unknown, unavailable, disabled, current,
+or malformed metadata shows no upgrade notice; a missing producer snapshot
+or disconnected transport clears the old notice. Versions use a bounded
+canonical PEP 440 subset (64 characters; numeric releases, optional installed
+prerelease/dev/local suffixes, stable post releases). Other shapes fail soft.
+The static terminal site and optional React desk do not consume this producer
+ops payload and have no advisory. No upgrades or pin changes are automatic.
+
 Agent skills (Langfuse / Phoenix / Braintrust / Ollama / Modal / Hugging Face
 plus pixel, Observatory, live floor, schema sync, Pages, TUI, operator desk):
 [`.cursor/skills/README.md`](.cursor/skills/README.md).
@@ -54,7 +72,7 @@ board, one discussion log, and one trace contract:
 | --- | --- | --- |
 | [llm-mailroom](https://github.com/Exios66/llm-mailroom) | LangGraph state machine processing legal documents through specialist LLM agents (classify → extract → report → archive); pin `@959bb0bce152` / **0.7.1+** (main after v0.7.1) (package `mailroom` 0.7.1) | **Upstream** — its Langfuse project is this visualizer's sole data source; optional `pip install -e ".[pipeline]"` imports `pipeline.review_resolve` |
 | [llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction) | Prompt-experiment loop (prompt versions × models, paired-bootstrap ablations) | Breeds the pipeline's sorter/specialist prompts; hosts the shared kanban board + governance log for the whole chain |
-| [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Deterministic, field-type-aware scoring engine (`@v0.16.0`) | Upstream governed dependency of both pipeline repos |
+| [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Canonical scoring engine (`@v0.23.1`) | Upstream engine for pipeline and sandbox; visualizer offline evaluation uses optional `[eval]` |
 | [Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment) | EDA + pipeline-ready correspondence dataset (CMU Enron corpus) | Corpus feed for the pipeline's `correspondence` doc class |
 | [claims-data-eda](https://github.com/Exios66/claims-data-eda) | Insurance-claims candidate-corpus EDA (CMS DE-SynPUF direction) | Candidate corpus feed for the `insurance_claim` doc class |
 | [atticus-investigation](https://github.com/Exios66/atticus-investigation) | LegalBench classification prompt-engineering pipeline | Eval sibling — same methodology family, LegalBench focus |
@@ -431,6 +449,18 @@ adds `MAILROOM_OPERATOR_*` (JWT, admin seed, ingest token) plus
 > writes need the origin listed in `MAILROOM_CORS_ORIGINS`; the TUI sends
 > `MAILROOM_OPERATOR_TOKEN`. See `docs/operator-desk.md`.
 
+Admin environment settings seed an empty operator store; they do not rotate
+accounts in an existing volume. A public login stays locked while any stored
+admin still has the documented default password. Archive verification without
+an expected checksum reports an unverified result with a reason.
+
+The poller owns the shared outage floor snapshot. Filtered trace reads do not
+replace it; reconnect frames retain stale status and the last successful fetch
+time. The TUI shows a closed floor when both WS and HTTP offer only stale/cache
+data. Its `history` command shares the last 200 submitted editor commands and
+prints the most recent 40.
+
+
 > [!IMPORTANT]
 > `pipeline_schema.py` is cached at process level — editing `taxonomy.yaml`
 > (or pointing `MAILROOM_TAXONOMY` at the pipeline's copy) requires a server
@@ -445,8 +475,8 @@ The-Mailroom does not own the trace contract it renders — it **mirrors** it
 from the upstream pipeline. This is the repo's #1 maintenance duty: when
 `llm-mailroom` changes span names, observation types (`NODE_OBSERVATION_TYPES`:
 chain / agent / evaluator / retriever / generation / span), node order, the
-agent roster, live doc classes (5 extract classes + `merger_agreement` alias +
-`unknown` routing token), Hub subclasses, confidence thresholds, or
+agent roster, live doc classes (five extract classes, including distinct `merger_agreement`,
+plus the `unknown` routing token), Hub subclasses, confidence thresholds, or
 judge score names (`mailroom-pipeline-judge`, `mailroom-pipeline-quality`),
 this repo must update `mailroom_ui/pipeline_schema.py` and
 `mailroom_ui/trace_interpreter.py` in the same change window.

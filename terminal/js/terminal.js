@@ -800,6 +800,10 @@ async function corpusShow(filename) {
   print('<span class="dim">fetching full row from the Hub…</span>');
   try {
     const full = await hfRow('default', row.split, row.index);
+    if (!full || full.filename !== row.filename) {
+      print('<span class="error">catalog/live filename mismatch — document text withheld; refresh the catalog.</span>');
+      return;
+    }
     const text = (full && full.doc_text) || '';
     const clipped = text.length > 6000 ? text.slice(0, 6000) + '\n\n… [truncated — the full text lives on the Hub]' : text;
     print('<div class="post"><h2>DOC TEXT (' + text.length + ' chars)</h2>' + renderMarkdown(clipped) + '</div>');
@@ -809,6 +813,10 @@ async function corpusShow(filename) {
   if (row.gt_index >= 0) {
     try {
       const gt = await hfRow('ground_truth', row.split, row.gt_index);
+      if (!gt || gt.filename !== row.filename) {
+        print('<span class="error">catalog/live filename mismatch — ground truth withheld; refresh the catalog.</span>');
+        return;
+      }
       const body = Object.keys(gt || {}).filter(k => k !== 'filename')
         .filter(k => gt[k] !== null && gt[k] !== undefined && gt[k] !== '')
         .sort()

@@ -284,6 +284,7 @@ const App = (() => {
   }
 
   function applyPipelineOps(ops) {
+    DojoUpdateNotice.render($("dojo-update-notice"), ops);
     pipelineOps = ops || null;
     renderHeadlines(runs, pipelineOps);
     bindInboxQueue(ops);
@@ -328,9 +329,24 @@ const App = (() => {
     return next;
   }
 
+  // #111: BERT lane panels — reductions over the same live run list the
+  // trays render. The module is DOM-free and optional: if bert_panels.js
+  // failed to load the section says so instead of guessing numbers.
+  function renderBertPanels(list) {
+    const el = need("bert-panels-body");
+    if (!el) return;
+    const P = window.BERTPanels;
+    if (!P || typeof P.render !== "function") {
+      el.innerHTML = `<p class="empty">BERT lane panels unavailable — bert_panels.js did not load.</p>`;
+      return;
+    }
+    el.innerHTML = P.render(Array.isArray(list) ? list : []);
+  }
+
   function applyRuns(next) {
     runs = overlayReplay(Array.isArray(next) ? next : []);
     renderBoard();
+    renderBertPanels(runs);
   }
 
   function table(caption, headers, rows) {
@@ -1003,8 +1019,9 @@ const App = (() => {
       dbg("traces", { where: "floor", count: (data.runs || []).length });
       try {
         applyPipelineOps(await Obs.api.pipeline());
-      } catch (_e) { /* producer URL optional */ }
+      } catch (_e) { applyPipelineOps(null); /* producer unavailable */ }
     } catch (err) {
+      applyPipelineOps(null);
       dbg("traces-error", { message: err.message });
       showAlert(`Could not load traces — ${err.message}`);
     }
@@ -1066,7 +1083,10 @@ const App = (() => {
     if (msg.type === "status") {
       socketLive = !!msg.connected;
       if (msg.connected) setSource("live", "Live · WebSocket connected");
-      else setSource("stale", "Socket disconnected — reconnecting");
+      else {
+        applyPipelineOps(null);
+        setSource("stale", "Socket disconnected — reconnecting");
+      }
     } else if (msg.type === "snapshot") {
       applyRuns(msg.runs || []);
       applyPipelineOps(msg.pipeline);

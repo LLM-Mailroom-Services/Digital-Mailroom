@@ -323,6 +323,9 @@ SYNOPSIS
 }
 
 
+HISTORY_LIMIT = 200
+
+
 class CommandContext:
     """Everything a command may touch, injected by the REPL."""
 
@@ -335,6 +338,7 @@ class CommandContext:
         self.window_s = 604800
         self.corpus = CorpusClient()
         self.runs: list[dict] = []
+        self.history: list[str] = []
         self.log: "deque[str]" = deque(maxlen=200)
         self.pipeline: dict = {}
         self.filters: dict[str, Optional[str]] = {

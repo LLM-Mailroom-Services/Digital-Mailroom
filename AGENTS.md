@@ -16,7 +16,7 @@ open exactly one specialty skill. Companion to
 | `langfuse` | Default document display (SDK 2.50–4.x) |
 | `apache-phoenix` | Optional `MAILROOM_SOURCE=phoenix\|both` |
 | `braintrust` | Not a display source — do not add one |
-| `huggingface` | Hub eval/pilot scripts; copied catalogs; no runtime dojo import |
+| `huggingface` | Hub eval/pilot scripts; copied catalogs; offline scoring delegates to the optional Dojo engine |
 | `ollama` | Local LLM lives in sandbox/pipeline, not here |
 | `modal` | Remote GPU lives in sandbox/pipeline, not here |
 | `pixel-console` | Vanilla `web/` SPA (no npm) |
@@ -38,7 +38,9 @@ open exactly one specialty skill. Companion to
   - `schemas.manifest` for REVIEW dispositions / `serialize_document`. Default
   `pip install -e ".[dev]"` stays light; missing extra falls back to the same
   contract constants. **Never** import `api.main` (import-time watcher) or
-  `llm_dojo_scoring`. Bump `MAILROOM_GIT_SHA` and the extra together.
+  `llm_dojo_scoring` from the display or producer-contract path. Offline
+  evaluation uses the released Dojo engine through `[eval]`; do not implement
+  local scoring formulas. Bump `MAILROOM_GIT_SHA` and the extra together.
 - It is the **upstream**: The-Mailroom reads *its* Langfuse project (US cloud, project `llm-mailroom`). Its `AGENTS.md` is authoritative for pipeline internals; consult it whenever the pipeline's tracing contract is in doubt.
 - **What we mirror from it, and must keep in sync (the #1 maintenance duty)** — when the pipeline changes, update all of these in one change:
   - `mailroom_ui/pipeline_schema.py` — mirrors `src/graph/routing.py` + `src/config/taxonomy.yaml` + `src/observability/tracing.py` + `src/pipeline/failures.py`: node/span names (`SPAN_STAGE_MAP` incl. `normalize-intake` and the ModernBERT `intake-ml-triage` span), **`NODE_OBSERVATION_TYPES`** (chain/agent/evaluator/retriever/generation/span), stage→phase map, node order, agent roster (incl. `intake`, `sorter_reviewer`, `arbiter`, `judge`, `merger_agreement_specialist`, `insurance_claims_specialist`; reporter is procedural), live `DOC_CLASSES` (5 extract classes incl. live `merger_agreement` MAUD with its own specialist + `unknown` routing token; retired `court_opinion` / `due_diligence` / `compliance_filing` stay off the roster), Hub `DOC_SUBCLASS_BY_CLASS` + CUAD `CONTRACT_SUBTYPE_KEYS`, Langfuse score aliases (`extraction_verified_precision`), `SUITE_EXTRA_SCORES` (Enron/MAUD), `SPECIALIST_BY_DOC_CLASS`, confidence thresholds (+ `judge_band_high` 0.95, severity `by_class` bundled as `DEFAULT_BY_CLASS`), **`FAILURE_CLASSES`** + pared `EXTRACTION_FIELD_KEYS_BY_CLASS` (incl. MAUD `MergerAgreementExtraction`) / `validate_operator_extraction` (llm-mailroom @959bb0b).

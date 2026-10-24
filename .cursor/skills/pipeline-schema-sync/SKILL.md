@@ -30,8 +30,9 @@ Cached at process level — **restart** after edits.
 | New env/tag | Filters in `.env` miss runs |
 | New observation type | Node hidden or filed as generation |
 
-Do **not** import `llm-dojo-scoring` at runtime; catalogs stay copied constants
-(pin documented `@v0.16.0`).
+Keep topology/display catalogs as copied constants. Offline evaluation uses
+Dojo through optional `[eval]` (`@v0.23.0`); do not duplicate its scoring engine
+or make the live display path import it.
 
 Producer **code** pin (separate from the topology mirror): extra `[pipeline]`
 installs dist `mailroom` `@959bb0bce152` (0.7.1+, main after v0.7.1). Import only through

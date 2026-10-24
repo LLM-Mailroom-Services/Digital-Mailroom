@@ -57,15 +57,15 @@ def build_catalog(max_rows: int | None = None,
         gt = hf_corpus.fetch_rows(
             config=hf_corpus.GT_CONFIG, split=split,
             page_size=page_size, max_rows=max_rows, page_sleep=pace_s)
-        gt_by_file = {str(r.get("filename")): r for r in gt}
+        gt_by_file = {str(r.get("filename")): (i, r) for i, r in enumerate(gt)}
         for i, r in enumerate(default):
             filename = str(r.get("filename") or f"row-{i}")
-            gt_row = gt_by_file.get(filename)
+            gt_index, gt_row = gt_by_file.get(filename, (-1, None))
             rows.append({
                 "filename": filename,
                 "split": split,
                 "index": i,
-                "gt_index": i if gt_row is not None else -1,
+                "gt_index": gt_index,
                 # Class/subclass/sha live on the GROUND-TRUTH config
                 # (default metadata carries provenance only).
                 "doc_class": (gt_row or {}).get("expected"),

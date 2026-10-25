@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import tomllib
+
+from packaging.requirements import Requirement
 
 from mailroom_ui.producer import (
     DECISIONS,
@@ -19,12 +22,12 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def test_pin_matches_pyproject_extra():
-    text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    assert MAILROOM_GIT_SHA in text
-    assert MAILROOM_DIST_NAME in text
-    assert "git+https://github.com/Exios66/llm-mailroom.git@" in text
-    assert MAILROOM_PEP508.split(" @ ")[1] in text
-    assert "[pipeline]" in text or "pipeline = [" in text
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    requirements = [Requirement(dep) for dep in project["optional-dependencies"]["pipeline"]]
+    requirement, = [dep for dep in requirements if dep.name == MAILROOM_DIST_NAME]
+    assert requirement.name == MAILROOM_DIST_NAME
+    assert requirement.url == f"git+https://github.com/Exios66/llm-mailroom.git@{MAILROOM_GIT_SHA}"
+    assert str(Requirement(MAILROOM_PEP508)) == str(requirement)
 
 
 def test_bundled_validate_operator_extraction_rejects_foreign_keys():

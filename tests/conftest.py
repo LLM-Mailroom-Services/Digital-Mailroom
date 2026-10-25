@@ -30,6 +30,8 @@ def _isolate_operator_desk(tmp_path, monkeypatch):
     monkeypatch.setenv("MAILROOM_OPERATOR_ADMIN_USER", "admin")
     monkeypatch.setenv("MAILROOM_OPERATOR_ADMIN_PASSWORD", "changeme")
     monkeypatch.setenv("MAILROOM_OPERATOR_AUTH", "1")
+    monkeypatch.setenv("MAILROOM_OPERATOR_ALLOW_DEV_DEFAULTS", "1")
+    monkeypatch.delenv("JWT_SECRET", raising=False)
     monkeypatch.setenv("MAILROOM_OBSERVER", "0")
     monkeypatch.delenv("MAILROOM_OPERATOR_INGEST_TOKEN", raising=False)
     # Local (loopback) bind by default; public-bind tests opt in explicitly.

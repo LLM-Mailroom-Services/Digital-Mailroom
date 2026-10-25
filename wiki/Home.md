@@ -6,18 +6,21 @@
 
 ## The governed constellation
 
-The-Mailroom is one node of a governed family sharing one kanban board and one
-trace contract: **[llm-mailroom](https://github.com/Exios66/llm-mailroom)** is
-the upstream pipeline whose Langfuse project is this visualizer's sole data
-source; **[llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction)**
-is the prompt-experiment loop that breeds its sorter/specialist prompts (and
-hosts the shared governance board); **[llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring)**
-is the pinned scoring engine behind both (`@v0.16.0`); **llm-mailroom** itself
-is pinned here as dist `mailroom` `@959bb0bce152` / **0.7.1+** (main after v0.7.1) (optional extra `[pipeline]`); **[Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment)**
-and **[claims-data-eda](https://github.com/Exios66/claims-data-eda)** feed its
-corpus classes; **[atticus-investigation](https://github.com/Exios66/atticus-investigation)**
-is the LegalBench eval sibling. Full map:
-[`llm-mailroom/docs/sister-repos.md`](https://github.com/Exios66/llm-mailroom/blob/main/docs/sister-repos.md).
+The-Mailroom is the shared visualizer for the
+[llm-mailroom pipeline](https://github.com/Exios66/llm-mailroom) and its
+[offline/local and Modal/vLLM sandbox](https://github.com/Exios66/local-mailroom-sandbox).
+[Dojo](https://github.com/Exios66/llm-dojo-scoring) owns scoring and metrics;
+[corpus EDA](https://github.com/Exios66/Mailroom-Corpus-EDA) owns corpus tooling.
+These five source repositories are integrated by
+[Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom).
+The visualizer reads their Langfuse traces.
+
+Optional `[eval]` and `[pipeline]` installs share published Dojo `v0.24.0`.
+The producer code pin is dist `mailroom` at `31f89a82729e2a94314a372068af838ffa15def2` (0.8.1).
+Enron and claims remain external data feeders, with their historical hub copies
+on dedicated preservation branches; they are not active core workspace packages.
+The standalone extraction and LegalBench repositories retain their own workflows.
+Full source map: [pipeline sister repositories](https://github.com/Exios66/llm-mailroom/blob/main/docs/sister-repos.md).
 
 ## Surfaces
 

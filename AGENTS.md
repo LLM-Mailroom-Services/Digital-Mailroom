@@ -32,8 +32,8 @@ open exactly one specialty skill. Companion to
 
 - **Expected location**: a sibling of this repo, i.e. `../llm-mailroom` from this checkout (e.g. `/Users/luciusjmorningstar/Downloads/llm-mailroom`). It is **not currently present on this machine** — clone it before relying on `MAILROOM_TAXONOMY`.
 - **Import pin**: optional extra `[pipeline]` installs dist `mailroom` from
-  `git+https://github.com/Exios66/llm-mailroom.git@959bb0bce152` (package 0.7.1,
-  main after tag `v0.7.1`; llm-dojo-scoring v0.16.0, mailroom-dataset tag `v9.1`).
+  `git+https://github.com/Exios66/llm-mailroom.git@31f89a82729e2a94314a372068af838ffa15def2` (package 0.8.1,
+  reviewed source adoption; llm-dojo-scoring v0.24.0, mailroom-dataset tag `v9.1`).
   `mailroom_ui/producer.py` is the only import adapter — `pipeline.review_resolve`
   - `schemas.manifest` for REVIEW dispositions / `serialize_document`. Default
   `pip install -e ".[dev]"` stays light; missing extra falls back to the same
@@ -43,7 +43,7 @@ open exactly one specialty skill. Companion to
   local scoring formulas. Bump `MAILROOM_GIT_SHA` and the extra together.
 - It is the **upstream**: The-Mailroom reads *its* Langfuse project (US cloud, project `llm-mailroom`). Its `AGENTS.md` is authoritative for pipeline internals; consult it whenever the pipeline's tracing contract is in doubt.
 - **What we mirror from it, and must keep in sync (the #1 maintenance duty)** — when the pipeline changes, update all of these in one change:
-  - `mailroom_ui/pipeline_schema.py` — mirrors `src/graph/routing.py` + `src/config/taxonomy.yaml` + `src/observability/tracing.py` + `src/pipeline/failures.py`: node/span names (`SPAN_STAGE_MAP` incl. `normalize-intake` and the ModernBERT `intake-ml-triage` span), **`NODE_OBSERVATION_TYPES`** (chain/agent/evaluator/retriever/generation/span), stage→phase map, node order, agent roster (incl. `intake`, `sorter_reviewer`, `arbiter`, `judge`, `merger_agreement_specialist`, `insurance_claims_specialist`; reporter is procedural), live `DOC_CLASSES` (5 extract classes incl. live `merger_agreement` MAUD with its own specialist + `unknown` routing token; retired `court_opinion` / `due_diligence` / `compliance_filing` stay off the roster), Hub `DOC_SUBCLASS_BY_CLASS` + CUAD `CONTRACT_SUBTYPE_KEYS`, Langfuse score aliases (`extraction_verified_precision`), `SUITE_EXTRA_SCORES` (Enron/MAUD), `SPECIALIST_BY_DOC_CLASS`, confidence thresholds (+ `judge_band_high` 0.95, severity `by_class` bundled as `DEFAULT_BY_CLASS`), **`FAILURE_CLASSES`** + pared `EXTRACTION_FIELD_KEYS_BY_CLASS` (incl. MAUD `MergerAgreementExtraction`) / `validate_operator_extraction` (llm-mailroom @959bb0b).
+  - `mailroom_ui/pipeline_schema.py` — mirrors `src/graph/routing.py` + `src/config/taxonomy.yaml` + `src/observability/tracing.py` + `src/pipeline/failures.py`: node/span names (`SPAN_STAGE_MAP` incl. `normalize-intake` and the ModernBERT `intake-ml-triage` span), **`NODE_OBSERVATION_TYPES`** (chain/agent/evaluator/retriever/generation/span), stage→phase map, node order, agent roster (incl. `intake`, `sorter_reviewer`, `arbiter`, `judge`, `merger_agreement_specialist`, `insurance_claims_specialist`; reporter is procedural), live `DOC_CLASSES` (5 extract classes incl. live `merger_agreement` MAUD with its own specialist + `unknown` routing token; retired `court_opinion` / `due_diligence` / `compliance_filing` stay off the roster), Hub `DOC_SUBCLASS_BY_CLASS` + CUAD `CONTRACT_SUBTYPE_KEYS`, Langfuse score aliases (`extraction_verified_precision`), `SUITE_EXTRA_SCORES` (Enron/MAUD), `SPECIALIST_BY_DOC_CLASS`, confidence thresholds (+ `judge_band_high` 0.95, severity `by_class` bundled as `DEFAULT_BY_CLASS`), **`FAILURE_CLASSES`** + pared `EXTRACTION_FIELD_KEYS_BY_CLASS` (incl. MAUD `MergerAgreementExtraction`) / `validate_operator_extraction` (bundled schema provenance: llm-mailroom @959bb0b).
   - `mailroom_ui/prompt_registry.py` — verbatim `prompt_templates()` (all 18 agents; regenerate from an llm-mailroom checkout with llm-dojo-scoring importable).
   - `mailroom_ui/trace_interpreter.py` — maps its span names, Langfuse observation types (`type` / v4 `observationType`), trace metadata/input/output fields (`user_id`, `release`, `doc_subclass` / `contract_subtype`, `expected_hf_class` / `expected_subclass`, `normalize-intake` stats, `failure_class` / tagged `run aborted [<class>]:`), and score names (`JUDGE_VERDICT_SCORES` = `mailroom-pipeline-judge`, `JUDGE_QUALITY_SCORES` = `mailroom-pipeline-quality`, plus suite extras and the verified-precision alias).
   - Tests — `tests/fake_langfuse.py` fixtures mirror the trace contract (v2/v3 `type` and v4 `observationType`).
@@ -55,7 +55,7 @@ open exactly one specialty skill. Companion to
 
 ```bash
 pip install -e ".[dev]"        # install (deps NOT vendored; no venv in repo)
-pip install -e ".[pipeline]"   # pin llm-mailroom @ 959bb0bce152 (0.7.1+, main after v0.7.1) (optional import)
+pip install -e ".[pipeline]"   # pin llm-mailroom @ 31f89a82729e2a94314a372068af838ffa15def2 (0.8.1, reviewed source adoption) (optional import)
 python -m pytest tests/ -q     # whole suite (never hits real Langfuse)
 python -m server.main          # FastAPI web server on :8001 (also: mailroom-web)
 mailroom-hosted                # Observatory on 0.0.0.0 (public /live UI)
@@ -93,7 +93,7 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
   - `langfuse_source.py` — Langfuse SDK adapter: `client.api.trace.list/get`, `client.api.observations.get_many`, `client.api.scores.get_many`, `client.api.sessions.list/get`; `TTLCache`; `LangfuseUnavailable`. `list_recent_runs()` uses trace-list responses only (cheap "light" runs for the floor); `get_run()` fetches observations+scores for drill-down.
   - `trace_interpreter.py` — `interpret_trace(trace, observations?, scores?)` → `PipelineRun`. Accepts **both v2/v3 snake_case and v4 camelCase** observation shapes (see SDK tolerance). Light runs (no observations arg) have empty span/generation detail. Re-run clustering: deterministic trace ids are reused by pilot/attempt re-runs, so a trace can carry several full runs — observations are clustered by time gaps (`RUN_GAP_S`) and only the latest cluster is kept.
   - `pipeline_schema.py` — topology mirror (see sister-repo section).
-  - `producer.py` — pinned llm-mailroom import adapter (`[pipeline]` extra @ `959bb0bce152` / 0.7.1+ (main after v0.7.1)).
+  - `producer.py` — pinned llm-mailroom import adapter (`[pipeline]` extra @ `31f89a82729e2a94314a372068af838ffa15def2` / 0.8.1 (reviewed source adoption)).
   - `models.py` — pydantic: `PipelineRun` (`doc_id`, `review_causes`, `needs_reconsideration`, `needs_human` includes archived objective misses, `failure_class` / `run_aborted`), `NodeSpan`, `Generation`, `Score`, `SessionSummary`, `Metrics`, `Stage`, `Phase`.
   - `reconsideration.py` — objective review causes (GT miss, judge MISS/PARTIAL, extraction score floor, schema/guardrail/parse, incomplete reporting). Never uses self-reported confidence.
   - `pipeline_ops.py` — producer watcher/inbox liveness (`MAILROOM_PIPELINE_URL`).
@@ -176,28 +176,20 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
 - `tests/conftest.py` adds the repo root to `sys.path`; `asyncio_mode = "auto"` is set.
 - Frontend has no test framework — verify manually (boot server, cycle all screens, inspect an envelope, disconnect Langfuse to see the closed state). Do not invent a JS test harness.
 
-## Monorepo development (Digital-Mailroom)
+## Digital-Mailroom integration
 
-This repo is also `packages/The-Mailroom` inside the
-[Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
-monorepo — a single `uv` workspace that holds every constellation repo as a
-git-subtree package (the monorepo is the dev source of truth for cross-repo
-development; the hub task board is `governance/TASKS.md`, cards `DMR-0NN`).
+This standalone repository owns the visualizer implementation. Author, test,
+review and commit changes here first. Digital-Mailroom imports committed sources
+into `packages/The-Mailroom` with its `scripts/sync_packages.py pull` workflow;
+never export hub package patches into this repository. The hub owns its workspace
+redirects, generated vendor copies, governance and heavy-media exclusions.
 
-- **Sync contract**: `python scripts/sync_packages.py {status|pull|push}`
-  at the monorepo root reconciles subtree mirrors with `Exios66/*`.
-  Standalone-repo work flows monorepo-ward via `pull --squash`; monorepo
-  fixes flow out via `push`. Never hand-edit `packages/The-Mailroom/` in
-  the monorepo when the standalone repo is upstream of it.
-- **Monorepo-side adaptations** that live ONLY there (re-apply on conflict
-  when pulling): the `[tool.uv.sources]` block in `pyproject.toml` and
-  pruned-heavy-asset test skips. Nested `.github/` workflows are inert in
-  the monorepo (release-time only).
-- **Release propagation**: the Release process below cuts the standalone
-  release; the release commit then flows into the monorepo via the sync
-  pass at release time (`sync_packages.py push`) and the cursor is
-  re-baselined. Test gates in the monorepo:
-  `uv run pytest packages/The-Mailroom/tests`.
+The pipeline owns execution, Dojo owns every scoring engine and metric, and this
+visualizer consumes their contracts. Update dependency pins and
+`mailroom_ui/producer.py` together when adopting reviewed source revisions.
+After merging a source change, verify its immutable commit, import it into the
+hub, and run the package suite there. Full source-ownership rules are documented
+in Digital-Mailroom's `docs/wiki/Sub-Package-Sync.md`.
 
 ## Release process (semver + CHANGELOG + README + wiki + tags)
 
@@ -223,7 +215,10 @@ development; the hub task board is `governance/TASKS.md`, cards `DMR-0NN`).
 
 **Automation:** `python scripts/release.py --bump <patch|minor|major> --note "<summary>"` performs the mechanical steps (bumps `pyproject.toml`, moves `[Unreleased]` → `[X.Y.Z] - date`, prints the exact commit/tag commands) and **refuses to run on a dirty working tree**. `--check` validates repo state (tests pass, changelog format, version/tag consistency) without changing anything. After a pushed major/minor release, run `wiki/sync-wiki.sh` to publish the wiki.
 
-**Propagate to the monorepo:** after tagging, land the release upstream from `LLM-Mailroom-Services/Digital-Mailroom` with `python scripts/sync_packages.py push --package The-Mailroom` (content-only deltas), re-baseline the cursor, and confirm `sync_packages.py status` shows in-sync (see "Monorepo development" above).
+**Import into Digital-Mailroom:** after merging or releasing committed source,
+use the hub's `scripts/sync_packages.py pull --package The-Mailroom --squash`
+and verify the exact source cursor plus the package suite. Never use outbound
+hub package pushes for implementation delivery.
 
 **Commit style**: imperative subject + concise body, mirroring the existing history (`git log --oneline`).
 
@@ -280,3 +275,13 @@ development; the hub task board is `governance/TASKS.md`, cards `DMR-0NN`).
   console, Observatory, terminal site, Pages publisher, TUI, scripts and
   operator containers (see CHANGELOG `[0.5.0]`). Public binds now fail
   closed on default operator credentials.
+
+## DMR-111 credential policy
+
+Operator access requires a dedicated JWT secret and a nondefault persisted admin
+password. An unconfigured store keeps the read-only display available without
+seeding a guessable account. Published defaults require explicit loopback-only
+`MAILROOM_OPERATOR_ALLOW_DEV_DEFAULTS=1`; this never relaxes public binds. Seed
+settings do not rotate accounts. Login and token decoding both validate stored
+admin safety. The explicit `MAILROOM_OPERATOR_AUTH=0` local-trust switch retains
+its existing behavior. Source-owned policy lives in `operator_desk/credentials.py`.

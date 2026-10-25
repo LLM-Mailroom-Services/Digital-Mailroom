@@ -1,72 +1,123 @@
-# Python
+*.pyc
 __pycache__/
-*.py[cod]
 *.egg-info/
+dist/
+build/
 .eggs/
-# Anchored to package roots: bare build/ would also mask tracked sources
-# under legitimately-named dirs (e.g. packages/*/scripts/build/*.py).
-packages/*/build/
-packages/*/dist/
+*.egg
 .venv/
 venv/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.ipynb_checkpoints/
-.coverage
-.coverage.*
-htmlcov/
 
-# Environment / secrets — never commit real credentials.
+# Environment (keep committed templates under config/)
 .env
 *.env.local
+config/.env
 
-# Hub #183: stale repo-root copy of the entity-extraction scores manifest (the
-# canonical copy lived in packages/llm-entity-extraction, pruned by DMR-079).
-reports/scores_manifest.jsonl
+# Runtime / operator data (fixtures are tracked)
+data/runtime/
+data/cache/**
+!data/cache/README.md
+data/traces/
+data/pipeline/
+data/manifests/
+data/watcher.lock
+data/watcher_heartbeat
+data/mailroom.db
+data/checkpoints.db
+data/samples/
+data/*.log
+vendor/*
+!vendor/README.md
+# DMR-057: vendored family snapshots are TRACKED (self-contained); only the
+# refresh workspace and stray VCS metadata stay ignored.
+!vendor/llm-mailroom/
+!vendor/llm-mailroom/**
+!vendor/llm-dojo-scoring/
+!vendor/llm-dojo-scoring/**
+vendor/**/.git/
+vendor/.refresh/
+vendor/**/__pycache__/
 
-# Local run artifacts (regenerated locally)
-packages/llm-dojo-scoring/reports/
-packages/llm-dojo-scoring/*.report.md
-packages/llm-dojo-scoring/*_plots/
+# Reports generated at runtime (keep README)
+reports/scores/
+reports/experiment_log.jsonl
+reports/experiment_log.md
+api-evals/reports/
 
-# Node (The-Mailroom optional React operator desk)
-node_modules/
-packages/The-Mailroom/ui/dist/
-
-# Data directory (pipeline bins + archive; per-package .gitignores are canonical)
-packages/llm-mailroom/data/
-packages/The-Mailroom/data/
-
-packages/The-Mailroom/site/
-packages/local-mailroom-sandbox/data/*
-# Sandbox fixtures are tracked (the package .gitignore ignores runtime data).
-!packages/local-mailroom-sandbox/data/fixtures/
-
-# Heavy assets pruned from history at monorepo import — keep them out.
-# (Regenerated locally by their packages; affected tests carry skip guards.)
-packages/The-Mailroom/docs/demos/
-packages/The-Mailroom/docs/screenshots/
-packages/llm-mailroom/docs/reports/
-packages/llm-mailroom/docs/examples/
-
-# OS / editor
-.DS_Store
-Thumbs.db
+# IDE / OS
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-*.db
-data/*.db-shm
-data/*.db-wal
-data/watcher_heartbeat
-data/watcher_heartbeat.tmp
-data/runtime/
-data/pipeline/
-data/archive/
+.DS_Store
 
-# Vercel serverless functions (board-site deploy root)
-.vercel/
-.vercel
+# Test
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.log
+.ipynb_checkpoints/
+
+# Docker
+docker/volumes/
+
+# Runtime agent memory churn (DMR-063 hygiene)
+data/memory/
+
+
+# Python egg and metadata
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# System files
+Thumbs.db
+Desktop.ini
+
+# macOS system files
+.DS_Store
+
+# Logs and core dumps
+*.log
+*.out
+*.pid
+*.bak
+*.old
+*.orig
+*.core
+
+# Coverage, test, and profiling
+.coverage
+.tox/
+.nose2/
+/cache/
+*.prof
+
+# Editor-specific
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+# local Cursor or replay files
+cursor-record/
+.replay/
+/replay/
+.cache/
+# Possible others (customize for direct project needs)
+logs/
+tmp/
+temp/
+data/mailroom.db-shm
+data/mailroom.db-wal
+
+# SAND-042 report write lock (runtime)
+reports/SAND42/.report.lock
+reports/SAND42/.*.tmp*

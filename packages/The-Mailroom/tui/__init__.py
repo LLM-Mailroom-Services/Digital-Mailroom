@@ -1,1 +1,0 @@
-"""mailroom-tui — typed-command REPL console for The-Mailroom."""

@@ -1,20 +1,22 @@
 <div align="center">
 
-<img src="docs/assets/readme/hero.svg" alt="The Digital Mailroom: envelopes ride a conveyor through intake, classify, extract, judge, compile and archive gates" width="100%"/>
+<picture>
+  <source media="(max-width: 640px)" srcset="docs/assets/readme/hero-mobile.svg"/>
+  <img src="docs/assets/readme/hero.svg" alt="LLM Dojo Scoring: expected and predicted document classes are compared pair by pair, two match and one does not, and the score of two thirds is shown with its Wilson interval" width="100%"/>
+</picture>
 
 <br/>
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![uv workspace](https://img.shields.io/badge/uv-one_workspace-6C63FF?style=for-the-badge)](https://docs.astral.sh/uv/)
-[![LangGraph](https://img.shields.io/badge/LangGraph-13_nodes-22C55E?style=for-the-badge)](packages/llm-mailroom)
-[![Hub release](https://img.shields.io/badge/hub-v0.10.0-F472B6?style=for-the-badge)](CHANGELOG.md)
-[![License](https://img.shields.io/badge/license-MIT-0EA5E9?style=for-the-badge)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
+[![Release v0.24.2](https://img.shields.io/badge/release-v0.24.2-6C63FF?style=for-the-badge)](https://github.com/Exios66/llm-dojo-scoring/releases/tag/v0.24.2)
+[![Offline core](https://img.shields.io/badge/scoring-offline_core-22C55E?style=for-the-badge)](docs/SCORING.md)
+[![MIT](https://img.shields.io/badge/license-MIT-0EA5E9?style=for-the-badge)](pyproject.toml)
 
-[![Dispatch board](https://img.shields.io/badge/📋_dispatch_board-live-000?style=flat-square&logo=vercel)](https://digital-mailroom-theta.vercel.app)
-[![Dataset](https://img.shields.io/badge/🤗_mailroom--dataset-v9_·_3,302_rows-FFD21E?style=flat-square)](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
-[![Wiki](https://img.shields.io/badge/📖_wiki-deep_dives-555?style=flat-square)](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/wiki)
+[![Hub](https://img.shields.io/badge/🏛️_hub-Digital--Mailroom-000?style=flat-square)](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
+[![Scoring tables](https://img.shields.io/badge/📐_scoring_tables-SCORING.md-555?style=flat-square)](docs/SCORING.md)
+[![Migration](https://img.shields.io/badge/🔀_migration-MIGRATION.md-555?style=flat-square)](docs/MIGRATION.md)
 
-**[Quickstart](#-quickstart)** · **[How it works](#-a-day-in-the-life-of-a-document)** · **[The constellation](#-the-constellation)** · **[House rules](#-house-rules)** · **[Docs](#-where-to-go-next)**
+**[Quickstart](#quickstart)** · **[How it works](#how-it-works)** · **[Workflows](#workflows)** · **[API](#library-usage)** · **[Where it fits](#where-it-fits)** · **[Docs](#documentation)**
 
 </div>
 
@@ -24,36 +26,48 @@
 <details>
 <summary><b>📑 Contents</b></summary>
 
-- [📬 What is this?](#-what-is-this)
+- [🥋 What is this?](#what-this-does)
 - [🤔 When to reach for it](#when-to-reach-for-it)
-- [🏭 A day in the life of a document](#-a-day-in-the-life-of-a-document)
-- [🌌 The constellation](#-the-constellation)
-- [🚀 Quickstart](#-quickstart)
-- [📜 House rules](#-house-rules)
-- [🔄 Sync & release](#-sync--release)
-- [📚 Where to go next](#-where-to-go-next)
+- [📦 Install](#install)
+- [🚀 Quickstart](#quickstart)
+- [🧭 How it works](#how-it-works)
+- [📟 At a glance](#at-a-glance)
+- [🌌 Where it fits](#where-it-fits)
+- [🔧 Workflows](#workflows)
+- [🗺️ Module map](#module-map)
+- [🎯 Task coverage](#task-coverage)
+- [🧰 Library usage](#library-usage)
+- [⚙️ Configuration](#configuration)
+- [✅ Testing](#testing)
+- [⌨️ CLI reference](#cli-reference)
+- [📖 Documentation](#documentation)
+- [🚢 Releases & monorepo sync](#releases--monorepo-sync)
 - [❓ FAQ](#faq)
 - [🙏 Built on](#built-on)
 - [🤝 Contributing, security and license](#contributing-security-and-license)
 
 </details>
 
-## 📬 What is this?
+<a id="what-this-does"></a>
 
-Picture a law firm's mailroom. Letters arrive. Someone **sorts** them,
-someone **reads** them and pulls out the facts, a supervisor **checks the
-work**, and every envelope ends up **filed with a receipt**. Nothing gets
-lost and nobody gets to guess.
+## 🥋 What is this?
 
-The Digital Mailroom does the same job with AI agents. It is the
-**integration hub** for the LLM-Mailroom constellation: one checkout that
-wires together a multi-agent legal-document pipeline, a deterministic scoring
-dojo, a pixel-art visualizer, an offline and GPU testing sandbox, and the
-corpus EDA that feeds them. It runs on **one uv workspace, one lockfile and
-one virtualenv**, and no member imports code from outside the workspace.
+Language models are happy to tell you they did great. The Dojo checks. It is
+**the shared, field-type-aware scoring engine for the Mailroom constellation**:
+one importable library that compares document classifications and structured
+extractions, quantifies the uncertainty, shows how each failure happened and
+writes the report. A date is scored as a date, a dollar amount as an amount
+and a party name as a name, instead of string-matching everything the same way.
+
+The pipeline and the sandbox consume this source. Neither keeps a separate
+implementation of its metrics, and the deterministic core needs no model, API
+key or tracing service.
 
 <div align="center">
-<img src="docs/assets/readme/stats.svg" alt="By the numbers: 5 core packages, 13 pipeline nodes, 5 document classes, 3,302 corpus rows, a 15-agent roster, 1 lockfile" width="100%"/>
+<picture>
+  <source media="(max-width: 640px)" srcset="docs/assets/readme/stats-mobile.svg"/>
+  <img src="docs/assets/readme/stats.svg" alt="By the numbers: 27 agent profiles, 11 task bundles, metric tiers T0 to T3, four command-line tools, bootstrap and Wilson confidence intervals, and an offline core that needs no API key" width="100%"/>
+</picture>
 </div>
 
 <a id="when-to-reach-for-it"></a>
@@ -62,298 +76,384 @@ one virtualenv**, and no member imports code from outside the workspace.
 
 | ✅ Reach for it when… | ↪️ Look elsewhere when… |
 | :--- | :--- |
-| You want the whole constellation in one checkout: one uv workspace, one lockfile, one virtualenv | You want to change package code. Author it in the standalone `Exios66/*` source, then import it here |
-| You are running cross-package suites, regenerating vendor snapshots or cutting a hub release | You want a single package on its own. Install it from its standalone repository |
-| You coordinate work through the board and the live dispatch board | You want the pruned alumni (`llm-entity-extraction`, `llm-mailroom-graph`). They live on only as standalone repos |
+| You score document classes or structured extractions against ground truth and want the same answer on every run | You want an LLM-as-a-judge rubric. The core never calls a model; the Judge agent and the Langfuse LLM-as-a-judge evaluators live in llm-mailroom |
+| Your fields have types (dates, money, IDs, names, free text, entity lists) and plain string equality would mislead you | You need a general-purpose eval framework. The suites, profiles and bundles are built around the Mailroom document classes |
+| You want confidence intervals and a failure-mode breakdown rather than one bare accuracy number | You want a live dashboard. The Dojo writes Markdown reports, plots and JSONL score manifests; it serves no UI |
 
-## 🏭 A day in the life of a document
+<a id="install"></a>
 
-<div align="center">
-<img src="docs/assets/readme/sorting-floor.gif" alt="Pixel-art sorting floor: letters drop from the inbox, the SORTER classifies them, the JUDGE stamps them, they land in one of five class bins, and a hash-chained receipt grows along the floor" width="100%"/>
-<br/><sub><i>Live from the sorting floor. Rendered by <code>docs/assets/readme/make_sorting_gif.py</code>.</i></sub>
-</div>
-
-<br/>
-
-| | Stage | What happens |
-| :---: | :--- | :--- |
-| 📥 | **Ingest** | One fused triage, clean and prepare pass claims the raw file, normalizes it and writes its manifest |
-| 🏷️ | **Classify** | The `SorterAgent` assigns one of five live classes (`contract` · `merger_agreement` · `corporate_record` · `correspondence` · `insurance_claim`) with a confidence score. High confidence goes straight to extraction, medium confidence retries, and low or unknown confidence goes to review |
-| 🔍 | **Extract** | A class specialist produces structured Pydantic output, gated on schema, confidence, factuality and completeness |
-| ⚖️ | **Judge → Arbiter → Boss** | The Judge checks ambiguous completeness and the Arbiter decides whether to stand, re-extract or send the document to a human. Matter conflicts go to the **Boss**, which never resolves them silently by recency |
-| 🧑‍⚖️ | **Human review** | The governance boundary: approve, correct, reconcile or reject. A correction resumes the run from the corrected state |
-| 🗂️ | **Compile → Catalog → Archive** | Deterministic matter-record assembly (no LLM call), persistence, and a hash-chained audit archive |
-
-> These six phases cover the 13 nodes of the `llm-mailroom` graph. The full map is [`docs/assets/mailroom-pipeline.svg`](docs/assets/mailroom-pipeline.svg) and the terminology is in the [v7 taxonomy spec](docs/v7-taxonomy.md); both are the root-level sources of truth.
-
-<details>
-<summary><b>🖼️ The classic six-stage processing banner</b></summary>
-<br/>
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/mailroom-processing-banner-dark.svg">
-  <img src="docs/assets/mailroom-processing-banner.svg" alt="Mailroom processing pipeline — six stages from intake to routing, human-in-the-loop review, and every file committed to the auditable hash archive" width="100%"/>
-</picture>
-</details>
-
-## 🌌 The constellation
+## 📦 Install
 
 <div align="center">
-<img src="docs/assets/readme/constellation.svg" alt="Data-flow map: corpus EDA publishes to the HF Hub; the sandbox and the pipeline pull the pinned dataset; the sandbox executes the pipeline; both score with llm-dojo-scoring; both send traces to Langfuse, which feeds The-Mailroom" width="100%"/>
+<img src="docs/assets/readme/terminal.svg" alt="Animated terminal: clone, install, check the Dojo version offline, analyze a workbook and run the tests" width="90%"/>
 </div>
 
-Five core packages live in `packages/` as git subtrees imported from their
-authoritative standalone `Exios66/*` repositories. Four are built members;
-the fifth, the corpus EDA, is a virtual member.
+<div align="center">
 
-| | Package | Role | Source | Site |
-| :---: | :--- | :--- | :--- | :--- |
-| 🥋 | `llm-dojo-scoring` | **All** scoring engine logic and metrics, plus the error-analysis and interpretation suite | [`Exios66/llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring) | — |
-| 🧠 | `llm-mailroom` | LangGraph multi-agent legal-document pipeline (FastAPI producer) | [`Exios66/llm-mailroom`](https://github.com/Exios66/llm-mailroom) | — |
-| 👾 | `The-Mailroom` | Pixel-art visualizer shared by **both** the pipeline and the sandbox, driven by Langfuse traces, plus the hosted Observatory | [`Exios66/The-Mailroom`](https://github.com/Exios66/The-Mailroom) | [🌐 Pages](https://exios66.github.io/The-Mailroom/) |
-| 🧪 | `local-mailroom-sandbox` | Core offline/local and Modal/vLLM GPU testing interface for the pipeline | [`Exios66/local-mailroom-sandbox`](https://github.com/Exios66/local-mailroom-sandbox) | — |
-| 📊 | `mailroom-corpus-eda` | Corpus EDA (P0–P6) and the centralized HF upload helpers | [`Exios66/Mailroom-Corpus-EDA`](https://github.com/Exios66/Mailroom-Corpus-EDA) | [🌐 Pages](https://exios66.github.io/Mailroom-Corpus-EDA/) |
+```bash
+pip install "llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.24.2"
+pip install -e .                # from a local checkout
+```
 
-The hub itself is [`LLM-Mailroom-Services/Digital-Mailroom`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom). It hosts the live [📋 Dispatch Board](https://digital-mailroom-theta.vercel.app).
-
-> [!NOTE]
-> `mailroom-corpus-eda` is the only virtual member (`package = false`). It has no build system and is not installed; its EDA code and deliverables live alongside the four built members.
+</div>
 
 <details>
-<summary><b>🧭 Plain-text architecture map</b> (for terminals and screen readers)</summary>
+<summary>Optional extras</summary>
 
-```text
- Enron-Evaluation-Environment ─┐  (external corpus feeds)
- claims-data-eda ──────────────┴─> mailroom-corpus-eda
-                                   EDA + centralized HF upload helpers
-                                              │ publishes
-                                              ▼
-                                   HF Hub: mailroom-dataset (pinned tag)
-                          ┌───────────────────┴───────────────────┐
-                          │ pinned pull                           │ pinned pull
-                          ▼                                       ▼
- ┌─────────────────────────────┐ executes ┌─────────────────────────────┐
- │ local-mailroom-sandbox      │ ───────> │ llm-mailroom                │
- │ offline/local + Modal/vLLM  │          │ 13-node LangGraph pipeline  │
- │ GPU testing harness         │          │ (FastAPI producer)          │
- └──────────────┬──────────────┘          └──────────────┬──────────────┘
-                │ scores with                            │ scores with
-                └───────────────────┐  ┌─────────────────┘
-                                    ▼  ▼
-                     ┌───────────────────────────────┐
-                     │ llm-dojo-scoring              │
-                     │ ALL scoring engine + metrics  │
-                     └───────────────────────────────┘
-
- llm-mailroom ───────────┐
- local-mailroom-sandbox ─┴─ traces / API ─> Langfuse ─> The-Mailroom
-                                                       shared visualizer, both
-
- Standalone sources ─── sync_packages.py pull ──> Digital-Mailroom packages/
- Imported packages ──── sync_vendor.py ─────────> sandbox vendor snapshots
- Digital-Mailroom owns hub wiring, governance, board, integration tooling.
+```bash
+pip install -e ".[embeddings]"   # sentence-transformers + openai (embedding rescue)
+pip install -e ".[tracing]"      # langfuse + phoenix + dotenv + OTLP
+pip install -e ".[jellyfish]"    # no-op alias; jellyfish is already core
+pip install -e ".[dev]"          # pytest
+pip install -e ".[all]"          # embeddings + tracing + dev
 ```
 
 </details>
 
-<details>
-<summary><b>🪦 Alumni and external feeds</b> (pruned packages and preserved checkouts)</summary>
-<br/>
+A standalone consumer can pin this release explicitly:
 
-**Pruned in DMR-079.** `llm-entity-extraction` and `llm-mailroom-graph` left
-the monorepo. They live on only as standalone `Exios66/*` repos and are no
-longer synced. `agent-mailroom` is preserved on the branch
-`feature/agent-mailroom`. Hub `v0.8.0` is the last release containing them
-and serves as the rollback point.
+```toml
+[project]
+dependencies = [
+    "llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.24.2",
+]
+```
 
-**External corpus feeds.** Enron and claims remain usable standalone feeds,
-and their datasets, taxonomy and published sites keep their identities.
-DMR-093 (PR #167, merged 2026-10-23) removed their local copies from the
-active workspace. Both preservation branches point to
-`59c879d9fb4480084e53137e2e9fb25650933944`, the last commit that carried the
-complete package trees.
+The pipeline currently pins **v0.23.1** in its own source. A new Dojo
+release and a consuming application's pin are separate decisions; update
+consumers through their release workflow rather than treating this example
+as their current configuration.
 
-| Layer | Repository | GitHub Pages |
-| --- | --- | --- |
-| **Corpus feed** | [`Exios66/Enron-Evaluation-Environment`](https://github.com/Exios66/Enron-Evaluation-Environment) | [exios66.github.io/Enron-Evaluation-Environment](https://exios66.github.io/Enron-Evaluation-Environment/) |
-| **Corpus feed** | [`Exios66/claims-data-eda`](https://github.com/Exios66/claims-data-eda) | [exios66.github.io/claims-data-eda](https://exios66.github.io/claims-data-eda/) |
-
-You can browse [Enron's preserved package](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment/packages/Enron-Evaluation-Environment) or
-[claims' preserved package](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda/packages/claims-data-eda) on GitHub.
-For the original complete workspace, including the old hub chart generator,
-use a separate checkout of the preservation branch. To selectively restore a
-package, reconcile membership, sync entries, dependencies and tests
-explicitly, and keep the current root metadata. The earlier
-`feature/agent-mailroom` preservation branch remains unchanged.
-
-</details>
+<a id="quickstart"></a>
 
 ## 🚀 Quickstart
 
+After installing, score three document-class predictions entirely offline:
+
+```python
+from llm_dojo_scoring import score_task
+
+scores = score_task(
+    "doc_class",
+    expected=["contract", "correspondence", "insurance_claim"],
+    predicted=["contract", "contract", "insurance_claim"],
+)
+print(scores)
+```
+
+Two of the three labels match. The returned dictionary includes task metrics
+and confidence intervals; the one correspondence error remains visible in
+the class-level results. No model, API key or tracing service is required.
+For extraction, use the field-type-aware API in [Library Usage](#library-usage).
+
+
+<a id="how-it-works"></a>
+
+## 🧭 How it works
+
 <div align="center">
-<img src="docs/assets/readme/terminal.svg" alt="Animated terminal: clone, uv sync, run a package suite, check sync status and board status" width="90%"/>
+<picture>
+  <source media="(max-width: 640px)" srcset="docs/assets/readme/flow-mobile.svg"/>
+  <img src="docs/assets/readme/flow.svg" alt="Predictions flow through a task suite, normalization, comparison, metrics, uncertainty and explanation; the pipeline, sandbox, Langfuse, Phoenix and workbooks plug into it" width="100%"/>
+</picture>
 </div>
 
+Ground truth and predictions enter a task suite. The engine normalizes and
+aligns their fields or labels, computes metrics and uncertainty, then exposes
+errors for analysis and export. Optional embedding rescue and tracing sinks
+are separate integrations; the deterministic core does not require them.
+
+| Layer | Responsibility | Entry point |
+| :--- | :--- | :--- |
+| Task suite | Agent-specific scoring contract | `get_suite(...)` |
+| Comparison | Typed fields or task labels | `score_extraction(...)`, `score_task(...)` |
+| Uncertainty | Confidence intervals and comparisons | `bootstrap_ci(...)` |
+| Explanation | Failure modes, field diagnostics, reports | `dojo-analyze`, `dojo-export` |
+
+<a id="at-a-glance"></a>
+
+## 📟 At a glance
+
+<div align="center">
+<img src="docs/assets/readme/tui.svg" alt="Terminal dashboard: the registry (27 agent profiles, 11 task bundles, tiers T0 to T3, four command-line tools) and a sample dojo-analyze run with its Wilson interval" width="90%"/>
+</div>
+
+<a id="where-it-fits"></a>
+
+## 🌌 Where it fits
+
+<div align="center">
+<picture>
+  <source media="(max-width: 640px)" srcset="docs/assets/readme/constellation-mobile.svg"/>
+  <img src="docs/assets/readme/constellation.svg" alt="Data-flow map of the Mailroom constellation with llm-dojo-scoring highlighted: both the sandbox and the pipeline score with it" width="100%"/>
+</picture>
+</div>
+
+| | Neighbour | Relationship |
+| :---: | :--- | :--- |
+| 🏛️ | [`Digital-Mailroom`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) | The integration hub. It imports this repository into `packages/llm-dojo-scoring`, and all scoring logic and metrics are authored here first |
+| 🧠 | [`llm-mailroom`](https://github.com/Exios66/llm-mailroom) | The pipeline. It pins a Dojo release and scores its runs with the suites |
+| 🧪 | [`local-mailroom-sandbox`](https://github.com/Exios66/local-mailroom-sandbox) | Scores sandbox runs with a vendored snapshot, refreshed from the hub |
+| 🧠 | [`mailroom-ml`](https://github.com/LLM-Mailroom-Services/mailroom-ml) | Standalone contractor that consumes the Dojo taxonomy and never redefines it |
+
+<a id="workflows"></a>
+
+## 🔧 Workflows
+
+### Analyze a workbook
+
 ```bash
-git clone https://github.com/LLM-Mailroom-Services/Digital-Mailroom.git
-cd Digital-Mailroom
-uv sync                  # install workspace + dev group into .venv (editable)
+dojo-analyze Sorter_Experiment_Results.xlsx --target 0.94 --min-n 100
+# -> Sorter_Experiment_Results.xlsx.report.md  (+ *_plots/*.png)
 ```
 
-Run the suites **one package per pytest invocation**. Several packages ship a
-top-level `tests` package, and they collide when batched.
+### Regenerate workbooks from experiment log
 
 ```bash
-uv run pytest packages/llm-dojo-scoring/tests
-uv run pytest packages/llm-mailroom/src/tests
-uv run pytest packages/The-Mailroom/tests
-uv run pytest packages/local-mailroom-sandbox/tests
-uv run pytest packages/mailroom-corpus-eda/tests
-python3 -m unittest discover scripts/tests   # hub governance tooling (hermetic)
-(cd board-site && node tests/api.test.js)    # served-board API proxy
+dojo-export --task sorter --log reports/experiment_log.jsonl --outdir .
+dojo-export --task all --sweep --log reports/experiment_log.jsonl
 ```
 
-> [!IMPORTANT]
-> **CI does not run the package suites, so your local run is the gate.**
-> [`docs/TESTING.md`](docs/TESTING.md) has the tiers, timings and the
-> change-type → required-suite matrix.
-
-During development, cross-package dependencies resolve to **workspace
-sources** through `[tool.uv.sources]` in each member's pyproject. The
-published git pins stay in the dependency lines for release builds.
-
-## 📜 House rules
-
-The mailroom runs on a few non-negotiables:
-
-1. **Standalone repos own the code.** Author, test and commit package changes in their `Exios66/*` repo, then *import* them here. Never implement a package change in the hub, and never push hub copies back to a standalone repo.
-2. **Vendor snapshots are generated, never hand-edited.** `packages/local-mailroom-sandbox/vendor/` comes from `sync_vendor.py` and nothing else.
-3. **The board is the source of truth.** Read [`governance/TASKS.md`](governance/TASKS.md) first, claim a card before you edit, and don't call a card done without evidence.
-4. **Every commit tells a story.** Lead with the `DMR-0NN:` prefix and write a body that names each changed file and why it changed. See the [template and examples](docs/COMMIT_MESSAGES.md).
-5. **Tests must be able to fail.** Ship each bug fix with its regression test, hand-compute expected values, and use honest doubles. Details are in [`AGENTS.md`](AGENTS.md#test-discipline).
-
-## 🔄 Sync & release
+### Live sync from Langfuse / Phoenix
 
 ```bash
-python scripts/sync_packages.py status                           # live drift report
-python scripts/sync_packages.py pull --package <name> --squash   # import committed standalone source
-python scripts/sync_vendor.py                                    # regenerate vendor snapshots from imported sources
-python scripts/sync_vendor.py --check                            # verify the snapshots match the workspace
-python scripts/sync_packages.py snapshot                         # cursor verification
+# Sync ALL subtype-classification runs
+dojo-sync --task subtype_classification --outdir reports/live
+
+# Sync one experiment (session) — fast, rate-limit friendly
+dojo-sync --task subtype_classification \
+          --session qwen3.7-flash_sorter_v13_subtype_langfuse --outdir reports/live
+
+# Probe the local Phoenix/OTLP sink too
+dojo-sync --check-phoenix
 ```
 
-Packages are released from their standalone repositories, and consuming
-pins are bumped there at release time. The hub then imports the committed
-sources, regenerates the vendor snapshots and runs the integration suites.
-Hub releases version the integration workspace on their own track: cut with
-`release_chain.py cut X.Y.Z --apply`, run `uv lock`, commit the changelog,
-version and lockfile together, merge the PR, then tag the merged `main` tip.
-The runbooks are
-[Sub-Package Sync](docs/wiki/Sub-Package-Sync.md) and
-[Releases](docs/wiki/Releases.md).
+### Check the loaded Dojo version and available releases
+
+```bash
+dojo-version
+dojo-version --check --force --json
+dojo-version --check --offline --json
+```
+
+The opt-in `llm_dojo_scoring.update_awareness.UpdateChecker` shares a daily
+per-user cache across application startup hooks and limits notices per consumer
+and release. Pure imports and scoring stay offline. Set
+`LLM_DOJO_UPDATE_CHECK=0` to disable all update checks and cache I/O. No packages
+are upgraded automatically. See [update awareness](docs/UPDATE_AWARENESS.md)
+for startup semantics, failure/exit codes, privacy and concurrency limits.
+Available in v0.24.0; dependency pins remain operator controlled.
+
+<a id="module-map"></a>
+
+## 🗺️ Module map
 
 <details>
-<summary><b>🛠️ GitHub governance tooling</b></summary>
-<br/>
+<summary><b>The module map: what each module does</b></summary>
 
-The board and the GitHub surface are kept machine-readable and consistent with each other. The live dispatch board is **<https://digital-mailroom-theta.vercel.app>**. It is issue-backed; see `board-site/` and [`docs/wiki/Served-Board.md`](docs/wiki/Served-Board.md).
+<div align="center">
 
-```bash
-python scripts/board_state.py status            # live board snapshot (--json for machines)
-python scripts/board_state.py check             # board invariants; exit 1 on structural errors
-python scripts/github_labels.py audit           # label taxonomy drift (CI gate)
-python scripts/taxonomy_parity.py               # doc-class taxonomy drift (CI gate, HUB-019 §65A)
-python scripts/release_chain.py status          # hub release chain: tags, changelog sections, hub version
-python scripts/release_chain.py check           # chain invariants; exit 1 on structural errors
-python scripts/release_chain.py cut X.Y.Z       # cut a hub release (dry run; --apply writes; tag after merge)
-./docs/wiki/sync-wiki.sh                        # push docs/wiki/ source to the GitHub wiki (--check for drift)
-```
+| Module | What it does |
+|:---|:---|
+| `update_awareness` | Opt-in shared release discovery, startup cache and `dojo-version` |
+| `field_scoring` | Field-type-aware deterministic extraction scoring (date/money/id/name/free_text/entity_list) |
+| `classification` | Label normalization, exact match, per-class P/R/F1/F2, macro-PRF, confusion matrices |
+| `extraction_metrics` | Field-micro extraction P/R/F1/F2 over (field, value) events |
+| `claims_consistency` | Insurance `determination_consistency` and `amount_exactness` |
+| `failure_modes` | Failure-mode taxonomy + `classify_failure`, per-subtype accuracy |
+| `bootstrap` | Bootstrap CIs, two-sample delta significance, Wilson intervals |
+| `cost` | Price lookup, cost estimation, usage aggregation |
+| `diagnostics` | Run-level diagnostics: date/duration/money MAE+R², span drift, field error decomposition |
+| `experiment` | JSONL record append/load, dotted-path access, git snapshot |
+| `tasks` | Task-aware scoring across the full document hierarchy (MAUD, LegalBench, chained, etc.) |
+| `suites` | Dedicated scoring suite per pipeline agent — the API consumers should call |
+| `registry` | Metric definitions registry: every score name → tier (T0 HEADLINE → T3 LOG) |
+| `bundles` | Eleven pre-built task bundles (classification, extraction, cost, factuality, etc.) |
+| `profiles` | 27 agent profiles — each agent's scoring identity |
+| `emitter` | Unified score emitter: JSONL manifest sink + inert Langfuse sink |
+| `langfuse_sync` | Pull live experiment traces into run records + reference workbook |
+| `phoenix_sync` | Local Phoenix/OTLP sink probe + span reader |
 
-The full governance contract lives in `.github/ISSUE_TEMPLATE/`, `.github/PULL_REQUEST_TEMPLATE/`, `.github/labels.json`, `scripts/board_state.py` and `governance/TASKS.md`.
+</div>
 
 </details>
 
-<details>
-<summary><b>🗺️ Repository structure</b></summary>
+<a id="task-coverage"></a>
 
-```
-Digital-Mailroom/
-├── AGENTS.md              # workspace rules & cross-package conventions
-├── README.md              # this file — the canonical entry point
-├── CHANGELOG.md           # hub release chain ([Unreleased] → vX.Y.Z)
-├── pyproject.toml         # uv workspace definition (hub version)
-├── uv.lock                # single lockfile for all packages
-├── governance/            # task board (TASKS.md) & governance README
-├── board-site/            # served Vercel dispatch board (api/, lib/, tests/)
-├── docs/
-│   ├── TESTING.md         # test tiers, per-package commands, required suites
-│   ├── COMMIT_MESSAGES.md # shared commit-message template
-│   ├── DOCCLASS_CONTRACT.md · docclass-merged-plan.md · v7-taxonomy.md
-│   ├── assets/            # pipeline diagram, banners, readme/ animations
-│   ├── reports/audits/    # baseline, branch, import and release audits
-│   └── wiki/              # GitHub-wiki source (sync-wiki.sh)
-├── scripts/               # governance, sync and release tooling + scripts/tests
-│   ├── board_state.py · github_labels.py · taxonomy_parity.py
-│   ├── sync_packages.py · sync_vendor.py · packages_sync.json
-│   ├── release_chain.py · release_notes.py · audit_references.py
-│   └── deploy_gh_pages.py # corpus-EDA Pages deploy (no Actions)
-├── data/ · reports/       # hub-level runtime data and report pointers
-├── tools/feeder-resync/   # historical feeder-resync bundle (2026-09-27)
-├── .github/               # workflows, labels, issue/PR/release templates
-├── .opencode/ · .devin/   # specialist subagent personas and skills
-└── packages/              # five core packages (four built + one virtual)
-```
+## 🎯 Task coverage
+
+<details>
+<summary><b>`score_task` keys and their headline metrics</b></summary>
+
+`score_task(task, expected, predicted, ...)` is the single entry point for every classification task:
+
+<div align="center">
+
+| Task key | What it scores | Headline metrics |
+|:---|:---|:---|
+| `subtype` / `doc_class` / `multiclass` | CUAD 25-family subtype, primary doc-class, generic multi-class | exact match + CI, macro accuracy, per-class, confusion |
+| `docclass` / `maud_docclass` | Hierarchical doc_type + second-level subclass | doc_type accuracy + macro P/R/F1/F2, subclass accuracy |
+| `maud_question` / `maud_extraction` | MAUD consideration answers + 22 Hub questions | exact match + CI, per-class, macro |
+| `enron_topic` / `enron_sentiment` | Enron correspondence topics & sentiment | accuracy, macro-F1, per-class |
+| `legalbench` | LegalBench binary Yes/No | exact match + CI, per-class, binary P/R/F1 |
+| `chained` | Composite sorter→extractor runs | sorter exact + extractor overall, weighted composite |
+| `contracteval` | ContractEval clause-mapping benchmark | F2, Jaccard, no-related rate, per-category |
+| `transcription` / `wer` | PDF→text / OCR hypothesis vs reference | WER, CER, word_accuracy |
+
+</div>
 
 </details>
 
-## 📚 Where to go next
+<a id="library-usage"></a>
 
-| If you want to… | Read |
-| :--- | :--- |
-| Make your first contribution | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
-| Work in this repo as an agent or a human | [`AGENTS.md`](AGENTS.md) |
-| Fix a snag or decode the jargon | [Troubleshooting](docs/wiki/Troubleshooting.md) · [Glossary](docs/wiki/Glossary.md) |
-| Report a vulnerability | [`SECURITY.md`](SECURITY.md) |
-| Know which tests to run, and when | [`docs/TESTING.md`](docs/TESTING.md) |
-| See what is in flight | [`governance/TASKS.md`](governance/TASKS.md) · [live board](https://digital-mailroom-theta.vercel.app) |
-| Go deep on architecture, the sandbox or releases | [GitHub wiki](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/wiki) (mirrored from `docs/wiki/`) |
-| See what changed | [`CHANGELOG.md`](CHANGELOG.md) |
+## 🧰 Library usage
+
+```python
+import llm_dojo_scoring as dojo
+
+# 1. Score one extraction (field-type-aware, with factuality audit)
+result = dojo.score_extraction(
+    "contract", field_types, predicted, expected, doc_text=text,
+)
+
+# 2. Bootstrap a CI over per-document scores
+ci = dojo.bootstrap_ci([1.0, 0.0, 1.0, 1.0])
+
+# 3. Aggregate tokens/cost
+summary = dojo.tokens_summary(usage_records, model="qwen/qwen3.7-flash")
+
+# 4. Dedicated suite: the import mailroom projects should use
+suite = dojo.get_suite("insurance_claims_specialist")
+result = suite.score(expected_fields, predicted_fields)
+
+# 5. Emit through sinks; query scorecards
+emitter = dojo.Emitter(sinks=[
+    dojo.LocalManifestSink("reports/scores_manifest.jsonl"),
+    dojo.LangfuseSink(),
+])
+emitter.emit_score(
+    "sorter", "doc_17", "accuracy", 0.93, run_id="exp_42",
+    # Required (#22); USD metrics also need cost_basis.
+    provenance={"dataset_revision": "46a4d3c2", "prompt_id": "sorter_v3",
+                "serving_kind": "api", "model_id": "qwen/qwen3.7-flash"},
+)
+```
+
+<a id="configuration"></a>
+
+## ⚙️ Configuration
+
+All thresholds, equivalence sets, subtype lists, cost tables, and failure-mode definitions live in one `Settings` object:
+
+```python
+from llm_dojo_scoring import configure, load_settings
+
+configure(field_scoring__bipartite_match_threshold=0.7)
+settings = load_settings("config/taxonomy.yaml")
+```
+
+Set `LLM_DOJO_SCORING_CONFIG` to a YAML path for the process-wide override.
+
+<a id="testing"></a>
+
+## ✅ Testing
+
+<a id="tests"></a>
+
+```bash
+pip install -e ".[dev]"
+python -m pytest
+```
+
+Docstrings are required for every Python module, class, and function, including
+private helpers, nested definitions, scripts, examples, and tests. Run the
+repository-wide coverage gate with
+`python -m pytest tests/test_docstring_coverage.py`.
+
+<a id="cli-reference"></a>
+
+## ⌨️ CLI reference
+
+<div align="center">
+
+```
+dojo-version [--check [--force|--offline]] [--json]
+dojo-analyze INPUT [-o REPORT.md] [--plots DIR] [--metric COL] [--target 0.94]
+                  [--min-n N] [--cost-column COL] [--task T] [--max-items N]
+dojo-export  [--task sorter|extraction|all] [--sweep] [--log LOG] [--outdir DIR]
+dojo-sync    [--task TRACE_NAME] [--session NAME] [--max-items N]
+             [--env-file FILE] [--outdir DIR] [--no-workbook] [--check-phoenix]
+```
+
+</div>
+
+<a id="documentation"></a>
+<a id="migration"></a>
+
+## 📖 Documentation
+
+See [`docs/MIGRATION.md`](docs/MIGRATION.md) for the exact import swap. Scoring tables: [`docs/SCORING.md`](docs/SCORING.md). Prompt catalog and eval-environment prompt lineage (`list_prompt_versions`, `prompt_chain`, `diff_prompt_versions`): [`docs/PROMPTS.md`](docs/PROMPTS.md).
+
+<a id="releases--monorepo-sync"></a>
+
+## 🚢 Releases & monorepo sync
+
+This package is the shared scoring engine consumed by llm-mailroom
+and the sandbox (vendored) — version bumps are cross-package
+events.
+
+- **Source ownership**: this independent repository owns scoring implementation.
+  Review and merge changes here first. The
+  [Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
+  monorepo then imports the exact merged revision into
+  `packages/llm-dojo-scoring` and refreshes its sandbox vendor snapshot.
+  Do not export downstream implementation patches over completed source work.
+- **Release-time pin law**: cutting a release means bumping the version here
+  AND updating every consuming pin — llm-mailroom /
+  sandbox `pyproject.toml` git pins and the sandbox vendor snapshot.
+  The dojo pin is bumped ONLY at release time of this package, via
+  `src/scripts/bump_dojo_scoring.py` in the llm-mailroom source — never delete a
+  pin line. After the release, import the merged source revision and refresh
+  the sandbox vendor tree (`scripts/sync_vendor.py`). Verify the changed
+  package and every dependant; source and vendor imports must identify the
+  same release code, even when unrelated distribution metadata is installed.
 
 <a id="faq"></a>
 
 ## ❓ FAQ
 
 <details>
-<summary><b>Why can't I just fix a package bug here?</b></summary>
+<summary><b>Does scoring need an API key or a network connection?</b></summary>
 
-Because the standalone repositories own package code. A hub-only fix would be overwritten by the next import. Author and test the fix in the `Exios66/*` source, merge it, then import it with `sync_packages.py pull --package <name> --squash`.
-
-</details>
-
-<details>
-<summary><b>Why run the suites one package at a time?</b></summary>
-
-Several packages ship a top-level `tests` package, and they collide when pytest batches them.
+No. The deterministic core needs no model, API key or tracing service. Embedding rescue (`[embeddings]`) and the Langfuse/Phoenix sinks (`[tracing]`) are opt-in extras, and release checks only run through the opt-in `UpdateChecker`; `LLM_DOJO_UPDATE_CHECK=0` turns them off entirely.
 
 </details>
 
 <details>
-<summary><b>My PR is green. Is it tested?</b></summary>
+<summary><b>Why not just compare the strings?</b></summary>
 
-Not necessarily. CI does not run the package suites, so your local run is the gate. Quote the exact pass/skip/fail counts in the card and the PR. Every PR also reads `BLOCKED` on a phantom required `ci` status until DMR-080 is resolved; that is not a test failure.
-
-</details>
-
-<details>
-<summary><b>`uv sync` changed `uv.lock`. Should I commit it?</b></summary>
-
-Not inside unrelated work. An unintended lock diff means the committed lock is stale: fix it as its own carded commit (`uv lock`, then `uv lock --check`), and use `uv run --frozen` for read-only runs.
+Because `"March 3, 2026"` and `"2026-03-03"` are the same fact. `field_scoring` uses one algorithm per field type: IDs are normalized then matched exactly, dates are parsed to ISO with partial-credit fallbacks, money is parsed and compared with a one-cent tolerance, names use Jaro-Winkler plus a token-set ratio, free text uses SQuAD-style token F1, and entity lists use Hungarian bipartite matching.
 
 </details>
 
 <details>
-<summary><b>Where do I edit the vendor snapshots?</b></summary>
+<summary><b>Which function should my project call?</b></summary>
 
-Nowhere. `packages/local-mailroom-sandbox/vendor/` is generated by `python scripts/sync_vendor.py` and verified with `--check`.
+Consumers should call the dedicated suite for each pipeline agent, `get_suite("<agent>")`. `score_task(...)` is the single entry point for classification tasks and `score_extraction(...)` scores one extraction. See [Library usage](#library-usage) and [Task coverage](#task-coverage).
+
+</details>
+
+<details>
+<summary><b>What do the tiers T0 to T3 mean?</b></summary>
+
+They are the dashboard discipline in `registry`: **T0 HEADLINE** is one board-level number per agent, **T1 CORE** answers "what broke yesterday?", **T2 DEEP** is root-cause investigation (confusion matrices, failure modes) and **T3 LOG** is audit trail and regression comparison only.
+
+</details>
+
+<details>
+<summary><b>How does a new Dojo release reach the pipeline?</b></summary>
+
+Only at release time. The pin is bumped in the llm-mailroom source with `src/scripts/bump_dojo_scoring.py`, and the hub then imports both sources and refreshes the sandbox vendor snapshot. Pin lines are never deleted; see [Releases & monorepo sync](#releases--monorepo-sync).
 
 </details>
 
@@ -361,14 +461,15 @@ Nowhere. `packages/local-mailroom-sandbox/vendor/` is generated by `python scrip
 
 ## 🙏 Built on
 
-The hub stands on these tools:
+The deterministic core stands on a small, boring stack:
 
 | Project | What it does here |
 | :--- | :--- |
-| [uv](https://docs.astral.sh/uv/) | The workspace, the single lockfile and workspace-source redirects |
-| [git subtree](https://git-scm.com/book/en/v2/Git-Tools-Advanced-Merging) | Squash imports of the standalone sources |
-| [GitHub Issues](https://docs.github.com/issues) · [Vercel](https://vercel.com/) | The issue-backed live dispatch board |
-| [🤗 Hub](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset) | The pinned `mailroom-dataset` corpus |
+| [pandas](https://pandas.pydata.org/) · [SciPy](https://scipy.org/) | Score tables, and the Hungarian matcher (`linear_sum_assignment`) for entity lists. Bootstrap CIs use only the standard library |
+| [jellyfish](https://github.com/jamesturk/jellyfish) | Jaro-Winkler similarity for name fields |
+| [python-dateutil](https://github.com/dateutil/dateutil) | Date parsing before comparison |
+| [Matplotlib](https://matplotlib.org/) · [openpyxl](https://openpyxl.readthedocs.io/) | `dojo-analyze` plots and the Excel workbooks |
+| [Langfuse](https://langfuse.com/) · [Arize Phoenix](https://phoenix.arize.com/) (optional) | `dojo-sync` and the tracing sinks, behind the `[tracing]` extra |
 
 <a id="contributing-security-and-license"></a>
 
@@ -376,22 +477,26 @@ The hub stands on these tools:
 
 | | |
 | :--- | :--- |
-| **Contributing** | Start at [`CONTRIBUTING.md`](CONTRIBUTING.md), then [`AGENTS.md`](AGENTS.md). Claim a card on the [board](governance/TASKS.md) before you edit. |
-| **Security** | Follow [`SECURITY.md`](SECURITY.md): contact a maintainer privately and never post exploit details publicly. |
-| **License** | [MIT](LICENSE). |
+| **Contributing** | Scoring logic and metrics are authored here first, with tests and docstrings (the [docstring coverage gate](#testing) is part of the suite). The hub [contributing guide](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/CONTRIBUTING.md) covers the card workflow and the import into Digital-Mailroom. |
+| **Security** | Report vulnerabilities privately as described in the hub [security policy](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/SECURITY.md), which covers this package; never post exploit details in a public issue. |
+| **License** | MIT, declared in [`pyproject.toml`](pyproject.toml). There is no standalone `LICENSE` file yet. |
 
 ---
 
 <div align="center">
 
+**[Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)** ·
 **[llm-mailroom](https://github.com/Exios66/llm-mailroom)** ·
 **[llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring)** ·
 **[The-Mailroom](https://github.com/Exios66/The-Mailroom)** ·
 **[local-mailroom-sandbox](https://github.com/Exios66/local-mailroom-sandbox)** ·
-**[Mailroom-Corpus-EDA](https://github.com/Exios66/Mailroom-Corpus-EDA)**
+**[Mailroom-Corpus-EDA](https://github.com/Exios66/Mailroom-Corpus-EDA)** ·
+**[mailroom-ml](https://github.com/LLM-Mailroom-Services/mailroom-ml)**
 
-<sub>The Digital Mailroom · maintained by <a href="https://github.com/LLM-Mailroom-Services">LLM-Mailroom-Services</a> (Exios66 · grantmooslin) · 2026</sub>
+<sub>LLM Dojo Scoring · one of the Mailroom constellation's independent source repositories, with shared interfaces.</sub>
 <br/>
-<sub>📮 <i>No envelope left behind.</i></sub>
+<sub>Core packages integrate in Digital-Mailroom; mailroom-ml is a standalone contractor.</sub>
+<br/>
+<sub>🥋 <i>Score the extraction, not the vibes.</i> · Artwork: <a href="docs/assets/readme/README.md">design and regeneration</a></sub>
 
 </div>

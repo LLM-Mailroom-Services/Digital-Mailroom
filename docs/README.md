@@ -1,43 +1,40 @@
 <div align="center">
 
-# 📚 Monorepo Documentation
+# 📚 LLM Dojo Scoring Documentation
 
-**The documentation hub for the Digital-Mailroom monorepo — architecture, contracts, audits, and wiki pages.**
+**Documentation for the scoring engine package.**
 
 </div>
 
 ---
 
-## Structure
+## Purpose
 
-| Path | Contents |
-| :--- | :--- |
-| [`assets/`](assets/) | Shared documentation assets (images, diagrams) |
-| [`reports/`](reports/) | Evaluation reports, audits, and analysis documents |
-| [`reports/audits/`](reports/audits/) | Corpus baseline audits plus DMR-009/091/092/093 branch, import and release audits |
-| [`wiki/`](wiki/) | GitHub-wiki pages (synced via `sync-wiki.sh`) |
+Documentation for the llm-dojo-scoring package, covering:
 
-## Key Documents
+- Scoring methodology
+- Field-type-aware scoring
+- Entity list scoring
+- Live extraction schemas for the five mailroom-dataset document types (`EXTRACTION_SCHEMAS.md`)
+- CUAD contract schema catalog: 41 categories, 25+1 families, tailored questions, guided-decoding JSON Schema (`CUAD_SCHEMA.md`)
+- Archive scoring block (`ARCHIVE_SCORING.md`)
+- Scorecard honesty: MAUD GT, format vs extraction, completion/cost, confidence/reasoning knobs (`SCORECARD_HONESTY.md`)
+- Hub ground-truth metadata: `gt_fields` parsing, `gt_presence`, per-class label scoping (`GT_METADATA.md`)
+- MAUD answer-class catalogs: no-guess validity/scoring on merger agreements (`MAUD_LABELS.md`)
+- Corporate-record per-subclass entity schemas, unlabeled-GT scoring rule, label audit (`CORPORATE_RECORD_SCHEMA.md`)
+- MAUD entity schema: the 22 questions with allowed answers, JSON Schema grammar, prompt block, consideration subclasses (`MAUD_SCHEMA.md`)
+- Importable prompt catalog + frozen eval-environment v1 lineage (`PROMPTS.md`)
+- Connected-repo TODOs for prompt mirrors, re-freeze scripts, and downstream imports (`TODOS.md`)
+- Metric identity by doc class (`METRIC_IDS.md`)
+- Specialist grid reports for local → Modal GPU studies (`GRID_REPORTS.md`)
+- Issue-by-issue alignment status (`ISSUE_ALIGNMENT.md`)
 
-| Document | Description |
-| :--- | :--- |
-| `../README.md` | Root monorepo README |
-| `../CONTRIBUTING.md` | Contributor guide: repo routing, card workflow, testing, commits, PRs |
-| `../SECURITY.md` | Vulnerability reporting, secrets and data handling |
-| `TESTING.md` | Test tiers, per-package commands and the change-type → required-suite matrix |
-| `COMMIT_MESSAGES.md` | Shared commit-message template and examples (`.gitmessage`) |
-| `v7-taxonomy.md` | Canonical five-class taxonomy definition |
-| `DOCCLASS_CONTRACT.md` | Dataset contract and versioning rules |
-| `docclass-merged-plan.md` | Strategic plan for corpus development |
 
-## Related Documentation
+- Regression diagnostics
+- Factuality audit
 
-| Package | Docs |
-| :--- | :--- |
-| `llm-mailroom` | `packages/llm-mailroom/docs/` — full pipeline documentation |
-| `local-mailroom-sandbox` | `packages/local-mailroom-sandbox/docs/` — sandbox, Modal and vLLM guides |
-| `mailroom-corpus-eda` | `packages/mailroom-corpus-eda/docs/` — dataset cards, source corpora |
+## Related Files
 
-## Wiki
-
-The GitHub wiki is pushed from `wiki/` via `sync-wiki.sh`. Edit wiki-native pages directly in `wiki/`; mirror pages are generated from canonical sources at sync time.
+- `README.md` — Package overview
+- `llm_dojo_scoring/` — Source code
+- `examples/` — Usage examples

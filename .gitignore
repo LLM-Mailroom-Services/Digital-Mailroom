@@ -3,70 +3,30 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .eggs/
-# Anchored to package roots: bare build/ would also mask tracked sources
-# under legitimately-named dirs (e.g. packages/*/scripts/build/*.py).
-packages/*/build/
-packages/*/dist/
+build/
+dist/
 .venv/
 venv/
+
+# Test / tooling
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.ipynb_checkpoints/
 .coverage
-.coverage.*
 htmlcov/
+.ipynb_checkpoints/
 
-# Environment / secrets — never commit real credentials.
-.env
-*.env.local
-
-# Hub #183: stale repo-root copy of the entity-extraction scores manifest (the
-# canonical copy lived in packages/llm-entity-extraction, pruned by DMR-079).
-reports/scores_manifest.jsonl
-
-# Local run artifacts (regenerated locally)
-packages/llm-dojo-scoring/reports/
-packages/llm-dojo-scoring/*.report.md
-packages/llm-dojo-scoring/*_plots/
-
-# Node (The-Mailroom optional React operator desk)
-node_modules/
-packages/The-Mailroom/ui/dist/
-
-# Data directory (pipeline bins + archive; per-package .gitignores are canonical)
-packages/llm-mailroom/data/
-packages/The-Mailroom/data/
-
-packages/The-Mailroom/site/
-packages/local-mailroom-sandbox/data/*
-# Sandbox fixtures are tracked (the package .gitignore ignores runtime data).
-!packages/local-mailroom-sandbox/data/fixtures/
-
-# Heavy assets pruned from history at monorepo import — keep them out.
-# (Regenerated locally by their packages; affected tests carry skip guards.)
-packages/The-Mailroom/docs/demos/
-packages/The-Mailroom/docs/screenshots/
-packages/llm-mailroom/docs/reports/
-packages/llm-mailroom/docs/examples/
+# Analysis output (generated)
+*.report.md
+*_plots/
+reports/
 
 # OS / editor
 .DS_Store
-Thumbs.db
-.vscode/
 .idea/
-*.swp
-*.swo
-*~
-*.db
-data/*.db-shm
-data/*.db-wal
-data/watcher_heartbeat
-data/watcher_heartbeat.tmp
-data/runtime/
-data/pipeline/
-data/archive/
+.vscode/
 
-# Vercel serverless functions (board-site deploy root)
-.vercel/
-.vercel
+# Local config
+.env
+*.local.yaml
+*.pyc

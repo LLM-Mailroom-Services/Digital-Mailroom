@@ -1,48 +1,40 @@
-<div align="center">
+# Sandbox governance (SAND)
 
-# 🏛️ Governance
+Local board for **sandbox-isolated** work in
+[`local-mailroom-sandbox`](https://github.com/Exios66/local-mailroom-sandbox).
 
-**Task board, card tracking, and cross-agent coordination for the Digital-Mailroom monorepo.**
+## Prefix rule (binding)
 
-</div>
+| Prefix | Where it lives | Use for |
+| --- | --- | --- |
+| **`SAND-NNN`** | this repo — [`TASKS.md`](TASKS.md) | Sandbox harness, Modal runbooks, offline fixtures, vendor sync *as consumed by the sandbox*, job CLI, requirements mirrors, local docs |
+| **`DMR-NNN`** | Digital-Mailroom hub board (`governance/TASKS.md`) | Cross-family / mailroom-pipeline / dojo work shared across the governed family |
 
----
+**Do not** open `DMR-*` cards on this board. **Do not** invent a second
+family MESSAGE_BOARD here (AGENTS.md / `docs/setting-up/sister-repos.md`). When a
+sandbox change is *driven by* a family DMR, cite the DMR in the SAND card
+notes (`Related: DMR-078`) — the card ID stays `SAND-*`.
 
-## What This Directory Contains
+Legacy `SANDBOX-050-*` mission cards are archived under
+[`archive/SANDBOX-050.md`](archive/SANDBOX-050.md) and mapped to `SAND-*`.
 
-| File | Description |
-|:---|:---|
-| `TASKS.md` | The monorepo's task board and single source of truth for cross-agent task state |
+## Card ID format
 
-## Board Laws
-
-The five lanes: `unassigned` → `assigned` → `in_progress` → `needs_attention` → `done`
-
-- **Claim before edit** — one owner per card
-- **Unclaimed = unassigned** — Owner `unclaimed` cards sit in the `unassigned` lane, free for the next agent or team to claim
-- **Update, don't duplicate** — work touching an existing card's scope updates that card
-- **No silent completion** — `done` requires green suites, clean git status, and Evidence commits
-
-## Board Machine-Readability
-
-```bash
-python scripts/board_state.py status    # live board snapshot
-python scripts/board_state.py check     # structural invariant check (exit 1 on errors)
+```
+SAND-<NNN>           # primary card (zero-padded, sequential)
+SAND-<NNN>-<k>       # optional sub-card of a mission epic
 ```
 
-## Related Files
+Examples: `SAND-001`, `SAND-014-3`.
 
-| Path | Purpose |
-|:---|:---|
-| `scripts/board_state.py` | Parses and validates the board |
-| `scripts/github_labels.py` | Label taxonomy audit (CI gate) |
-| `scripts/taxonomy_parity.py` | Doc-class taxonomy drift (CI gate) |
-| `.github/workflows/board-governance.yml` | CI enforcement |
-| `.github/ISSUE_TEMPLATE/hub_card.yml` | Synced card template |
-| `.github/labels.json` | Label taxonomy |
+Lanes: `todo` → `in_progress` → `needs_attention` → `done` · Owner · UTC date.
 
-## Issue Routing
+## Files
 
-- **Board-only**: small/single-session/low-risk cards
-- **GitHub Issue**: critical or cross-package cards (repo where work lands)
-- **Synced cards**: carry `kanban` + lane labels, mirrored both ways
+| Path | Role |
+| --- | --- |
+| [`TASKS.md`](TASKS.md) | Active SAND task list (the local board) |
+| [`archive/`](archive/) | Closed missions / superseded card schemes |
+| [`PREFIX.md`](PREFIX.md) | Short cheat-sheet for agents / operators |
+
+Next free ID: see the **Next ID** line at the top of `TASKS.md`.

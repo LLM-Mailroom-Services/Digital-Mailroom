@@ -15,8 +15,8 @@
     },
     "llm-mailroom": {
       "branch": "main",
-      "synced_at": "2026-10-25T17:19:47Z",
-      "synced_sha": "60cd5fad0c7a616ec575857841bb9897b9e8c3ed",
+      "synced_at": "2026-10-25T19:13:49Z",
+      "synced_sha": "1a1ec3dfb4e71f615f5d34f6198f9d06fd8c26dd",
       "url": "https://github.com/Exios66/llm-mailroom.git"
     },
     "local-mailroom-sandbox": {

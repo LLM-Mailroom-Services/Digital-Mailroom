@@ -216,6 +216,18 @@ def test_visualizer_preserves_all_local_work(source, vendor, kind):
     assert fingerprint(dest) == before
 
 
+def test_visualizer_updates_clean_older_reviewed_checkout(source, vendor):
+    """A clean checkout at an earlier reviewed commit is refreshed, not refused."""
+    old = commit(source, {"index.html": "old\n"})
+    new = commit(source, {"index.html": "new\n"})
+    assert cli._refresh_visualizer(old, str(source), old) == 0
+    dest = vendor / "The-Mailroom"
+    assert git(dest, "rev-parse", "HEAD") == old
+    assert cli._refresh_visualizer(new, str(source), new) == 0
+    assert git(dest, "rev-parse", "HEAD") == new
+    assert (dest / "index.html").read_text() == "new\n"
+
+
 def test_visualizer_existing_checkout_survives_remote_failure(source, vendor):
     reviewed = commit(source, {"index.html": "reviewed\n"})
     assert cli._refresh_visualizer(reviewed, str(source), reviewed) == 0

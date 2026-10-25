@@ -30,10 +30,17 @@ def dev_defaults_allowed() -> bool:
 
 
 def configured_jwt_secret() -> str:
-    return (
-        os.environ.get("MAILROOM_OPERATOR_JWT_SECRET", "").strip()
-        or os.environ.get("JWT_SECRET", "").strip()
-    )
+    """Return the configured HMAC key exactly as supplied.
+
+    A whitespace-only primary setting is treated as unset so the supported
+    ``JWT_SECRET`` alias still works. A nonblank secret is returned verbatim:
+    trimming it would change the HMAC key and invalidate already-issued tokens.
+    """
+    for name in ("MAILROOM_OPERATOR_JWT_SECRET", "JWT_SECRET"):
+        value = os.environ.get(name)
+        if value and value.strip():
+            return value
+    return ""
 
 
 def bootstrap_password() -> Optional[str]:

@@ -153,7 +153,7 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 | `sandbox down` | Stop compose services |
 | `sandbox pull-models` | Pull required Ollama models |
 | `sandbox health` | Probe the active provider |
-| `sandbox fetch-deps` | Optional: refresh the TRACKED vendor snapshots from the pins in `_VENDOR_PINS` / `vendor/*/VENDOR.md` |
+| `sandbox fetch-deps` | Optional: refresh the TRACKED vendor snapshots (workspace mirror in the monorepo; reviewed refs in `_VENDOR_PINS` otherwise) |
 | `sandbox fetch-deps --visualizer` | Also clone The-Mailroom |
 
 ### Eval commands
@@ -533,7 +533,7 @@ from the 27-key GT schema).
 ### Fetch vendored deps
 
 ```bash
-sandbox fetch-deps                        # optional: refresh tracked vendor snapshots (pins in _VENDOR_PINS / vendor/*/VENDOR.md)
+sandbox fetch-deps                        # optional: refresh tracked vendor snapshots (workspace mirror in monorepo; pinned refs otherwise)
 sandbox fetch-deps --visualizer           # also clone The-Mailroom
 ```
 

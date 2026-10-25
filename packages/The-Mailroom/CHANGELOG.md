@@ -12,9 +12,17 @@ All notable changes to The-Mailroom are documented here, following
   secret. The public-deployment warning now distinguishes default authenticated
   access from explicit AUTH=0 local-trust mode; Origin checks still apply.
 
-- DMR-111: align optional `eval` and `pipeline` installs on released Dojo v0.24.2;
-  freeze the producer adapter to pipeline `60cd5fad0c7a616ec575857841bb9897b9e8c3ed` (0.8.1).
-  Combined extras no longer demand incompatible scoring repositories.
+- DMR-111: align optional `eval` and `pipeline` installs on released Dojo v0.24.2
+  and a reviewed producer commit; combined extras no longer demand incompatible
+  scoring repositories.
+- DMR-112: advance the reviewed producer pin to pipeline `60cd5fa` (0.8.1).
+- DMR-113: preserve a nonblank JWT secret verbatim; trimming it would rotate the
+  HMAC key and invalidate issued tokens. Clarify the loopback development-opt-in
+  and explicit `MAILROOM_OPERATOR_AUTH=0` exceptions in the operator docs, and
+  document the supported `JWT_SECRET` alias.
+- DMR-113: advance the reviewed producer pin to pipeline `4c274a4` and the eval
+  pin to the interim post-v0.24.2 Dojo commit `718e326` (explicit zero-token
+  usage fix); both remain immutable SHAs.
 
 - DMR-111: require explicit loopback development opt-in for published operator
   credentials, leave unconfigured displays readable without seeding a default

@@ -7,7 +7,7 @@ checkout is available:
 
     pip install -e ".[pipeline]"
 
-Pin: ``git+https://github.com/Exios66/llm-mailroom.git@60cd5fad0c7a616ec575857841bb9897b9e8c3ed`` (reviewed source
+Pin: ``git+https://github.com/Exios66/llm-mailroom.git@1a1ec3dfb4e71f615f5d34f6198f9d06fd8c26dd`` (reviewed source
 with package version 0.8.1 — dedicated
 merger_agreement_specialist, ModernBERT intake-ml-triage span,
 llm-dojo-scoring v0.24.2, mailroom-dataset tag v9.1). The review_resolve /
@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 # Reviewed source dependency adoption — canonical Dojo v0.24.2.
-MAILROOM_GIT_SHA = "60cd5fad0c7a616ec575857841bb9897b9e8c3ed"
+MAILROOM_GIT_SHA = "1a1ec3dfb4e71f615f5d34f6198f9d06fd8c26dd"
 MAILROOM_GIT_URL = "https://github.com/Exios66/llm-mailroom.git"
 MAILROOM_DIST_NAME = "mailroom"
 MAILROOM_DIST_VERSION = "0.8.1"

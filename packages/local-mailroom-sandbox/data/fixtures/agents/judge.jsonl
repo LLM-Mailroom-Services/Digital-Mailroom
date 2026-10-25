@@ -1,2 +1,0 @@
-{"id":"judge_msa","subdir":"contract","filename":"sample_msa.txt","expected_doc_class":"contract","expected_verdict":"complete","expected_score":0.98,"expected_fields":{"parties":["Northwind Logistics Corporation","HarborPoint Holdings, Inc."],"governing_law":"Delaware"}}
-{"id":"judge_10k","subdir":"compliance_filing","filename":"sample_10k.txt","expected_doc_class":"compliance_filing","expected_verdict":"complete","expected_score":0.96,"expected_fields":{"filing_type":"10-K","regulatory_body":"SEC"}}

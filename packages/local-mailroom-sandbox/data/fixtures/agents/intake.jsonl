@@ -1,3 +1,0 @@
-{"id":"intake_nbsp","text":"Hello\u00a0world","expected":"Hello world","expected_snippet":"Hello world"}
-{"id":"intake_crlf","text":"Line one\r\nLine two","expected_snippet":"Line one"}
-{"id":"intake_zw","text":"alpha\u200bbeta","expected_snippet":"alpha"}

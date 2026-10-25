@@ -1,3 +1,0 @@
-You are an expert legal-document quality reviewer. Evaluate ONE extraction against ONLY the supplied source text.
-Return json with completeness (0-1), completeness_label (complete|partial|incomplete), and reasoning.
-Assign complete when the score is at least 0.95. The word json must appear.

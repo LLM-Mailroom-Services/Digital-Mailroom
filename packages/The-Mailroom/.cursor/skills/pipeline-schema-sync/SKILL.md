@@ -31,11 +31,11 @@ Cached at process level — **restart** after edits.
 | New observation type | Node hidden or filed as generation |
 
 Keep topology/display catalogs as copied constants. Offline evaluation uses
-Dojo through optional `[eval]` (`@v0.23.0`); do not duplicate its scoring engine
+Dojo through optional `[eval]` (`@v0.24.0`); do not duplicate its scoring engine
 or make the live display path import it.
 
 Producer **code** pin (separate from the topology mirror): extra `[pipeline]`
-installs dist `mailroom` `@959bb0bce152` (0.7.1+, main after v0.7.1). Import only through
+installs dist `mailroom` `@31f89a82729e2a94314a372068af838ffa15def2` (0.8.1, reviewed source adoption). Import only through
 `mailroom_ui/producer.py` (`pipeline.review_resolve`, `schemas.manifest`).
 Never import `api.main`. Bump `MAILROOM_GIT_SHA` and `pyproject.toml` together.
 

@@ -6,6 +6,17 @@ All notable changes to The-Mailroom are documented here, following
 
 ## [Unreleased]
 
+### Fixed
+
+- DMR-111: align optional `eval` and `pipeline` installs on released Dojo v0.24.0;
+  freeze the producer adapter to pipeline `31f89a82729e2a94314a372068af838ffa15def2` (0.8.1).
+  Combined extras no longer demand incompatible scoring repositories.
+
+- DMR-111: require explicit loopback development opt-in for published operator
+  credentials, leave unconfigured displays readable without seeding a default
+  admin, and reject existing tokens when persisted admin credentials are unsafe.
+  Seed settings never rotate stored credentials.
+
 ### Added
 
 - Cache-only Dojo release awareness from producer health through the existing

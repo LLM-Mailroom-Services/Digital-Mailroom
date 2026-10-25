@@ -16,6 +16,8 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Optional
 
+from .credentials import bootstrap_password
+
 log = logging.getLogger("mailroom.operator.db")
 
 ROLES = frozenset({"admin", "reviewer", "viewer"})
@@ -100,7 +102,7 @@ def ensure_bins() -> None:
 
 
 def migrate() -> Path:
-    """Create operator tables and seed the default admin when the store is empty."""
+    """Create tables; seed an empty store only with allowed bootstrap credentials."""
     path = db_path()
     conn = connect()
     try:
@@ -146,12 +148,18 @@ def migrate() -> Path:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_docs_type ON documents(doc_type)")
         if conn.execute("SELECT COUNT(*) FROM ui_users").fetchone()[0] == 0:
             username = os.environ.get("MAILROOM_OPERATOR_ADMIN_USER", "admin").strip() or "admin"
-            password = os.environ.get("MAILROOM_OPERATOR_ADMIN_PASSWORD", "changeme")
-            conn.execute(
-                "INSERT INTO ui_users (username, password_hash, role) VALUES (?, ?, 'admin')",
-                (username, hash_password(password)),
-            )
-            log.info("seeded operator admin user %s", username)
+            password = bootstrap_password()
+            if password is None:
+                log.warning(
+                    "operator admin not seeded: set MAILROOM_OPERATOR_ADMIN_PASSWORD; "
+                    "published defaults require explicit loopback development opt-in"
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO ui_users (username, password_hash, role) VALUES (?, ?, 'admin')",
+                    (username, hash_password(password)),
+                )
+                log.info("seeded operator admin user %s", username)
         conn.commit()
     finally:
         conn.close()

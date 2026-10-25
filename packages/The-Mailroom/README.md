@@ -151,7 +151,7 @@ plus pixel, Observatory, live floor, schema sync, Pages, TUI, operator desk):
 
 ```bash
 pip install -e ".[dev]"
-pip install -e ".[pipeline]"  # optional: import llm-mailroom @ 959bb0bce152 (0.7.1+, main after v0.7.1)
+pip install -e ".[pipeline]"  # optional: import llm-mailroom @ 31f89a82729e2a94314a372068af838ffa15def2 (0.8.1, main after v0.7.1)
 cp .env.example .env      # add LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY
 mailroom-web              # → http://127.0.0.1:8001  (pixel-art console)
                           #    Observatory is also at /live on the same server
@@ -402,7 +402,7 @@ envelopes are opt-in (`?demo=1`) and only when the trace source is down.
 - The sister pipeline repo `../llm-mailroom` (optional — `MAILROOM_TAXONOMY`
   live override, production-pilot scripts, or `mailroom_ui/producer.py`
   checkout import). Prefer `pip install -e ".[pipeline]"` to pin dist
-  `mailroom` @ `959bb0bce152` (0.7.1+, main after v0.7.1) when you want to import `pipeline.review_resolve`.
+  `mailroom` @ `31f89a82729e2a94314a372068af838ffa15def2` (0.8.1, main after v0.7.1) when you want to import `pipeline.review_resolve`.
 - `arize-phoenix-client` (optional — only for the Phoenix trace source)
 
 </details>
@@ -552,7 +552,9 @@ adds `MAILROOM_OPERATOR_*` (JWT, admin seed, ingest token) plus
 > non-loopback `MAILROOM_HOST`, review resolve and inbox upload need an
 > operator login (reviewer+), and login is refused until
 > `MAILROOM_OPERATOR_JWT_SECRET` is set and the admin password is rotated
-> away from `changeme`. Read-only display is unaffected. Cross-origin browser
+> away from `changeme`. Defaults require explicit loopback-only
+> `MAILROOM_OPERATOR_ALLOW_DEV_DEFAULTS=1`; otherwise operator access stays disabled.
+> Read-only display is unaffected. Cross-origin browser
 > writes need the origin listed in `MAILROOM_CORS_ORIGINS`; the TUI sends
 > `MAILROOM_OPERATOR_TOKEN`. See `docs/operator-desk.md`.
 
@@ -676,9 +678,9 @@ board, one discussion log, and one trace contract:
 
 | Repository | Role | Relationship to The-Mailroom |
 | --- | --- | --- |
-| [llm-mailroom](https://github.com/Exios66/llm-mailroom) | LangGraph state machine processing legal documents through specialist LLM agents (classify → extract → report → archive); pin `@959bb0bce152` / **0.7.1+** (main after v0.7.1) (package `mailroom` 0.7.1) | **Upstream** — its Langfuse project is this visualizer's sole data source; optional `pip install -e ".[pipeline]"` imports `pipeline.review_resolve` |
+| [llm-mailroom](https://github.com/Exios66/llm-mailroom) | LangGraph state machine processing legal documents through specialist LLM agents (classify → extract → report → archive); pin `@31f89a82729e2a94314a372068af838ffa15def2` / **0.8.1** (reviewed source adoption) (package `mailroom` 0.8.1) | **Upstream** — its Langfuse project is this visualizer's sole data source; optional `pip install -e ".[pipeline]"` imports `pipeline.review_resolve` |
 | [llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction) | Prompt-experiment loop (prompt versions × models, paired-bootstrap ablations) | Breeds the pipeline's sorter/specialist prompts; hosts the shared kanban board + governance log for the whole chain |
-| [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Canonical scoring engine (`@v0.23.1`) | Upstream engine for pipeline and sandbox; visualizer offline evaluation uses optional `[eval]` |
+| [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Canonical scoring engine (`@v0.24.0`) | Upstream engine for pipeline and sandbox; visualizer offline evaluation uses optional `[eval]` |
 | [Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment) | EDA + pipeline-ready correspondence dataset (CMU Enron corpus) | Corpus feed for the pipeline's `correspondence` doc class |
 | [claims-data-eda](https://github.com/Exios66/claims-data-eda) | Insurance-claims candidate-corpus EDA (CMS DE-SynPUF direction) | Candidate corpus feed for the `insurance_claim` doc class |
 | [atticus-investigation](https://github.com/Exios66/atticus-investigation) | LegalBench classification prompt-engineering pipeline | Eval sibling — same methodology family, LegalBench focus |

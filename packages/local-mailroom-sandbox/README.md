@@ -90,9 +90,9 @@ pip install -e ".[dev]"
 cp config/.env.example .env
 # family code is already vendored under vendor/ (self-contained); fetch-deps
 # only refreshes the snapshots (workspace packages first; reviewed standalone
-# main refs frozen to SHAs otherwise, requiring network). Moved refs are rejected
+# commit/release refs frozen to SHAs otherwise, requiring network). Moved refs are rejected
 # before tracked vendor files are replaced:
-sandbox fetch-deps                 # mirror workspace packages or refresh SHA-frozen standalone main refs
+sandbox fetch-deps                 # mirror workspace packages or refresh SHA-frozen standalone commit/release refs
 sandbox up                         # Langfuse + Ollama
 sandbox pull-models                # ollama pull qwen3:8b
 sandbox health
@@ -389,3 +389,20 @@ The sandbox drives the vendored family code through these open-source projects.
 <sub>🧪 <i>Mock first, then local, then scored.</i> · Artwork: <a href="docs/assets/readme/README.md">design and regeneration</a></sub>
 
 </div>
+
+
+### Reviewed dependency refreshes (DMR-111)
+
+The tracked snapshots contain pipeline 0.8.1 and Dojo 0.24.0 from the exact
+commits in their `VENDOR.md` files. `sandbox fetch-deps` remains optional: it
+uses workspace packages when available and retrieves the reviewed immutable
+commit or frozen release tag in standalone checkouts. Ref movement, fetch,
+layout and copy failures leave the previous snapshot intact. If installation
+and rollback both fail, the command prints the preserved recovery directory.
+
+`--visualizer` retrieves a separately reviewed exact visualizer commit. An
+existing checkout with local files or a different HEAD is preserved and rejected;
+review it and move it aside before requesting a fresh pinned checkout. Large LFS
+assets are not downloaded. CUAD/MAUD row and pooled headline metrics delegate to
+Dojo; null ground-truth answers are unlabelled, while genuine zero scores remain
+numeric zero. The production and evaluation corporate prompt catalogs stay distinct.

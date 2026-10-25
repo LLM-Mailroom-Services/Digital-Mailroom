@@ -8,7 +8,7 @@ The family code the sandbox imports at runtime — the pipeline
 ([`llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring)) —
 ships as **tracked snapshots under `vendor/`** (DMR-057). Both snapshots
 consume reviewed standalone source revisions: refresh from monorepo workspace
-packages when available, otherwise from the standalone `main` refs frozen to
+packages when available, otherwise from the standalone commit/release refs frozen to
 SHAs in `_VENDOR_PINS` (`src/mailroom_sandbox/cli.py`). The standalone refresh
 rejects moved refs before replacing tracked vendor files. The drift guard
 (`tests/test_vendor_drift.py`) enforces byte-identity with available source
@@ -77,7 +77,7 @@ sandbox cutover --profile ollama --agent-model judge=qwen3:14b
 sandbox up                          # langfuse + ollama compose profiles
 sandbox pull-models                 # ollama pull qwen3:8b
 sandbox health
-sandbox fetch-deps                  # optional: refresh vendor snapshots (workspace packages first; SHA-frozen standalone main refs otherwise)
+sandbox fetch-deps                  # optional: refresh vendor snapshots (workspace packages first; SHA-frozen standalone commit/release refs otherwise)
 sandbox fetch-deps --visualizer     # also clone The-Mailroom
 sandbox pilot --mock                # no LLM
 sandbox eval sorter --mock
@@ -167,7 +167,7 @@ for source links and registered communication types.
 - Mailroom's `pipeline.config.CONFIG_PATH` is hardcoded; the sandbox monkeypatches it.
 - `DEFAULT_PROVIDER` alone is not enough — OpenRouter model ids must be rewritten via the overlay.
 - `--model` overrides every agent; `--agent-model NAME=tag` is surgical and wins last.
-- Scoring + pipeline are pinned by the tracked snapshots: `vendor/llm-mailroom/VENDOR.md` + `vendor/llm-dojo-scoring/VENDOR.md` — both consume reviewed standalone revisions through workspace packages when available, with SHA-frozen standalone `main` refs as the fallback; refresh with `python scripts/sync_vendor.py` (monorepo root) or `sandbox fetch-deps` and commit the diff. `get_suite("local_vs_api")` compares offline vs API-key serving metrics (table + scorecard + cost; TTFT never inferred; GPU/KV stripped on API records).
+- Scoring + pipeline are pinned by the tracked snapshots: `vendor/llm-mailroom/VENDOR.md` + `vendor/llm-dojo-scoring/VENDOR.md` — both consume reviewed standalone revisions through workspace packages when available, with SHA-frozen standalone commit/release refs as the fallback; refresh with `python scripts/sync_vendor.py` (monorepo root) or `sandbox fetch-deps` and commit the diff. `get_suite("local_vs_api")` compares offline vs API-key serving metrics (table + scorecard + cost; TTFT never inferred; GPU/KV stripped on API records).
 - Isolated evals call vendored agent classes (always importable now); the `offline_fallback` path still exists for missing deps.
 - `scripts/` and `legalbench/` are not in the installed `mailroom` wheel — they ARE in the vendored tree, which also supplies `PYTHONPATH` for `sandbox pipeline watcher` / `sandbox pipeline api` (`_mailroom_env` adds both vendored srcs).
 - Sandbox-isolated work uses the local **`SAND-*`** board in

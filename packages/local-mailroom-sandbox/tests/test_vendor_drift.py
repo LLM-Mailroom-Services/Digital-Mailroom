@@ -66,7 +66,7 @@ _EXCLUDE_REL_PREFIXES = {"legalbench/reports"}
 # llm-mailroom vendored src excludes the tests/ subtree (VENDOR.md: "upstream
 # src/ minus src/tests/") — test-only files are never imported by vendored
 # modules, so they legitimately don't appear in the snapshot.
-_EXCLUDE_TOP_LEVEL_DIRS = {"tests"}
+_EXCLUDE_TOP_LEVEL_DIRS = {"tests", "test"}
 # Build detritus in the workspace src/ (mailroom.egg-info) is never vendored.
 _EGG_INFO_SUFFIX = ".egg-info"
 
@@ -93,7 +93,7 @@ def _files(root: Path) -> dict[str, str]:
             continue
         if path.suffix in _EXCLUDE_SUFFIXES:
             continue
-        if any("/".join(rel.parts).startswith(p) for p in _EXCLUDE_REL_PREFIXES):
+        if any(rel == Path(p) or Path(p) in rel.parents for p in _EXCLUDE_REL_PREFIXES):
             continue
         out[str(rel)] = _sha256(path)
     return out

@@ -50,7 +50,8 @@ _EXCLUDE_REL = {"tests", "test"}  # llm-mailroom vendored src minus tests/
 # Runtime-generated report artifacts: the workspace copies are gitignored
 # (llm-mailroom .gitignore src/legalbench/reports/) and drift every run, so
 # they must not be pinned into a tracked snapshot.
-_EXCLUDE_SUFFIXES = {"legalbench/reports"}
+_EXCLUDE_REL_PREFIXES = {"legalbench/reports"}
+_EXCLUDE_SUFFIXES = {".pyc"}
 
 
 def _excluded(rel: Path) -> bool:
@@ -58,7 +59,9 @@ def _excluded(rel: Path) -> bool:
         return True
     if rel.parts[0] in _EXCLUDE_REL:
         return True
-    return any("/".join(rel.parts).startswith(s) for s in _EXCLUDE_SUFFIXES)
+    if rel.suffix in _EXCLUDE_SUFFIXES:
+        return True
+    return any(rel == Path(p) or Path(p) in rel.parents for p in _EXCLUDE_REL_PREFIXES)
 
 
 def _refresh(name: str, dest: Path, source: Path) -> int:

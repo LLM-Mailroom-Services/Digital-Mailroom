@@ -1,20 +1,22 @@
 <div align="center">
 
-<img src="docs/assets/readme/hero.svg" alt="The Digital Mailroom: envelopes ride a conveyor through intake, classify, extract, judge, compile and archive gates" width="100%"/>
+<picture>
+  <source media="(max-width: 640px)" srcset="docs/assets/readme/hero-mobile.svg"/>
+  <img src="docs/assets/readme/hero.svg" alt="local-mailroom-sandbox: seven provider profiles feed the vendored 13-node llm-mailroom graph, whose runs are scored by the vendored llm-dojo-scoring and traced to Langfuse" width="100%"/>
+</picture>
 
 <br/>
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![uv workspace](https://img.shields.io/badge/uv-one_workspace-6C63FF?style=for-the-badge)](https://docs.astral.sh/uv/)
-[![LangGraph](https://img.shields.io/badge/LangGraph-13_nodes-22C55E?style=for-the-badge)](packages/llm-mailroom)
-[![Hub release](https://img.shields.io/badge/hub-v0.10.0-F472B6?style=for-the-badge)](CHANGELOG.md)
-[![License](https://img.shields.io/badge/license-MIT-0EA5E9?style=for-the-badge)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
+[![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom_vendored-2563EB?style=for-the-badge)](vendor/llm-mailroom/VENDOR.md)
+[![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring_vendored-8B5CF6?style=for-the-badge)](vendor/llm-dojo-scoring/VENDOR.md)
+[![Tracing](https://img.shields.io/badge/tracing-Langfuse_v4-F5A623?style=for-the-badge)](docs/tracing.md)
 
-[![Dispatch board](https://img.shields.io/badge/📋_dispatch_board-live-000?style=flat-square&logo=vercel)](https://digital-mailroom-theta.vercel.app)
-[![Dataset](https://img.shields.io/badge/🤗_mailroom--dataset-v9_·_3,302_rows-FFD21E?style=flat-square)](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
-[![Wiki](https://img.shields.io/badge/📖_wiki-deep_dives-555?style=flat-square)](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/wiki)
+[![Hub](https://img.shields.io/badge/🏛️_hub-Digital--Mailroom-000?style=flat-square)](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
+[![Quickstart](https://img.shields.io/badge/📘_guide-QUICKSTART-555?style=flat-square)](docs/setting-up/QUICKSTART.md)
+[![Providers](https://img.shields.io/badge/🔌_providers-seven_profiles-555?style=flat-square)](docs/setting-up/providers.md)
 
-**[Quickstart](#-quickstart)** · **[How it works](#-a-day-in-the-life-of-a-document)** · **[The constellation](#-the-constellation)** · **[House rules](#-house-rules)** · **[Docs](#-where-to-go-next)**
+**[Quickstart](#quickstart)** · **[How it works](#how-it-works)** · **[At a glance](#at-a-glance)** · **[CLI](#cli)** · **[Docs](#docs)** · **[Where it fits](#where-it-fits)**
 
 </div>
 
@@ -24,36 +26,43 @@
 <details>
 <summary><b>📑 Contents</b></summary>
 
-- [📬 What is this?](#-what-is-this)
+- [🧪 What is this?](#what-is-this)
 - [🤔 When to reach for it](#when-to-reach-for-it)
-- [🏭 A day in the life of a document](#-a-day-in-the-life-of-a-document)
-- [🌌 The constellation](#-the-constellation)
-- [🚀 Quickstart](#-quickstart)
-- [📜 House rules](#-house-rules)
-- [🔄 Sync & release](#-sync--release)
-- [📚 Where to go next](#-where-to-go-next)
+- [🚀 Quickstart](#quickstart)
+- [🧭 How it works](#how-it-works)
+- [📟 At a glance](#at-a-glance)
+- [⌨️ CLI](#cli)
+- [📚 Docs](#docs)
+- [✍️ Specialist extraction rules](#specialist-extraction-rules)
+- [🗂️ Layout](#layout)
+- [🐳 Offline Docker and notebooks](#offline-docker--notebooks)
+- [🌌 Where it fits](#where-it-fits)
 - [❓ FAQ](#faq)
 - [🙏 Built on](#built-on)
 - [🤝 Contributing, security and license](#contributing-security-and-license)
 
 </details>
 
-## 📬 What is this?
+<a id="what-is-this"></a>
 
-Picture a law firm's mailroom. Letters arrive. Someone **sorts** them,
-someone **reads** them and pulls out the facts, a supervisor **checks the
-work**, and every envelope ends up **filed with a receipt**. Nothing gets
-lost and nobody gets to guess.
+## 🧪 What is this?
 
-The Digital Mailroom does the same job with AI agents. It is the
-**integration hub** for the LLM-Mailroom constellation: one checkout that
-wires together a multi-agent legal-document pipeline, a deterministic scoring
-dojo, a pixel-art visualizer, an offline and GPU testing sandbox, and the
-corpus EDA that feeds them. It runs on **one uv workspace, one lockfile and
-one virtualenv**, and no member imports code from outside the workspace.
+A local-first experiment sandbox for the LLM-Mailroom pipeline. It runs the
+full classify → extract → report → archive graph on your own machine with
+Ollama, vLLM, llama.cpp or LM Studio, or on a rented GPU through Modal. Swap in
+OpenRouter when you need an API provider; it is opt-in and never the default.
+
+This repository does **not** fork the pipeline. It ships the family code it
+needs as **tracked snapshots under `vendor/`** (DMR-057): the pipeline
+(`llm-mailroom`) and the scoring engine (`llm-dojo-scoring`) are self-contained
+copies, each pinned to an exact source commit in its `VENDOR.md`, with config,
+serving, eval and scoring overlays on top.
 
 <div align="center">
-<img src="docs/assets/readme/stats.svg" alt="By the numbers: 5 core packages, 13 pipeline nodes, 5 document classes, 3,302 corpus rows, a 15-agent roster, 1 lockfile" width="100%"/>
+<picture>
+  <source media="(max-width: 640px)" srcset="docs/assets/readme/stats-mobile.svg"/>
+  <img src="docs/assets/readme/stats.svg" alt="By the numbers: seven provider profiles, two vendored snapshots, a 13-node graph, five document classes, a 3,302-row pinned dataset pull, and a mock mode that needs no LLM" width="100%"/>
+</picture>
 </div>
 
 <a id="when-to-reach-for-it"></a>
@@ -62,298 +71,277 @@ one virtualenv**, and no member imports code from outside the workspace.
 
 | ✅ Reach for it when… | ↪️ Look elsewhere when… |
 | :--- | :--- |
-| You want the whole constellation in one checkout: one uv workspace, one lockfile, one virtualenv | You want to change package code. Author it in the standalone `Exios66/*` source, then import it here |
-| You are running cross-package suites, regenerating vendor snapshots or cutting a hub release | You want a single package on its own. Install it from its standalone repository |
-| You coordinate work through the board and the live dispatch board | You want the pruned alumni (`llm-entity-extraction`, `llm-mailroom-graph`). They live on only as standalone repos |
+| You want to run the real mailroom graph against a local or self-hosted model, offline, before you spend anything | You want to change the pipeline itself. Its source is [llm-mailroom](https://github.com/Exios66/llm-mailroom); the copy under `vendor/` is a snapshot |
+| You need to compare providers, models and prompt versions on the same documents and score them the same way | You want to change a metric. Scoring lives in [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) |
+| You are bringing up vLLM locally, over an SSH tunnel or on Modal, and want health checks, run specs and a watch view | You want to train a classifier. Training lives in [mailroom-ml](https://github.com/LLM-Mailroom-Services/mailroom-ml) |
 
-## 🏭 A day in the life of a document
-
-<div align="center">
-<img src="docs/assets/readme/sorting-floor.gif" alt="Pixel-art sorting floor: letters drop from the inbox, the SORTER classifies them, the JUDGE stamps them, they land in one of five class bins, and a hash-chained receipt grows along the floor" width="100%"/>
-<br/><sub><i>Live from the sorting floor. Rendered by <code>docs/assets/readme/make_sorting_gif.py</code>.</i></sub>
-</div>
-
-<br/>
-
-| | Stage | What happens |
-| :---: | :--- | :--- |
-| 📥 | **Ingest** | One fused triage, clean and prepare pass claims the raw file, normalizes it and writes its manifest |
-| 🏷️ | **Classify** | The `SorterAgent` assigns one of five live classes (`contract` · `merger_agreement` · `corporate_record` · `correspondence` · `insurance_claim`) with a confidence score. High confidence goes straight to extraction, medium confidence retries, and low or unknown confidence goes to review |
-| 🔍 | **Extract** | A class specialist produces structured Pydantic output, gated on schema, confidence, factuality and completeness |
-| ⚖️ | **Judge → Arbiter → Boss** | The Judge checks ambiguous completeness and the Arbiter decides whether to stand, re-extract or send the document to a human. Matter conflicts go to the **Boss**, which never resolves them silently by recency |
-| 🧑‍⚖️ | **Human review** | The governance boundary: approve, correct, reconcile or reject. A correction resumes the run from the corrected state |
-| 🗂️ | **Compile → Catalog → Archive** | Deterministic matter-record assembly (no LLM call), persistence, and a hash-chained audit archive |
-
-> These six phases cover the 13 nodes of the `llm-mailroom` graph. The full map is [`docs/assets/mailroom-pipeline.svg`](docs/assets/mailroom-pipeline.svg) and the terminology is in the [v7 taxonomy spec](docs/v7-taxonomy.md); both are the root-level sources of truth.
-
-<details>
-<summary><b>🖼️ The classic six-stage processing banner</b></summary>
-<br/>
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/mailroom-processing-banner-dark.svg">
-  <img src="docs/assets/mailroom-processing-banner.svg" alt="Mailroom processing pipeline — six stages from intake to routing, human-in-the-loop review, and every file committed to the auditable hash archive" width="100%"/>
-</picture>
-</details>
-
-## 🌌 The constellation
-
-<div align="center">
-<img src="docs/assets/readme/constellation.svg" alt="Data-flow map: corpus EDA publishes to the HF Hub; the sandbox and the pipeline pull the pinned dataset; the sandbox executes the pipeline; both score with llm-dojo-scoring; both send traces to Langfuse, which feeds The-Mailroom" width="100%"/>
-</div>
-
-Five core packages live in `packages/` as git subtrees imported from their
-authoritative standalone `Exios66/*` repositories. Four are built members;
-the fifth, the corpus EDA, is a virtual member.
-
-| | Package | Role | Source | Site |
-| :---: | :--- | :--- | :--- | :--- |
-| 🥋 | `llm-dojo-scoring` | **All** scoring engine logic and metrics, plus the error-analysis and interpretation suite | [`Exios66/llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring) | — |
-| 🧠 | `llm-mailroom` | LangGraph multi-agent legal-document pipeline (FastAPI producer) | [`Exios66/llm-mailroom`](https://github.com/Exios66/llm-mailroom) | — |
-| 👾 | `The-Mailroom` | Pixel-art visualizer shared by **both** the pipeline and the sandbox, driven by Langfuse traces, plus the hosted Observatory | [`Exios66/The-Mailroom`](https://github.com/Exios66/The-Mailroom) | [🌐 Pages](https://exios66.github.io/The-Mailroom/) |
-| 🧪 | `local-mailroom-sandbox` | Core offline/local and Modal/vLLM GPU testing interface for the pipeline | [`Exios66/local-mailroom-sandbox`](https://github.com/Exios66/local-mailroom-sandbox) | — |
-| 📊 | `mailroom-corpus-eda` | Corpus EDA (P0–P6) and the centralized HF upload helpers | [`Exios66/Mailroom-Corpus-EDA`](https://github.com/Exios66/Mailroom-Corpus-EDA) | [🌐 Pages](https://exios66.github.io/Mailroom-Corpus-EDA/) |
-
-The hub itself is [`LLM-Mailroom-Services/Digital-Mailroom`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom). It hosts the live [📋 Dispatch Board](https://digital-mailroom-theta.vercel.app).
-
-> [!NOTE]
-> `mailroom-corpus-eda` is the only virtual member (`package = false`). It has no build system and is not installed; its EDA code and deliverables live alongside the four built members.
-
-<details>
-<summary><b>🧭 Plain-text architecture map</b> (for terminals and screen readers)</summary>
-
-```text
- Enron-Evaluation-Environment ─┐  (external corpus feeds)
- claims-data-eda ──────────────┴─> mailroom-corpus-eda
-                                   EDA + centralized HF upload helpers
-                                              │ publishes
-                                              ▼
-                                   HF Hub: mailroom-dataset (pinned tag)
-                          ┌───────────────────┴───────────────────┐
-                          │ pinned pull                           │ pinned pull
-                          ▼                                       ▼
- ┌─────────────────────────────┐ executes ┌─────────────────────────────┐
- │ local-mailroom-sandbox      │ ───────> │ llm-mailroom                │
- │ offline/local + Modal/vLLM  │          │ 13-node LangGraph pipeline  │
- │ GPU testing harness         │          │ (FastAPI producer)          │
- └──────────────┬──────────────┘          └──────────────┬──────────────┘
-                │ scores with                            │ scores with
-                └───────────────────┐  ┌─────────────────┘
-                                    ▼  ▼
-                     ┌───────────────────────────────┐
-                     │ llm-dojo-scoring              │
-                     │ ALL scoring engine + metrics  │
-                     └───────────────────────────────┘
-
- llm-mailroom ───────────┐
- local-mailroom-sandbox ─┴─ traces / API ─> Langfuse ─> The-Mailroom
-                                                       shared visualizer, both
-
- Standalone sources ─── sync_packages.py pull ──> Digital-Mailroom packages/
- Imported packages ──── sync_vendor.py ─────────> sandbox vendor snapshots
- Digital-Mailroom owns hub wiring, governance, board, integration tooling.
-```
-
-</details>
-
-<details>
-<summary><b>🪦 Alumni and external feeds</b> (pruned packages and preserved checkouts)</summary>
-<br/>
-
-**Pruned in DMR-079.** `llm-entity-extraction` and `llm-mailroom-graph` left
-the monorepo. They live on only as standalone `Exios66/*` repos and are no
-longer synced. `agent-mailroom` is preserved on the branch
-`feature/agent-mailroom`. Hub `v0.8.0` is the last release containing them
-and serves as the rollback point.
-
-**External corpus feeds.** Enron and claims remain usable standalone feeds,
-and their datasets, taxonomy and published sites keep their identities.
-DMR-093 (PR #167, merged 2026-10-23) removed their local copies from the
-active workspace. Both preservation branches point to
-`59c879d9fb4480084e53137e2e9fb25650933944`, the last commit that carried the
-complete package trees.
-
-| Layer | Repository | GitHub Pages |
-| --- | --- | --- |
-| **Corpus feed** | [`Exios66/Enron-Evaluation-Environment`](https://github.com/Exios66/Enron-Evaluation-Environment) | [exios66.github.io/Enron-Evaluation-Environment](https://exios66.github.io/Enron-Evaluation-Environment/) |
-| **Corpus feed** | [`Exios66/claims-data-eda`](https://github.com/Exios66/claims-data-eda) | [exios66.github.io/claims-data-eda](https://exios66.github.io/claims-data-eda/) |
-
-You can browse [Enron's preserved package](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment/packages/Enron-Evaluation-Environment) or
-[claims' preserved package](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda/packages/claims-data-eda) on GitHub.
-For the original complete workspace, including the old hub chart generator,
-use a separate checkout of the preservation branch. To selectively restore a
-package, reconcile membership, sync entries, dependencies and tests
-explicitly, and keep the current root metadata. The earlier
-`feature/agent-mailroom` preservation branch remains unchanged.
-
-</details>
+<a id="quickstart"></a>
+<a id="quick-start"></a>
+<a id="one-command-local-path"></a>
 
 ## 🚀 Quickstart
 
 <div align="center">
-<img src="docs/assets/readme/terminal.svg" alt="Animated terminal: clone, uv sync, run a package suite, check sync status and board status" width="90%"/>
+<img src="docs/assets/readme/terminal.svg" alt="Animated terminal: install, copy the env file, bring up Langfuse and Ollama, pull the model, check health, then run the pilot with the mock and with a local model" width="90%"/>
 </div>
 
 ```bash
-git clone https://github.com/LLM-Mailroom-Services/Digital-Mailroom.git
-cd Digital-Mailroom
-uv sync                  # install workspace + dev group into .venv (editable)
+pip install -e ".[dev]"
+cp config/.env.example .env
+# family code is already vendored under vendor/ (self-contained); fetch-deps
+# only refreshes the snapshots (workspace packages first; reviewed standalone
+# commit/release refs frozen to SHAs otherwise, requiring network). Moved refs are rejected
+# before tracked vendor files are replaced:
+sandbox fetch-deps                 # mirror workspace packages or refresh SHA-frozen standalone commit/release refs
+sandbox up                         # Langfuse + Ollama
+sandbox pull-models                # ollama pull qwen3:8b
+sandbox health
+sandbox pilot --mock               # machinery only, no LLM
+sandbox pilot --local              # real local model
 ```
 
-Run the suites **one package per pytest invocation**. Several packages ship a
-top-level `tests` package, and they collide when batched.
+The one-command local path is the core of it:
 
-```bash
-uv run pytest packages/llm-dojo-scoring/tests
-uv run pytest packages/llm-mailroom/src/tests
-uv run pytest packages/The-Mailroom/tests
-uv run pytest packages/local-mailroom-sandbox/tests
-uv run pytest packages/mailroom-corpus-eda/tests
-python3 -m unittest discover scripts/tests   # hub governance tooling (hermetic)
-(cd board-site && node tests/api.test.js)    # served-board API proxy
-```
-
-> [!IMPORTANT]
-> **CI does not run the package suites, so your local run is the gate.**
-> [`docs/TESTING.md`](docs/TESTING.md) has the tiers, timings and the
-> change-type → required-suite matrix.
-
-During development, cross-package dependencies resolve to **workspace
-sources** through `[tool.uv.sources]` in each member's pyproject. The
-published git pins stay in the dependency lines for release builds.
-
-## 📜 House rules
-
-The mailroom runs on a few non-negotiables:
-
-1. **Standalone repos own the code.** Author, test and commit package changes in their `Exios66/*` repo, then *import* them here. Never implement a package change in the hub, and never push hub copies back to a standalone repo.
-2. **Vendor snapshots are generated, never hand-edited.** `packages/local-mailroom-sandbox/vendor/` comes from `sync_vendor.py` and nothing else.
-3. **The board is the source of truth.** Read [`governance/TASKS.md`](governance/TASKS.md) first, claim a card before you edit, and don't call a card done without evidence.
-4. **Every commit tells a story.** Lead with the `DMR-0NN:` prefix and write a body that names each changed file and why it changed. See the [template and examples](docs/COMMIT_MESSAGES.md).
-5. **Tests must be able to fail.** Ship each bug fix with its regression test, hand-compute expected values, and use honest doubles. Details are in [`AGENTS.md`](AGENTS.md#test-discipline).
-
-## 🔄 Sync & release
-
-```bash
-python scripts/sync_packages.py status                           # live drift report
-python scripts/sync_packages.py pull --package <name> --squash   # import committed standalone source
-python scripts/sync_vendor.py                                    # regenerate vendor snapshots from imported sources
-python scripts/sync_vendor.py --check                            # verify the snapshots match the workspace
-python scripts/sync_packages.py snapshot                         # cursor verification
-```
-
-Packages are released from their standalone repositories, and consuming
-pins are bumped there at release time. The hub then imports the committed
-sources, regenerates the vendor snapshots and runs the integration suites.
-Hub releases version the integration workspace on their own track: cut with
-`release_chain.py cut X.Y.Z --apply`, run `uv lock`, commit the changelog,
-version and lockfile together, merge the PR, then tag the merged `main` tip.
-The runbooks are
-[Sub-Package Sync](docs/wiki/Sub-Package-Sync.md) and
-[Releases](docs/wiki/Releases.md).
+1. Install
+2. `sandbox up` (compose profiles `langfuse` + `ollama`)
+3. `sandbox pull-models`
+4. `sandbox pilot --mock`
+5. `sandbox pilot --local`
 
 <details>
-<summary><b>🛠️ GitHub governance tooling</b></summary>
-<br/>
+<summary>CPU-only configuration check</summary>
 
-The board and the GitHub surface are kept machine-readable and consistent with each other. The live dispatch board is **<https://digital-mailroom-theta.vercel.app>**. It is issue-backed; see `board-site/` and [`docs/wiki/Served-Board.md`](docs/wiki/Served-Board.md).
+Pull `llama3.2:3b`, select it, then probe the provider:
 
 ```bash
-python scripts/board_state.py status            # live board snapshot (--json for machines)
-python scripts/board_state.py check             # board invariants; exit 1 on structural errors
-python scripts/github_labels.py audit           # label taxonomy drift (CI gate)
-python scripts/taxonomy_parity.py               # doc-class taxonomy drift (CI gate, HUB-019 §65A)
-python scripts/release_chain.py status          # hub release chain: tags, changelog sections, hub version
-python scripts/release_chain.py check           # chain invariants; exit 1 on structural errors
-python scripts/release_chain.py cut X.Y.Z       # cut a hub release (dry run; --apply writes; tag after merge)
-./docs/wiki/sync-wiki.sh                        # push docs/wiki/ source to the GitHub wiki (--check for drift)
+sandbox cutover --profile ollama --model llama3.2:3b   # prints the assignment
+sandbox health                                         # probes the active provider
 ```
 
-The full governance contract lives in `.github/ISSUE_TEMPLATE/`, `.github/PULL_REQUEST_TEMPLATE/`, `.github/labels.json`, `scripts/board_state.py` and `governance/TASKS.md`.
+`cutover` does not call the model. GPU recommended for Qwen 8B.
 
 </details>
 
-<details>
-<summary><b>🗺️ Repository structure</b></summary>
+<a id="how-it-works"></a>
+
+## 🧭 How it works
+
+<div align="center">
+<picture>
+  <source media="(max-width: 640px)" srcset="docs/assets/readme/flow-mobile.svg"/>
+  <img src="docs/assets/readme/flow.svg" alt="The local path from install to a scored run: install, bring up Langfuse and Ollama, pull the model, probe the provider and trace sinks, run the pilot with the mock and then a local model, and score with the vendored dojo; matrix, run specs, Modal workers, comparisons and the watch TUI branch off it" width="100%"/>
+</picture>
+</div>
+
+Start with `--mock` to prove the machinery, switch to `--local` for a real
+model, then score with `sandbox eval`. When you scale out, `sandbox matrix`
+sweeps providers × models × prompts, `sandbox run` drives spec files under
+`config/runs/`, `--job-mode modal` hands a run to a Modal GPU worker, and
+`sandbox watch` follows it in the mailroom TUI.
+
+Live-or-loud: a vLLM/Modal profile without `--local` warns instead of silently
+mocking (DMR-048); live eval errors are recorded per item instead of being
+replaced by mock answers (DMR-044), and a task that has no live predictor is
+explicitly flagged `offline_fallback`.
+
+<a id="at-a-glance"></a>
+
+## 📟 At a glance
+
+<div align="center">
+<img src="docs/assets/readme/tui.svg" alt="Dashboard: the seven provider profiles with what each targets, and a log of a mock pilot run on the default Ollama profile" width="90%"/>
+</div>
+
+<div align="center">
+
+| Component | Default | Notes |
+| :--- | :--- | :--- |
+| **Default provider** | Ollama (`qwen3:8b`) | Fallback `qwen3:7b` |
+| **Scoring** | `llm-dojo-scoring` (vendored) | Deterministic, field-type-aware |
+| **Pipeline** | `llm-mailroom` (vendored) | 13-node LangGraph state machine |
+| **Tracing** | Langfuse 3 / SDK v4 | `document-pipeline` traces |
+| **Storage** | SQLite under `./data` | Mailroom default |
+
+</div>
+
+<a id="cli"></a>
+
+## ⌨️ CLI
 
 ```
-Digital-Mailroom/
-├── AGENTS.md              # workspace rules & cross-package conventions
-├── README.md              # this file — the canonical entry point
-├── CHANGELOG.md           # hub release chain ([Unreleased] → vX.Y.Z)
-├── pyproject.toml         # uv workspace definition (hub version)
-├── uv.lock                # single lockfile for all packages
-├── governance/            # task board (TASKS.md) & governance README
-├── board-site/            # served Vercel dispatch board (api/, lib/, tests/)
-├── docs/
-│   ├── TESTING.md         # test tiers, per-package commands, required suites
-│   ├── COMMIT_MESSAGES.md # shared commit-message template
-│   ├── DOCCLASS_CONTRACT.md · docclass-merged-plan.md · v7-taxonomy.md
-│   ├── assets/            # pipeline diagram, banners, readme/ animations
-│   ├── reports/audits/    # baseline, branch, import and release audits
-│   └── wiki/              # GitHub-wiki source (sync-wiki.sh)
-├── scripts/               # governance, sync and release tooling + scripts/tests
-│   ├── board_state.py · github_labels.py · taxonomy_parity.py
-│   ├── sync_packages.py · sync_vendor.py · packages_sync.json
-│   ├── release_chain.py · release_notes.py · audit_references.py
-│   └── deploy_gh_pages.py # corpus-EDA Pages deploy (no Actions)
-├── data/ · reports/       # hub-level runtime data and report pointers
-├── tools/feeder-resync/   # historical feeder-resync bundle (2026-09-27)
-├── .github/               # workflows, labels, issue/PR/release templates
-├── .opencode/ · .devin/   # specialist subagent personas and skills
-└── packages/              # five core packages (four built + one virtual)
+sandbox up | down | health | pull-models | fetch-deps | cutover | profiles | agents
+sandbox pipeline watcher | pipeline api
+sandbox pilot --mock|--local
+sandbox hf-pilot --check|--mock|--local
+sandbox legalbench --mock|--local
+sandbox eval <agent>|extract|chained|pipeline|legalbench|local_vs_api [--mock|--local]
+sandbox eval local_vs_api --from-log   # compare experiment_log local vs API-key runs
+sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0
+sandbox datasets pull          # LIVE pinned FULL Hub pull (3302 rows) → data/cache/
+sandbox datasets sample --per-class 40  # offline 20/40/100… per live class from that cache
+sandbox datasets prepare   # offline clean → data/runtime/prepared/
+sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml
+sandbox watch [--web] [--config config/runs/<name>.yaml]       # mailroom TUI + Modal log tail (see docs/pretty-logging/mailroom-themed-logging.md)
+sandbox run start --config <run.yaml> --job-mode modal --watch   # Modal worker
+sandbox prompts list | show <agent> [--variant X]
+sandbox prompts list-versions [--role R] | show <key> [--diff <other-key> | --memo]   # every eval-environment prompt version
+sandbox eval sorter --prompt-version sorter_v4        # run any version: docs/prompts/
+sandbox metrics compare --runs local,modal,api | --log
+sandbox tunnel --profile vllm-remote plan|up|status|down
+sandbox traces export
 ```
 
-</details>
+`SANDBOX_DEBUG=1` traces CHTC/Modal scripts (DMR-053). The full reference is in
+the [Quickstart guide](docs/setting-up/QUICKSTART.md).
 
-## 📚 Where to go next
+<a id="docs"></a>
 
-| If you want to… | Read |
+## 📚 Docs
+
+| Guide | Description |
 | :--- | :--- |
-| Make your first contribution | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
-| Work in this repo as an agent or a human | [`AGENTS.md`](AGENTS.md) |
-| Fix a snag or decode the jargon | [Troubleshooting](docs/wiki/Troubleshooting.md) · [Glossary](docs/wiki/Glossary.md) |
-| Report a vulnerability | [`SECURITY.md`](SECURITY.md) |
-| Know which tests to run, and when | [`docs/TESTING.md`](docs/TESTING.md) |
-| See what is in flight | [`governance/TASKS.md`](governance/TASKS.md) · [live board](https://digital-mailroom-theta.vercel.app) |
-| Go deep on architecture, the sandbox or releases | [GitHub wiki](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/wiki) (mirrored from `docs/wiki/`) |
-| See what changed | [`CHANGELOG.md`](CHANGELOG.md) |
+| [Quickstart](docs/setting-up/QUICKSTART.md) | **Start here** — install, full CLI reference, canonical workflows |
+| [Providers](docs/setting-up/providers.md) | Ollama, vLLM, Modal, llama.cpp, LM Studio, OpenRouter |
+| [Evals](docs/evals.md) | Runners, matrix, scoring, experiment log |
+| [Tracing](docs/tracing.md) | Langfuse v4 data model, tags, The-Mailroom |
+| [Docker offline](docs/setting-up/docker-offline.md) | Dockerfile, Compose `jupyter` profile, prep notebooks |
+| [Sister repos](docs/setting-up/sister-repos.md) | Family map |
+| [Layout contract](docs/setting-up/LAYOUT.md) | **Which folder owns what** — the two config trees, frozen surfaces, junk policy |
+| [Agent skills](.cursor/skills/README.md) | Langfuse, Phoenix, Braintrust, Ollama, Modal, Hugging Face |
+
+<a id="specialist-extraction-rules"></a>
+
+## ✍️ Specialist extraction rules
+
+- `config/prompts/corporate_records_specialist_simplified.txt`, line 11:
+  `subsidiary_list` emits `record_type: other`, the parent as `entity_name`,
+  a subsidiary listing in `subject_matter`, and subsidiary names in `keywords`.
+  `filing_number` is null unless an official filing or document number is present;
+  an exhibit ID never qualifies.
+- `config/prompts/correspondence_specialist_simplified.txt`, lines 14 and 33:
+  `communication_type` is null when no registered token fits the visible text;
+  continue extracting sender, recipient, and date from headers. Do not invent a type.
+
+See [prompt guidance](config/prompts/README.md#extraction-rules-in-the-re-frozen-v1-stems)
+for the registered communication types and source links.
+
+<a id="layout"></a>
+
+## 🗂️ Layout
+
+<details>
+<summary>Directory map</summary>
+
+```
+config/profiles/     provider profiles (local-first defaults)
+config/runs/         run specs for `sandbox run` (vllm-local / vllm-remote / modal-vllm)
+config/prompts/      frozen prompt stems (referenced by name from run specs)
+docs/prompts/        catalog of every eval-environment prompt version: memos, changes, diffs, full text (generated)
+config/taxonomy.overlay.yaml
+config/models.yaml   OpenRouter champion → local tag map
+deploy/              Dockerfile + compose + Modal vLLM (modal_vllm.py) + Modal job worker (modal_job.py) + htcondor/ + conda/
+notebooks/           offline env setup + data prep + mock smoke
+data/fixtures/       offline samples (see ATTRIBUTION.md)
+src/mailroom_sandbox/
+vendor/              tracked family snapshots (llm-mailroom + llm-dojo-scoring; exact source commits in each VENDOR.md)
+reports/             sandbox experiment log (not a sister-repo mirror)
+governance/          SAND-* board (README / PREFIX / TASKS / archive)
+api-evals/           OpenRouter API cost harness — its own config/runs/ + reports/ and its own CLI
+                     (`python api-evals/run_api_evals.py`), not packaged, not in the Docker image.
+                     Run specs here are the real-spend `api-*` tasks; see docs/setting-up/LAYOUT.md.
+```
+
+</details>
+
+Full rules — including why the two `config/runs/` trees stay separate and which
+paths are frozen by a test — are in [`docs/setting-up/LAYOUT.md`](docs/setting-up/LAYOUT.md).
+The exact snapshot commits are in
+[`vendor/llm-mailroom/VENDOR.md`](vendor/llm-mailroom/VENDOR.md) and
+[`vendor/llm-dojo-scoring/VENDOR.md`](vendor/llm-dojo-scoring/VENDOR.md).
+
+<a id="offline-docker--notebooks"></a>
+
+## 🐳 Offline Docker and notebooks
+
+```bash
+pip install -e ".[dev,notebooks]"
+sandbox up --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
+# Lab → http://127.0.0.1:8888/lab
+sandbox datasets prepare
+```
+
+See [`docs/setting-up/docker-offline.md`](docs/setting-up/docker-offline.md).
+
+<a id="where-it-fits"></a>
+
+## 🌌 Where it fits
+
+<div align="center">
+<picture>
+  <source media="(max-width: 640px)" srcset="docs/assets/readme/constellation-mobile.svg"/>
+  <img src="docs/assets/readme/constellation.svg" alt="Data-flow map of the Mailroom constellation with local-mailroom-sandbox highlighted: it pulls the pinned dataset, executes the pipeline and scores with llm-dojo-scoring" width="100%"/>
+</picture>
+</div>
+
+| | Neighbour | Relationship |
+| :---: | :--- | :--- |
+| 🏛️ | [`Digital-Mailroom`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) | The integration hub. It imports this repository as a workspace member and regenerates its `vendor/` snapshots |
+| 🧠 | [`llm-mailroom`](https://github.com/Exios66/llm-mailroom) | The pipeline this sandbox executes, vendored under `vendor/llm-mailroom/` |
+| 🥋 | [`llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring) | The scoring engine behind `sandbox eval`, vendored under `vendor/llm-dojo-scoring/` |
+| 🎞️ | [`The-Mailroom`](https://github.com/Exios66/The-Mailroom) | The visualizer that reads the Langfuse traces; `sandbox fetch-deps --visualizer` clones it |
+| 🤗 | [`mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset) | The corpus behind `sandbox datasets pull`: a pinned 3,302-row pull |
 
 <a id="faq"></a>
 
 ## ❓ FAQ
 
 <details>
-<summary><b>Why can't I just fix a package bug here?</b></summary>
+<summary><b>Do I need a GPU?</b></summary>
 
-Because the standalone repositories own package code. A hub-only fix would be overwritten by the next import. Author and test the fix in the `Exios66/*` source, merge it, then import it with `sync_packages.py pull --package <name> --squash`.
-
-</details>
-
-<details>
-<summary><b>Why run the suites one package at a time?</b></summary>
-
-Several packages ship a top-level `tests` package, and they collide when pytest batches them.
+Not on your machine. `sandbox pilot --mock` exercises the machinery with no
+model at all, and a small model such as `llama3.2:3b` runs on CPU through Ollama
+(see the CPU-only smoke test above). A GPU is recommended for the default Qwen 8B.
+`vllm-local` needs a local GPU; `vllm-remote` reaches a GPU box over an SSH
+tunnel and `modal-vllm` rents one on Modal.
 
 </details>
 
 <details>
-<summary><b>My PR is green. Is it tested?</b></summary>
+<summary><b>Is the code under <code>vendor/</code> mine to edit?</b></summary>
 
-Not necessarily. CI does not run the package suites, so your local run is the gate. Quote the exact pass/skip/fail counts in the card and the PR. Every PR also reads `BLOCKED` on a phantom required `ci` status until DMR-080 is resolved; that is not a test failure.
-
-</details>
-
-<details>
-<summary><b>`uv sync` changed `uv.lock`. Should I commit it?</b></summary>
-
-Not inside unrelated work. An unintended lock diff means the committed lock is stale: fix it as its own carded commit (`uv lock`, then `uv lock --check`), and use `uv run --frozen` for read-only runs.
+No. The snapshots are copies of `llm-mailroom` and `llm-dojo-scoring` pinned to
+the commits in each `VENDOR.md`. Change the standalone repository; the snapshot
+moves when the Digital-Mailroom hub imports that commit and regenerates `vendor/`,
+or when the SHA pins that `sandbox fetch-deps` uses are bumped (it rejects a
+moved ref rather than following it).
 
 </details>
 
 <details>
-<summary><b>Where do I edit the vendor snapshots?</b></summary>
+<summary><b>What happens when a live provider is unreachable?</b></summary>
 
-Nowhere. `packages/local-mailroom-sandbox/vendor/` is generated by `python scripts/sync_vendor.py` and verified with `--check`.
+It fails loudly instead of quietly mocking. `sandbox run start --job-mode modal`
+probes the engine first and stops with `engine_unreachable`, and errors during a
+live eval are recorded per item. Run `sandbox health` beforehand to probe the
+active provider and the trace sinks.
+
+</details>
+
+<details>
+<summary><b>Does anything cost money by default?</b></summary>
+
+No. The default profile is Ollama on your own machine. OpenRouter is opt-in,
+Modal runs bill your Modal account, and the `api-evals/` harness is the
+real-spend API path, kept outside the package.
+
+</details>
+
+<details>
+<summary><b>Where do I see a run?</b></summary>
+
+Traces land in Langfuse under the `document-pipeline` root name; see
+[`docs/tracing.md`](docs/tracing.md). The-Mailroom draws them as a conveyor, and
+`sandbox watch` shows a run live in the mailroom TUI.
 
 </details>
 
@@ -361,14 +349,17 @@ Nowhere. `packages/local-mailroom-sandbox/vendor/` is generated by `python scrip
 
 ## 🙏 Built on
 
-The hub stands on these tools:
+The sandbox drives the vendored family code through these open-source projects.
 
 | Project | What it does here |
 | :--- | :--- |
-| [uv](https://docs.astral.sh/uv/) | The workspace, the single lockfile and workspace-source redirects |
-| [git subtree](https://git-scm.com/book/en/v2/Git-Tools-Advanced-Merging) | Squash imports of the standalone sources |
-| [GitHub Issues](https://docs.github.com/issues) · [Vercel](https://vercel.com/) | The issue-backed live dispatch board |
-| [🤗 Hub](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset) | The pinned `mailroom-dataset` corpus |
+| [Ollama](https://github.com/ollama/ollama) | The default local provider (`qwen3:8b`) |
+| [vLLM](https://github.com/vllm-project/vllm) | The `vllm-local`, `vllm-remote` and `modal-vllm` serving profiles |
+| [Modal](https://modal.com/) | GPU serving and job workers under `deploy/` (the `[deploy]` extra) |
+| [LangGraph](https://github.com/langchain-ai/langgraph) | Runs the vendored 13-node pipeline graph (the `[pipeline]` extra) |
+| [Langfuse](https://github.com/langfuse/langfuse) | The canonical trace sink (the `[observability]` extra; Phoenix and Braintrust are alternatives) |
+| [OpenAI Python SDK](https://github.com/openai/openai-python) | Talks to every OpenAI-compatible endpoint, local or remote |
+| [Pydantic](https://github.com/pydantic/pydantic) | Validates run specs (`RunSpec`) |
 
 <a id="contributing-security-and-license"></a>
 
@@ -376,22 +367,43 @@ The hub stands on these tools:
 
 | | |
 | :--- | :--- |
-| **Contributing** | Start at [`CONTRIBUTING.md`](CONTRIBUTING.md), then [`AGENTS.md`](AGENTS.md). Claim a card on the [board](governance/TASKS.md) before you edit. |
-| **Security** | Follow [`SECURITY.md`](SECURITY.md): contact a maintainer privately and never post exploit details publicly. |
-| **License** | [MIT](LICENSE). |
+| **Contributing** | Read [`AGENTS.md`](AGENTS.md) and the SAND-* board under [`governance/`](governance/). Pipeline and scoring changes go to their standalone repositories, never into `vendor/`. The hub [contributing guide](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/CONTRIBUTING.md) covers the import into Digital-Mailroom. |
+| **Security** | Report vulnerabilities, including leaked tokens, privately as described in the hub [security policy](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/SECURITY.md), which also routes package-code issues to this repository. |
+| **License** | No license file is published for the code yet. Fixture attributions are in [`data/fixtures/ATTRIBUTION.md`](data/fixtures/ATTRIBUTION.md). |
 
 ---
 
 <div align="center">
 
+**[Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)** ·
 **[llm-mailroom](https://github.com/Exios66/llm-mailroom)** ·
 **[llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring)** ·
 **[The-Mailroom](https://github.com/Exios66/The-Mailroom)** ·
 **[local-mailroom-sandbox](https://github.com/Exios66/local-mailroom-sandbox)** ·
-**[Mailroom-Corpus-EDA](https://github.com/Exios66/Mailroom-Corpus-EDA)**
+**[Mailroom-Corpus-EDA](https://github.com/Exios66/Mailroom-Corpus-EDA)** ·
+**[mailroom-ml](https://github.com/LLM-Mailroom-Services/mailroom-ml)**
 
-<sub>The Digital Mailroom · maintained by <a href="https://github.com/LLM-Mailroom-Services">LLM-Mailroom-Services</a> (Exios66 · grantmooslin) · 2026</sub>
+<sub>local-mailroom-sandbox · one of the Mailroom constellation's independent source repositories, with shared interfaces.</sub>
 <br/>
-<sub>📮 <i>No envelope left behind.</i></sub>
+<sub>Core packages integrate in Digital-Mailroom; mailroom-ml is a standalone contractor.</sub>
+<br/>
+<sub>🧪 <i>Mock first, then local, then scored.</i> · Artwork: <a href="docs/assets/readme/README.md">design and regeneration</a></sub>
 
 </div>
+
+
+### Reviewed dependency refreshes (DMR-111)
+
+The tracked snapshots contain pipeline 0.8.1 and Dojo 0.24.0 from the exact
+commits in their `VENDOR.md` files. `sandbox fetch-deps` remains optional: it
+uses workspace packages when available and retrieves the reviewed immutable
+commit or frozen release tag in standalone checkouts. Ref movement, fetch,
+layout and copy failures leave the previous snapshot intact. If installation
+and rollback both fail, the command prints the preserved recovery directory.
+
+`--visualizer` retrieves a separately reviewed exact visualizer commit. An
+existing checkout with local files or a different HEAD is preserved and rejected;
+review it and move it aside before requesting a fresh pinned checkout. Large LFS
+assets are not downloaded. CUAD/MAUD row and pooled headline metrics delegate to
+Dojo; null ground-truth answers are unlabelled, while genuine zero scores remain
+numeric zero. The production and evaluation corporate prompt catalogs stay distinct.

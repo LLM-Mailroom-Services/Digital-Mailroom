@@ -41,6 +41,6 @@ The board is also served live at **https://digital-mailroom-theta.vercel.app**
 | Subagents | 15-agent roster ([[Subagents]]) — project + global agent files under `.opencode/agents/` (see DMR-062) |
 | Packages | 5 (4 built + 1 virtual member: mailroom-corpus-eda) |
 | Python | 3.11+ (workspace `requires-python >= 3.11`) |
-| Imported package versions | llm-dojo-scoring **0.24.0** · llm-mailroom **0.8.1** · local-mailroom-sandbox **0.3.0** · The-Mailroom **0.5.1** · mailroom-corpus-eda **0.1.0** (see [[Releases]] for consuming pins) |
+| Imported package versions | llm-dojo-scoring **0.24.2** · llm-mailroom **0.8.1** · local-mailroom-sandbox **0.3.0** · The-Mailroom **0.5.1** · mailroom-corpus-eda **0.1.0** (see [[Releases]] for consuming pins) |
 | HF corpus | [mailroom-dataset](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset) — schema v9, 3,302 rows (frozen v8 baseline: [mailroom-corpus](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-corpus)) |
 | CI gates | `board-governance.yml` (board invariants + label drift) · `release-governance.yml` (changelog ↔ tag ↔ version). No workflow runs the package suites — the local run is the gate ([`docs/TESTING.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/docs/TESTING.md)) |

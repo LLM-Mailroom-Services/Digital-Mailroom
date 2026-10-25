@@ -54,10 +54,10 @@ def test_agent_prompt_names_merge_vendor_templates_and_static_roster():
     from mailroom_sandbox.prompt_registry import agent_prompt_names
 
     names = agent_prompt_names()
-    # Vendored template keys (v0.7.1 surface)…
+    # Vendored template keys (current pipeline surface)…
     assert "sorter_reviewer" in names
     assert "judge-classification" in names
-    # …and the sandbox-only static roster entries v0.7.1 does not template.
+    # …and the sandbox-only static roster entries the pipeline does not template.
     assert "relations" in names
     assert "gmail_triage" in names
     assert "intake" in names

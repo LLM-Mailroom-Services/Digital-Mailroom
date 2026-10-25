@@ -32,7 +32,7 @@ open exactly one specialty skill. Companion to
 
 - **Expected location**: a sibling of this repo, i.e. `../llm-mailroom` from this checkout (e.g. `/Users/luciusjmorningstar/Downloads/llm-mailroom`). It is **not currently present on this machine** — clone it before relying on `MAILROOM_TAXONOMY`.
 - **Import pin**: optional extra `[pipeline]` installs dist `mailroom` from
-  `git+https://github.com/Exios66/llm-mailroom.git@42f21a9d092c47b1910b997a80bfcf4884ede333` (package 0.8.1,
+  `git+https://github.com/Exios66/llm-mailroom.git@60cd5fad0c7a616ec575857841bb9897b9e8c3ed` (package 0.8.1,
   reviewed source adoption; llm-dojo-scoring v0.24.2, mailroom-dataset tag `v9.1`).
   `mailroom_ui/producer.py` is the only import adapter — `pipeline.review_resolve`
   - `schemas.manifest` for REVIEW dispositions / `serialize_document`. Default
@@ -55,7 +55,7 @@ open exactly one specialty skill. Companion to
 
 ```bash
 pip install -e ".[dev]"        # install (deps NOT vendored; no venv in repo)
-pip install -e ".[pipeline]"   # pin llm-mailroom @ 42f21a9d092c47b1910b997a80bfcf4884ede333 (0.8.1, reviewed source adoption) (optional import)
+pip install -e ".[pipeline]"   # pin llm-mailroom @ 60cd5fad0c7a616ec575857841bb9897b9e8c3ed (0.8.1, reviewed source adoption) (optional import)
 python -m pytest tests/ -q     # whole suite (never hits real Langfuse)
 python -m server.main          # FastAPI web server on :8001 (also: mailroom-web)
 mailroom-hosted                # Observatory on 0.0.0.0 (public /live UI)
@@ -93,7 +93,7 @@ python scripts/publish_space.py --check  # Hugging Face Docker Space payload
   - `langfuse_source.py` — Langfuse SDK adapter: `client.api.trace.list/get`, `client.api.observations.get_many`, `client.api.scores.get_many`, `client.api.sessions.list/get`; `TTLCache`; `LangfuseUnavailable`. `list_recent_runs()` uses trace-list responses only (cheap "light" runs for the floor); `get_run()` fetches observations+scores for drill-down.
   - `trace_interpreter.py` — `interpret_trace(trace, observations?, scores?)` → `PipelineRun`. Accepts **both v2/v3 snake_case and v4 camelCase** observation shapes (see SDK tolerance). Light runs (no observations arg) have empty span/generation detail. Re-run clustering: deterministic trace ids are reused by pilot/attempt re-runs, so a trace can carry several full runs — observations are clustered by time gaps (`RUN_GAP_S`) and only the latest cluster is kept.
   - `pipeline_schema.py` — topology mirror (see sister-repo section).
-  - `producer.py` — pinned llm-mailroom import adapter (`[pipeline]` extra @ `42f21a9d092c47b1910b997a80bfcf4884ede333` / 0.8.1 (reviewed source adoption)).
+  - `producer.py` — pinned llm-mailroom import adapter (`[pipeline]` extra @ `60cd5fad0c7a616ec575857841bb9897b9e8c3ed` / 0.8.1 (reviewed source adoption)).
   - `models.py` — pydantic: `PipelineRun` (`doc_id`, `review_causes`, `needs_reconsideration`, `needs_human` includes archived objective misses, `failure_class` / `run_aborted`), `NodeSpan`, `Generation`, `Score`, `SessionSummary`, `Metrics`, `Stage`, `Phase`.
   - `reconsideration.py` — objective review causes (GT miss, judge MISS/PARTIAL, extraction score floor, schema/guardrail/parse, incomplete reporting). Never uses self-reported confidence.
   - `pipeline_ops.py` — producer watcher/inbox liveness (`MAILROOM_PIPELINE_URL`).

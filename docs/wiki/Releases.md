@@ -123,19 +123,32 @@ publishes package implementation back into authoritative standalone sources.
 
 ## Current family pins
 
-Pins as committed in the imported sources (2026-10-23, hub v0.9.1 line):
+Current pins as committed in the imported sources (2026-10-25, hub v0.10.0 line):
 
 | Pin | Value | Declared in |
 | --- | --- | --- |
-| llm-dojo-scoring | `v0.23.1` | llm-mailroom dependency line; The-Mailroom `eval` extra |
-| llm-mailroom (vendored) | `v0.7.1` snapshot lineage | local-mailroom-sandbox `pyproject.toml` comment; hub vendors are regenerated from the workspace, never tag-refreshed |
+| llm-dojo-scoring | `4740d768` (v0.24.2 release commit) | llm-mailroom dependency line; The-Mailroom `eval` extra |
+| llm-mailroom (producer/vendored) | `60cd5fa` (current reviewed main tip) | The-Mailroom `[pipeline]` extra; local-mailroom-sandbox `_VENDOR_PINS` |
+| The-Mailroom (sandbox fetch) | `98ae227` (current reviewed main tip) | local-mailroom-sandbox `_VISUALIZER_PIN` |
 
-Imported source versions are newer than the consuming pins: the hub currently
-carries llm-dojo-scoring 0.24.0 (published `v0.24.0`), llm-mailroom 0.8.1
-(latest published tag `v0.8.0`), local-mailroom-sandbox 0.3.0 (latest tag
-`v0.2.0`) and The-Mailroom 0.5.1 (latest tag `v0.5.0`). Consuming pins move
-only at release time of the pinned package, in the consuming standalone repo.
-Check `python scripts/sync_packages.py status` for current cursors.
+Imported source versions match the pins: llm-dojo-scoring 0.24.2, llm-mailroom
+0.8.1, local-mailroom-sandbox 0.3.0, The-Mailroom 0.5.1 and
+mailroom-corpus-eda 0.1.0. Dojo is pinned by its release commit rather than the
+movable tag; pipeline and visualizer pins name reviewed standalone commits.
+Consuming pins move only when the pinned package releases, in the consuming
+standalone repo. Check `python scripts/sync_packages.py status` for current
+cursors.
+
+### Hub tag namespace
+
+Only annotated hub releases `v0.1.0`–`v0.10.0` and the
+`pre-pr162-2026-10-23` rollback snapshot are kept in this repository.
+Standalone package tags stay in their authoritative repositories. A label
+without a `CHANGELOG.md` section is not a hub release: DMR-112 removed the
+leaked standalone tags (`v0.1.1`–`v0.24.0` subjects) and the pre-chain
+`v0.0.1` label after DMR-106's earlier cleanup, restoring a clean
+`release_chain.py check`. If an artifact tag genuinely must live here, make it
+annotated, add its CHANGELOG section and list it in this table.
 
 ## Deploy surfaces
 

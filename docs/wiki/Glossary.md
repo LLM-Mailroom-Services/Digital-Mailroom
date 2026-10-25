@@ -15,7 +15,7 @@ Terms you will meet in cards, commits and code.
 | **Snapshot** | A content-verified record of the hub's package copy against the cursor. |
 | **Vendor snapshot** | A generated copy of workspace packages under the sandbox's `vendor/`. Made by `sync_vendor.py`, never hand-edited. |
 | **Monorepo-ahead** | Files in the hub copy that differ from the cursor's upstream. A drift signal, never a push order. |
-| **Pin** | A published git tag/SHA in a dependency line (such as dojo `v0.23.1`). It is bumped only when the pinned package is released. |
+| **Pin** | A published git tag/SHA in a dependency line (such as dojo `v0.24.2`). It is bumped only when the pinned package is released. |
 | **Preservation branch** | A branch keeping a pruned package intact (`feature/agent-mailroom`, `feature/enron-evaluation-environment`, `feature/claims-data-eda`). |
 | **Feeder / feed** | An external corpus source (Enron, claims) that feeds the corpus EDA. |
 

@@ -209,10 +209,16 @@ def _live_boss(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _procedural_report(row: dict[str, Any]) -> dict[str, Any]:
-    """Computational procedural reporter — deterministic matter-record
-    assembly with NO LLM call. Sandbox-side mirror of the vendored llm-mailroom
-    ``agents.reporter.compile_matter_record`` (the reporter agent is retired;
-    the graph's compile_report node is procedural)."""
+    """Deterministic mock matter-record assembler (no LLM call).
+
+    This is a deliberately simplified stand-in, not a byte-for-byte mirror of
+    the vendored ``agents.reporter.compile_matter_record`` used by live runs.
+    It keeps every extracted field (including ``confidence``/``reasoning``/
+    ``_report``), formats values as-is, hardcodes the confidences and omits the
+    arbiter caveats. Live runs use the real assembler via ``_live_reporter``.
+    Keep this variant structurally close enough for mock scoring, but do not
+    claim output parity.
+    """
     extracted = row.get("extracted_data") or _mock_extract(row)
     lines = [
         f"Document type: {row.get('expected_doc_class') or 'unknown'}",

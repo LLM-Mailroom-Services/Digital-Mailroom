@@ -23,6 +23,16 @@ and is recorded there, not here.
 
 ### Fixed
 
+- DMR-113: resolve the surviving CodeAnt findings after the DMR-111/112 rounds.
+  Pipeline: archived requeues after a doc-type override, unreadable processing
+  roots, periodic stale-claim reconciliation, offline SHA-to-tag refusal,
+  interim-SHA labeling, direct-run Dojo path and docs-truth pin boundaries.
+  Visualizer: JWT HMAC key preservation and operator-auth docs. Dojo: explicit
+  `total_tokens: 0` as observed zero usage. Sandbox: `.refresh` failure codes,
+  clean visualizer refresh, fetch-deps docs and current vendor pins/provenance.
+  Imported at pipeline `1a1ec3d`, Dojo `718e326` (interim post-v0.24.2),
+  visualizer `cab7a41` and sandbox `054896b`.
+
 - DMR-111: import source-owned pipeline/visualizer/sandbox scoring and dependency
   alignment after their reviewed source PRs; preserve exact committed provenance
   and generated vendor parity. Dojo is pinned by its v0.24.2 release commit

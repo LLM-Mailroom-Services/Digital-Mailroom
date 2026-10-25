@@ -127,14 +127,15 @@ Current pins as committed in the imported sources (2026-10-25, hub v0.10.0 line)
 
 | Pin | Value | Declared in |
 | --- | --- | --- |
-| llm-dojo-scoring | `4740d768` (v0.24.2 release commit) | llm-mailroom dependency line; The-Mailroom `eval` extra |
-| llm-mailroom (producer/vendored) | `60cd5fa` (current reviewed main tip) | The-Mailroom `[pipeline]` extra; local-mailroom-sandbox `_VENDOR_PINS` |
-| The-Mailroom (sandbox fetch) | `98ae227` (current reviewed main tip) | local-mailroom-sandbox `_VISUALIZER_PIN` |
+| llm-dojo-scoring | `718e326` (interim post-v0.24.2 zero-token fix) | llm-mailroom dependency line; The-Mailroom `eval` extra |
+| llm-mailroom (producer/vendored) | `1a1ec3d` (current reviewed main tip) | The-Mailroom `[pipeline]` extra; local-mailroom-sandbox `_VENDOR_PINS` |
+| The-Mailroom (sandbox fetch) | `cab7a41` (current reviewed main tip) | local-mailroom-sandbox `_VISUALIZER_PIN` |
 
 Imported source versions match the pins: llm-dojo-scoring 0.24.2, llm-mailroom
 0.8.1, local-mailroom-sandbox 0.3.0, The-Mailroom 0.5.1 and
-mailroom-corpus-eda 0.1.0. Dojo is pinned by its release commit rather than the
-movable tag; pipeline and visualizer pins name reviewed standalone commits.
+mailroom-corpus-eda 0.1.0. Dojo is pinned by its v0.24.2 release commit plus the interim
+zero-token fix commit (the pin returns to the next release); pipeline and
+visualizer pins name reviewed standalone commits.
 Consuming pins move only when the pinned package releases, in the consuming
 standalone repo. Check `python scripts/sync_packages.py status` for current
 cursors.

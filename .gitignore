@@ -1,72 +1,58 @@
-# Python
+*.pyc
 __pycache__/
-*.py[cod]
 *.egg-info/
+dist/
+build/
 .eggs/
-# Anchored to package roots: bare build/ would also mask tracked sources
-# under legitimately-named dirs (e.g. packages/*/scripts/build/*.py).
-packages/*/build/
-packages/*/dist/
-.venv/
-venv/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.ipynb_checkpoints/
-.coverage
-.coverage.*
-htmlcov/
+*.egg
 
-# Environment / secrets — never commit real credentials.
+# Environment
 .env
 *.env.local
 
-# Hub #183: stale repo-root copy of the entity-extraction scores manifest (the
-# canonical copy lived in packages/llm-entity-extraction, pruned by DMR-079).
-reports/scores_manifest.jsonl
+# Data directory (pipeline bins + archive)
+data/
 
-# Local run artifacts (regenerated locally)
-packages/llm-dojo-scoring/reports/
-packages/llm-dojo-scoring/*.report.md
-packages/llm-dojo-scoring/*_plots/
-
-# Node (The-Mailroom optional React operator desk)
-node_modules/
-packages/The-Mailroom/ui/dist/
-
-# Data directory (pipeline bins + archive; per-package .gitignores are canonical)
-packages/llm-mailroom/data/
-packages/The-Mailroom/data/
-
-packages/The-Mailroom/site/
-packages/local-mailroom-sandbox/data/*
-# Sandbox fixtures are tracked (the package .gitignore ignores runtime data).
-!packages/local-mailroom-sandbox/data/fixtures/
-
-# Heavy assets pruned from history at monorepo import — keep them out.
-# (Regenerated locally by their packages; affected tests carry skip guards.)
-packages/The-Mailroom/docs/demos/
-packages/The-Mailroom/docs/screenshots/
-packages/llm-mailroom/docs/reports/
-packages/llm-mailroom/docs/examples/
-
-# OS / editor
-.DS_Store
-Thumbs.db
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-*.db
-data/*.db-shm
-data/*.db-wal
-data/watcher_heartbeat
-data/watcher_heartbeat.tmp
-data/runtime/
-data/pipeline/
-data/archive/
 
-# Vercel serverless functions (board-site deploy root)
-.vercel/
-.vercel
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.log
+.ipynb_checkpoints/
+.pytest_cache
+
+# Environment / runtime
+.venv/
+venv/
+node_modules/
+
+# Docker volumes
+docker/volumes/
+
+# Langfuse
+langfuse_data/
+
+# LegalBench suite derived artifacts (regenerated on demand)
+src/legalbench/reports/
+
+# docmd local docs-site build output (npx @docmd/core build)
+/site/
+
+# Stale pre-restructure paths (defensive)
+/legalbench/
+
+# graphify knowledge-graph build artifacts (KANBAN-065 follow-on; rebuild with `graphify .`)
+graphify-out/

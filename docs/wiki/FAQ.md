@@ -1,71 +1,100 @@
 # FAQ
 
-**Q: Why does `uv sync` install packages I didn't ask for?**
-One uv workspace: every member installs editable into the shared `.venv`.
-Cross-package imports resolve to workspace sources via `[tool.uv.sources]`.
+## What is Mailroom?
 
-**Q: Can I delete a dependency git pin to fix resolution?**
-No. Member dependency lines keep their published git pins (plain
-`pip install .` release builds depend on them). Dev redirection happens
-ONLY through `[tool.uv.sources]`; bump pins only at release time ([[Releases]]).
+Mailroom is a multi-agent pipeline that ingests legal documents, classifies them, routes them to specialist agents for structured extraction, compiles the results into a matter record, and archives everything with a full, tamper-evident audit trail. One **LangGraph state machine run per document** (13 nodes), with retries, second-opinion review lanes, judge/arbiter quality gates, and human review routing. Auxiliary flows — the Gmail triage lane (single-document email uploads via the free triage team) and the relations clerk (post-archive association scanning) — run outside the main 13-node graph.
 
-**Q: Why did a subtree pull bring back heavy-asset paths (`docs/data/`, `docs/posit/`)?**
-Those are monorepo-pruned heavy-asset paths (root `.gitignore`), but
-gitignore does not apply to tracked files — a subtree merge re-tracks them.
-Re-apply the prune: `git rm -r --cached <paths>` + tree removal (HUB-004).
-Tests with pruned-asset skip guards then skip correctly again.
+## What document types does it handle?
 
-**Q: A test fails on `reports/experiment_log.jsonl` missing.**
-That log is a live artifact, gitignored in the monorepo. Tests depending on
-it carry explicit skip guards ("pruned heavy asset / live artifact"); if you
-see a hard failure, the guard is missing — add the skip monorepo-side
-(HUB-004 pattern).
+Six live taxonomy classes:
 
-**Q: The board tracker says `unclaimed-with-commits` — what do I do?**
-Commits reference a card that is still `assigned`+unclaimed: claim it (lane
-`in_progress`, Owner + date) or move the work. Warnings don't fail CI;
-errors do ([[Board-Governance]]).
+- **Contracts** (CUAD commercial agreements — 25 agreement families: MSAs, NDAs, licenses, distribution, …)
+- **Merger Agreements** (MAUD — a distinct class reusing the contracts specialist)
+- **Corporate Records** (articles, bylaws, powers of attorney, rights instruments, other)
+- **Correspondence** (demand letters, legal notices, memos — corpus from the CMU Enron dataset)
+- **Compliance Filings** (SEC filings, state filings)
+- **Insurance Claims** (FNOL lines + CMS DE-SynPUF `carrier`/`inpatient`/`outpatient`/`pde` claim types; coverage determinations approved/denied/partial)
 
-**Q: `board_state.py project-*` says the token lacks `read:project`.**
-One-time interactive grant: `gh auth refresh -s read:project`, then
-`project-init` + `project-sync --apply`.
+**Due diligence** and **court opinions** were retired from the live pipeline in v0.5.0 — they classify as `unknown` (human review), and there is no specialist dispatch for them. LegalBench remains the court-opinion benchmark surface.
 
-**Q: Where do prompts flow?**
-llm-dojo → llm-mailroom, never the reverse. Prompt versions are the
-experiment identity — never mutate a prompt that has run; derive a new
-version key (a convention carried over from the pre-DMR-079 llm-entity-extraction package).
+Adding a new class touches a known surface list (schema registry, taxonomy, specialist agent, graph dispatch, classifier vocabulary, sorter prompt) — see [the repo docs](https://github.com/Exios66/llm-mailroom/tree/main/docs).
 
-**Q: Which HF dataset is canonical?**
-[mailroom-dataset](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
-schema v9, 3,302 rows — the successor of the frozen v8 baseline
-`mailroom-corpus` ([[HF-Corpus]]). Uploads go through the centralized
-`mailroom_eda` helpers only.
+## Why LangGraph instead of plain agent chains?
 
-**Q: A card is missing from the served board at digital-mailroom-theta.vercel.app.**
-The site only lists issues labeled `kanban` — every board card needs a
-synced issue (one card = one issue, `kanban` + `stage/*` + `priority/*` +
-`domain/*` labels) with the link in the card's Issue column, otherwise it
-won't appear. Run `python scripts/board_state.py sync-issues --apply` to
-apply board-derived labels onto the synced issues ([[Served-Board]]).
+LangGraph provides:
+- A defined, explicit state machine — agents don't freely negotiate what happens next
+- Conditional edges for confidence-based routing, plus exception lanes: an agent second-opinion reviewer for exhausted medium-band classifications (Lane A), and a gated judge→arbiter completeness-verification path for grounded extractions (Lane B)
+- Human-in-the-loop via review routing (`human_review` node) for ambiguous or failed cases
+- In-memory checkpointing by default; opt-in SQLite persistence (`MAILROOM_CHECKPOINTER=sqlite`) for resume-across-restart experiments
 
-**Q: I moved a card on the served board — why isn't TASKS.md updated?**
-The served board writes **issues**, not `governance/TASKS.md`. After
-served-site edits run `python scripts/board_state.py pull-issues` to see
-the issue-side lane moves, then `--apply` to rewrite the Lane cells +
-append a dated Evidence note ([[Board-Governance]], [[Served-Board]]).
+## Can I use local models instead of OpenRouter?
 
-**Q: How do I redeploy the served board / change its code?**
-The deploy root is `board-site/` (project `digital-mailroom`, Root Directory
-`board-site`; Git integration is live — every push to `main` deploys).
-Fallback: `vercel link --project digital-mailroom` → optional
-`vercel env add GITHUB_TOKEN production` → `vercel --prod` from the repo root.
-Full workflow + smoke checks in [[Served-Board]].
+Yes. Set `DEFAULT_PROVIDER=ollama` in `.env`, or configure per-agent in `config/taxonomy.yaml`. A pre-built Modal+vLLM serving app lives in `deploy/` (see [`docs/local-models.md`](https://github.com/Exios66/llm-mailroom/blob/main/docs/local-models.md)).
 
-**Q: Where did the reporter agent go?**
-Retired (HUB-015): the graph's `compile_report` node is the computational
-procedural reporter — deterministic, no LLM call. Reviewers were NOT
-removed.
+## What happens if the database is unavailable?
 
-**Q: How do I run one package's tests without collisions?**
-One package per pytest invocation — several packages ship a top-level
-regular `tests` package ([[Getting-Started]]).
+The pipeline degrades gracefully:
+- LangGraph checkpointer falls back to MemorySaver
+- Catalog writes are best-effort (pipeline continues without them)
+- Audit log entries are best-effort
+- The manifest JSON sidecar (archived with each file) is always written — filesystem-based durability
+
+## What happens if Langfuse is unavailable?
+
+The system runs without it. Tracing is backend-agnostic via `observability/tracing.py`: `OBSERVABILITY_PROVIDER=auto` picks Langfuse if a key is set, else Braintrust if a key is set, else the local cost-free Arize Phoenix backend, else `none` — tracing never silently turns off, and the audit log is independent of any observability backend.
+
+## How does document claiming work?
+
+Files move only through `pipeline/bins.py` helpers (`claim_file`, `move_to_*`, `save_manifest`) — never direct `os.rename`/`shutil.move` in node/agent code. The watcher atomically claims files from `/pipeline/inbox/` into `/pipeline/processing/<worker_id>/`; `os.rename` (via `move_to_*`) is atomic on the same filesystem, so no two workers can claim the same file.
+
+## How does the audit trail work?
+
+Every state transition writes an `AuditLogEntry` to the `audit_log` table. Each entry is SHA-256 hashed with its predecessor's hash, forming a tamper-evident chain. The chain can be verified via the `/audit/{doc_id}` endpoint. Audit entries are also written by the Boss on escalation.
+
+## What's the Boss agent?
+
+The Boss has two roles:
+1. **In-graph** (`boss_escalation` node): adjudicates conflicts when extraction data contradicts existing matter records or confidence stays low after retries
+2. **Ops-monitor** (`pipeline/ops_monitor.py`): separate scheduled process that sweeps the catalog for stuck documents, error spikes, and review backlogs
+
+Both share the same system-prompt "voice" but are triggered differently and see different data.
+
+## How do I add a new matter?
+
+Matters are auto-created when you upload a document with a new `matter_id`. You don't need to create matters explicitly. The catalog records the matter on first document ingestion.
+
+## Does this support PDFs and images?
+
+The `file_extensions` in `config/taxonomy.yaml` include `.txt`, `.pdf`, `.docx`, `.md`, plus image types (jpg/png/gif/webp/tiff/bmp). PDFs are transcribed by `agents/pdf_transcriber.py` (`pdfplumber`/`pypdf` direct pass for text-based files, LLM markdown reformat for scanned/garbled) and images by `agents/image_extractor.py`. Vision ingestion (page images appended to prompts for vision-capable models) is additive — the full text transcription is always the message body.
+
+## What's the scale target?
+
+Pilot scale: dozens of documents/day per matter. The threaded watcher and single-process design is sufficient. For higher volumes, Redis-based queuing and multiple workers are planned as deferred work.
+
+## Where are my files stored?
+
+Configurable bins under `MAILROOM_BASE_DIR` (default `./data`):
+- During processing: `pipeline/inbox`, `pipeline/processing/<worker_id>/` (plus `pipeline/classified/`, `pipeline/review/`, `pipeline/failed/`)
+- After processing: `archive/<matter_id>/<doc_type>/` with a manifest JSON sidecar in `manifests/<doc_id>.json`
+- Catalog + audit log: SQLite `mailroom.db` (Postgres via `DATABASE_URL`); crash-resume checkpoints: `checkpoints.db`
+
+## How do I monitor the pipeline?
+
+Four ways:
+1. **The-Mailroom Observatory** — live floor [`Lucius-Morningstar/mailroom-observatory`](https://huggingface.co/spaces/Lucius-Morningstar/mailroom-observatory) plus this producer Space (`mailroom-producer`). Langfuse for envelopes; Inbox / REVIEW go through `MAILROOM_PIPELINE_URL` ([PR #30](https://github.com/Exios66/The-Mailroom/pull/30)). Pairing: [deploy/space/PAIRING.md](https://github.com/Exios66/llm-mailroom/blob/main/deploy/space/PAIRING.md).
+2. **Langfuse UI** (`https://us.cloud.langfuse.com` or `http://localhost:3000`) — live traces of every LLM call
+3. **`/ops/status` endpoint** — pipeline-level metrics (stuck docs, review backlog, error rates, first-pass rate)
+4. **Ops monitor** — automated Boss sweeps with alerts
+
+## Why does Observatory REVIEW / Queue a document return 503?
+
+The visualizer is configured without a reachable producer. Set
+`MAILROOM_PIPELINE_URL`, `MAILROOM_PIPELINE_TOKEN` (same as this API's
+`MAILROOM_API_TOKEN`), and `MAILROOM_PIPELINE_API_PREFIX=/v1` on The-Mailroom.
+A Hugging Face Space Observatory cannot use `http://127.0.0.1:8000` — that
+loopback is inside the Observatory container, not this API. Publish this
+repo's producer Space and point the URL at `https://lucius-morningstar-mailroom-producer.hf.space`.
+
+## Is this production-ready?
+
+For pilot scale (dozens of documents/day) with human oversight: yes. For enterprise production with multi-tenant isolation, RBAC, and high-availability: this is the foundation but needs the deferred work in the roadmap (Redis queues, richer web UI, full RBAC, etc.).

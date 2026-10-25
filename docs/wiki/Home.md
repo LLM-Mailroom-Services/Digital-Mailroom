@@ -1,46 +1,69 @@
-# Digital-Mailroom — the LLM-Mailroom monorepo wiki
+# Mailroom — Multi-Agent Legal Document Processing Pipeline
 
-**Digital-Mailroom** is the central checkout of the LLM-Mailroom constellation:
-one uv workspace, one lockfile, one virtualenv, five core packages under
-[`packages/`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/main/packages) —
-each mirroring an independent, standalone-operational `Exios66/*` repository.
+Welcome to the Mailroom wiki.
 
-Standalone repositories own package implementations and releases. Implement
-and test there first, then import committed sources here. Digital-Mailroom
-owns workspace wiring, governance, the board and integration tooling.
-Enron and claims are external feeds with complete preserved hub checkouts;
-see [[Architecture]] for branch and source links.
+Mailroom is a multi-agent pipeline that ingests high-volume legal documents, classifies them, routes them to specialist agents for extraction, compiles the results into a matter record, and archives everything with a full, tamper-evident audit trail.
 
-The board is also served live at **https://digital-mailroom-theta.vercel.app**
-(issue-backed, auto-updating; see [[Served-Board]]).
+**v1 targets pilot scale** (dozens of documents/day), organized by case/matter, running on [OpenRouter](https://openrouter.ai) with a clear path to fully local inference.
 
-## Start here
+---
 
-- [[Getting-Started]] — workspace setup, suites, offline sandbox quickstart
-- [[Architecture]] — every repository, with direct links + GitHub Pages sites
-- [[Board-Governance]] — the task board, its laws, and the tooling that keeps it honest
-- [[Subagents]] — the specialist roster (data, HF, prompts, docs, UI, systems, vLLM, Modal) and the rules that make it work
-- [[Served-Board]] — the live Vercel dispatch-board site, its API + deploy
-- [[Sub-Package-Sync]] — the current-only sync doctrine and the sync driver
-- [[HF-Corpus]] — the mailroom-corpus corpus family and its EDA pipeline
-- [[Offline-Sandbox]] — local providers, reduced agent profile, Docker
-- [[Releases]] — release train, pins, upstream publish
-- [[FAQ]] — gotchas and common questions
-- [[Troubleshooting]] — symptoms we have hit (tests, sync, vendors, board, commits) and their fixes
-- [[Glossary]] — workspace, board, pipeline and scoring terms
-- Contributing? Read [`CONTRIBUTING.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/CONTRIBUTING.md) first; security reports: [`SECURITY.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/SECURITY.md)
+## Design Principles
 
-## Key facts
+1. **Auditability over cleverness** — Every classification, extraction, and routing decision must be traceable.
+2. **Explicit over emergent** — Orchestration is a defined LangGraph state machine.
+3. **Human-legible state** — Filesystem bins mean anyone can `ls` a folder and understand where a document is.
+4. **Provider-agnostic LLM layer** — OpenRouter today, local models later with one config change.
+5. **Redundant record-keeping** — The audit trail does not depend on any single tool staying alive.
 
-| Thing | Value |
-| --- | --- |
-| Hub repo | [LLM-Mailroom-Services/Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom) — latest hub release **v0.9.1** (`pyproject.toml` 0.9.1) |
-| Task board | [`governance/TASKS.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/governance/TASKS.md) — machine-readable via `scripts/board_state.py` |
-| Served board | [digital-mailroom-theta.vercel.app](https://digital-mailroom-theta.vercel.app) — live, issue-backed ([[Served-Board]]) |
-| Conventions | [`AGENTS.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/AGENTS.md) — read first, every session |
-| Subagents | 15-agent roster ([[Subagents]]) — project + global agent files under `.opencode/agents/` (see DMR-062) |
-| Packages | 5 (4 built + 1 virtual member: mailroom-corpus-eda) |
-| Python | 3.11+ (workspace `requires-python >= 3.11`) |
-| Imported package versions | llm-dojo-scoring **0.24.2** · llm-mailroom **0.8.1** · local-mailroom-sandbox **0.3.0** · The-Mailroom **0.5.1** · mailroom-corpus-eda **0.1.0** (see [[Releases]] for consuming pins) |
-| HF corpus | [mailroom-dataset](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset) — schema v9, 3,302 rows (frozen v8 baseline: [mailroom-corpus](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-corpus)) |
-| CI gates | `board-governance.yml` (board invariants + label drift) · `release-governance.yml` (changelog ↔ tag ↔ version). No workflow runs the package suites — the local run is the gate ([`docs/TESTING.md`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/blob/main/docs/TESTING.md)) |
+---
+
+## Quick Links
+
+| Page | Description |
+|---|---|
+| [Home](Home) | This page |
+| [Getting Started](Getting-Started) | Installation and first run |
+| [Architecture](https://github.com/Exios66/llm-mailroom/blob/main/docs/pipeline-reference-llm-mailroom/architecture.md) | Full architectural overview |
+| [Configuration](https://github.com/Exios66/llm-mailroom/blob/main/docs/pipeline-reference-llm-mailroom/configuration.md) | Config reference and environment variables |
+| [Agents](https://github.com/Exios66/llm-mailroom/blob/main/docs/pipeline-reference-llm-mailroom/agents.md) | Agent specifications and personalities |
+| [API Reference](https://github.com/Exios66/llm-mailroom/blob/main/docs/pipeline-reference-llm-mailroom/api.md) | Complete API endpoint documentation |
+| [Deployment](https://github.com/Exios66/llm-mailroom/blob/main/docs/pipeline-reference-llm-mailroom/deployment/README.md) | Production deployment guide |
+| [Local Model Cutover](https://github.com/Exios66/llm-mailroom/blob/main/docs/pipeline-reference-llm-mailroom/local-models.md) | Switching to local LLMs |
+| [Development](https://github.com/Exios66/llm-mailroom/blob/main/docs/pipeline-reference-llm-mailroom/testing.md) | Development and testing guide |
+| [FAQ](FAQ) | Frequently asked questions |
+| [Sister Repositories](https://github.com/Exios66/llm-mailroom/blob/main/docs/pipeline-reference-llm-mailroom/sister-repos.md) | The llm-mailroom umbrella: entity-extraction, llm-dojo-scoring, corpus feeds |
+
+---
+
+## Architecture at a Glance
+
+```
+Upload/Drop --> /pipeline/inbox/ --> [Watcher] --> LangGraph run per document
+                                                        |
+              Sorter --> Specialist --> [Judge/Arbiter gate] --> Reporter --> Catalog --> Archivist
+                                                        |
+                                    Boss (escalation)    Human Review    Audit Log
+```
+
+**13 LangGraph nodes** in a state machine (`intake`, `classify`, `retry_classify`, `review_classify`, `extract`, `retry_extract`, `judge_verify`, `arbiter`, `human_review`, `boss_escalation`, `compile_report`, `catalog_write`, `archive`) — including the exception lanes from the architecture-alignment build: an agent second-opinion reviewer for exhausted medium-band classifications (Lane A) and a gated judge→arbiter completeness-verification path for grounded extractions (Lane B). Checkpointing is in-memory by default (stateless design; review resume re-invokes from the manifest) with opt-in `SqliteSaver` via `MAILROOM_CHECKPOINTER=sqlite`.
+
+## Quick Start
+
+```bash
+docker compose -f src/config/docker/docker-compose.yml up -d postgres clickhouse langfuse-server   # OPTIONAL: Langfuse tracing only
+cp .env.example .env
+pip install -e ".[dev]"
+PYTHONPATH=src python -m api.main &
+# optional dedicated watcher when MAILROOM_EMBED_WATCHER=0:
+# PYTHONPATH=src python -m pipeline.watcher &
+curl -X POST http://localhost:8000/upload -F "file=@src/tests/fixtures/contract/sample_msa.txt" -F "matter_id=MATTER-001"
+```
+
+## The Mailroom Umbrella
+
+**[Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)** is the integration monorepo: one `uv` workspace importing committed core packages as git subtrees (`packages/llm-mailroom` consumes this standalone repo), with the hub task board (`governance/TASKS.md`) and sync driver (`scripts/sync_packages.py status|pull`). Author and test package implementation and documentation in the owning standalone repository first, then commit and merge to its own `main` before Digital-Mailroom imports the committed source with `scripts/sync_packages.py pull`. The hub owns integration wiring, governance, and generated vendor snapshots.
+
+Mailroom is the pipeline at the center of that governed constellation. DMR-079 left seven monorepo members; [DMR-093](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/issues/165) defines the **five-package core**: `llm-dojo-scoring`, `llm-mailroom`, `local-mailroom-sandbox`, `The-Mailroom`, and `mailroom-corpus-eda`. This is the target until the separate hub pruning PR lands after [#162](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/pull/162); hub `main` retains seven members in the meantime. The wider constellation still includes: **[llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring)** (the pinned scoring engine, `718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4`), external corpus feeds in the DMR-093 target **[Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment)** (correspondence) and **[claims-data-eda](https://github.com/Exios66/claims-data-eda)** (insurance claims, candidate), eval sibling **[atticus-investigation](https://github.com/Exios66/atticus-investigation)** (LegalBench), the downstream visualizer **[The-Mailroom](https://github.com/Exios66/The-Mailroom)** (pixel-art document conveyor + hosted Observatory Space, driven solely by this repo's Langfuse traces; Inbox and REVIEW resolve need this API as `MAILROOM_PIPELINE_URL`). Retired from the core in DMR-079 and no longer synced: `llm-entity-extraction`, `agent-mailroom` and the `llm-mailroom-graph` knowledge-graph sites (see the Retired section of the Sister Repositories map). Full map: [docs/sister-repos.md](https://github.com/Exios66/llm-mailroom/blob/main/docs/pipeline-reference-llm-mailroom/sister-repos.md). Two-Space pair: [deploy/space/PAIRING.md](https://github.com/Exios66/llm-mailroom/blob/main/deploy/space/PAIRING.md).
+
+DMR-093 preserves the two feeder package paths in the full hub checkout at commit `59c879d9`: [Enron](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment/packages/Enron-Evaluation-Environment) and [claims](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda/packages/claims-data-eda). Both refs are published; final PR162 must retain their exact feeder package trees before hub pruning. Their standalone repositories, dataset provenance, and guides remain available. The five-package target has four built members and one virtual member, `mailroom-corpus-eda`.

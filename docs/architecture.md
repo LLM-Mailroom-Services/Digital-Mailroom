@@ -270,8 +270,8 @@ built and served at `/desk` when `ui/dist` exists. Default `mailroom-web`
 does not need Node. Pixel console and Observatory stay vanilla.
 
 The producer **code** pin is optional extra `[pipeline]`
-(`mailroom @ git+https://github.com/Exios66/llm-mailroom.git@fb629f329f18835e78d5fea8631426b54f393c02`,
-package 0.8.1 / reviewed Dojo v0.24.2 adoption).
+(`mailroom @ git+https://github.com/Exios66/llm-mailroom.git@42f21a9d092c47b1910b997a80bfcf4884ede333`,
+package 0.8.1 / reviewed Dojo v0.24.2 (@4740d768) adoption).
 `mailroom_ui/producer.py` imports `pipeline.review_resolve` and
 `schemas.manifest` when that extra or a sibling checkout is present; the
 REVIEW proxy and `tests/fake_producer.py` use those contract helpers

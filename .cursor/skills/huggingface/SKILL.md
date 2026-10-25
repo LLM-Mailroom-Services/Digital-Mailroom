@@ -33,7 +33,7 @@ so eval / sync stay light — no full `load_dataset` on the visualizer path.
 | --- | --- | --- |
 | Pytest traces | `tests/fake_langfuse.py` | No |
 | Copied Hub subclass / CUAD keys | `mailroom_ui/pipeline_schema.py` | No |
-| Dojo scoring pin | optional `[eval]` (`@v0.24.2`) | Offline engine; live display stays light |
+| Dojo scoring pin | optional `[eval]` (`@4740d768`, Dojo v0.24.2) | Offline engine; live display stays light |
 | Live `mailroom-dataset` eval | `scripts/eval_pipeline.py` | **Yes** (explicit) |
 | Sync merged → Langfuse dataset | `scripts/sync_pilot_dataset.py` | **Yes** (explicit) |
 | Live Qwen 3.7-Flash pilot | `scripts/run_production_pilot.py --real` | **Yes** (explicit) |
@@ -66,5 +66,5 @@ Space SDK or a Hub model server here.
 
 - Schema mirror: [pipeline-schema-sync](../pipeline-schema-sync/SKILL.md)
 - Router: [mailroom-tool-router](../mailroom-tool-router/SKILL.md)
-- Pin: README constellation table (`llm-dojo-scoring` `@v0.24.2`;
-  llm-mailroom dist `mailroom` `@fb629f329f18835e78d5fea8631426b54f393c02` / 0.8.1 (reviewed source adoption) via extra `[pipeline]`)
+- Pin: README constellation table (`llm-dojo-scoring` `@4740d768` (Dojo v0.24.2);
+  llm-mailroom dist `mailroom` `@42f21a9d092c47b1910b997a80bfcf4884ede333` / 0.8.1 (reviewed source adoption) via extra `[pipeline]`)

@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DOJO_RELEASE_COMMIT = "4740d76825217e746c645864c8510f12869db965"
-PIPELINE_REVIEW_COMMIT = "42f21a9d092c47b1910b997a80bfcf4884ede333"
+PIPELINE_REVIEW_COMMIT = "60cd5fad0c7a616ec575857841bb9897b9e8c3ed"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 

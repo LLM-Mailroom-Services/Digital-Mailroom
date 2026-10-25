@@ -13,7 +13,7 @@ All notable changes to The-Mailroom are documented here, following
   access from explicit AUTH=0 local-trust mode; Origin checks still apply.
 
 - DMR-111: align optional `eval` and `pipeline` installs on released Dojo v0.24.2;
-  freeze the producer adapter to pipeline `42f21a9d092c47b1910b997a80bfcf4884ede333` (0.8.1).
+  freeze the producer adapter to pipeline `60cd5fad0c7a616ec575857841bb9897b9e8c3ed` (0.8.1).
   Combined extras no longer demand incompatible scoring repositories.
 
 - DMR-111: require explicit loopback development opt-in for published operator

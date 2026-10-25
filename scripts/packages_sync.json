@@ -15,14 +15,14 @@
     },
     "llm-mailroom": {
       "branch": "main",
-      "synced_at": "2026-10-25T19:13:49Z",
-      "synced_sha": "1a1ec3dfb4e71f615f5d34f6198f9d06fd8c26dd",
+      "synced_at": "2026-10-25T19:35:49Z",
+      "synced_sha": "175e6711077f92cee16e6bf2488844f92d9cb36d",
       "url": "https://github.com/Exios66/llm-mailroom.git"
     },
     "local-mailroom-sandbox": {
       "branch": "main",
-      "synced_at": "2026-10-25T19:13:59Z",
-      "synced_sha": "054896b575d9cb65edafa298579a7be4065c01c1",
+      "synced_at": "2026-10-25T19:35:54Z",
+      "synced_sha": "3a7894252c858d8552e226c53d103cf29be3309e",
       "url": "https://github.com/Exios66/local-mailroom-sandbox.git"
     },
     "mailroom-corpus-eda": {

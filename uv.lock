@@ -2994,7 +2994,7 @@ wheels = [
 
 [[package]]
 name = "llm-dojo-scoring"
-version = "0.24.0"
+version = "0.24.2"
 source = { editable = "packages/llm-dojo-scoring" }
 dependencies = [
     { name = "jellyfish" },

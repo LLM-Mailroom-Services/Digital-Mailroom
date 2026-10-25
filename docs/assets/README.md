@@ -2,7 +2,7 @@
 
 # 📁 Documentation Assets
 
-**Shared documentation assets for the Digital-Mailroom monorepo.**
+**Documentation assets for the llm-mailroom package.**
 
 </div>
 
@@ -12,18 +12,11 @@
 
 Images, diagrams, and other assets used in documentation.
 
-| Asset | Used by | Notes |
-| --- | --- | --- |
-| `mailroom-pipeline.svg` | README, wiki | Canonical 13-node pipeline diagram (source of truth) |
-| `mailroom-processing-banner.svg` / `-dark.svg` | README | Six-stage processing banner, light and dark |
-| `readme/hero.svg` | README | Animated conveyor hero (SMIL, no scripts) |
-| `readme/constellation.svg` | README | Animated package data-flow map |
-| `readme/stats.svg` | README | "By the numbers" strip, regenerate with `make_stats_svg.py` |
-| `readme/terminal.svg` | README | Typing quickstart terminal, regenerate with `make_terminal_svg.py` |
-| `readme/sorting-floor.gif` | README | Pixel-art sorting loop, regenerate with `uv run --frozen python docs/assets/readme/make_sorting_gif.py` |
+- `banner.png` — README banner (night-shift owl at the sorting desk)
+- `mailroom-pipeline.svg` — pipeline diagram
+- `mascot/` — Fumi and Hermes (see `mascot/README.md`); `hoot-icon.png` is the page favicon
+- `fumi/fumi.gif` — GitBook home copy of Fumi (on-duty + Meet Fumi; not the page header)
 
-Keep the README numbers in `make_stats_svg.py` in step with `AGENTS.md`
-(package count, dataset rows, roster size) when they change.
 
 ## Usage
 
@@ -32,5 +25,4 @@ Assets are referenced by documentation files in `docs/`.
 ## Related Files
 
 - `../` — Documentation root
-- `../reports/` — Evaluation reports
 - `../wiki/` — GitHub wiki pages

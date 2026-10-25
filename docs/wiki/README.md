@@ -2,7 +2,7 @@
 
 # 📖 GitHub Wiki Pages
 
-**GitHub wiki pages for the Digital-Mailroom monorepo.**
+**GitHub wiki pages for the llm-mailroom package.**
 
 </div>
 
@@ -10,7 +10,7 @@
 
 ## Purpose
 
-Wiki pages for the monorepo documentation.
+Wiki pages for the llm-mailroom documentation.
 
 ## Usage
 
@@ -19,5 +19,4 @@ Edit wiki pages directly in this directory. They are synced to the GitHub wiki.
 ## Related Files
 
 - `../` — Documentation root
-- `../reports/` — Evaluation reports
-- `../assets/` — Documentation assets
+- `../../README.md` — Package overview

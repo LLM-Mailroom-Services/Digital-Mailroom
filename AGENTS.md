@@ -1,580 +1,258 @@
 # AGENTS.md
 
-Monorepo for the LLM-Mailroom constellation. One uv workspace, one lockfile
-(`uv.lock`), one virtualenv. Never add cross-repo imports outside the
-workspace — dependency between members resolves via `[tool.uv.sources]`
-workspace redirects.
+Mailroom: a LangGraph state machine that processes legal documents through specialist LLM agents (classify → extract → report → archive) with filesystem bins, a SQLite catalog/audit log, and optional Langfuse/Braintrust tracing. Python 3.11+, no build step.
 
-## Layout
+## Skills (all agents)
 
-- `packages/llm-dojo-scoring` — imported scoring engine and ALL metrics (dist `llm-dojo-scoring`)
-- `packages/llm-mailroom` — pipeline (dist `mailroom`, `src/` layout)
-- `packages/The-Mailroom` — imported visualizer shared by the pipeline and sandbox (dist `the-mailroom`)
-- `packages/local-mailroom-sandbox` — imported core offline/local and Modal/vLLM GPU testing interface for the pipeline (dist `mailroom-sandbox`)
-- `packages/mailroom-corpus-eda` — corpus EDA + centralized HF upload helpers (virtual member, no build)
+Cursor agents discover **project skills** under `.cursor/skills/` (start with
+`mailroom-tool-router`, then one specialty: openrouter, ollama, modal,
+langfuse, apache-phoenix, braintrust, huggingface, langgraph, dojo-scoring,
+legalbench). Use those instead of inventing a parallel provider or sink.
 
-Hub-level (no package): `governance/TASKS.md` (the board), `scripts/`
-(sync/board/release tooling + its hermetic `scripts/tests`), `board-site/`
-(the served Vercel board), `docs/` (`TESTING.md`, `COMMIT_MESSAGES.md`,
-`wiki/`, `reports/audits/`), `.github/` (workflows, labels, issue/PR/release
-templates), `tools/feeder-resync/` (historical resync bundle).
+Deeper vendored skills under `.opencode/skills/` remain available:
 
-Human contributors: start at `CONTRIBUTING.md`; security reports go through
-`SECURITY.md`; snags and jargon live in the wiki pages `Troubleshooting` and
-`Glossary` (`docs/wiki/`).
+- **langfuse** (github.com/langfuse/skills) — CLI API access, docs,
+ instrumentation/prompt-migration/prompt-engineering references, judge
+ calibration, error analysis, v4 migration.
+- **braintrust** (github.com/braintrustdata/braintrust-skills) — the
+ agent-auto-improvement loop: production traces -> failure taxonomy ->
+ remote Braintrust dataset -> scorers -> offline eval file -> iterate, then
+ push online scorers. Matches this repo's eval discipline (Braintrust
+ datasets, Eval loops, deterministic local scoring, experiment log).
+- **openrouter-*** (github.com/OpenRouterTeam/skills) — `openrouter-models`
+ (catalog, pricing, context, provider latency/uptime — grounds the
+ `taxonomy.yaml` model registry + cost prices), `openrouter-generations`
+ (per-request cost/latency/tokens/provider routing — debug unexpected
+ generations), `openrouter-analytics` (spend/usage queries), and
+ `openrouter-benchmarks` (live benchmark data for model selection).
+- **langchain-*/langgraph-*** (github.com/langchain-ai/langchain-skills) —
+ fundamentals, python quickstarts, dependencies, middleware,
+ langgraph-fundamentals/persistence (checkpointers — SqliteSaver)/
+ human-in-the-loop (review/interrupt nodes)/cli, ecosystem-primer.
 
-Most packages carry their own `AGENTS.md` with project-specific conventions —
-read it in the authoritative standalone checkout before changing package code.
-`packages/*` here are integration copies, never implementation sources.
-`llm-dojo-scoring` has no AGENTS.md; its README carries the conventions.
+Invoke the matching **project** skill (`.cursor/skills/`) before writing or
+changing agent/graph/tracing/provider code; use `.opencode/skills/` for CLI
+and upstream docs depth.
 
-**Pruned in DMR-079 (v0.8.0 = the last release containing them):**
-`llm-entity-extraction` and `llm-mailroom-graph` left the monorepo and survive
-only as standalone `Exios66/*` repos (no longer synced); `agent-mailroom` is
-preserved on the branch `feature/agent-mailroom` (cut from tag `v0.8.0`).
+### Langfuse best-practices compliance (verified 2026-08-12)
 
-**DMR-093 (2026-10-23, merged as #167 on top of #162):** five active core
-members remain (four built plus virtual `mailroom-corpus-eda`). Noncore feeds
-are external standalone repos; their complete hub checkouts are preserved on
-[`feature/enron-evaluation-environment`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/enron-evaluation-environment/packages/Enron-Evaluation-Environment) and
-[`feature/claims-data-eda`](https://github.com/LLM-Mailroom-Services/Digital-Mailroom/tree/feature/claims-data-eda/packages/claims-data-eda), both at
-`59c879d9fb4480084e53137e2e9fb25650933944` (the last commit carrying those
-package trees). For the original complete workspace, use a separate checkout
-of the preservation branch. Selective
-restoration must reconcile explicit membership, sync selection, dependencies
-and tests; never overwrite the current root workspace/lock/cursors with the
-archived versions. Keep the existing `feature/agent-mailroom` unchanged.
-
-## Specialist subagents — call them, don't impersonate them
-
-Every specialty has a dedicated subagent. Invoke it through the **Task tool**
-(`subagent_type: <name>`) instead of improvising outside your expertise;
-specialty work done inline is a defect even when it happens to be correct.
-The subagent's returned report is the evidence for that slice of the card.
-The project specialists (`vllm-specialist`, `modal-specialist`,
-`prompt-engineer`, `board-evidence-auditor`, `lucius`) and the global team
-(`archivist-file-organizer`, `code-analyst`,
-`test-suite-auditor`, `orchestrator-governor`,
-`athena-database-agent`, `atom`, `hazel-ui-software-master`,
-`jarvis-systems-maximizer`) are `mode: all` — callable through the Task
-tool as subagents **and** selectable directly as primary agents (restart
-opencode after editing their agent files; verify with `opencode agent
-list`).
-
-### Roster
-
-| # | Specialty | `subagent_type` | Call it for | Example invocations |
-|---|---|---|---|---|
-| 1 | **Data & databases** | `athena-database-agent` | Dataset selection & integration (HF/Kaggle/Braintrust), schema design, ingestion/transformation pipelines, data QA, ML data preparation, SQL/NoSQL optimization | "We need the Enron correspondence dataset loaded into a SQLite schema for the eval loop — design the schema and write the ingestion script." / "The claims-data-eda CSV has 140k rows with inconsistent date formats — build a transformation pipeline that normalizes dates and deduplicates." / "Run a data QA pass on the mailroom-dataset parquet files: check for missing fields, type violations, and duplicate row hashes." |
-| 2 | **HuggingFace & data science** | `lucius` | HF downloads/uploads/edits, `datasets`/`transformers` pipelines, EDA, statistical analysis, model training/eval, database upkeep | "Download the `Lucius-Morningstar/mailroom-dataset` dataset v9 split and run an EDA: field coverage, class imbalance, doc-length distribution." / "Upload the new `mailroom-dataset` v9 dataset to HF Hub using the centralized helpers in mailroom-corpus-eda." / "Train a lightweight classifier on the docclass labels and report per-class F1 — use the braintrust experiment logger." |
-| 3 | **Prompt engineering** | `prompt-engineer` (project, `.opencode/agents/prompt-engineer.md`) | Run-failure diagnosis, GEPA mutations, prompt A/Bs across the llm-mailroom + llm-dojo-scoring prompt surfaces; master diagnostic evaluator and prompt engineer | "v24 left a `term_length` containment dip — diagnose it and produce v25." / "We're stuck at 0.93 on the sorter — what should the next rule be?" / "Candidate v31 didn't beat v30 by much — check the delta against the noise floor and decide if it's plateau territory." / "The contracts specialist is hallucinating on `change_of_control` clauses — reflect on the failure traces and engineer a surgical fix." |
-| 4 | **Docs & board** | `atom` | READMEs/wikis/changelogs, doc-drift detection, Kanban board upkeep, inter-agent coordination, repo restructuring | "The llm-mailroom README references a `deploy/` dir that no longer exists — fix the drift." / "Update the governance/TASKS.md board to reflect DMR-029 through DMR-037." / "The docs wiki page `Served-Board.md` is out of sync with the actual board-site API — reconcile and push." |
-| 5 | **Software & UI** | `hazel-ui-software-master` | UI/UX, fullstack, HTML/JS/CSS, bug fixes, local network testing, app architecture | "The board-site index.html drag-and-drop broke on Safari — debug and patch." / "Build a local-network test harness for the visualizer so agents can preview pages before deploy." / "Redesign the mailroom-dispatch-board.html filter panel for mobile viewports." |
-| 6 | **Systems & repo hygiene** | `jarvis-systems-maximizer` | Performance triage, memory/CPU hogs, disk usage, cache cleanup, repo bloat, process prioritization | "The repo is 4GB — identify the bloat and suggest what to prune." / "My laptop is sluggish during eval runs — profile the processes and recommend prioritization." / "The `.venv` cache is eating 1.2GB — clean it safely without breaking the workspace." |
-| 7 | **vLLM serving** | `vllm-specialist` (project, `.opencode/agents/vllm-specialist.md`) | `vllm serve` configs, quantization, multi-LoRA, structured outputs, speculative decoding, tensor/data/expert/context parallelism, KV-cache/memory tuning, diagnosing OOMs and throughput regressions | "Set up `vllm serve` for Llama-3-8B on an A10G with AWQ quantization — I need the exact flags for v0.29.0." / "The Modal-hosted vLLM is OOMing on 4096-token prompts — tune the memory budget and `max-model-len`." / "Enable prefix caching and structured JSON output via xgrammar for the contracts extraction endpoint." / "Diagnose why throughput dropped 40% after upgrading from v0.28.0 to v0.29.0 — check if Model Runner V2 is the cause." |
-| 8 | **Modal compute** | `modal-specialist` (project, `.opencode/agents/modal-specialist.md`) | Modal apps (`@app.function`/`@app.cls`/`@app.server`), container Images, Volumes, Secrets, Dicts/Queues, Sandboxes, GPU selection & cost control, scale-to-zero/cold-start tuning, `modal serve`/`deploy`/`run`/`endpoint`, debugging Modal-hosted services | "Deploy `deploy/modal_vllm.py` to Modal with an L4 GPU, `scaledown_window=15min`, and a persistent HF cache volume." / "The Sandbox v2 backend isn't working — check the SDK version and fix the opt-in config." / "Add a `modal.Secret` for `HF_TOKEN` and a `modal.Volume` for the vLLM model cache to the llm-mailroom vLLM deploy app." / "Why is cold-start taking 12 minutes? Tune `startup_timeout` and check if memory snapshots apply." |
-| 9 | **Board & repo auditing** | `board-evidence-auditor` (project, `.opencode/agents/board-evidence-auditor.md`) | Verifying board card claims against shipped evidence, auditing modules for incomplete work/TODOs, opening issues and DMR cards for discrepancies, maintaining STATE.md audit trail | "Audit all DMR-011 through DMR-029 cards — verify each claim against actual code and open cards for anything missing." / "The board claims DMR-029 is done, but the deploy file still has `Secret.from_local` — verify and open a defect card." / "Run a repo-wide audit for TODO/FIXME markers in deploy files and document findings in STATE.md." / "Check if the evidence links on done cards actually point to merged PRs, not stale branches." |
-| 10 | **File management & organization** | `archivist-file-organizer` (global, `~/.config/opencode/agents/`) | Repo-layout audits and restructures, directory/file grouping and renames, vendor/snapshot tree upkeep (drift refactors, VENDOR.md pins), symlink/workspace hygiene, duplicate-file detection, junk/orphan sweeps | "Audit the sandbox `vendor/` tree and propose a canonical snapshot layout with verified moves." / "Find and sweep `.orig`/`.rej`/editor-swap junk across the monorepo." / "Renaming `mailroom_ui/` internals — map every reference and prove the tree still resolves." |
-| 11 | **Concise code analysis** | `code-analyst` (global, `~/.config/opencode/agents/`) | Fast structured verdicts on code you point it at: diff review, root-cause tracing, dead-code confirmation, risk maps of unfamiliar modules — output is verdict + file:line evidence, never a book | "Give me a concise risk map of the pipeline retry ladder before I touch the 429 handling." / "Review this diff for silent-behavior changes." / "Is `hf_rows_as_manifest` dead? Show the search proof." |
-| 12 | **Test suite auditing** | `test-suite-auditor` (global, `~/.config/opencode/agents/`) | Auditing suites themselves: dead/weak tests, stub dishonesty (stubs that cannot express real failure modes), unpinned error paths, skip discipline, marker hygiene — the "loud = monitored" enforcement layer | "Which of these loud-error behaviors are actually pinned by tests, and where would a regression slip in green?" / "Audit the stub honesty of the modal-side test doubles." / "Why does deleting the vendor tree turn the drift guard into a skip?" |
-| 13 | **Master governance orchestrator** | `orchestrator-governor` (global, `~/.config/opencode/agents/`, `mode: all`) | Planning + dispatch + governance: reads AGENTS.md + the board first, breaks missions into units, briefs specialists like cards, chains them (never impersonates), holds the card lifecycle, closes with evidence; run as PRIMARY (plan/drive a session) or SUBAGENT (any agent hands it a mission) | "Plan and orchestrate the sandbox sweep — route each specialty and keep the card honest." / "I need a dispatch plan for a data + prompts + deploy mission; which agents in what order?" / "Govern this card to done: dispatch, gates, evidence, close." |
-| 14 | **Codebase exploration** | `explore` | Fast read-only searches ("where is X", "how does Y work") before you edit — never modifies code | "Where is the `vllm` provider wired into the mailroom pipeline?" / "How does the board_state.py sync-issues command map TASKS.md lanes to GitHub labels?" / "Find all files that import `modal` — I need to know what touches the Modal SDK." / "What's the contract between the dojo-scoring prompts and the mailroom pipeline prompts?" |
-| 15 | **General multi-step** | `general` | Research/execution spanning several specialties with no single owner; tasks that cut across data + prompts + infra | "Build an end-to-end eval pipeline: pull the dataset from HF, run extraction, score with dojo-scoring, and upload results to Braintrust." / "Set up a new package in the monorepo: create the layout, pyproject.toml, AGENTS.md, CI config, and sync_packages.json entry." / "Investigate why the mailroom pipeline is misclassifying insurance claims — check the data, the prompts, and the scorer in sequence." |
-
-> **Note:** `.opencode/agents/STATE.md` is **not** a callable subagent — it is the board-evidence-auditor's live audit state file. Read it before any audit session to avoid repeating past mistakes, but never invoke it via the Task tool.
-
-Rules that make the roster work:
-
-- **One specialist per concern.** Do not ask a subagent to do another
-  specialty's job; chain them (e.g. `explore` → `vllm-specialist` →
-  `modal-specialist` → `prompt-engineer`).
-- **Brief the specialist like a card.** Pass the card ID, the exact scope,
-  the files/seams involved, and the evidence contract (what must be green,
-  what the report must name). A vague prompt returns a vague report.
-- **The caller owns the work.** Subagent output is a report, not a merged
-  change: the calling agent writes the files, runs the gates, updates
-  `governance/TASKS.md`, and commits — the specialist is evidence, not an
-  author of record.
-- **Specialists verify current upstream docs** (vLLM stable, Modal SDK,
-  HF Hub APIs, Langfuse) before writing configuration; a report that quotes
-  a version without checking it is incomplete.
-- **Skills are the second layer.** Load the `hf-dataset-publish` or `langfuse`
-  opencode skill (under `.opencode/skills/`) when a task matches its
-  description, and the
-  package-local `.cursor/skills/` (openrouter, ollama, modal, langfuse,
-  apache-phoenix, braintrust, huggingface, langgraph, dojo-scoring,
-  legalbench) for provider/sink depth inside a package. The monorepo-root
-  `.opencode/skills/` aggregates the 20 opencode-native skills mirrored from
-  mailroom-dev's package `.opencode/skills/` trees (langchain/langgraph,
-  langfuse, graphify, eval-engineering, hf-dataset-publish, openrouter-*,
-  braintrust) so agents at the repo root auto-discover them; package-level
-  copies stay the canonical source for in-package edits.
-- `PROMPT_ENGINEER_GEPA_PROVENANCE` is provenance documentation for the
-  prompt-engineer agent — not a callable subagent.
-
-New specialist agents live **globally first** (canonical file in
-`~/.config/opencode/agents/<name>.md`, available in every worktree), with an
-**identical committed mirror** under `.opencode/agents/` (the project copy
-is a harmless no-op while identical — keep them byte-identical; drift is a
-housekeeping defect, documented in `docs/wiki/Subagents.md`). Project-local
-specialists (prompt-engineer, vllm/modal-specialists, board-evidence-auditor,
-lucius) stay project files by design — their protocols are repo-specific.
-Restart opencode after adding any agent so the Task tool picks it up.
-
-### Devin (CLI) mirror of the roster — dispatch, don't impersonate
-
-Devin agents use the SAME roster, mirrored one-file-per-persona under
-`.devin/agents/<name>.md` (flat-file custom subagent profiles; names match
-the `subagent_type` column 1:1, plus `explore` and `general` so the names
-resolve). A Devin agent dispatches a specialist via the **`run_subagent`
-tool** with `profile: <name>` — same dispatch law as opencode: one
-specialist per concern, brief like a card, the caller owns the work, chain
-never impersonate. The `.opencode/agents/*.md` files stay the canonical
-persona source; when a persona changes, update the `.devin/agents/` mirror
-in the same commit (same semantics, Devin frontmatter: `name`,
-`description`, optional `allowed-tools`, `max-nesting`).
-
-**Discovery location (verified 2026-09-22):** Devin discovers project
-profiles from the `.devin/agents/` directory of its **project root** —
-for Devin Desktop sessions the project root is the workspace folder the
-session opened on, NOT this repo when it sits inside a parent workspace
-(e.g. a session rooted at `monorepo_mailroom/` reads
-`monorepo_mailroom/.devin/agents/`, not
-`monorepo_mailroom/Digital-Mailroom/.devin/agents/`). The committed copy
-here serves repos opened as their own root; a parent-rooted workspace
-needs the same files mirrored to the parent's `.devin/agents/` (verified
-with `devin doctor`, which reports the loaded profile count). Profiles
-are read at session start — restart Devin after adding/changing them.
-
-Devin-specific notes:
-
-- **Read-only profiles** — `code-analyst`, `test-suite-auditor`, and
-  `explore` carry `allowed-tools` restricted to read/analysis tools (no
-  `edit`/`write`).
-- **`orchestrator-governor`** carries `max-nesting: 2`, so it can dispatch
-  roster specialists as its own children when run as a subagent (specialist
-  grandchildren cannot spawn further).
-- **Model**: profiles do not pin a `model:` — they run on the default
-  subagent router (cheap tier). Pin a `model:` in a profile file only if a
-  persona needs a stronger model at higher cost.
-- **Monitoring**: the Devin subagent panel shows every dispatch — profile,
-  title, status, elapsed time, tool-call count (press `↓` from the input,
-  then `Enter`); the caller announces each dispatch inline (profile + card
-  scope + expected evidence), and every `run_subagent` call is visible in
-  the transcript. Background subagents can be foregrounded, cancelled, or
-  resumed from the panel.
-
-### Claude Code dispatch
-
-Claude Code has no roster-aware `subagent_type`. Dispatch through the Agent
-tool with a general-purpose agent, point it at the persona file
-`.opencode/agents/<name>.md`, and brief it like a card. The same dispatch
-law applies: one specialist per concern, the caller owns the work, and the
-specialist's report is evidence.
-
-## Sync & release at a glance — read before touching any package
-
-The file-and-package flow has **three moving surfaces**; know which one you
-are on before you edit:
-
-| Surface | What it is | How it moves |
-|---|---|---|
-| **Standalone sources** (`Exios66/<name>`) | Authoritative package implementations | Edit, test, and commit in their own checkouts; import committed sources into the hub |
-| **Digital-Mailroom** (this repo) | Integrates committed package sources; owns hub wiring, governance, board, and release tooling | Import into `packages/*` with `scripts/sync_packages.py pull`; implement only hub-owned work here |
-| **Vendor snapshots** (`packages/local-mailroom-sandbox/vendor/`) | Generated snapshots of imported workspace packages | Only via `scripts/sync_vendor.py`; never edit copies by hand |
-
-**The six commands every agent must know:**
-
-```bash
-python scripts/sync_packages.py status                          # drift report (five active packages; expect 5/5 in sync)
-python scripts/sync_packages.py pull --package <name> --squash # import committed standalone source
-python scripts/sync_vendor.py --check                         # verify generated vendor copies
-python scripts/sync_vendor.py                                   # refresh sandbox vendor snapshots (+ --check gate)
-python scripts/release_chain.py cut X.Y.Z --apply               # prepare a hub release (dry run without --apply)
-python scripts/release_notes.py X.Y.Z                           # render the GitHub Release body
-```
-
-**Two release paths — never conflate them:**
-
-1. **Hub release** (this repo itself): `release_chain.py cut X.Y.Z --apply`
-   stamps `[Unreleased]` → section + bumps the hub version; the
-   GitHub Release body is generated by `release_notes.py X.Y.Z`. The cut
-   does NOT touch `uv.lock` — run `uv lock` right after it and commit the
-   lockfile with the cut (v0.9.0 shipped without it, so every `uv run`
-   rewrote the lock until DMR-084's residual fix, PR #147). Commit
-   `CHANGELOG.md`, `pyproject.toml`, and `uv.lock` together, then merge the PR.
-   Only afterward, update the checkout to the merged `main` tip and run
-   `git tag -a vX.Y.Z -m "mailroom-hub vX.Y.Z"` (DMR-084 note). Do not pass
-   `--tag` to the cut: it tags the current HEAD before the cut is committed.
-2. **Standalone package release** (an `Exios66/<name>` repo): cut in that
-   package via its own release tooling (e.g. `scripts/release.py --bump` in
-   The-Mailroom, or an explicit annotated tag), then
-   **import** committed standalone changes with `sync_packages.py pull` and
-   verify the cursor. Bump consuming pins in the consuming standalone source
-   ONLY at release time of the pinned package (`src/scripts/bump_dojo_scoring.py`
-   in llm-mailroom for the dojo pin), then import them — never delete a pin line.
-
-**Ownership (DMR-074):** sync & release planning/dispatch is a
-`orchestrator-governor` unit-of-work; execution is a `general` mission. When
-your card needs a package implementation change, author it in the authoritative
-standalone checkout first and track its source commit plus a **hub import unit
-on the card**. Never implement it in the hub and push it back. Full law: §
-[Sub-package sync](#sub-package-sync) below, the runbooks
-`docs/wiki/Sub-Package-Sync.md` + `docs/wiki/Releases.md`, and the test-tier
-matrix in `docs/TESTING.md` (`pull --verify-suite` gates an import).
+The observability layer satisfies the langfuse instrumentation baseline:
+model name + token usage on every generation (auto-traced via
+`langfuse.openai`), descriptive stable trace name `document-pipeline`,
+verb-first node spans with correct types (spans for steps, generations for
+LLM calls — never a generic tool/span), PII masked via curated input/output
+(file metadata, not raw payloads), `session_id` grouping (matter/run),
+tag taxonomy (environment/run/source), environments on every trace,
+`langfuse_prompt=` linking, auto-created score configs, native LLM-as-a-
+judge evaluators, synced dashboards, flush health counters (the v4 SDK has no `on_dropped` hook, so drops are not detected beyond SDK logs), and the
+mandatory self-audit loop (run end-to-end, fetch the trace fresh, audit
+against https://langfuse.com/docs/observability/best-practices — documented
+in the Langfuse section above). Running on langfuse 4.14.3 with the v4-
+compatible API surface (`create_trace_id`, `propagate_attributes`,
+score-config categories).
 
 ## Commands
 
 ```bash
-uv sync            # install workspace + dev group into .venv (editable)
-uv lock            # after touching any pyproject dependency spec OR any version
-uv run pytest ...  # run against the shared venv
+pip install -e ".[dev]"        # install (deps NOT vendored; no venv in repo)
+docker compose -f src/config/docker/docker-compose.yml up -d postgres clickhouse langfuse-server   # OPTIONAL: only for Langfuse tracing
+PYTHONPATH=src python -m pipeline.watcher   # filesystem watcher (optional when the API embeds it)
+PYTHONPATH=src python -m pipeline.gmail_intake  # Gmail intake poller standalone (debug; normally runs inside the watcher)
+PYTHONPATH=src python src/scripts/gmail_smoke_test.py  # Gmail + watcher connectivity smoke (example insurance claim; --real for SMTP+IMAP)
+PYTHONPATH=src python -m api.main           # FastAPI on :8000 — embeds the inbox watcher by default
+docker compose -f deploy/docker-compose.producer.yml --env-file .env up -d --build  # reachable producer for The-Mailroom REVIEW resolve
+PYTHONPATH=src python src/scripts/publish_space.py --check  # validate HF Docker Space payload (MAILROOM_PIPELINE_URL + Observatory pair)
+PYTHONPATH=src python src/scripts/sync_gitbook_changelog.py # regenerate the GitBook Changelog space from CHANGELOG.md
+PYTHONPATH=src python src/scripts/sync_gitbook_changelog.py --check # fail if docs/changelog/ is stale vs CHANGELOG.md
+PYTHONPATH=src python src/scripts/probe_hosted_spaces.py  # live Lucius-Morningstar Observatory + producer pair
+PYTHONPATH=src python -m pipeline.ops_monitor  # scheduled Boss sweep (optional)
+PYTHONPATH=src python -m pipeline.pager status    # operator SMS pings: ON/OFF, masked numbers, deliverability (--full: every key + source)
+PYTHONPATH=src python -m pipeline.pager on --to +16085551234   # enable texts (mobile or Google Voice); `pager off` keeps the number
+PYTHONPATH=src python -m pipeline.pager test      # send a test text (works while OFF); `preview` prints a digest without sending
+PYTHONPATH=src python -m pipeline.pager run       # foreground sender (normally hosted by the watchdog)
+docker compose -f deploy/docker-compose.full.yml --env-file .env up -d --build  # FULL single-host stack: app + ops-monitor + watchdog + postgres + LiteLLM gateway (+ --profile phoenix) → Modal GPU tiers
+PYTHONPATH=src python src/scripts/smoke_modal_tiers.py --check   # network-free tier-routing contract (taxonomy tier: ↔ LiteLLM aliases ↔ Modal tiers); --warm / --run [--source snapshot] for one doc per class end-to-end + Langfuse tier attribution
+PYTHONPATH=src python -m pipeline.relations_mode status      # relations clerk live/pilot posture + knobs
+PYTHONPATH=src python -m pipeline.relations_mode live        # flip the LLM judgment pass ON (--model to pick the judge; --restart-watcher for the standalone watcher)
+PYTHONPATH=src python -m pipeline.relations_mode pilot       # deterministic-only (the pilot posture; zero LLM spend)
+PYTHONPATH=src python src/scripts/cutover.py --list       # show agent→provider/model; also --recommend, --validate --agent <name>
+PYTHONPATH=src python src/scripts/prepare_samples.py          # build the pilot PDF set into data/samples/
+PYTHONPATH=src python src/scripts/run_pilot.py --mock         # pilot-test pipeline machinery (fake LLM, full 23-sample live-manifest set)
+PYTHONPATH=src python src/scripts/run_pilot.py --real         # pilot-test with real LLM (needs OPENROUTER_API_KEY; real committed samples only)
+PYTHONPATH=src python src/scripts/run_pilot.py --real --scores  # also ingest ground-truth scores to Langfuse
+PYTHONPATH=src python src/scripts/run_hf_pilot.py --check       # network-free HF-pilot + intake contract (The-Mailroom orchestrator)
+PYTHONPATH=src python src/scripts/run_hf_pilot.py --examples --mock  # 48 Hub class×subclass examples (docclass-pilot v5)
+PYTHONPATH=src python src/scripts/run_hf_pilot.py --dataset enron --max-scan 50 --mock  # Enron correspondence corpus
+PYTHONPATH=src python src/scripts/run_hf_pilot.py --real --per-class 1  # stratified mailroom-dataset v9 subset → Langfuse session pilot-hf-<stamp>
+jupyter notebook notebooks/14_gmail_pilot.ipynb     # ONE-document corpus pilot: pick a mailroom-dataset doc (offline snapshot or live Hub), fire it through the agent mailbox (mock drop | real SMTP; FIRE interlock), watch the free triage lane, verify against the corpus ground truth, log data/pilot_runs/<stamp>/report.{json,md}
+PYTHONPATH=src python src/scripts/run_quality_judges.py --real  # LLM-as-a-judge: classification/completeness/correctness (also --mock)
+PYTHONPATH=src python src/scripts/run_agent_eval.py --list      # per-agent isolation eval (also --agent <name>|all --mock|--real --n --self-check)
+PYTHONPATH=src python src/scripts/sync_prompts.py             # push agent prompts into Langfuse prompt management (idempotent)
+PYTHONPATH=src python src/scripts/sync_dataset.py             # build the mailroom-pilot Langfuse dataset (PDF text + manifest ground truth/metadata)
+PYTHONPATH=src python src/scripts/run_experiment.py --dataset mailroom-fixtures --mock --baseline docs/superpowers/baselines/experiment-baseline.json  # hermetic experiment regression gate (CI); --write-baseline to re-approve, --langfuse for the hosted runner
+PYTHONPATH=src python src/scripts/sync_hf_ground_truth.py --check   # network-free contract for the intent/subject_matter/keywords ground-truth labeler
+PYTHONPATH=src python src/scripts/sync_hf_ground_truth.py --dry-run # derive purpose/gist labels for corporate_record/correspondence/insurance_claim → data/hf_gt/ preview CSV
+PYTHONPATH=src python src/scripts/sync_hf_ground_truth.py --real --push  # LLM-label the mailroom-dataset ground_truth config (needs OPENROUTER_API_KEY + HF_TOKEN); re-pins FULL_CORPUS_REVISION
+PYTHONPATH=src python src/scripts/sync_hf_ground_truth.py --check   # network-free contract for the intent/subject_matter/keywords ground-truth labeler
+PYTHONPATH=src python src/scripts/sync_hf_ground_truth.py --dry-run # derive purpose/gist labels for corporate_record/correspondence/insurance_claim → data/hf_gt/ preview CSV
+PYTHONPATH=src python src/scripts/sync_hf_ground_truth.py --real --push  # LLM-label the mailroom-dataset ground_truth config (needs OPENROUTER_API_KEY + HF_TOKEN); re-pins FULL_CORPUS_REVISION
+PYTHONPATH=src python src/scripts/sync_evaluators.py          # create the LLM-as-a-Judge evaluator + observation rule in Langfuse
+PYTHONPATH=src python src/scripts/sync_dashboards.py          # sync the mailroom health dashboards into Langfuse (idempotent)
+PYTHONPATH=src python src/scripts/sync_langfuse_logs.py       # mirror Langfuse traces (obs+scores) into data/langfuse_logs/ (--since 7d, --trace-id)
+PYTHONPATH=src python src/scripts/run_vision_sweep.py --real --max-docs 3  # vision-vs-text tradeoff sweep (text-only/vision-10/vision-all), real or --mock
+PYTHONPATH=src python src/scripts/write_pilot_report.py       # render tracked markdown+JSON pilot report (default docs/reports/pilots/pilot-vision-tradeoff.md)
+PYTHONPATH=src python src/scripts/new_report.py audits "TITLE"  # scaffold a new report under docs/reports/<kind>/ (audits|pilots|evaluations)
+PYTHONPATH=src python -m legalbench.cli --list-tasks      # LegalBench suite tasks (binary QA + family classification)
+PYTHONPATH=src python -m legalbench.cli --task contract_qa --n 30 --model qwen/qwen3.7-flash   # real LegalBench run (Langfuse-traced)
+PYTHONPATH=src python -m legalbench.cli --task family_classification --n 20 --mock             # deterministic mock baseline (no API key)
 ```
 
-`uv sync`/`uv run` silently re-lock when `uv.lock` disagrees with a
-`pyproject.toml`. A `uv.lock` diff you did not intend means the committed
-lock is stale: fix it as its own carded commit (`uv lock`, verify with
-`uv lock --check`), never fold it into unrelated work or commit it
-unexplained. Use `uv run --frozen ...` for read-only runs that must not
-touch the lock.
+- Tests: `pytest -v` (whole suite), `pytest src/tests/test_agents/ -v`, `pytest src/tests/test_routing.py -v`, `pytest src/tests -k "sorter"` for single-agent. Coverage via `--cov=src --cov-report=html`.
+- No linter, formatter, or typechecker is configured — don't invent one.
+- Config is in `config/taxonomy.yaml`; copy `.env.example` → `.env`. `OPENROUTER_API_KEY` is required or `llm/client.py:get_llm` raises.
 
-Per-package test suites (one package per invocation — see Test discipline):
+## Architecture (not obvious from filenames)
+
+- One LangGraph run per document, 13 nodes wired in `graph/build_graph.py` (`intake`, `classify`, `retry_classify`, `review_classify`, `extract`, `retry_extract`, `judge_verify`, `arbiter`, `human_review`, `boss_escalation`, `compile_report`, `catalog_write`, `archive`) — the `intake` node IS the ingest specialist: the intake agent performs the full ingest + intake work (claim/transcribe → deterministic clerk → gated LLM triage+clean+prepare → manifest/catalog/`ingested` audit), and its advisory read feeds the sorter as a labeled prior. Node contract: `node(state: DocumentState) -> dict[str, Any]` returning partial state updates. Conditional edges live in `graph/routing.py`. Auxiliary flows (Gmail triage lane for single-document uploads and the relations clerk post-archive association pass) run outside this 13-node graph — see `agents/gmail_triage.py` and `pipeline/relations.py`.
+- LLM access ONLY via `get_llm(agent_name)` (`llm/client.py`) → `llm/providers.py`. `agent_name` must match a key under `agents:` in `taxonomy.yaml`. No agent code names a provider/model; `DEFAULT_PROVIDER` env overrides provider globally. ALL chat completions go through `llm/retry.py:retry_chat_completion` (transient-failure retry: connection errors/timeouts/429/5xx only; 4xx never) and per-agent `max_tokens` caps from `taxonomy.yaml`. **Free-swarm failover**: the free lane runs on OpenRouter's Free Models Router (`taxonomy.yaml: free_model_swarm:` = `openrouter/free` — the router selects a suitable free model per request and filters for the features the request needs, so individual free models are never hardcoded). When the router rate-limits OR the provider rejects it for a missing capability (400 "does not support feature: structured-outputs" — a MODEL property), the retry ladder re-invokes the router (paid models never rotate; generic 400s never rotate) — a request only parks when the whole free pool is exhausted (`llm_free_failover` log event). **Triage I/O debug capture**: every free-triage LLM call writes its full system prompt, user message, raw response, and validated result under `data/debug/triage/<UTC>_<file>/` (`triage_llm_io` log event), including hard-call failures — debug payloads, not excerpts.
+- **Gateway tiers (Mode G)**: with `DEFAULT_PROVIDER=litellm` every agent calls the LiteLLM gateway (`deploy/litellm/config.yaml`) with the alias of its taxonomy `tier:` (`gateway.tiers`: `fast`/`extract`/`vision` → `mailroom-<tier>`, served by one Modal vLLM function per tier in `deploy/modal_vllm.py`; `api` sends the OpenRouter champion slug). `llm/client.py:resolve_agent_model` is the single resolution seam (also used by the LangChain agents); `MAILROOM_GATEWAY_TIERS=agent=tier,...` overrides at runtime. vLLM-served calls get `chat_template_kwargs.enable_thinking` instead of OpenRouter `reasoning` (`reasoning_extra_body`). The gateway runs no retries and no trace callbacks — `llm/retry.py` (gateway 503 = cold start) and client-side tracing stay authoritative.
+- Agent system prompts are Langfuse-managed via `llm/prompts.py:get_managed_prompt` (name `mailroom-<agent_name>`, `production` label) with the identical template in code as fallback when Langfuse is off; the sync script is `scripts/sync_prompts.py`. New/changed agent prompts must be registered in `llm/prompts.py:prompt_templates()` and synced. The `json_object` boilerplate in `agents/base.py:_call_structured` is deliberately hardcoded — it guarantees the literal token `json` in messages (Qwen/Alibaba rejects requests without it) and embeds the schema in the prompt.
+- Tracing is backend-agnostic via `observability/tracing.py`
+  (`OBSERVABILITY_PROVIDER=auto|langfuse|braintrust|phoenix|none`). The `auto`
+  chain is aligned with the standalone `llm-entity-extraction` repo: Langfuse if its secret key is
+  set, else Braintrust if its key is set, else the **local cost-free Arize
+  Phoenix** backend (`src/observability/phoenix_setup.py`, OpenTelemetry-native,
+  SQLite, no subscription/tokens), then `none` — so tracing never silently turns
+  off. `get_llm` passes every OpenAI client through `instrument_client` →
+  langfuse 4.x monkeypatches `openai` `Completions.create` at import
+  (`langfuse.openai`); Phoenix instruments the OpenAI SDK via OpenInference. So
+  ALL LLM calls are auto-traced with no agent changes. `pipeline/env.py:load_env()`
+  loads `.env`; it's called in `pipeline/watcher.py`, `api/main.py`, `pipeline/ops_monitor.py`,
+  and `llm/client.py`.
+- Langfuse tracing is also structured per document (best practices): `graph/build_graph.py` wraps `run_pipeline` in `pipeline_trace` (one trace per doc, deterministic trace id from filename, `session_id=matter_id` — or an explicit run-scoped `session_id`/`run_id` for pilot runs, curated input/output) and wraps every node via `traced_node` (verb-first spans: `classify-document`, `extract-fields`, ...). The `langfuse` skill lives in `.opencode/skills/langfuse/` (from github.com/langfuse/skills) for Langfuse-specific work.
+- Quality scores: `observability/scores.py` emits task-spec scores — self-evident per run (`parse_error`, `schema_valid`, `stage_completed`, `success_rate` first-pass STP with no ground truth, `guardrail_triggered`, confidence values) and ground-truth for pilot runs (`class_correct`, `stage_correct`, `confidence_calibration_error`, `expected_field_presence`); score configs are auto-created via `ensure_score_configs()`. Offline LLM-as-a-judge (`agents/judge.py`, `scripts/run_quality_judges.py`) audits classification/completeness/correctness against the taxonomy + extraction-schema task specs; live, the pipeline-result generation has two independent Langfuse evaluations: `mailroom-pipeline-judge` gives a three-way CORRECT/PARTIAL/MISS verdict (PARTIAL = substantially correct run with limited material gaps, so partial-but-useful extractions are not flattened into MISS), while `mailroom-pipeline-quality` gives a proportional 0.0-1.0 quality score. `scripts/sync_evaluators.py` deploys both evaluators and both observation rules, each targeting the same `pipeline-result` generation; this costs two independent evaluator calls per document. Grounded runs (ground truth with `expected_fields`) skip the document text in the judge input — the input is a labeled, pretty-printed expected-fields block and the output is a cleaned schema-only extraction, cutting ~90% of judge tokens. `scripts/sync_dataset.py` mirrors the pilot samples (PDF text + manifest metadata + ground truth incl. `expected_fields`) into the `mailroom-pilot` Langfuse dataset for experiments. `scripts/sync_langfuse_logs.py` mirrors traces (with observations + scores) into `data/langfuse_logs/<run>/` for offline subagent analysis.
+- Deterministic field scoring (issues #4/#5): `observability/field_scoring.py` adds a cheap, backend-agnostic, field-type-aware extraction scorer (`id`/`date`/`money` exact-after-normalize, `name` Jaro-Winkler + token-set ratio, `free_text` SQuAD token F1, `entity_list` optimal bipartite matching via scipy Hungarian → precision/recall/F1) with an optional sentence-transformers embedding cosine second signal that rescues lexically-distant-but-semantically-equal fields below `field_scoring.embedding_rescue_below`. The per-doc-class `field_types:` mapping lives in `config/taxonomy.yaml` (`doc_classes[].field_types`, list elements as `entity_list:<type>`; name-based heuristic fallback for unmapped fields); `field_scoring:` configures the ambiguity band, match threshold, and embedding model. `observability/langfuse_field_scoring.py:score_and_log_extraction` attaches `extraction_field_score`/`extraction_overall_score`/`extraction_needs_judge_review`/`entity_list_precision`/`entity_list_recall` to the trace. Judge gating: for grounded runs, `graph/build_graph.py` suppresses the `pipeline-result` generation entirely when the deterministic verdict is unambiguous (outside `ambiguous_band`), saving both evaluator calls — the LLM judge only runs when a field lands in the band or there is no ground truth (live runs unchanged).
+- Agent-output guardrails: `pipeline/guards.py` validates classification (enum + confidence range) and extraction (JSON parse + schema) deterministically after every LLM call; violations clamp confidence below the routing threshold so bad output goes to retry/review instead of continuing. `pipeline/logging.py:setup_logging()` configures structlog (level `LOG_LEVEL`, format `LOG_FORMAT=json|pretty`) in every entrypoint and script.
+- `config/taxonomy.yaml` is the single source of truth: `doc_classes`, `confidence:` thresholds, per-agent model mapping, `file_extensions`. Nothing is hardcoded in code.
+- Files only move through `pipeline/bins.py` helpers (`claim_file`, `move_to_*`, `save_manifest`) — never direct `os.rename`/`shutil.move` in node/agent code. Flow: inbox → `processing/<worker_id>/` → archive or review/failed.
+- **Gmail intake channel (`pipeline/gmail_intake.py`)**: the agent mailbox (`GMAIL_ADDRESS` + `GMAIL_APP_PASSWORD`, opt-in via `MAILROOM_GMAIL_ENABLED=1`) is a second intake route. The poller (stdlib IMAP SSL, no new deps) runs INSIDE the watcher process (`Watcher.start()` → `start_embedded_poller()` — the `watcher.lock` holder stays the single intake authority) and only drops accepted attachments into the SAME inbox bin with the `/upload` `<file>.meta` sidecar; matter routing comes from a `[M:<id>]` subject tag or `MAILROOM_GMAIL_DEFAULT_MATTER_ID`. Handled messages are marked `\Seen`; `Message-ID`s are recorded in `<base>/gmail_intake_state.json` so a lost seen-mark can never double-queue. **Check reaction:** when the watcher claims a Gmail attachment it reacts to the source email with the `✅` label (IMAP `X-GM-LABELS` in RFC 3501 modified-UTF-7 — Gmail rejects raw UTF-8 label bytes AND literals in that position (live-verified `BAD Could not parse command`); mUTF-7 `&JwU-` decodes to ✅ in the UI; one reaction per Message-ID even for multi-attachment emails; best-effort daemon thread, `MAILROOM_GMAIL_REACTIONS=0` disables). **Completion echo:** every terminal manifest (archived / review / failed) dispatches `dispatch_intake_echo` (daemon thread off the document path) — `send_intake_echo` replies on the source thread (`In-Reply-To`/`References`, To: the original sender) with `build_echo_body`: status, classification, extraction `_report` + fields, archive entry (path + sha256) or the failure reason, and the audit chain via `storage.audit_log.get_audit_chain` + `verify_chain` (deduped per `(doc_id, stage)`, retried on the next terminal event if the send fails; `MAILROOM_GMAIL_ECHOES=0` disables; SMTP host/port `MAILROOM_GMAIL_SMTP_*`). **Single-document triage lane (HUB-037):** an email carrying exactly ONE accepted attachment is routed by the poller as `route: triage`; the watcher then dispatches it to the FREE-model triage lane — `agents/gmail_triage.py` (`GmailTriageAgent`, `openrouter/free` — OpenRouter's Free Models Router; the router auto-selects the best free model per request, so no individual free model is hardcoded — human directive 2026-09-13) performs the CORE steps of the full pipeline (deterministic prep → triage classification → key/concise entity extraction → auditable-hash archive → completion echo) WITHOUT the paid agents, with its OWN `triage_*` audit-log section (never conflated with the pipeline's `ingested/classified/extracted/archived` events). **Key-entity extraction (HUB-048):** the triage read ALSO returns a per-class `extraction` object driven by the EXISTING `schemas.documents.EXTRACTION_SCHEMAS` field map (the same models the paid specialists use) — so short documents like correspondence/Enron emails yield sender/recipient/communication_date/action_items/subject_matter free, and contracts/insurance claims yield parties/effective_date/claim_number/etc. It rides `intake_meta["triage"]["extraction"]` → the manifest → the echo's "EXTRACTED KEY ENTITIES (triage)" block, is clamped to the canonical class schema (spurious cross-class fields dropped, lists/strings capped), and fails soft like the rest of the lane. A DETERMINISTIC capability pre-check (`_triage_capability_check`, LLM-free) runs BEFORE the lane: documents beyond the free team's reach — image-only inputs, scanned PDFs, or text longer than the `gmail_triage` `max_input_chars` budget (merger agreements typically exceed it) — are HONESTLY HANDED OFF to the full paid pipeline (`intake.triage_handoff` records the reason on the terminal manifest; the echo renders it) instead of starting a failed run. Emails with TWO OR MORE accepted attachments are `route: pipeline`: the triage approach is dropped and every attachment runs the FULL paid pipeline. Advisory by design — triage never overrules the pipeline agents; any failure fails soft (claim proceeds, logged); `MAILROOM_GMAIL_TRIAGE=0` disables the lane (single-doc emails then take the full pipeline); registered in `llm/prompts.py:prompt_templates()`. `/health` reports the channel under `checks.gmail_intake`. Conftest forces it off (hermetic tests).
+- **Intake agent v2 (HUB-038)**: the deterministic intake clerk (`agents/intake.py`, dojo gold) is now the MANDATORY baseline of an LLM-assisted intake — ONE fused call per window that TRIAGES (advisory read: primary class / subclass / confidence / gist / keywords — same shape as the free triage team's `validate_triage`), CLEANS (structural repair of messy OCR-ish text, gated, re-normalized through the deterministic clerk so `prep_invariants` hold, scored as `method: llm` by the dojo intake suite), and PREPARES (section map: heading + role + document-absolute char offsets, deterministically validated). **NO TRUNCATION DOCTRINE (human directive 2026-09-03)**: documents are NEVER truncated — anything past an input budget is processed in overlapping SLIDING WINDOWS (`sliding_windows`, paragraph-boundary, 15% overlap) so every character is read; the sorter (vendored HEAD+TAIL truncation is bypassed by the mailroom subclass in `agents/sorter.py`) classifies each window and merges deterministically (plurality vote, mean confidence of agreeing windows); the intake agent merges per-window triage reads and translates section offsets. The advisory intake read rides the terminal manifest's `intake.triage`, the Gmail echo's INTAKE TRIAGE section, and is fed to the sorter as a labeled prior (`intake_prior=` — the vendored `sorter_v14` prompt is never mutated). Gate: the LLM pass fires ONLY for messy or over-sorter-budget documents (clean short docs pay zero); cheapest paid model `qwen3.7-flash`; `MAILROOM_LLM_INTAKE=0` disables (deterministic intake); failures fail soft to the clerk.
+- **ModernBERT intake fast path (M6a/#98, hub-tracked)**: the intake node ALSO runs a deterministic local-model triage — `agents/bert_intake.py` (procedural lane, sibling to the intake clerk; never an LLM agent) lazily imports the `mailroom-ml` package and is **fail-open by construction**: flag off (`MAILROOM_BERT_INTAKE=0` default), missing package (undeclared sibling), missing bundle (`ML_MODEL_DIR`), or model error all degrade to the deterministic clerk and never crash intake. The handoff is **ALWAYS emitted** (`state.intake_handoff` + the manifest's `intake.bert` block: `{available, reason: flag_off|no_package|no_model|error|ok, method, routing_path}`) so downstream lanes rely on its presence; it merges unconditionally (independent of the LLM `intake_prep` gate). Every call emits an `intake-ml-triage` SPAN (span type — no LLM call) with curated provenance metadata (available/reason/route/triage class/confidence/latency), and captures full I/O under `data/debug/bert_intake/` (`MAILROOM_BERT_DEBUG=0` kills it). **Tier-1 prior-scoped lane (#108)**: when the triage verifies the primary class (`route: fast_path`), `classify_node` composes `format_bert_type_prior` onto the SAME `intake_prior=` channel — the sorter's residual job becomes subclass verification (subclass labeled UNVERIFIED; overrulable with cited evidence); the vendored `sorter_v14` prompt is never mutated and zero new LLM calls are added. The `after_intake` conditional edge (#99) and sorter-skip gate (#90) land later, on top of this seam.
+- **Watcher status channel (HUB-050)**: 🟢/🔴/🟠 status emails to the human's status inbox (default `axios337@gmail.com`, `MAILROOM_STATUS_EMAIL` overrides). The watcher writes an ENRICHED heartbeat at boot and on every rescan sweep (`pipeline/bins.py:touch_watcher_heartbeat` — atomic temp+replace; pid/host/started_at/git-sha) and sends a 🟢 startup/relaunch confirmation (fail-soft daemon thread). Because a dead process cannot email anyone, an EXTERNAL watchdog (`PYTHONPATH=src python -m pipeline.watchdog`, runs alongside the watcher) polls the heartbeat (default 20s): pid-dead or missing heartbeat → immediate 🔴 DOWN alert; pid-alive-but-stale (hung machine/asleep laptop) → 2 consecutive stale checks before alerting; 🟠 still-down reminders only while an outage is ACTIVE (default every 60 min). **NO periodic healthy-status emails** (human anti-spam directive — emergencies and start/relaunch only). SMTP reuses the gmail channel config (`pipeline/status_notify.py`, `set_status_smtp_factory` test seam); every send fails soft (status reporting never crashes intake). Kill-switches: `MAILROOM_WATCHER_STATUS=0` (status channel off) and `MAILROOM_WATCHDOG=0` (watchdog off); timing knobs `MAILROOM_WATCHDOG_POLL_SECONDS`/`_STALE_SECONDS`/`_REMIND_MINUTES`. Both are forced off in conftest (hermetic tests).
+- **Intake awareness (HUB-037)**: the watcher resolves `(matter_id, intake_meta)` from the sidecar at claim time (module-level `_intake_context`, shared by BOTH handler classes — the method was previously only on `InboxHandler`, a latent `existing_file_failed` bug for startup-scan/rescan claims) and passes `source=` + `intake_meta=` into `run_pipeline`, which carries `DocumentManifest.intake` through intake → review → archive → aborted manifests (e.g. `source: gmail`, message_id, sender) and tags live traces `source-gmail`/`source-upload`. `scripts/gmail_smoke_test.py` proves the whole chain with an example insurance claim (committed FNOL fixture); GitHub Actions secrets `GMAIL_APP_PASSWORD` + `GMAIL_ADDRESS` are registered on `LLM-Mailroom-Services/Digital-Mailroom` and `Exios66/llm-mailroom`.
+- **Relations layer (`pipeline/relations.py`, HUB-040/HUB-051)**: the mailroom's research clerk — deterministic association scanning over the archive (same-matter / keyword Jaccard / party overlap / embedding cosine via the dojo's cached model), dispatched off the document path at every terminal manifest (`dispatch_relations_scan`, echo pattern — the Gmail triage lane writes its terminal catalog row first, so the scan can find it) plus a watermark-incremental background sweep embedded in the watcher. Edges + embeddings + scan state live in `storage/relations.py` tables; the OWN hash-chained ledger (`relation_log`, `__relations__` scope) reuses the audit hash primitives verbatim — writers enforce strictly-monotonic timestamps so `verify_chain` stays authoritative (sub-millisecond writes share timestamps; the uuid tiebreak would scramble prev-links). The LLM judgment pass (`agents/relations.py`, WIRED in HUB-051) judges the ambiguous-band near-misses when `relations.llm: true` (OFF in the pilot): top-k sub-threshold pairs → `RelationsAgent.judge` → confidence-gated `llm_asserted` edges, re-validated against the scanner's own proposed pairs — nothing unvalidated reaches the ledger. The judgment call is wrapped in a tagged Langfuse `relations-judgment` trace (tags `mailroom`/environment/`relations`, session = matter — no orphan auto-traces off the daemon thread) and captures its FULL I/O under `debug/relations/<UTC>_<n>judgments/` (system/user/response/judgments + the `relations_llm_io` event — the triage-lane debug pattern; a refused or empty verdict is always explainable). Embeddings go through the dojo's public, fail-soft `llm_dojo_scoring.embed_texts` (returns None when no backend is available; never reach into `_get_embedding()._embed`, and never `.encode()` the string `get_embedding_model()` returns). Advisory RELATED context rides `_build_handoff_context` + the echo; knowledge graphs render via `pipeline/relations_graph.py` (GraphJSON/GraphML stdlib; Plotly HTML/PNG optional-dep) into `<base>/relations/graphs/`; CLIs `python -m pipeline.relations_scan [--full|--doc|--verify-ledger]` and `python -m pipeline.relations_graph`. Kill-switches `MAILROOM_RELATIONS*`; the document path NEVER waits on relations. Stale catalog `processing` rows (dead watcher epochs) reconcile from their terminal manifests via `python scripts/recover_processing.py --catalog [--apply]` (HUB-051 G4 — the manifest is the authority; rows without one are reported, never guessed).
+  - `agents/boss.py` is used in two places: in-graph `boss_escalation` node AND `pipeline/ops_monitor.py`. Archivist, image_extractor, pdf_transcriber are procedural, not LLM agents.
+- **HF corpus loading (`pipeline/hf_corpus_loader.py`, HUB-053)**: the canonical loading path for the mailroom-corpus family (`Lucius-Morningstar/mailroom-dataset`; labels in the `ground_truth` config joined with `doc_text` from the blind `default` config on `filename`) — a /parquet ladder with an on-disk cache and the load-time integrity proof (`content_sha256` == sha256 of `doc_text`), `/rows` pagination fallback, single-repo sha provenance; the `datasets` library is NOT a dependency (pinned-revision loads are the optional upgrade). Notebook 14 + `notebooks/gmail_pilot_lab.py` build on it (corpus-derived pilot documents, never ad-hoc fetches — the mailroom-corpus-eda upload helpers and this loader are the only HF paths).
+- **Vision is additive (content-completeness guarantee)**: every agent prompt always contains the full `doc_text` (budget-truncated); page images are appended only for vision-capable models. `vision.max_pages` (0 = all pages) bounds the image budget, never the content. Environment overrides `MAILROOM_VISION_ENABLED`, `MAILROOM_VISION_MAX_PAGES`, `MAILROOM_VISION_DPI` let a pilot sweep configs without touching taxonomy.yaml.
+- PDFs/images are transcribed in `graph/build_graph.py:_read_file_text` via `agents/pdf_transcriber.py` / `agents/image_extractor.py`. Requires `pypdf`/`pdfplumber` (declared deps); `pdftotext` (poppler) is an optional CLI fallback, and `pymupdf` (fitz) enables **vision ingestion**. **Vision mode**: PDFs are also rendered to page-image data-URIs (`graph/build_graph.py:_render_doc_pages` → `llm/vision.py`) and sent to the sorter/specialist prompts as multimodal `image_url` content whenever agent models listed under `vision:` in `taxonomy.yaml` (Qwen etc.) — see `agents/base.py:_build_multimodal`. Vision is **additive, never subtractive**: the full `doc_text` transcription is always the message body and page images are appended on top, so no page cap ever drops document content (`llm/vision.py:render_pdf_pages` with `cap<=0` renders ALL pages; the strategy config default `vision.max_pages=10` only bounds the image budget). If the pipeline is vision-capable the expensive LLM transcription pass is skipped for scanned PDFs (`llm/vision.py:pipeline_uses_vision`). `scripts/run_vision_sweep.py --real` measures the text-only vs vision-N vs vision-all tradeoff and `scripts/write_pilot_report.py` renders it to `docs/reports/pilots/pilot-vision-tradeoff.md`.
+- Pilot samples: `docs/examples/samples/` (23 PDFs + external text, manifest.csv = ground truth incl. a per-sample `expected_fields` JSON column with literal expected extraction values, `dataset` column tags source corpus) + `scripts/fetch_external_samples.py` (downloads LegalBench MAUD / Atticus CUAD / Pile of Law public-domain samples; idempotent) + `scripts/run_pilot.py` (mock/real, baseline diff, `--source`; each run gets its own Langfuse session id `pilot-<mode>-<timestamp>` and a `run_id` in trace metadata + report) + `scripts/prepare_samples.py` (generates `data/samples/`). **Real (non-mock) runs are restricted to the actual committed legal documents** — the 9 Atticus/CUAD contract & agreement PDFs (`contract_01..03`, `atticus_01..06`) plus the 6 LegalBench MAUD samples (15 real samples; see `scripts/prepare_samples.py:is_real_sample`). The repo-written synthetic `.txt`-derived PDFs (corporate/correspondence/insurance/ambiguous, 8 samples — the two compliance stand-ins left the roster with the retired compliance agent, DMR-057/072) are **mock-only** — `run_pilot.py --real` and `run_quality_judges.py --real` refuse to process them (they exist only to exercise pipeline machinery; they must never spend real LLM/eval tokens or pollute live traces). The three `insurance_claim` letters (`insurance_01` approved / `insurance_02` denied / `insurance_03` partial) complement the local eval pack in `observability/local_eval_packs.py`. `docs/examples/samples/ATTRIBUTION.md` documents licenses (CUAD + MAUD are CC-BY-4.0; Pile of Law samples are public-domain US government works — the NC-SA compilation is never committed).
+- Storage is **SQLite by default** (no server): `data/mailroom.db` (tables `matters`, `documents`, `audit_log`). `storage/db.py:ensure_schema()` auto-creates tables on first use (idempotent, thread-safe). Setting `DATABASE_URL` to a Postgres URL switches the storage engine. The LangGraph **checkpointer is MemorySaver by default** (`graph/build_graph.py:_build_checkpointer()`), held on a process-level compiled graph so `human_review_node` can pause with `interrupt()` and resume with `Command(resume=...)`. The filesystem review bin is the durable park across process restart; `resume_from_review` falls back to a fresh extract invoke when the checkpoint is gone. Set `MAILROOM_CHECKPOINTER=sqlite` to opt into the on-disk SqliteSaver at `data/checkpoints.db` (debugging/resume-across-restart; falls back to MemorySaver if SQLite is unavailable).
+- `storage/db.py` uses `NullPool` for every asynchronous backend, including SQLite/aiosqlite and PostgreSQL/asyncpg: the graph spawns short-lived loops from sync threads, so sessions must close connections rather than retain idle loop-bound pools.
+- Review-bin files use `<original-stem>--<doc_id><suffix>` for durable identity; call `pipeline.bins.review_file_path(manifest)` instead of joining the display filename. Legacy basename files resolve only when unambiguous. Archive matter/class components are path-free identifiers and resolved paths must remain inside the configured archive root. Warehouse file and manifest publication is serialized and atomic per completed file. Arrow reads pin one open snapshot; exported audit rows retain their document join key.
+- **LegalBench suite (`legalbench/`)**: a self-contained evaluation submodule (see `legalbench/README.md`) that evaluates models through the LegalBench task families on the locally-mirrored corpora (`data/cuad/`) — `contract_qa` (binary answer: the full CUAD annotations, 510 contracts × 41 categories = 20,910 yes/no questions with evidence) and `family_classification` (multiclass: 200 labeled contracts into the 25 families + `other`). Runs reuse the vendored `BaseAgent` machinery (retry contract, usage accounting, truncation) but add no dependencies and never touch the pipeline's own eval tasks. On completion a run is (1) scored deterministically (accuracy, macro per-category accuracy, yes-class F1, ECE calibration / strict + equiv family accuracy, macro-F1 — no LLM grading), (2) traced to Langfuse as one `legalbench-<task>` trace with per-question spans + run-level `legalbench_*` scores (configs in `observability/scores.py`), and (3) appended to the shared experiment log — regenerating the markdown log, the experiment-log site data, and the synced copy at `docs/reports/experiments/experiment_log.md`. The log/site regeneration runs the sibling repo's own scripts (`render_experiment_log.py`, `build_site.py`) via `LEGALBENCH_SIBLING_REPO` (default `../llm-entity-extraction`; an optional standalone checkout since DMR-079 removed the package from the monorepo) and only when the log path lives inside that repo — a throwaway `--jsonl` never clobbers the real site data. Mock runs (`--mock`) use a deterministic fake model and are labelled `mock/mock-legalbench` in the log.
+
+## Langfuse project configuration & tracing best practices
+
+### Our Langfuse setup (verified Aug 2026)
+
+- **Cloud org `Jack's Organization` → project `llm-mailroom`** on US cloud (`https://us.cloud.langfuse.com`). Credentials live in `.env` (`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_HOST`). The project-scoped API keys cannot read org-level resources (`get_organization_*` → 403); org endpoints require org-scoped keys.
+- **Environments**: every entrypoint declares `OBSERVABILITY_ENVIRONMENT` via `pipeline.env:default_environment()` — `live` (watcher, API, ops monitor), `pilot` (`scripts/run_pilot.py`), `misc` (sync/mirroring scripts), `mock` (when `OBSERVABILITY_PROVIDER=none`). The environment is **immutable per trace**: re-running a document reuses its deterministic trace id and keeps the first run's environment/tags (verified: the 12 pilot traces created before env wiring are stuck at `default`/`development`).
+- **Trace structure** (`graph/build_graph.py:run_pipeline` → `pipeline_trace`): one trace per document named `document-pipeline`, deterministic trace id seeded from the filename (correlates with our DB/catalog), `session_id = matter_id` by default (groups all documents of a matter in the Sessions view) — pilot runs override it with a run-scoped `pilot-<mode>-<timestamp>` session plus `run_id` in `metadata` — curated input (file metadata, not raw payloads) / output (report), `metadata={pipeline, run_deadline, attempt, run_id?}`, `tags`, `environment`. Every node runs as a verb-first span (`classify-document`, `extract-fields`, …) via `traced_node`; all LLM calls are auto-traced `generation` observations with model + usage via `langfuse.openai` patching.
+- **18 managed prompts** `mailroom-<agent_name>` (`production` label; current versions are verified by `scripts/sync_prompts.py`) — including `mailroom-image_extractor`, the judge variants `mailroom-judge-classification` / `mailroom-judge-correctness`, `mailroom-intake`, and `mailroom-relations` (every LLM call links its exact prompt version); generations carry `langfuse_prompt=` so every trace links its prompt version.
+- **Model registry** (synced from `taxonomy.yaml` `cost_models:` via `scripts/sync_models.py`): `qwen/qwen3.7-flash` ($0.03/$0.13 per 1M), `deepseek/deepseek-v4-flash` ($0.05/$0.25), `deepseek/deepseek-v4-pro` ($0.435/$0.87). Prices are verified against the live OpenRouter models API. Cost gotchas: (1) generation cost is computed **at ingestion time** and read from the observation **`cost_details`** field — `usage.input_cost`/`output_cost` are always null in API v2 responses; (2) the worker caches "model not found" per model string in Redis for **24h**, so a model used *before* its registry entry exists silently costs $0 until the cache is cleared — `sync_models.py --force` (delete + create) clears it.
+- **One LLM connection**: OpenRouter (adapter `openai`, base `https://openrouter.ai/api/v1`, `custom_models=[qwen/qwen3.7-flash, deepseek/deepseek-v4-flash]`, `with_default_models=false`) — used by the LLM-as-a-Judge evaluators.
+- **Score configs** auto-created idempotently by `ensure_score_configs()` (self-evident run scores: `parse_error`, `schema_valid`, `stage_completed`, `success_rate` (first-pass archive, no GT), `guardrail_triggered`, confidences, `estimated_cost_usd`, `total_tokens`, …; pilot ground truth: `class_correct`, `stage_correct`, `confidence_calibration_error`, `expected_field_presence`; judge dimensions: `classification_*`, `completeness`, `extraction_correctness`; deterministic field scoring: `extraction_field_score`, `extraction_overall_score`, `extraction_needs_judge_review`, `entity_list_precision`, `entity_list_recall`, `extraction_category_presence`; LegalBench suite: `legalbench_accuracy`, `legalbench_macro_f1`, `legalbench_calibration_error`, `legalbench_n_questions`, `legalbench_task`). `deterministic_verdict` is attached on grounded field-scoring traces but is **not** a `SCORE_CONFIGS` name (KANBAN-061 — it is not in the current Dojo registry).
+- **3 live datasets**: `mailroom-pilot` (11 original samples: 3 CUAD PDFs + 8 synthetic mock-only texts including three `insurance_claim` letters) plus per-corpus `mailroom-pilot-{atticus, legalbench}` (6 each). Pile of Law court opinions remain on disk but are not in the live manifest. Every item carries `expected_doc_class`, `expected_stage`, and schema-compatible literal `expected_fields` from `docs/examples/samples/manifest.csv`; `scripts/sync_dataset.py` rejects missing or unknown field truth.
+- **2 project-scope LLM-as-a-Judge evaluators**: `mailroom-pipeline-judge` (three-way CORRECT/PARTIAL/MISS — MISS reserved for wrong class/stage, contradictions, failed runs, or broad omission) and `mailroom-pipeline-quality` (proportional 0.0-1.0 quality score), each with its own observation rule (`mailroom-pipeline-rule` and `mailroom-pipeline-quality-rule`) matching the single `pipeline-result` generation emitted per document trace. They run independently: the quality score does not replace or alter the run verdict. When the caller knows the ground truth (pilot runs pass `expected_doc_class`/`expected_stage` via `run_pipeline(ground_truth=...)`), both use the actual truth; grounded input has no document text and is labeled/pretty-printed. Synced via `scripts/sync_evaluators.py`, which prunes stale mailroom evaluators/rules; the 22 `managed` template evaluators are platform-locked (403 on delete) — ignore them. The `pipeline-result` generation is **unlinked by design** (no prompt exists for it — it is the evaluator target, not an LLM call).
+- **4 dashboards** synced via `scripts/sync_dashboards.py` (idempotent, definitions in version control): **Mailroom Quality — per Prompt over Time** (avg score, p95 latency, and total cost per prompt as LINE_TIME_SERIES, scoped to `environment any of [live, pilot]` so a quality decline shows up as a trend automatically), **Production Health — Judges (Qwen & DeepSeek)** (LLM-as-a-judge throughput / P95 / P99 / errors, scoped to environment `langfuse-llm-as-a-judge`), **Mailroom Quality — Completion / Correctness / Accuracy / Latency**, and **Mailroom Performance — Throughput / Errors / Tokens / Cost / Latency**.
+
+### Tracing best practices (see the `langfuse` skill in `.opencode/skills/langfuse/`; audit against https://langfuse.com/docs/observability/best-practices)
+
+- **Baseline per trace**: model name on every generation, token usage, descriptive names, correct nesting and observation types (generation for LLM calls, spans for steps — never a generic `tool`/`span` where a more specific type fits), no PII/confidential data, meaningful trace input/output (what a reviewer needs at a glance — not function args).
+- **Names are an API**: verb-first and stable (`classify-document`, not `classify-document-8945`); keep dynamic/run-specific values in `metadata`, never in names; never name an observation after the model (that's a separate generation attribute).
+- **Tags are immutable and set at creation** — use them for dimensions known upfront (feature, run context, corpus). Anything determined after the fact (e.g. judge verdicts) goes in **scores**, not tags.
+- **Metadata** carries evaluation context (ground truth), request context (doc id, matter id, attempt), and raw payloads that would clutter input/output.
+- **Environments** on every trace keep test/pilot runs out of production dashboards and evaluations.
+- **Sessions** (`session_id`) group multi-trace workflows; **prompt linking** shows which prompt version produced each generation.
+- **Self-audit loop**: after changing any instrumentation, run the instrumented path end-to-end, fetch the trace fresh from Langfuse, and audit it against the best-practices page before calling it done.
+- **Cost**: ensure the model has a registry entry (matching `taxonomy.yaml` prices) *before* first use to avoid the 24h negative-cache pitfall; read costs from `cost_details`.
+- **Reasoning budgets**: the reporter is procedural — `taxonomy.yaml` marks it `procedural: true` and `get_llm("reporter")` is unused, so there are no reporter LLM calls to budget; `BaseAgent` propagates `reasoning_effort` automatically for the LLM agents.
+
+### Mandatory: classify and tag every logged run
+
+- **Never log a trace without tags.** Every run must carry: the `mailroom` tag (always set in `run_pipeline`), a run-context tag matching its environment (`pilot`/`live`), an attempt tag (`run-<n>` for re-runs), and, for pilot/corpus runs, a source tag (`source-<corpus>` e.g. `source-atticus`). These dimensions are what make the Langfuse trace table, dashboards, and tag filters usable at all.
+- Because tags are immutable and the trace id is deterministic per document, **re-runs keep the first run's tags/environment** — if a run's classification context changes, do not rely on re-runs to fix it; instead pick the tags correctly on the run that creates the trace (or use a distinct seed for a genuinely new run class).
+
+## Config gotchas
+
+- `pipeline/config.py:load_config` is `lru_cache`d and `pipeline/bins.py` caches config at module level. Editing `taxonomy.yaml` requires restarting the watcher/API — it will not be picked up live.
+- Adding a doc class touches ~5 places, all required: `taxonomy.yaml` (`doc_classes` + `agents:`), schema + `EXTRACTION_SCHEMAS` in `schemas/documents.py`, a `BaseAgent` subclass in `agents/`, a dispatch entry in `graph/build_graph.py:_specialist_extractor_map` (name → extract function; keys MUST match taxonomy `specialist:`), a prompt template entry in `llm/prompts.py:prompt_templates()`, and test fixtures/tests. Live 1:1 map: `contract` → `contracts_specialist`, `merger_agreement` → `merger_agreement_specialist`, `corporate_record` → `corporate_records_specialist`, `correspondence` → `correspondence_specialist`, `insurance_claim` → `insurance_claims_specialist`. MAUD ≠ CUAD — predicting `contract` when GT is `merger_agreement` remains a class miss.
+- Ollama runs as a profile-gated service in docker-compose: `--profile local-llm up`.
+
+## Testing quirks
+
+- No real LLM calls ever run in tests. `src/tests/conftest.py` patches `llm.client.OpenAI` and `agents.base.BaseAgent.__init__`. For new agent tests, inject `agent.client = <mock>` + `agent.model = "test-model"` like existing tests do.
+- Tests run without Docker: conftest auto-sets `OPENROUTER_API_KEY` and `MAILROOM_BASE_DIR` to a tmpdir (`temp_base_dir` fixture). E2E tests build the full graph with mocked LLM and the SQLite checkpointer.
+- `asyncio_mode = "auto"` is set; graph nodes are sync. Fixtures are plain-text files in `src/tests/fixtures/<doc_type>/`.
+
+## Source ownership and Digital-Mailroom integration
+
+This standalone repository is the authoritative source for the pipeline:
+its 13-node graph, agents, storage, API, and production prompt selection.
+Develop and validate changes here, then commit them upstream before importing
+that committed source into Digital-Mailroom. Do not copy hub package trees or
+export hub patches into this repository.
+
+- **Pipeline:** `Exios66/llm-mailroom` owns pipeline behavior and compatibility.
+- **Scoring:** `Exios66/llm-dojo-scoring` owns every metric, scoring formula,
+  normalization rule, and scoring suite. Pipeline adapters consume dojo APIs;
+  scoring fixes are authored and tested in dojo first.
+- **Test interface:** `Exios66/local-mailroom-sandbox` owns the local/offline
+  harness and Modal/vLLM test interface. Its vendor snapshots consume committed
+  pipeline and dojo source; they are not alternate implementations.
+- **Visualizer:** `Exios66/The-Mailroom` owns the visualizer used by both the
+  pipeline and sandbox. Keep their producer/trace contracts compatible.
+- **Integration:** Digital-Mailroom coordinates the board, imports committed
+  standalone changes, and refreshes vendor snapshots. It is not the development
+  source for feeder repositories. Never use hub-to-feeder development pushes.
+
+The hub's `[tool.uv.sources]` workspace redirects and shared lockfile are
+integration concerns. Preserve standalone published dependency pins until an
+explicit release or dependency-adoption task authorizes changing them.
+Cross-repository work is tracked on `governance/TASKS.md` in Digital-Mailroom;
+package-scoped implementation and tests stay in the owning standalone repo.
+Hub integration uses `scripts/sync_packages.py pull` followed by the appropriate
+vendor refresh and validation; nested package workflows remain inert in the hub.
+
+## Experiment-log sync (mirror of the extraction-pipeline repo)
+
+> DMR-079: `llm-entity-extraction` left the monorepo (standalone `Exios66/llm-entity-extraction` only, no longer synced). The mirror below is now a frozen snapshot; regenerate it only when you have a standalone checkout and set `LEGALBENCH_SIBLING_REPO`.
+
+The experiment log at `docs/reports/experiments/experiment_log.md` is a
+**SYNCED MIRROR** (frozen since DMR-079) of the standalone `llm-entity-extraction` repo's
+`reports/experiment_log.md` — never hand-edit it. It syncs naturally whenever
+the upstream repo pushes new experiment runs or releases:
 
 ```bash
-uv run pytest packages/llm-dojo-scoring/tests
-uv run pytest packages/llm-mailroom/src/tests
-uv run pytest packages/The-Mailroom/tests
-uv run pytest packages/local-mailroom-sandbox/tests
-uv run pytest packages/mailroom-corpus-eda/tests
-python3 -m unittest discover scripts/tests   # hub governance tooling (hermetic)
-(cd board-site && node tests/api.test.js)    # served-board API proxy
+PYTHONPATH=src python -c "from legalbench.experiment_log import regenerate, default_log_path; regenerate(default_log_path())"
+git add docs/reports/experiments/experiment_log.md
+git commit -m "DOCS SYNC: experiment log re-synced"
+git push origin main
 ```
 
-Governance tooling (hub board + labels; see README "GitHub governance
-tooling" for the full command list):
+`regenerate()` rebuilds the upstream markdown log + the GH Pages site data,
+then refreshes this synced copy (SYNCED-DOCUMENT header carries the upstream
+commit). **Direct access to the interactive site:** the synced log's header
+links https://exios66.github.io/llm-entity-extraction/ — the filterable,
+searchable experiment-log viewer (trend charts, cost-vs-quality scatter,
+failure-mode bars, prompt diffs) served from the upstream repo's `docs/`
+folder on `main`. Run the sync after every upstream push; the upstream repo's
+own release workflow (`scripts/release.py`) also ends with this mirror step.
 
-```bash
-python scripts/board_state.py status            # live board snapshot (--json for machines)
-python scripts/board_state.py check             # board invariants; exit 1 on structural errors
-python scripts/board_state.py sync-issues       # push board lane labels -> synced issues (--apply)
-python scripts/board_state.py pull-issues       # reverse-sync served-board lane moves back into TASKS.md (--apply)
-python scripts/github_labels.py audit           # label taxonomy drift (CI gate)
-python scripts/taxonomy_parity.py               # doc-class taxonomy drift (CI gate, HUB-019 §65A)
-python scripts/release_chain.py status          # hub release-chain snapshot (tags, sections, version)
-python scripts/release_chain.py check           # chain invariants; exit 1 on structural errors (CI gate)
-python scripts/release_chain.py cut X.Y.Z       # stamp [Unreleased] -> section + bump hub version (dry run; --apply writes)
-python scripts/release_notes.py X.Y.Z           # render the GitHub Release body from the changelog section + PRs + commits (template: .github/RELEASE_TEMPLATE.md)
-./docs/wiki/sync-wiki.sh                        # push docs/wiki/ source to the GitHub wiki (--check for drift)
-```
+## Documentation layout
 
-## HF Hub uploads
-
-The `mailroom-dataset` dataset family (canonical id
-`Lucius-Morningstar/mailroom-dataset`, "Mailroom Dataset v1", v9, 3,302 rows,
-pinned to the published tag `v9.1` (`bc9eab28`; data commit `ed7576b6`,
-2026-09-26); the latest published tag `v9.2` (`670e8bc6`) is not yet adopted
-by the pipeline/eval/ML pins — the corpus-EDA loader re-pinned to it on
-2026-10-06) is the current corpus.
-Its frozen
-v8 baseline remains `Lucius-Morningstar/mailroom-corpus` (2,000 rows, pinned
-eafe1ab4) — itself renamed from `docclass-merged` on 2026-09-02 ("docclass"
-was a placeholder). Both are published through the CENTRALIZED helpers in
-`packages/mailroom-corpus-eda/src/mailroom_eda/` (`hf_interface`,
-`dataset_export`, `docclass_uploader`, `intent_backfill`) — never ad-hoc
-upload code. See `packages/mailroom-corpus-eda/AGENTS.md` and the
-`hf-dataset-publish` opencode skill for the full workflow (cast-safe metadata,
-line-boundary-safe JSONL, sha256 verification, surgical card renders,
-blind-config label guard, issue #5 intent hydration).
-
-## Governance & task board
-
-`governance/TASKS.md` is the monorepo's task board and the single source of
-truth for cross-agent task state: what is assigned, in progress, needs
-attention, and done. Read it FIRST every session, before any task. It is the
-simplified counterpart of the per-package message boards (same laws, fewer
-steps); package-scoped work keeps its own board. (The
-`llm-entity-extraction` `MESSAGE_BOARD.md` left with that package in DMR-079.)
-
-**DMR namespace (DMR-001, 2026-09-09):** this repo is the standalone
-Digital-Mailroom version, cloned from the original `Exios66/mailroom-dev`
-monorepo. Its board was restarted fresh: cards use `DMR-00N` and never reuse
-the predecessor `HUB-00N` numbers. HUB-era evidence lives in the original
-repo and this repo's git history.
-
-The five lanes: `unassigned` (queued and unclaimed — free for the next agent
-or team to claim) → `assigned` (claimed, nothing underway) → `in_progress`
-(any work exists — label the card before the code, never after) →
-`needs_attention` (blocked / review / decision, tagged in Evidence) → `done`
-(Archive, append-only; reopen instead of delete).
-
-- **Claim before edit** — one owner per card; claim = lane + Owner name + date.
-- **Update, don't duplicate** — work touching an existing card's scope updates
-  that card; a discovered-but-undelivered item spawns its own card before the
-  parent closes.
-- **No silent completion** — `done` requires green suites for the touched
-  packages, a clean `git status` for the card's scope, Evidence naming the
-  commit(s), for a bug-fix card the regression test that shipped in the same
-  PR (shown red before the fix, green after — § Test discipline), and (for
-  synced cards) the GitHub issue closed in the same commit. An agent is NOT
-  done until its card says so.
-- **Commit discipline** — reference cards: `DMR-00N: <summary>`; stage
-  targeted paths only (`git add <explicit paths>` — never `git add .`/`-A`
-  or a bare directory). Shared checkout: re-check `git status --porcelain`
-  before every commit and unstage files you don't own (HUB-024/HUB-027
-  sweep incidents). **DMR prefix is the law for board commits (mailroom-issues
-  directive 2026-09-14):** any commit that touches the board — `governance/
-  TASKS.md`, `scripts/board_state.py` + board tooling, `.github/` templates/
-  workflows that govern the board, `board-site/` — MUST lead with the `DMR-0NN:`
-  card it affects (or `DMR-0NN claimed/reopened`). `HUB-0NN` prefixes belonged
-  to the original `Exios66/mailroom-dev` board and are never used for NEW board
-  work here (DMR-001 lineage law); HUB references may appear only as historical
-  notes inside message bodies, never as the commit's routing prefix. **Detailed
-  messages (human directive 2026-09-04):** every
-  commit carries a fully detailed, explanatory message — subject line plus
-  a body that names each file changed and describes what/why (reference the
-  card, note test evidence and gates; template and examples in
-  `docs/COMMIT_MESSAGES.md`; enable the `.gitmessage` template once per clone). A terse "Update X" without a body is
-  a defect. Rewrites of pushed history are reserved for human-directed
-  corrections (see the 2026-09-04 reword session note in TASKS.md). **UTC is
-  the canonical timezone (hub#plan-Phase7):** timestamps in evidence, board
-  cards, and messages are UTC (ISO-8601, `%Y-%m-%dT%H:%M:%SZ`). Author
-  commits as UTC (`TZ=UTC git commit ...`); when reading a foreign timestamp
-  use `git show --date=iso-strict` so the offset is explicit. Bare `YYYY-MM-DD`
-  card dates are interpreted as UTC by convention (board_state.py flags
-  Owner-cell dates for this reason).
-- **Issue routing** — board-only for small/single-session/low-risk cards;
-  critical or cross-package cards get an issue in the repo where the work
-  lands (this monorepo for hub scope, the package repo for package scope).
-  Synced issues use the *Board card (DMR-0NN)* template
-  (`.github/ISSUE_TEMPLATE/hub_card.yml`), carry the `kanban` + lane labels
-  (taxonomy: `.github/labels.json`, applied by `board_state.py sync-issues`),
-  and are mirrored both ways: the card's Issue column links the issue, lane
-  moves land as issue comments.
-
-The board is computationally readable: `scripts/board_state.py` parses the
-live file (open table + archive) into JSON, validates the board's own laws
-(`check` — structural contradictions exit 1, hygiene drift is warned), and
-mirrors lane state onto GitHub issues and an optional Projects v2 board.
-Run `check` before closing any card that touches the board; the CI gate
-(`.github/workflows/board-governance.yml`) enforces it on every change to
-`governance/`, `scripts/`, or `.github/`.
-
-### Served Kanban board (`board-site/`, Vercel)
-
-The board also runs as a **live, issue-backed web site** on Vercel
-(DMR-002) — a "dispatch board" any agent can view and edit in a browser
-at **https://digital-mailroom-theta.vercel.app**. The issues themselves are the
-store, which is what makes the site auto-updating + shared. The full
-operational doc (API contract, env secrets, redeploy, reconciliation) is
-the wiki page `docs/wiki/Served-Board.md` (mirror to
-<https://github.com/LLM-Mailroom-Services/Digital-Mailroom/wiki/Served-Board>):
-
-- **Deploy root is `board-site/`** (Vercel project `digital-mailroom`, live
-  production; Git integration is live (DMR-004, 2026-09-09) — every push to
-  `main` builds the board site. Project Root Directory = `board-site` so BOTH
-  CLI and Git-integration deploys build the board site — never leave it unset,
-  or a push-triggered Git deploy serves the repo root as a bare file listing
-  and 404s `/api/board` (observed 2026-09-09). The dir carries its own
-  `board-site/vercel.json`; the repo-root `.vercelignore` limits CLI deploys
-  from the repo root to `board-site/`). Serverless functions
-  under `board-site/api/`; static `board-site/index.html` is the adapted
-  `mailroom-dispatch-board.html` (drag/move/edit + archive UI, filters,
-  stats). Project secret `GITHUB_TOKEN` (gh keyring token, repo scope:
-  Issues read/write) powers the proxy; never commit it.
-- **Read path:** `GET /api/board` lists every open + closed issue labeled
-  `kanban` and normalizes it to a board card (id `DMR-0NN` from title/body,
-  lane from `stage/*`, priority from `priority/*`, desc/evidence from the
-  `### Task` / `### Evidence plan` body sections, archived = closed).
-- **Agents = the `### Owner` body section (never GitHub assignees).** The
-  board displays the actual agent/persona/harness conducting the work
-  (e.g. `opencode (GLM-5.3-Flash)`, `lucius`, `human`, `unclaimed`) from the
-  issue's `### Owner` section, synced from the TASKS.md Owner column — NOT
-  the issue's GitHub assignee (the repo owner's profile would otherwise show
-  on every card). `sync-issues` pushes `### Owner`/`### Task`/`### Evidence
-  plan`/`### Card ID`/`### Lane` into each synced issue body, so the served
-  board always reflects the real agent, description and evidence trace.
-- **Always reads the most-recent state.** `GET /api/board` is served with
-  `Cache-Control: no-store`, and the frontend auto-refreshes every 30s + on
-  tab refocus, so the board never shows stale data. The served board is
-  LIVE-ONLY: if the proxy is unreachable it shows an offline banner, never a
-  snapshot. The canonical board stays `governance/TASKS.md` — `pull-issues`
-  imports served-site moves back into TASKS.md, `sync-issues` pushes
-  TASKS.md truth into the issues (labels + body sections).
-- **Write-back:** the UI PATCHes `/api/board/DMR-0NN` on every move/save;
-  the proxy swaps the `stage/*` label (+ posts a dated "Board lane move"
-  comment for the board mirror law), swaps `priority/*`, rewrites the body
-  sections (incl. `### Owner` for agent changes), and closes/reopens for
-  archive/restore. It never sets GitHub assignees to agent names (those
-  aren't repo users).
-- **Config (Vercel env secrets):** `GITHUB_TOKEN` (or `MAILROOM_GH_TOKEN`)
-  with repo `LLM-Mailroom-Services/Digital-Mailroom` Issues read/write;
-  `MAILROOM_GITHUB_REPO` to override. Never commit these.
-- **Canonical board reconciliation:** TASKS.md stays the source of truth.
-  After edits made on the served site (which write issues, not TASKS.md),
-  run `python scripts/board_state.py pull-issues` — it reports issue-side
-  lane moves that haven't landed in TASKS.md yet, then `--apply` rewrites
-  the Lane cells + appends a dated `pull-issues` Evidence note. `sync-issues`
-  still pushes board → labels; `pull-issues` is the reverse leg.
-- **Card↔issue law is now the norm:** because the site reads `kanban`
-  issues, every board card must have a synced issue (one card = one issue,
-  `kanban` + `stage/*` + `priority/*` + `domain/*` labels). Open a card's
-  issue from the `hub_card.yml` template and fill the Issue column, or the
-  card won't appear on the served board.
-
-Test gates: run the surgically relevant suite for the package you touched by
-default; run that package's FULL suite (and any dependent suites) for
-significant changes (packaging/imports, cross-cutting refactors, scoring).
-Suites run one package per pytest invocation — several packages ship a
-top-level regular `tests` package and collide when batched. **Read
-`docs/TESTING.md` for the tier model (surgical / package unit /
-cross-package / full+governance), per-package commands with measured
-durations, and the change-type → required-suite matrix.** Docs currency:
-when a change alters behavior described by `README.md`, `AGENTS.md`, or
-`governance/TASKS.md`, update those files in the same commit.
-
-**CI does not run the package suites.** The gate workflows are
-`board-governance.yml` (path-filtered governance gates) and
-`release-governance.yml`; `dependabot-auto-merge.yml` only automates
-Dependabot patch/minor merges and `apply-feeder-resync-bundle.yml` is the
-historical one-shot behind `tools/feeder-resync/` (2026-09-27). No workflow runs any `packages/*` pytest suite,
-`scripts/tests`, or the board-site JS tests. Your local run IS the gate:
-quote the exact pass/skip/fail counts in the card's Evidence and the PR
-body. A green PR check list says nothing about the package suites. (Every
-PR to `main` also reads `BLOCKED` on a phantom required `ci` status context
-until DMR-080 is resolved — that is not a test failure.)
-
-## Test discipline
-
-Coverage percentage is not the goal; tests that fail when the code is wrong
-are. The 2026-10-21 audit (DMR-085) found green suites hiding real defects
-behind tests that could not fail. These rules apply to every package:
-
-- **A bug fix ships in the SAME PR as its regression test** — never a
-  fix-only PR, never a "tests in a follow-up" card. The test must reproduce
-  the bug: run it against the pre-fix code, show it red, then green with
-  the fix, and record both in the card's Evidence and the PR body. If a
-  bug truly cannot be tested (pure infra, live-only), say why in the PR
-  body and record the manual verification instead.
-- **Hand-compute expected values.** An expected value derived with the same
-  formula as the implementation proves nothing (critical in
-  `llm-dojo-scoring`). Use fixtures asymmetric enough to catch swapped
-  arguments (fp↔fn, precision↔recall, expected↔predicted).
-- **No tautological asserts:** `assert x is not None` / `isinstance` alone,
-  `>= 0.0` on a non-negative metric, `== {} or isinstance(..., dict)`,
-  status-200-only API checks, or a test with no assert at all.
-- **Never mock the unit under test**, and assert on what the product code
-  produced — not on a dict the test built itself or a formula it copied.
-- **Honest doubles.** A fake LLM / Hub / git / Modal stub must be able to
-  express the real failure modes (malformed JSON, 429 + `Retry-After`,
-  timeout, empty choices, mismatched lengths) and a test must exercise
-  them. A mock that echoes the gold label cannot fail an accuracy test.
-  Doubles installed into `sys.modules` are removed after the test.
-- **Narrow exceptions:** `pytest.raises(SpecificError, match=...)`, never
-  `pytest.raises(Exception)`.
-- **Execute, don't grep.** Asserting substrings of source/JS/CSS text is not
-  a behavior test; run the code (e.g. the JS through `node`, as
-  The-Mailroom's `test_bert_panels.py` does).
-- **New logic gets three kinds of test:** a unit test of the happy path, edge
-  cases (empty, single item, boundaries, unicode incl. U+2028/U+2029 in
-  JSONL, None/NaN fields, mismatched lengths), and — for a CLI or entry
-  point — a smoke test that invokes it end to end with fakes.
-- **Skips name their reason and are not a hiding place.** A skip on an
-  absent fixture/snapshot/sibling checkout means that behavior is untested
-  in this environment — say so in Evidence; a guard that skips when the
-  thing it guards is deleted must fail instead. Delete skips that can never
-  run (e.g. ones pinned to packages pruned in DMR-079).
-- **Concurrency failures are bugs until proven otherwise** — "flaky" is not
-  a root cause. Diagnose the race before re-running.
-- **Audit with the specialist.** Use `test-suite-auditor` for suite audits
-  (stub honesty, unpinned error paths, skip discipline) and record its
-  report as the card's evidence.
-
-## Sub-package sync
-
-**Source ownership (DMR-091, user-directed):** standalone repositories own
-package implementations. llm-dojo-scoring owns ALL scoring engine logic and
-metrics; llm-mailroom owns the pipeline; local-mailroom-sandbox owns its core
-offline/local and Modal/vLLM GPU testing interface for that pipeline;
-The-Mailroom owns the visualizer used by BOTH sandbox and llm-mailroom.
-Digital-Mailroom integrates their committed sources and generates vendor copies.
-Hub-owned workspace wiring, governance, board, and integration tooling stay here.
-
-**Check sources before importing or reviewing a hub PR.** Fetch current
-standalone main branches; compare each package with its cursor and upstream tip.
-Import completed source work first. Review overlapping hub PR changes for fixes
-already shipped in the source. Any remaining package implementation must first
-be authored, tested, and committed in its authoritative standalone checkout,
-then imported; do not preserve a hub-only implementation as an exception.
-Record source SHAs and verification evidence. Never push hub package copies to
-standalone sources. Serialize shared-checkout fetches, or use dedicated refs
-with `--no-write-fetch-head`: the sync driver uses shared `FETCH_HEAD`.
-
-Use `scripts/sync_packages.py status`, `pull --package <name> --squash`, and
-content-verified `snapshot`; cursors live in `scripts/packages_sync.json`.
-`pull --verify-suite` runs the imported package's suite before cursor advance
-(`SYNC_VERIFY_CMD` overrides the runner). Do not force a cursor past missing
-source content. A dirty worktree is refused by default.
-
-**Conflict and verification safeguards (DMR-064/070/073):** conflicted pulls
-are aborted to their pre-pull state by default; `--keep-conflicts`/`--allow-dirty`
-are explicit recovery options. Interrupted MERGE_HEAD state is diagnosed with
-remediation. `pull --open-pr` creates a reviewable import branch and PR; the
-cursor advances only after merge. Resolve conflicts by source ownership;
-never use automatic ours/theirs resolution to retain hub-authored package
-behavior. Ladder-resolved paths are compared with BOTH sides; content matching
-neither is reported as `resolution_divergences` on stderr, JSON, and the PR body.
-Review it against authoritative source commits before merging.
-Exit codes: 0 ok / 1 network / 2 dirty / 3 conflict-aborted / 4 git/internal /
-5 verification refused (severity 5 > 4 > 3 > 2 > 1 > 0).
-Commands accept `--json`; global `--manifest`/`--repo-root` enable isolated
-state runs. Hermetic suite: `python3 -m unittest discover scripts/tests`.
-
-**Legacy outbound commands are forbidden for package delivery.** The driver's
-`push`, `push --patch`, and `push --all --patch` remain historical tooling,
-not an authorized workflow. Their deletion guard, post-push landing checks,
-and refusal to advance unverified cursors remain safety mechanisms; they do
-not authorize hub-to-source implementation or a release-train sweep.
-
-**Vendor snapshots (sandbox self-containment, DMR-057/070/091):**
-`packages/local-mailroom-sandbox/vendor/` are TRACKED generated copies of
-imported workspace packages, never implementation sources. After importing
-committed authoritative changes, refresh with `python scripts/sync_vendor.py`
-(workspace → vendor, content AND deletions); verify with `--check` and the
-sandbox drift guard. Never hand-edit a vendor or publish it back as source.
-`sandbox fetch-deps` mirrors the workspace in hub layout and uses the
-standalone's configured tag-based refresh otherwise. Never tag-refresh hub
-vendors: stale tags can resurrect removed paths. Vendor-only refreshes in the
-hub are integration outputs, not standalone package implementation changes.
-
-## Workspace rules
-
-- Member dependency lines keep their published git pins (release builds via
-  plain `pip install .` depend on them). Dev redirection happens ONLY through
-  `[tool.uv.sources]` tables — never delete a pin line to "fix" resolution.
-- Bump a package pin in the consuming standalone source only when cutting a
-  release of the pinned package (llm-mailroom `src/scripts/bump_dojo_scoring.py`,
-  release-time only), then import the committed change.
-- Hub releases (the monorepo itself) follow the release chain (HUB-024):
-  accumulate changes under `CHANGELOG.md` `[Unreleased]`, then
-  `python scripts/release_chain.py cut X.Y.Z --apply` — it stamps the
-  section with today's date and bumps the hub `pyproject.toml` version.
-  Run `uv lock` after the cut and commit `CHANGELOG.md`, `pyproject.toml`,
-  and `uv.lock` together (the cut does not re-lock; see § Sync & release
-  at a glance). Merge the PR, update the checkout to the merged `main` tip,
-  then create the annotated tag with
-  `git tag -a vX.Y.Z -m "mailroom-hub vX.Y.Z"`. Do not pass `--tag` to the
-  cut: it tags the pre-cut HEAD. Committing and pushing stay with the
-  caller; a GitHub Release is cut from the changelog section.
-  `scripts/release_chain.py check` + the
-  `release-governance.yml` gate enforce tag↔section parity and semver order.
-- Heavy assets (docs demos/screenshots, example PDFs, report archives) are
-  pruned from this repo — keep them out; reference the upstream repos.
-  EXCEPTION: the mailroom-corpus-eda EDA deliverables (`reports/figures/`,
-  `reports/figures_interactive/`, `reports/tables/`, `SUMMARY_REPORT.*`) are
-  tracked in full per human directive (HUB-008) — never prune them. The eight
-  claims-data-eda sample PDFs (HUB-046) remain tracked on its preservation
-  branch under `packages/claims-data-eda/docs/examples/`; preserve them on
-  restoration and regenerate only via that package's `scripts/render_samples.py`.
-- Deploy configs (Dockerfile, nixpacks.toml, railway.json) inside each
-  package are still standalone-repo aware; build images from the package
-  directory as before.
+- `docs/` is the single source of truth for repository documentation (architecture, agents, configuration, deployment, testing, local models, reports). Do not duplicate its content anywhere else in the repo.
+- **Reports convention (mandatory)**: every evaluation write-up, audit, or report goes under `docs/reports/<kind>/` — `audits/`, `pilots/`, `evaluations/` — created via `PYTHONPATH=src python src/scripts/new_report.py <kind> "TITLE"` (dated, kebab-case filename + standard header). Never put reports in the repo root or loose in `docs/`. `src/scripts/write_pilot_report.py` already defaults to `docs/reports/pilots/`.
+- `docs/wiki/` holds **GitHub-wiki-only** pages (Home, Getting-Started, FAQ, _Sidebar, _Footer, README). It is NOT a mirror of `docs/` — never copy docs pages into it. `docs/wiki/sync-wiki.sh` pushes `docs/wiki/` to the GitHub wiki.
+- `docs/agents.md` documents the pipeline's LLM agents — an architecture doc, not a coding-instruction file.
+- `docs/` is also the root of the **GitBook constellation docs site** ([Mailroom Inc. Docs](https://mailroom-inc.gitbook.io/mailroom-inc.-docs/); `docs/gitbook-docs.yaml` maps `directory: ./` at `path: /` because the Git Sync Project directory is `docs/`; `docs/.gitbook.yaml` → `./`, table of contents `docs/SUMMARY.md`). `docs/constellation/` holds the cross-repo pages (overview, getting started, architecture, data, governance, glossary, repo index) and `docs/constellation/repos/` one guide per constellation repository. Those guides summarize and link to each repository's own docs; they never copy them. A page missing from `SUMMARY.md` is not published. Upkeep rules: `docs/constellation/maintaining.md`.

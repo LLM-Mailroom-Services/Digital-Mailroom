@@ -108,14 +108,23 @@ def test_nondefault_credentials_work_without_dev_optin_and_seed_env_cannot_rotat
         assert db.lookup_user("admin")["password_hash"] == before
 
 
-def test_legacy_jwt_secret_alias_with_rotated_credentials_still_works(monkeypatch):
+@pytest.mark.parametrize("primary_secret", [None, "", " \t\n"])
+def test_legacy_jwt_secret_alias_with_rotated_credentials_still_works(monkeypatch, primary_secret):
     no_dev(monkeypatch)
-    monkeypatch.delenv("MAILROOM_OPERATOR_JWT_SECRET", raising=False)
+    if primary_secret is None:
+        monkeypatch.delenv("MAILROOM_OPERATOR_JWT_SECRET", raising=False)
+    else:
+        monkeypatch.setenv("MAILROOM_OPERATOR_JWT_SECRET", primary_secret)
     monkeypatch.setenv("JWT_SECRET", secrets.token_urlsafe(32))
     password = secrets.token_urlsafe(24)
     monkeypatch.setenv("MAILROOM_OPERATOR_ADMIN_PASSWORD", password)
     with client() as c:
-        assert login(c, password).status_code == 200
+        response = login(c, password)
+        assert response.status_code == 200
+        headers = {"Authorization": "Bearer " + response.json()["access_token"]}
+        profile = c.get("/v1/auth/me", headers=headers)
+        assert profile.status_code == 200
+        assert profile.json()["username"] == "admin"
 
 
 def test_default_admin_blocks_login_token_use_and_ws_on_public_bind_even_with_dev_flag(monkeypatch):

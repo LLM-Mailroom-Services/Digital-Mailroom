@@ -129,7 +129,7 @@ sandbox beacon update --job ID --package P --done N --total M   # shell jobs pub
 - The **reporter agent is retired** in this sandbox: `components.yaml` lists it
   under `retired_agents`, and the compile stage is the **computational
   procedural reporter** — the graph's `compile_report` node backed by
-  llm-mailroom v0.7.1's `compile_matter_record` (deterministic, **no LLM
+  the vendored llm-mailroom's `compile_matter_record` (deterministic, **no LLM
   call**; the sandbox eval never acquires an LLM client for it).
 - **Reviewers stay enabled** (`sorter_reviewer` + its `sorter_reviewer_local_v0`
   prompt) — the reduced profile removes the reporter, not the reviewers.

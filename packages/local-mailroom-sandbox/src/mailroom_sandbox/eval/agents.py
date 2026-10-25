@@ -210,7 +210,7 @@ def _live_boss(row: dict[str, Any]) -> dict[str, Any]:
 
 def _procedural_report(row: dict[str, Any]) -> dict[str, Any]:
     """Computational procedural reporter — deterministic matter-record
-    assembly with NO LLM call. Sandbox-side mirror of llm-mailroom v0.7.1
+    assembly with NO LLM call. Sandbox-side mirror of the vendored llm-mailroom
     ``agents.reporter.compile_matter_record`` (the reporter agent is retired;
     the graph's compile_report node is procedural)."""
     extracted = row.get("extracted_data") or _mock_extract(row)

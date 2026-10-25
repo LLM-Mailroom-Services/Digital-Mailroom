@@ -5,6 +5,31 @@ Format based on Keep a Changelog; versioning is SemVer.
 
 ## [Unreleased]
 
+## [0.24.2] - 2026-10-25
+
+### Fixed
+
+- A multi-request run with a completely missing usage observation no longer
+  prices only its recorded subset as the whole run. Recorded run costs and
+  explicit zero costs remain authoritative; complete per-run token estimates,
+  one-component usage and document counts distinct from request counts remain
+  supported. Published v0.24.1 and its tag remain immutable.
+
+
+## [0.24.1] - 2026-10-25
+
+### Fixed
+
+- Serving aggregates retain unknown total and per-document costs when any run
+  is unpriced, including comparison cost cards and cost-basis reporting;
+  complete known totals, genuine zero costs and absent-key legacy token pricing
+  remain supported.
+- Producer-accepted noncontract sorter labels retain their exact identity
+  before narrower corpus normalization. This preserves FNOL liability, health,
+  life and workers compensation labels without changing CUAD precedence or
+  the scoped unknown-label fallback.
+
+
 ## [0.24.0] - 2026-10-23
 
 ### Added

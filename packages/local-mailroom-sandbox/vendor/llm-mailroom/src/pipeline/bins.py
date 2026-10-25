@@ -242,7 +242,8 @@ def claim_file(file_path: Path, worker_id: str) -> Path:
     processing = processing_dir(worker_id)
     processing.mkdir(parents=True, exist_ok=True)
     dest = processing / file_path.name
-    shutil.move(str(file_path), str(dest))
+    # Reused workers must never replace an abandoned document's bytes.
+    _move_review_file_no_clobber(file_path, dest)
     return dest
 
 
@@ -265,7 +266,7 @@ def requeue_from_review(file_path: Path, worker_id: str, *, original_filename: s
     processing.mkdir(parents=True, exist_ok=True)
     name = _safe_bin_component(original_filename or file_path.name, "original_filename")
     dest = processing / name
-    shutil.move(str(file_path), str(dest))
+    _move_review_file_no_clobber(file_path, dest)
     return dest
 
 
@@ -278,8 +279,40 @@ def _review_name(manifest) -> str:
 
 
 def review_file_path(manifest) -> Path:
-    """Resolve the owned file, with a fail-closed legacy basename fallback."""
-    base = review_dir()
+    """Resolve the owned review file, rejecting ambiguous legacy basenames."""
+    return _owned_bin_file_path(manifest, review_dir())
+
+
+def failed_file_path(manifest) -> Path:
+    """Resolve the owned failed file, rejecting ambiguous legacy basenames."""
+    return _owned_bin_file_path(manifest, failed_dir())
+
+
+def archived_file_path(manifest) -> Path:
+    """Resolve an archive path without treating mutable metadata as ownership."""
+    return _owned_bin_file_path(manifest, archive_dir(manifest.matter_id, manifest.doc_type))
+
+
+def processing_file_path(manifest) -> Path | None:
+    """A bare processing filename has no worker identity in its manifest."""
+    root = processing_dir()
+    if not root.is_dir():
+        return None
+    name = _review_name(manifest)
+    workers = [path for path in root.iterdir() if path.is_dir()]
+    for worker in workers:
+        owned = worker / name
+        if owned.is_file():
+            return owned
+    legacy = [worker for worker in workers if (worker / manifest.original_filename).is_file()]
+    if len(legacy) != 1:
+        return None
+    candidate = _owned_bin_file_path(manifest, legacy[0])
+    return candidate if candidate.is_file() else None
+
+
+def _owned_bin_file_path(manifest, base: Path) -> Path:
+    """Use document identity first; legacy ownership must be unambiguous."""
     owned = base / _review_name(manifest)
     if owned.is_file():
         return owned
@@ -289,14 +322,15 @@ def review_file_path(manifest) -> Path:
     # Older releases used bare names. Never assign an ambiguous legacy file
     # to another document merely because its basename happens to match.
     # A sibling's owned copy does not establish who owns a leftover bare name.
+    # Stage/classification can change before a move, or without moving bytes;
+    # current manifest metadata cannot rule out a sibling's stale legacy copy.
     for path in manifests_dir().glob("*.json"):
         try:
             other = load_manifest(path.stem)
             if other is not None:
                 _review_name(other)  # Validate sibling identifiers before fallback.
             if (other is not None and other.doc_id != manifest.doc_id
-                    and other.original_filename == manifest.original_filename
-                    and str(getattr(other.stage, "value", other.stage)) == "review"):
+                    and other.original_filename == manifest.original_filename):
                 return owned
         except (OSError, ValueError):
             logger.warning("manifest_unreadable_legacy_ownership", path=str(path))

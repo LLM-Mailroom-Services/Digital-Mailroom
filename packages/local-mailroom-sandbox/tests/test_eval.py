@@ -310,10 +310,10 @@ def test_dojo_pin_matches_published_release_snapshot():
 
     pins = {name: (ref, sha) for name, ref, _url, sha in cli_mod._VENDOR_PINS}
     assert pins["llm-dojo-scoring"] == (
-        "refs/tags/v0.24.0", "d381b95f1182ef5b377b743988eb61e021579aac",
+        "refs/tags/v0.24.2", "4740d76825217e746c645864c8510f12869db965",
     ), "dojo must consume the reviewed published release commit"
     assert pins["llm-dojo-scoring"][1] in vendor_md
-    assert dojo.__version__ == "0.24.0"
+    assert dojo.__version__ == "0.24.2"
     # the new per-subclass machinery is actually IN the snapshot
     import llm_dojo_scoring.corporate_record_schema as crs
 

@@ -38,7 +38,7 @@ mailroom-observer                # standalone → POST /v1/ops/events (not with 
 An empty store creates an admin only when `MAILROOM_OPERATOR_ADMIN_PASSWORD`
 contains a nondefault password. Operator login also requires a dedicated
 `MAILROOM_OPERATOR_JWT_SECRET` (or `JWT_SECRET`). Missing or published default
-credentials leave operator access disabled; the read-only display still starts.
+credentials leave operator access disabled unless the loopback development opt-in below is set; the read-only display still starts.
 For a local demonstration, explicitly set `MAILROOM_OPERATOR_ALLOW_DEV_DEFAULTS=1`
 on a loopback bind to enable `admin` / `changeme` and the development JWT secret.
 That flag cannot relax a public bind (hosted edition or non-loopback
@@ -48,7 +48,9 @@ Seed settings never rotate existing accounts: update the persisted admin
 password explicitly before exposing a reused volume. Changing the seed username
 or password cannot bypass a stored default admin. Both login and previously
 issued tokens are rejected while persisted credentials are unsafe. Review
-resolve and inbox upload require a reviewer (or admin) token. Never reuse
+resolve and inbox upload require a reviewer (or admin) token unless
+`MAILROOM_OPERATOR_AUTH=0` explicitly disables operator auth (local-trust
+development only). Never reuse
 `MAILROOM_PIPELINE_TOKEN`. Roles: `viewer` < `reviewer` < `admin`; archive
 download / preview / verify and `POST /v1/ops/events` need reviewer+ (the
 ingest token counts as admin).

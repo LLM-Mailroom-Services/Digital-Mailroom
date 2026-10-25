@@ -35,7 +35,7 @@ Dojo through optional `[eval]` (`@4740d768`, Dojo v0.24.2); do not duplicate its
 or make the live display path import it.
 
 Producer **code** pin (separate from the topology mirror): extra `[pipeline]`
-installs dist `mailroom` `@60cd5fad0c7a616ec575857841bb9897b9e8c3ed` (0.8.1, reviewed source adoption). Import only through
+installs dist `mailroom` `@1a1ec3dfb4e71f615f5d34f6198f9d06fd8c26dd` (0.8.1, reviewed source adoption). Import only through
 `mailroom_ui/producer.py` (`pipeline.review_resolve`, `schemas.manifest`).
 Never import `api.main`. Bump `MAILROOM_GIT_SHA` and `pyproject.toml` together.
 

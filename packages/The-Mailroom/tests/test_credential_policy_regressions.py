@@ -8,6 +8,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from mailroom_ui.langfuse_source import LangfuseSource
 from operator_desk import auth, db
+from operator_desk.credentials import configured_jwt_secret
 from server.main import create_app
 from tests.fake_langfuse import FakeClient
 
@@ -125,6 +126,23 @@ def test_legacy_jwt_secret_alias_with_rotated_credentials_still_works(monkeypatc
         profile = c.get("/v1/auth/me", headers=headers)
         assert profile.status_code == 200
         assert profile.json()["username"] == "admin"
+
+
+def test_nonblank_jwt_secret_is_preserved_verbatim_for_hmac_stability(monkeypatch):
+    """Trimming a configured secret would rotate the HMAC key silently."""
+    monkeypatch.setenv("MAILROOM_OPERATOR_JWT_SECRET", "  spaced secret  ")
+    monkeypatch.setenv("JWT_SECRET", "ignored-fallback")
+    assert configured_jwt_secret() == "  spaced secret  "
+
+
+@pytest.mark.parametrize("primary", [None, "", " \t\n"])
+def test_whitespace_only_primary_secret_still_falls_back(monkeypatch, primary):
+    monkeypatch.setenv("JWT_SECRET", "fallback-secret")
+    if primary is None:
+        monkeypatch.delenv("MAILROOM_OPERATOR_JWT_SECRET", raising=False)
+    else:
+        monkeypatch.setenv("MAILROOM_OPERATOR_JWT_SECRET", primary)
+    assert configured_jwt_secret() == "fallback-secret"
 
 
 def test_default_admin_blocks_login_token_use_and_ws_on_public_bind_even_with_dev_flag(monkeypatch):

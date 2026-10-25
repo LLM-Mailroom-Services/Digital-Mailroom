@@ -21,6 +21,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
+from .credentials import (
+    DEFAULT_ADMIN_PASSWORD, DEFAULT_JWT_SECRET, configured_jwt_secret,
+    dev_defaults_allowed, public_bind,
+)
 from .db import admin_users, lookup_user, migrate, verify_password, write_audit
 
 log = logging.getLogger("mailroom.operator.auth")
@@ -29,11 +33,8 @@ router = APIRouter(prefix="/v1/auth", tags=["operator-auth"])
 security = HTTPBearer(auto_error=False)
 
 JWT_ALGORITHM = "HS256"
-DEFAULT_JWT_SECRET = "dev-secret-change-me"
-DEFAULT_ADMIN_PASSWORD = "changeme"
 ROLE_RANK = {"viewer": 0, "reviewer": 1, "admin": 2}
 _warned_default_secret = False
-_LOOPBACK_HOSTS = {"", "127.0.0.1", "localhost", "::1", "[::1]"}
 
 
 class LoginRequest(BaseModel):
@@ -58,25 +59,8 @@ def auth_required() -> bool:
     return raw not in ("0", "false", "off", "no")
 
 
-def public_bind() -> bool:
-    """True when this process is reachable beyond the local machine.
-
-    The hosted edition (Observatory, HF Space, Railway) and any non-loopback
-    ``MAILROOM_HOST`` count as public: local-dev defaults are refused there.
-    """
-    edition = os.environ.get("MAILROOM_EDITION", "console").strip().lower()
-    if edition in ("hosted", "live", "observatory"):
-        return True
-    host = os.environ.get("MAILROOM_HOST", "127.0.0.1").strip().lower()
-    return host not in _LOOPBACK_HOSTS
-
-
 def _configured_secret() -> str:
-    return (
-        os.environ.get("MAILROOM_OPERATOR_JWT_SECRET")
-        or os.environ.get("JWT_SECRET")
-        or ""
-    ).strip()
+    return configured_jwt_secret()
 
 
 _ADMIN_HASH_LOCK = threading.RLock()
@@ -89,7 +73,7 @@ def _uses_default_admin_password(stored_hash: str) -> bool:
 
 
 def insecure_config_reasons() -> list[str]:
-    """Local-dev defaults that make operator auth forgeable when public."""
+    """Unsafe persisted/configured credentials, independent of seed settings."""
     reasons: list[str] = []
     secret = _configured_secret()
     if not secret or secret == DEFAULT_JWT_SECRET:
@@ -98,6 +82,8 @@ def insecure_config_reasons() -> list[str]:
     # actual admins even if a later restart changes the seed name/password.
     try:
         rows = admin_users()
+        if not rows:
+            reasons.append("operator store has no admin account")
     except Exception:  # store unavailable: assume the worst
         rows = []
         reasons.append("operator store unreadable")
@@ -112,22 +98,27 @@ def insecure_config_reasons() -> list[str]:
 
 
 def locked_down() -> bool:
-    """Public bind + forgeable defaults: refuse to issue or honour tokens."""
-    return auth_required() and public_bind() and bool(insecure_config_reasons())
+    """Defaults are usable only with explicit loopback development opt-in."""
+    return not dev_defaults_allowed() and bool(insecure_config_reasons())
 
 
 def jwt_secret() -> str:
     global _warned_default_secret
     secret = _configured_secret()
-    if not secret:
-        secret = DEFAULT_JWT_SECRET
-        if not _warned_default_secret:
-            log.warning(
-                "MAILROOM_OPERATOR_JWT_SECRET unset — using the local-dev default. "
-                "Set a dedicated secret; do not reuse MAILROOM_PIPELINE_TOKEN."
-            )
-            _warned_default_secret = True
-    return secret
+    if secret and secret != DEFAULT_JWT_SECRET:
+        return secret
+    if not dev_defaults_allowed():
+        raise HTTPException(
+            status_code=503,
+            detail="Operator auth is not configured (set MAILROOM_OPERATOR_JWT_SECRET).",
+        )
+    if not _warned_default_secret:
+        log.warning(
+            "Operator development credentials explicitly enabled on loopback; "
+            "set MAILROOM_OPERATOR_JWT_SECRET for regular use."
+        )
+        _warned_default_secret = True
+    return DEFAULT_JWT_SECRET
 
 
 def jwt_expiry_hours() -> int:
@@ -168,9 +159,12 @@ def create_access_token(username: str, role: str, user_id: Optional[int] = None)
 
 
 def decode_token(token: str) -> UserProfile:
-    secret = jwt_secret()
-    if public_bind() and secret == DEFAULT_JWT_SECRET:
-        # Anyone can mint a token with the published default secret.
+    try:
+        secret = jwt_secret()
+    except HTTPException as exc:
+        raise HTTPException(status_code=401, detail="Operator auth not configured on this host") from exc
+    if locked_down():
+        # A previously issued token cannot bypass unsafe persisted admin credentials.
         raise HTTPException(status_code=401, detail="Operator auth not configured on this host")
     try:
         import jwt
@@ -294,7 +288,7 @@ async def login(req: LoginRequest):
     migrate()
     if locked_down():
         reasons = insecure_config_reasons()
-        log.error("operator login refused on a public bind: %s", "; ".join(reasons))
+        log.error("operator login refused: %s", "; ".join(reasons))
         raise HTTPException(
             status_code=503,
             detail="Operator auth is not configured on this host "

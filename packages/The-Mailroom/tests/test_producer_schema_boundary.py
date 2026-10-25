@@ -12,6 +12,8 @@ import textwrap
 import pydantic
 import pytest
 
+from mailroom_ui.producer import MAILROOM_GIT_SHA
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -83,7 +85,7 @@ def _isolated(tmp_path, mode, code):
         _write(src, "scripts/__init__.py", 'raise AssertionError("sibling scripts shadowed visualizer")')
     elif mode == "pin":
         # The real archive intentionally contains pipeline + schemas only.
-        src = tmp_path / "the-mailroom-pin-959bb0bce152" / "src"
+        src = tmp_path / f"the-mailroom-pin-{MAILROOM_GIT_SHA}" / "src"
         _contract(src)
     else:
         src = checkout / "src"

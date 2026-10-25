@@ -70,6 +70,29 @@ class TestMirrorPlan(unittest.TestCase):
         copy, overwrite, delete = self.mod.plan_refresh(self.ws, self.vd)
         self.assertEqual((copy, overwrite, delete), ([], [], []))
 
+    def test_exclusions_keep_similar_runtime_paths(self):
+        for name in ("test/fixture.py", "tests/fixture.py", "legalbench/reports/generated.json",
+                     "legalbench/reports_helpers.py", "pipeline/tests/runtime.py"):
+            path = self.ws / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("fixture\n")
+        copy, overwrite, delete = self.mod.plan_refresh(self.ws, self.vd)
+        self.assertEqual(copy, ["legalbench/reports_helpers.py", "pipeline/tests/runtime.py"])
+        self.assertEqual((overwrite, delete), ([], []))
+
+    @unittest.skipIf(os.name == "nt", "POSIX executable bits are not supported on Windows")
+    def test_mode_only_drift_is_detected_and_repaired(self):
+        source = self.ws / "runner"
+        target = self.vd / "runner"
+        source.write_text("#!/bin/sh\nexit 0\n")
+        target.write_bytes(source.read_bytes())
+        source.chmod(0o755)
+        target.chmod(0o644)
+        self.assertEqual(self.mod.plan_refresh(self.ws, self.vd), ([], ["runner"], []))
+        self.mod.apply_refresh(self.ws, self.vd)
+        self.assertTrue(target.stat().st_mode & 0o100)
+        self.assertEqual(self.mod.plan_refresh(self.ws, self.vd), ([], [], []))
+
     def test_apply_carries_deletions_and_prunes_dirs(self):
         (self.ws / "a" / "b").mkdir(parents=True)
         (self.ws / "a" / "b" / "f.py").write_text("1\n")

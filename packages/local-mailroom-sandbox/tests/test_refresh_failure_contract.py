@@ -25,20 +25,13 @@ def test_all_sources_attempted_after_first_failure(monkeypatch, tmp_path, worksp
 
 
 def test_visualizer_clone_attempted_after_source_failure(monkeypatch, tmp_path):
-    from subprocess import CompletedProcess
     monkeypatch.setattr(cli, "_VENDOR_PINS", (("first", "main", "https://invalid/first", "a" * 40),))
     monkeypatch.setattr(cli, "_monorepo_workspace_pkg", lambda _: tmp_path)
     monkeypatch.setattr(cli, "_refresh_vendor_from_workspace", lambda *args: 1)
-    monkeypatch.setattr(cli, "vendor_dir", lambda: tmp_path)
     calls = []
-    def run(command, *args, **kwargs):
-        calls.append(command)
-        return CompletedProcess(command, 0)
-    monkeypatch.setattr(cli.subprocess, "run", run)
+    monkeypatch.setattr(cli, "_refresh_visualizer", lambda *pin: calls.append(pin) or 0)
     assert cli._cmd_fetch_deps(Namespace(visualizer=True)) == 1
-    assert len(calls) == 1
-    assert calls[0][:2] == ["git", "clone"]
-    assert calls[0][-1] == str(tmp_path / "The-Mailroom")
+    assert calls == [cli._VISUALIZER_PIN]
 
 
 def test_moved_source_ref_cannot_replace_tracked_vendor(monkeypatch, tmp_path):

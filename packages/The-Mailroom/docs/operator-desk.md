@@ -35,14 +35,20 @@ MAILROOM_OBSERVER=1 mailroom-web # in-process bin watcher
 mailroom-observer                # standalone → POST /v1/ops/events (not with MAILROOM_OBSERVER=1)
 ```
 
-An empty store seeds `admin` / `changeme` unless
-`MAILROOM_OPERATOR_ADMIN_PASSWORD` supplies a different initial password —
-**loopback only**. Seed settings never rotate existing accounts: update the
-persisted admin password explicitly before exposing a reused volume. Changing
-the seed username does not bypass the stored-admin check. On a public bind (hosted edition or a non-loopback
-`MAILROOM_HOST`) login is refused until `MAILROOM_OPERATOR_JWT_SECRET` (or
-`JWT_SECRET`) is set and the admin password is rotated; review resolve and
-inbox upload then require a reviewer (or admin) token. Never reuse
+An empty store creates an admin only when `MAILROOM_OPERATOR_ADMIN_PASSWORD`
+contains a nondefault password. Operator login also requires a dedicated
+`MAILROOM_OPERATOR_JWT_SECRET` (or `JWT_SECRET`). Missing or published default
+credentials leave operator access disabled; the read-only display still starts.
+For a local demonstration, explicitly set `MAILROOM_OPERATOR_ALLOW_DEV_DEFAULTS=1`
+on a loopback bind to enable `admin` / `changeme` and the development JWT secret.
+That flag cannot relax a public bind (hosted edition or non-loopback
+`MAILROOM_HOST`).
+
+Seed settings never rotate existing accounts: update the persisted admin
+password explicitly before exposing a reused volume. Changing the seed username
+or password cannot bypass a stored default admin. Both login and previously
+issued tokens are rejected while persisted credentials are unsafe. Review
+resolve and inbox upload require a reviewer (or admin) token. Never reuse
 `MAILROOM_PIPELINE_TOKEN`. Roles: `viewer` < `reviewer` < `admin`; archive
 download / preview / verify and `POST /v1/ops/events` need reviewer+ (the
 ingest token counts as admin).

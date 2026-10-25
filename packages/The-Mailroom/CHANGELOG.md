@@ -6,6 +6,21 @@ All notable changes to The-Mailroom are documented here, following
 
 ## [Unreleased]
 
+### Fixed
+
+- DMR-111: whitespace-only primary JWT settings no longer hide a valid legacy
+  secret. The public-deployment warning now distinguishes default authenticated
+  access from explicit AUTH=0 local-trust mode; Origin checks still apply.
+
+- DMR-111: align optional `eval` and `pipeline` installs on released Dojo v0.24.2;
+  freeze the producer adapter to pipeline `42f21a9d092c47b1910b997a80bfcf4884ede333` (0.8.1).
+  Combined extras no longer demand incompatible scoring repositories.
+
+- DMR-111: require explicit loopback development opt-in for published operator
+  credentials, leave unconfigured displays readable without seeding a default
+  admin, and reject existing tokens when persisted admin credentials are unsafe.
+  Seed settings never rotate stored credentials.
+
 ### Added
 
 - Cache-only Dojo release awareness from producer health through the existing

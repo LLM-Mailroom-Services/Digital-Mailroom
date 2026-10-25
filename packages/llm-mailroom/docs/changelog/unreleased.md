@@ -1,6 +1,6 @@
 ---
 tags:
-  - improvement
+  - fix
 ---
 
 # Unreleased
@@ -12,6 +12,23 @@ pages. Regenerate with `PYTHONPATH=src python src/scripts/sync_gitbook_changelog
 {% endhint %}
 
 Unreleased work on `main`. Canonical source: [`CHANGELOG.md`](https://github.com/Exios66/llm-mailroom/blob/main/CHANGELOG.md).
+
+## Fixed
+
+- DMR-111: refuse ambiguous legacy basename reads after failed moves or metadata
+  changes. Current stage, matter or class does not prove historical file ownership;
+  document-ID paths and genuinely unique basenames remain available.
+
+- DMR-111: preserve document bytes when a worker processing filename already
+  exists, including review resume; require unambiguous ownership for legacy
+  failed/archive/processing basename lookups; and prevent delayed warehouse
+  snapshots from replacing newer document revisions. Malformed revision data
+  fails before publication instead of silently discarding evidence.
+
+- Adopt the published Dojo v0.24.2 scoring release for standalone installs and
+  deployment builds, matching the scoring engine already used by Digital-Mailroom.
+  Refresh documented dependency pins and the installed-version regression together
+  (DMR-111); this does not change production prompt selection.
 
 ## Documentation
 

@@ -290,8 +290,8 @@ def test_local_vs_api_scorecard_path_with_a_recording_emitter(tmp_path, monkeypa
     assert captured["path"] == tmp_path / "reports" / "scores" / "SAND-32" / "scores.jsonl"
 
 
-def test_dojo_pin_is_reviewed_main_beyond_v0_22():
-    """The snapshot consumes reviewed source main, including v0.22.0.
+def test_dojo_pin_matches_published_release_snapshot():
+    """The snapshot consumes the published scoring release, with truthful provenance.
 
     Moving refs are SHA-frozen and rejected before tracked bytes are touched.
     """
@@ -310,9 +310,10 @@ def test_dojo_pin_is_reviewed_main_beyond_v0_22():
 
     pins = {name: (ref, sha) for name, ref, _url, sha in cli_mod._VENDOR_PINS}
     assert pins["llm-dojo-scoring"] == (
-        "main", "bd5ed7c7f098f773b7e527f227cf2cf6e5e9e5f4",
-    ), "dojo must consume the reviewed source main commit"
+        "refs/tags/v0.24.2", "4740d76825217e746c645864c8510f12869db965",
+    ), "dojo must consume the reviewed published release commit"
     assert pins["llm-dojo-scoring"][1] in vendor_md
+    assert dojo.__version__ == "0.24.2"
     # the new per-subclass machinery is actually IN the snapshot
     import llm_dojo_scoring.corporate_record_schema as crs
 

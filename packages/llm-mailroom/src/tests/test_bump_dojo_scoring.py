@@ -86,6 +86,19 @@ def test_apply_pin_dry_run_and_write(tmp_path: Path):
             id="dated-dependency-table",
         ),
         pytest.param(
+            "| llm-mailroom | llm-dojo-scoring | git pin `@{version}`; "
+            "changed through explicit release adoption |\n",
+            id="explicit-adoption-table",
+        ),
+        pytest.param(
+            "| llm-mailroom | llm-dojo-scoring | git pin `@{version}` "
+            "as of 2026-10-23; changed through explicit release adoption |\n",
+            id="dated-explicit-adoption-table",
+        ),
+        pytest.param("pinned release `{version}`", id="pinned-release-prose"),
+        pytest.param("In the pinned {version}, bands are read", id="pinned-library-prose"),
+        pytest.param("Dojo pin, **{version}**.", id="checkout-pin-prose"),
+        pytest.param(
             "![Dojo](https://img.shields.io/badge/dojo-{version}-6f42c1)\n",
             id="markdown-badge",
         ),
@@ -318,6 +331,79 @@ def test_main_never_downgrades_an_interim_sha_pin(monkeypatch, capsys):
     # A tag that contains the commit is a normal bump.
     monkeypatch.setattr(B, "tag_contains_commit", lambda sha, tag, repo=B.DOJO_REPO: True)
     assert B.main(["--check", "--tag", "v0.22.0"]) == 2
+
+
+def test_release_commit_resolves_tag_to_commit(monkeypatch):
+    """Resolve a release tag ref to the exact commit GitHub publishes."""
+    seen = {}
+
+    class _Resp:
+        def read(self):
+            return json.dumps({"sha": SHA}).encode()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def fake_urlopen(req, timeout=30):
+        seen["url"] = req.full_url
+        return _Resp()
+
+    monkeypatch.setattr(B.urllib.request, "urlopen", fake_urlopen)
+    assert B.release_commit("v0.24.2") == SHA
+    assert seen["url"].endswith("/commits/v0.24.2")
+
+
+def test_main_keeps_sha_pin_that_is_the_release_commit(monkeypatch, capsys):
+    """An immutable SHA pin at the release commit is already up to date."""
+    monkeypatch.setattr(B, "current_pin", lambda root=B.REPO_ROOT: SHA)
+    monkeypatch.setattr(B, "release_exists", lambda tag, repo=B.DOJO_REPO: True)
+    monkeypatch.setattr(B, "release_commit", lambda tag, repo=B.DOJO_REPO: SHA)
+    monkeypatch.setattr(B, "tag_contains_commit", lambda sha, tag, repo=B.DOJO_REPO: True)
+    monkeypatch.setattr(
+        B,
+        "apply_pin",
+        lambda *a, **k: pytest.fail("must not rewrite an immutable release-commit pin"),
+    )
+
+    assert B.main(["--check", "--tag", "v0.24.2"]) == 0
+    assert B.main(["--apply", "--tag", "v0.24.2"]) == 0
+    assert "immutable_pin=true" in capsys.readouterr().out
+
+
+def test_main_accepts_sha_target_contained_in_latest_release(monkeypatch):
+    """A SHA target is validated against the latest release, not releases/tags."""
+    written = []
+    monkeypatch.setattr(B, "current_pin", lambda root=B.REPO_ROOT: "v0.24.1")
+    monkeypatch.setattr(
+        B, "release_exists", lambda *a, **k: pytest.fail("SHA targets are not release tags")
+    )
+    monkeypatch.setattr(B, "latest_release_tag", lambda repo=B.DOJO_REPO: "v0.24.2")
+    monkeypatch.setattr(
+        B,
+        "tag_contains_commit",
+        lambda sha, tag, repo=B.DOJO_REPO: sha == SHA and tag == "v0.24.2",
+    )
+    monkeypatch.setattr(
+        B, "apply_pin", lambda ref, **k: written.append(ref) or [B.REPO_ROOT / "pyproject.toml"]
+    )
+
+    assert B.main(["--apply", "--tag", SHA]) == 0
+    assert written == [SHA]
+
+
+def test_main_rejects_sha_target_absent_from_latest_release(monkeypatch):
+    """Refuse to pin a commit that no published release contains."""
+    monkeypatch.setattr(B, "current_pin", lambda root=B.REPO_ROOT: "v0.24.1")
+    monkeypatch.setattr(B, "latest_release_tag", lambda repo=B.DOJO_REPO: "v0.24.2")
+    monkeypatch.setattr(B, "tag_contains_commit", lambda sha, tag, repo=B.DOJO_REPO: False)
+    monkeypatch.setattr(
+        B, "apply_pin", lambda *a, **k: pytest.fail("must not write an unpublished commit")
+    )
+
+    assert B.main(["--apply", "--tag", SHA]) == 1
 
 
 @pytest.mark.parametrize(

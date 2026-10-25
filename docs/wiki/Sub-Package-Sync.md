@@ -103,11 +103,16 @@ cd ../Digital-Mailroom-dmrNNN
 python3 scripts/sync_packages.py status
 ```
 
-Each package prints `in sync` or `N new upstream commit(s)`. Only packages
-that say `new upstream commit(s)` need an import. The `[N file(s)
-monorepo-ahead]` suffix is normal explained drift, not an error.
-If not: a package says `in sync` but you expected a change, the change is not in
-the *source* yet (see "Where a dependency bump really lands" below). Stop.
+Each package prints `in sync` or `N new upstream commit(s)`. A matching sync
+cursor is an ancestry observation, not proof of package parity: compare actual
+paths, blobs, executable modes and deletions against the exact source commit.
+Inspect every `monorepo-ahead` difference and document its current contents as
+a generated integration output or deliberate heavy-asset exclusion. An old
+exception filename never justifies retaining a competing implementation.
+If a package says `in sync` but its actual bytes differ from the source, resolve
+the content discrepancy by ownership before advancing or trusting its cursor.
+A missing source change requires source-owned work first (see "Where a dependency
+bump really lands" below).
 
 **Step 2 — look at exactly what will come in.**
 
@@ -293,3 +298,11 @@ paths. Hub vendor regeneration is an integration output.
 4. Regenerate vendors and run `sync_vendor.py --check` plus sandbox gates.
 5. Verify cursors; finish with a clean card scope and board Evidence naming
    source/import commits and exact pass/skip/fail counts.
+
+### Vendor check modes (DMR-111)
+
+`python scripts/sync_vendor.py --check` compares both managed snapshots by
+content and the Git-relevant owner executable bit, and reports mode-only drift
+as an overwrite. The refresh preserves source modes through `copy2`. Shared
+exclusions cover top-level `test/` and `tests/`, build/runtime detritus and the
+exact `legalbench/reports/` subtree; similarly named runtime modules remain.

@@ -63,7 +63,7 @@ SNAPSHOTS: tuple[tuple[str, str, str], ...] = (
 _EXCLUDE_NAMES = {"__pycache__"}
 _EXCLUDE_SUFFIXES = {".pyc"}
 _EXCLUDE_REL_PREFIXES = {"legalbench/reports"}
-_EXCLUDE_TOP_LEVEL_DIRS = {"tests"}
+_EXCLUDE_TOP_LEVEL_DIRS = {"tests", "test"}
 _EGG_INFO_SUFFIX = ".egg-info"
 
 
@@ -76,7 +76,7 @@ def _excluded(rel: Path) -> bool:
         return True
     if rel.suffix in _EXCLUDE_SUFFIXES:
         return True
-    if any("/".join(rel.parts).startswith(p) for p in _EXCLUDE_REL_PREFIXES):
+    if any(rel == Path(p) or Path(p) in rel.parents for p in _EXCLUDE_REL_PREFIXES):
         return True
     return False
 
@@ -87,9 +87,9 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def _files(root: Path) -> dict[str, str]:
-    """rel-path -> sha256 for every non-excluded file under root."""
-    out: dict[str, str] = {}
+def _files(root: Path) -> dict[str, tuple[str, bool]]:
+    """Compare content plus Git-relevant owner executable bit for each path."""
+    out: dict[str, tuple[str, bool]] = {}
     if not root.is_dir():
         return out
     for path in root.rglob("*"):
@@ -98,7 +98,7 @@ def _files(root: Path) -> dict[str, str]:
         rel = path.relative_to(root)
         if _excluded(rel):
             continue
-        out[str(rel)] = _sha256(path)
+        out[str(rel)] = (_sha256(path), bool(path.stat().st_mode & 0o100))
     return out
 
 

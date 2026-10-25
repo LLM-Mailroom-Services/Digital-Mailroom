@@ -23,6 +23,11 @@ and is recorded there, not here.
 
 ### Fixed
 
+- DMR-111: import source-owned pipeline/visualizer/sandbox scoring and dependency
+  alignment after their reviewed source PRs; preserve exact committed provenance
+  and generated vendor parity. Vendor checks now detect executable-mode-only
+  drift and preserve similarly named runtime files under shared exclusions.
+
 - DMR-110: constellation README artwork now gives pinned-pull/connector captions opaque padded backings, keeps animation behind labels, widens the YOU ARE HERE badge, and separates mobile stat captions and diagram footers. Six source fixes are merged; five workspace imports are verified under this card. Browser layout regressions ship beside the assets.
 
 

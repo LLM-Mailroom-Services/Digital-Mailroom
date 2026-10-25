@@ -1,2 +1,0 @@
-{"id":"boss_approve","expected_doc_class":"contract","escalation_reason":"extraction conflict","expected_decision":"approved","extracted_data":{"parties":["Northwind Logistics Corporation"]}}
-{"id":"boss_review","expected_doc_class":"correspondence","escalation_reason":"ambiguous class","expected_decision":"review","extracted_data":{}}

@@ -1112,20 +1112,22 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # Reviewed standalone refs frozen to exact source SHAs. Mirror monorepo
 # workspace packages when available, after importing those reviewed revisions.
 # The fallback rejects moved refs before replacing any tracked vendor file.
+# The Dojo pin is the interim post-v0.24.2 zero-token fix; return to the next
+# released commit when v0.24.3 is published.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("llm-mailroom", "60cd5fad0c7a616ec575857841bb9897b9e8c3ed",
-     "https://github.com/Exios66/llm-mailroom.git", "60cd5fad0c7a616ec575857841bb9897b9e8c3ed"),
-    ("llm-dojo-scoring", "refs/tags/v0.24.2",
-     "https://github.com/Exios66/llm-dojo-scoring.git", "4740d76825217e746c645864c8510f12869db965"),
+    ("llm-mailroom", "1a1ec3dfb4e71f615f5d34f6198f9d06fd8c26dd",
+     "https://github.com/Exios66/llm-mailroom.git", "1a1ec3dfb4e71f615f5d34f6198f9d06fd8c26dd"),
+    ("llm-dojo-scoring", "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4",
+     "https://github.com/Exios66/llm-dojo-scoring.git", "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4"),
 )
 
 
 # Optional visualizer source is frozen independently of the two managed
 # runtime snapshots. Update only after reviewing its committed source.
 _VISUALIZER_PIN: tuple[str, str, str] = (
-    "98ae2278961245cdf66a9944512d28871d7d7bd6",
+    "cab7a41636b8092b434ffe9e478a8ebfd05d4ca3",
     "https://github.com/Exios66/The-Mailroom.git",
-    "98ae2278961245cdf66a9944512d28871d7d7bd6",
+    "cab7a41636b8092b434ffe9e478a8ebfd05d4ca3",
 )
 
 
@@ -1278,8 +1280,8 @@ def _refresh_vendor(name: str, pin: str, url: str, sha: str | None = None) -> in
     import tempfile
 
     refresh_root = vendor_dir() / ".refresh"
-    refresh_root.mkdir(parents=True, exist_ok=True)
     try:
+        refresh_root.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix=f"{name}-", dir=refresh_root) as tmp:
             work = Path(tmp) / "checkout"
             head = _fetch_reviewed_checkout(work, pin, url, sha)
@@ -1334,14 +1336,18 @@ def _refresh_vendor(name: str, pin: str, url: str, sha: str | None = None) -> in
 
 
 def _refresh_visualizer(pin: str, url: str, sha: str) -> int:
-    """Retrieve the reviewed visualizer, preserving every existing local tree.
+    """Retrieve the reviewed visualizer without discarding local work.
 
-    A present checkout is accepted only when clean and already at the exact
-    reviewed commit. A different HEAD may be local work, so do not reset it.
+    Dirty or divergent checkouts are preserved. A clean checkout whose HEAD
+    matches the reviewed-head marker written by an earlier refresh is an older
+    reviewed snapshot and is replaced atomically; local commits and unrelated
+    HEADs are never reset.
     """
+    import shutil
     import tempfile
 
     dest = vendor_dir() / "The-Mailroom"
+    existing_head = None
     if dest.exists() or dest.is_symlink():
         if dest.is_symlink() or not (dest / ".git").exists():
             print(f"!! visualizer path already exists; left untouched: {dest}", file=sys.stderr)
@@ -1356,18 +1362,59 @@ def _refresh_visualizer(pin: str, url: str, sha: str) -> int:
             ["git", "-C", str(dest), "rev-parse", "--verify", "HEAD^{commit}"],
             capture_output=True, text=True, check=False,
         )
-        if status.returncode or status.stdout or current.returncode or current.stdout.strip() != sha:
-            print("!! visualizer has local files or a different HEAD; left untouched", file=sys.stderr)
+        if status.returncode or status.stdout or current.returncode:
+            print("!! visualizer has local files; left untouched", file=sys.stderr)
+            return 1
+        existing_head = current.stdout.strip()
+        marker = dest / ".git" / "mailroom-reviewed-head"
+        try:
+            reviewed_head = marker.read_text(encoding="utf-8").strip()
+        except OSError:
+            reviewed_head = None
+        if existing_head != sha and reviewed_head != existing_head:
+            print(
+                "!! visualizer HEAD is not a previously reviewed snapshot; left untouched",
+                file=sys.stderr,
+            )
             return 1
     refresh_root = vendor_dir() / ".refresh"
-    refresh_root.mkdir(parents=True, exist_ok=True)
     try:
+        refresh_root.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="visualizer-", dir=refresh_root) as tmp:
             work = Path(tmp) / "checkout"
             if _fetch_reviewed_checkout(work, pin, url, sha) is None:
                 return 1
             if not dest.exists():
                 work.rename(dest)
+            elif existing_head != sha:
+                recovery = Path(
+                    tempfile.mkdtemp(prefix="visualizer-recovery-", dir=refresh_root)
+                )
+                backup = recovery / "The-Mailroom"
+                dest.rename(backup)
+                try:
+                    work.rename(dest)
+                except OSError as install_error:
+                    try:
+                        backup.rename(dest)
+                    except OSError as restore_error:
+                        print(
+                            f"!! visualizer install failed ({install_error}); rollback failed "
+                            f"({restore_error}). Original snapshot preserved at {backup}",
+                            file=sys.stderr,
+                        )
+                        return 1
+                    shutil.rmtree(recovery)
+                    raise
+                shutil.rmtree(recovery)
+            marker = dest / ".git" / "mailroom-reviewed-head"
+            try:
+                marker.write_text(f"{sha}\n", encoding="utf-8")
+            except OSError as marker_error:
+                print(
+                    f"!! visualizer updated but could not record the reviewed HEAD: {marker_error}",
+                    file=sys.stderr,
+                )
         print(f"== visualizer pinned @ {sha[:12]}")
         return 0
     except OSError as exc:

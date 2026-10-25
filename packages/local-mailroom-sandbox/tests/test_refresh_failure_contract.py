@@ -34,6 +34,19 @@ def test_visualizer_clone_attempted_after_source_failure(monkeypatch, tmp_path):
     assert calls == [cli._VISUALIZER_PIN]
 
 
+@pytest.mark.parametrize("operation", ["vendor", "visualizer"])
+def test_refresh_root_creation_failure_returns_error_code(monkeypatch, tmp_path, operation):
+    """A blocked .refresh directory must not escape as an uncaught exception."""
+    vendor = tmp_path / "vendor"
+    vendor.mkdir()
+    (vendor / ".refresh").write_text("not a directory\n")
+    monkeypatch.setattr(cli, "vendor_dir", lambda: vendor)
+    if operation == "vendor":
+        assert cli._refresh_vendor("llm-mailroom", "main", "https://invalid/source", "a" * 40) == 1
+    else:
+        assert cli._refresh_visualizer("main", "https://invalid/source", "a" * 40) == 1
+
+
 def test_moved_source_ref_cannot_replace_tracked_vendor(monkeypatch, tmp_path):
     """Exercise real Git clone/HEAD validation before tracked bytes are touched."""
     import subprocess

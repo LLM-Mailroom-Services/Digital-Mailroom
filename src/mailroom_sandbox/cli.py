@@ -1077,14 +1077,14 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
     The family code ships in-repo (DMR-057), so a fresh checkout needs no
     network. When present, the Digital-Mailroom monorepo workspace packages
     are mirrored into vendor, carrying both content updates and deletions.
-    Otherwise, refresh uses reviewed standalone main refs frozen to the
+    Otherwise, refresh uses reviewed standalone refs frozen to the
     SHAs in _VENDOR_PINS. A moved-ref check rejects a SHA mismatch before
     any tracked vendor files are replaced.
     """
     print(
         "vendor trees are tracked snapshots (self-contained); fetch-deps "
         "refreshes them — workspace mirror first (offline, carries "
-        "deletions), otherwise reviewed standalone main refs frozen to SHAs; "
+        "deletions), otherwise reviewed standalone refs frozen to SHAs; "
         "moved refs are rejected before tracked vendor files are replaced"
     )
     rc = 0
@@ -1104,37 +1104,28 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
             refresh_rc = _refresh_vendor(name, pin, url, sha)
             rc = rc or refresh_rc
     if getattr(args, "visualizer", False):
-        dest = vendor_dir() / "The-Mailroom"
-        if dest.is_dir() and (dest / ".git").exists():
-            pull = subprocess.run(
-                ["git", "-C", str(dest), "pull", "--ff-only"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if pull.returncode != 0:
-                print(
-                    f"!! visualizer refresh (git pull --ff-only) failed: "
-                    f"{pull.stderr.strip() or pull.stdout.strip()}",
-                    file=sys.stderr,
-                )
-                rc = rc or 1
-        else:
-            clone_rc = subprocess.run(
-                ["git", "clone", "--depth", "1", "https://github.com/Exios66/The-Mailroom.git", str(dest)]
-            ).returncode
-            rc = rc or clone_rc
+        visualizer_rc = _refresh_visualizer(*_VISUALIZER_PIN)
+        rc = rc or visualizer_rc
     return rc
 
 
-# Reviewed standalone main refs frozen to exact source SHAs. Mirror monorepo
+# Reviewed standalone refs frozen to exact source SHAs. Mirror monorepo
 # workspace packages when available, after importing those reviewed revisions.
 # The fallback rejects moved refs before replacing any tracked vendor file.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("llm-mailroom", "main",
-     "https://github.com/Exios66/llm-mailroom.git", "c529d3f3e4c10865b90f7d7d4675dbb2b8fbae5e"),
-    ("llm-dojo-scoring", "main",
-     "https://github.com/Exios66/llm-dojo-scoring.git", "bd5ed7c7f098f773b7e527f227cf2cf6e5e9e5f4"),
+    ("llm-mailroom", "31f89a82729e2a94314a372068af838ffa15def2",
+     "https://github.com/Exios66/llm-mailroom.git", "31f89a82729e2a94314a372068af838ffa15def2"),
+    ("llm-dojo-scoring", "refs/tags/v0.24.0",
+     "https://github.com/Exios66/llm-dojo-scoring.git", "d381b95f1182ef5b377b743988eb61e021579aac"),
+)
+
+
+# Optional visualizer source is frozen independently of the two managed
+# runtime snapshots. Update only after reviewing its committed source.
+_VISUALIZER_PIN: tuple[str, str, str] = (
+    "81e8b6cea5dbae0cbfcb3a2a4e4f573de6c9e42e",
+    "https://github.com/Exios66/The-Mailroom.git",
+    "81e8b6cea5dbae0cbfcb3a2a4e4f573de6c9e42e",
 )
 
 
@@ -1159,7 +1150,7 @@ def _monorepo_workspace_pkg(name: str):
 _VENDOR_EXCLUDE_NAMES = {"__pycache__"}
 _VENDOR_EXCLUDE_SUFFIXES = {".pyc"}
 _VENDOR_EXCLUDE_REL_PREFIXES = {"legalbench/reports"}
-_VENDOR_EXCLUDE_TOP_LEVEL_DIRS = {"tests"}
+_VENDOR_EXCLUDE_TOP_LEVEL_DIRS = {"tests", "test"}
 
 
 def _vendor_rel_excluded(rel: Path) -> bool:
@@ -1171,7 +1162,7 @@ def _vendor_rel_excluded(rel: Path) -> bool:
         return True
     if rel.suffix in _VENDOR_EXCLUDE_SUFFIXES:
         return True
-    if any("/".join(rel.parts).startswith(p) for p in _VENDOR_EXCLUDE_REL_PREFIXES):
+    if any(rel == Path(p) or Path(p) in rel.parents for p in _VENDOR_EXCLUDE_REL_PREFIXES):
         return True
     return False
 
@@ -1236,84 +1227,152 @@ def _package_src_dir(clone_root: Path) -> Path | None:
     return None
 
 
+def _fetch_reviewed_checkout(work: Path, pin: str, url: str, sha: str | None) -> str | None:
+    """Fetch a ref or full commit and verify its peeled commit BEFORE checkout.
+
+    An annotated tag names a tag object; compare its commit, not that object.
+    A full commit ref remains usable after main advances. Mutable refs still
+    fail closed if moved. LFS pointers remain pointers during this source-only
+    refresh; fetching a visualizer never downloads its large assets.
+    """
+    if not sha or len(sha) != 40 or any(c not in "0123456789abcdef" for c in sha):
+        print(f"!! {pin}: an exact reviewed 40-character commit SHA is required", file=sys.stderr)
+        return None
+    env = dict(os.environ, GIT_LFS_SKIP_SMUDGE="1")
+    reviewed_ref = "refs/vendor/reviewed"
+    commands = (
+        ["git", "init", "--quiet", str(work)],
+        ["git", "-C", str(work), "fetch", "--quiet", "--no-tags", "--depth", "1",
+         "--no-write-fetch-head", url, f"{pin}:{reviewed_ref}"],
+    )
+    for command in commands:
+        result = subprocess.run(command, capture_output=True, text=True, check=False, env=env)
+        if result.returncode:
+            print(f"!! could not fetch {pin} from {url}: {result.stderr.strip()}", file=sys.stderr)
+            return None
+    resolved = subprocess.run(
+        ["git", "-C", str(work), "rev-parse", "--verify", f"{reviewed_ref}^{{commit}}"],
+        capture_output=True, text=True, check=False, env=env,
+    )
+    head = resolved.stdout.strip() if resolved.returncode == 0 else "unknown"
+    if head != sha:
+        print(
+            f"!! pin mismatch: {pin} resolved to commit {head[:12]} but the "
+            f"reviewed snapshot is frozen at {sha[:12]} — tracked files left untouched. "
+            "Review and update the source pin first.", file=sys.stderr,
+        )
+        return None
+    checkout = subprocess.run(
+        ["git", "-c", "filter.lfs.required=false", "-c", "filter.lfs.process=",
+         "-c", "filter.lfs.smudge=", "-C", str(work), "checkout", "--quiet", "--detach", reviewed_ref],
+        capture_output=True, text=True, check=False, env=env,
+    )
+    if checkout.returncode:
+        print(f"!! checkout {pin} failed: {checkout.stderr.strip()}", file=sys.stderr)
+        return None
+    return head
+
+
 def _refresh_vendor(name: str, pin: str, url: str, sha: str | None = None) -> int:
     import shutil
+    import tempfile
 
-    stamp = subprocess.run(
-        ["git", "ls-remote", url, pin],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if stamp.returncode != 0 or not stamp.stdout.strip():
-        print(f"!! could not resolve {pin} of {url}", file=sys.stderr)
+    refresh_root = vendor_dir() / ".refresh"
+    refresh_root.mkdir(parents=True, exist_ok=True)
+    try:
+        with tempfile.TemporaryDirectory(prefix=f"{name}-", dir=refresh_root) as tmp:
+            work = Path(tmp) / "checkout"
+            head = _fetch_reviewed_checkout(work, pin, url, sha)
+            if head is None:
+                return 1
+            package_src = _package_src_dir(work)
+            if package_src is None:
+                print(f"!! unexpected layout in {name}@{pin} — vendor/{name} left untouched", file=sys.stderr)
+                return 1
+            # Build the complete normalized replacement before moving existing
+            # tracked bytes. The same predicate governs workspace and Git copies.
+            staged = Path(tmp) / "src"
+            staged_package = staged if package_src.name == "src" else staged / package_src.name
+
+            def ignore(directory, names):
+                return [entry for entry in names
+                        if _vendor_rel_excluded((Path(directory) / entry).relative_to(package_src))]
+
+            shutil.copytree(package_src, staged_package, ignore=ignore)
+            dest = vendor_dir() / name / "src"
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            had_dest = dest.exists()
+            recovery = None
+            if had_dest:
+                # Keep recovery bytes OUTSIDE the auto-cleaned checkout. A
+                # failed install and failed rollback must never delete them.
+                recovery = Path(tempfile.mkdtemp(prefix=f"{name}-recovery-", dir=refresh_root))
+                backup = recovery / "src"
+                dest.rename(backup)
+            try:
+                staged.rename(dest)
+            except OSError as install_error:
+                if recovery is not None:
+                    try:
+                        backup.rename(dest)
+                    except OSError as restore_error:
+                        print(
+                            f"!! install failed ({install_error}); rollback failed "
+                            f"({restore_error}). Original snapshot preserved at {backup}",
+                            file=sys.stderr,
+                        )
+                        return 1
+                    recovery.rmdir()
+                raise
+            if recovery is not None:
+                shutil.rmtree(recovery)
+        print(f"== refreshed vendor/{name} @ {pin} (commit {head[:12]}) — commit the diff")
+        return 0
+    except OSError as exc:
+        print(f"!! refresh {name}@{pin} failed: {exc}", file=sys.stderr)
         return 1
-    work = vendor_dir() / ".refresh" / name
-    if work.is_dir():
-        shutil.rmtree(work)
-    work.parent.mkdir(parents=True, exist_ok=True)
-    clone = subprocess.run(
-        ["git", "clone", "--depth", "1", "--branch", pin, url, str(work)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if clone.returncode != 0:
-        print(f"!! clone {name}@{pin} failed: {clone.stderr.strip()}", file=sys.stderr)
-        return 1
-    # Sha-freeze verdict FIRST: the vendored snapshot is byte-pinned to a
-    # commit; a moved ref tip (a branch advances, a tag is re-pointed) must
-    # fail loudly HERE, before any tracked tree is replaced with files the
-    # sandbox was never certified against.
-    head_proc = subprocess.run(
-        ["git", "-C", str(work), "rev-parse", "HEAD"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    head = "unknown"
-    if head_proc.returncode != 0:
-        print(
-            f"!! could not read the refreshed {name} commit: "
-            f"{head_proc.stderr.strip() or head_proc.stdout.strip()}",
-            file=sys.stderr,
+
+
+def _refresh_visualizer(pin: str, url: str, sha: str) -> int:
+    """Retrieve the reviewed visualizer, preserving every existing local tree.
+
+    A present checkout is accepted only when clean and already at the exact
+    reviewed commit. A different HEAD may be local work, so do not reset it.
+    """
+    import tempfile
+
+    dest = vendor_dir() / "The-Mailroom"
+    if dest.exists() or dest.is_symlink():
+        if dest.is_symlink() or not (dest / ".git").exists():
+            print(f"!! visualizer path already exists; left untouched: {dest}", file=sys.stderr)
+            return 1
+        status = subprocess.run(
+            ["git", "--no-optional-locks", "-c", "filter.lfs.required=false",
+             "-c", "filter.lfs.process=", "-c", "filter.lfs.clean=", "-C", str(dest),
+             "status", "--porcelain=v1", "--untracked-files=all", "--ignored"],
+            capture_output=True, text=True, check=False,
         )
-    else:
-        head = head_proc.stdout.strip()
-    if sha and head != sha:
-        print(
-            f"!! {name} pin mismatch: {pin} resolved to commit {head[:12]} but the "
-            f"vendored snapshot is frozen at {sha[:12]} — refusing to vendor a "
-            "tree the sandbox was never certified against. Re-pin "
-            "_VENDOR_PINS in src/mailroom_sandbox/cli.py first.",
-            file=sys.stderr,
+        current = subprocess.run(
+            ["git", "-C", str(dest), "rev-parse", "--verify", "HEAD^{commit}"],
+            capture_output=True, text=True, check=False,
         )
-        shutil.rmtree(work, ignore_errors=True)
+        if status.returncode or status.stdout or current.returncode or current.stdout.strip() != sha:
+            print("!! visualizer has local files or a different HEAD; left untouched", file=sys.stderr)
+            return 1
+    refresh_root = vendor_dir() / ".refresh"
+    refresh_root.mkdir(parents=True, exist_ok=True)
+    try:
+        with tempfile.TemporaryDirectory(prefix="visualizer-", dir=refresh_root) as tmp:
+            work = Path(tmp) / "checkout"
+            if _fetch_reviewed_checkout(work, pin, url, sha) is None:
+                return 1
+            if not dest.exists():
+                work.rename(dest)
+        print(f"== visualizer pinned @ {sha[:12]}")
+        return 0
+    except OSError as exc:
+        print(f"!! visualizer refresh failed: {exc}", file=sys.stderr)
         return 1
-    dest = vendor_dir() / name
-    dest.mkdir(parents=True, exist_ok=True)
-    # Mirror the committed layout — llm-mailroom keeps src/; llm-dojo-scoring
-    # ships the package at the repo ROOT (llm_dojo_scoring/) and the snapshot
-    # normalizes it under src/. Validate the source BEFORE touching dest so a
-    # layout surprise can never half-wipe the tracked tree (DMR-058).
-    package_src = _package_src_dir(work)
-    if package_src is None:
-        print(
-            f"!! unexpected layout in {name}@{pin} clone (no src/, llm_dojo_scoring/, "
-            f"or llm_mailroom/ at root) — vendor/{name} left untouched",
-            file=sys.stderr,
-        )
-        shutil.rmtree(work, ignore_errors=True)
-        return 1
-    shutil.rmtree(dest / "src", ignore_errors=True)
-    # The tracked layout is vendor/<name>/src/<pkgdir> for BOTH trees:
-    # llm-mailroom already ships src/<pkgdir>, llm-dojo-scoring ships the
-    # package at the clone root and gets normalized under src/ (DMR-058).
-    dest_src = dest / "src" / package_src.name if package_src.name != "src" else dest / "src"
-    shutil.copytree(package_src, dest_src, ignore=shutil.ignore_patterns("tests", "__pycache__", "*.pyc"))
-    shutil.rmtree(work, ignore_errors=True)
-    print(f"== refreshed vendor/{name} @ {pin} (commit {head[:12]}) — commit the diff")
-    return 0
 
 
 def _cmd_cutover(args: argparse.Namespace) -> int:

@@ -35,6 +35,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
+from llm_dojo_scoring import aggregate_sandbox_scores
+
 from mailroom_sandbox.job.checkpoint import RunStore
 from mailroom_sandbox.paths import repo_root
 
@@ -428,36 +430,11 @@ def collect_card(
     schema = [bool(s["schema_valid"]) for s in item_scores if "schema_valid" in s]
     method = next((s.get("scoring_method") for s in item_scores if s.get("scoring_method")), None)
 
-    def total(key: str) -> int:
-        return sum(int(s.get(key) or 0) for s in item_scores)
-
     clause: dict[str, Any] = {}
     if method and str(method).endswith("+cuad"):
-        tp, fp, fn = total("cuad_tp"), total("cuad_fp"), total("cuad_fn")
-        prec = tp / (tp + fp) if tp + fp else None
-        rcl = tp / (tp + fn) if tp + fn else None
-        clause = {
-            "kind": "cuad",
-            "docs_labeled": sum(1 for s in item_scores if s.get("cuad_presence_f1") is not None),
-            "precision": prec,
-            "recall": rcl,
-            "f1": (2 * prec * rcl / (prec + rcl)) if prec and rcl else None,
-            "value_correct": total("cuad_value_correct"),
-            "value_checked": total("cuad_value_checked"),
-        }
+        clause = aggregate_sandbox_scores("cuad", item_scores)
     elif method and str(method).endswith("+maud"):
-        q, a, c = total("maud_questions"), total("maud_answered"), total("maud_correct")
-        clause = {
-            "kind": "maud",
-            "questions": q,
-            "answered": a,
-            "correct": c,
-            "accuracy": c / q if q else None,
-            "coverage": a / q if q else None,
-            "precision_answered": c / a if a else None,
-            "clean_correct": total("maud_clean_correct"),
-            "clean_questions": total("maud_clean_questions"),
-        }
+        clause = aggregate_sandbox_scores("maud", item_scores)
 
     temperature = posture.get("temperature")
     temperature_source = "posture knob" if temperature is not None else "vendored call site"

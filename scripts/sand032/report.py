@@ -23,6 +23,10 @@ from pathlib import Path
 
 import yaml
 
+# Import the harness first to expose its tracked, offline Dojo snapshot.
+import mailroom_sandbox  # noqa: F401
+from llm_dojo_scoring import aggregate_sandbox_scores
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import viz  # noqa: E402  (/dataviz chart kit, validated palette)
 
@@ -262,10 +266,10 @@ def scoring_section(d: dict) -> list[str]:
     """Merger/contract rows carry MAUD/CUAD label maps only — say what the headline means."""
     sc = [i["score"] for i in d["items"].values() if i.get("ok") and isinstance(i.get("score"), dict)]
     method = next((x.get("scoring_method") for x in sc if x.get("scoring_method")), "")
-    tot = lambda k: sum(int(x.get(k) or 0) for x in sc)  # noqa: E731
     if method.endswith("+maud"):
-        q, a, c = tot("maud_questions"), tot("maud_answered"), tot("maud_correct")
-        cq, cc = tot("maud_clean_questions"), tot("maud_clean_correct")
+        pooled = aggregate_sandbox_scores("maud", sc)
+        q, a, c = pooled["questions"], pooled["answered"], pooled["correct"]
+        cq, cc = pooled["clean_questions"], pooled["clean_correct"]
         return ["## Scoring method — MAUD answer accuracy", "",
                 "The pinned Hub merger rows carry ground truth only as `maud_clause_labels` (LegalBench MAUD "
                 "question → answer). The suite field map scores document_name/parties/…, which those rows never "
@@ -273,21 +277,19 @@ def scoring_section(d: dict) -> list[str]:
                 "(`src/mailroom_sandbox/eval/maud_scoring.py`); an unanswered question counts as wrong.", "",
                 "| metric | value |", "| --- | --- |",
                 f"| labeled MAUD questions | {q} |",
-                f"| answered | {a} ({a / q:.1%} coverage) |" if q else "| answered | — |",
-                f"| correct | {c} → **micro accuracy {c / q:.1%}** |" if q else "| correct | — |",
-                f"| precision on answered | {c / a:.1%} |" if a else "| precision on answered | — |",
-                f"| clean subset (single MAUD sub-question per name) | {cc}/{cq} = {cc / cq:.1%} |" if cq else "| clean subset | — |",
+                f"| answered | {a} ({pooled['coverage']:.1%} coverage) |" if q else "| answered | — |",
+                f"| correct | {c} → **micro accuracy {pooled['accuracy']:.1%}** |" if q else "| correct | — |",
+                f"| precision on answered | {pooled['precision_answered']:.1%} |" if a else "| precision on answered | — |",
+                f"| clean subset (single MAUD sub-question per name) | {cc}/{cq} = {pooled['clean_accuracy']:.1%} |" if cq else "| clean subset | — |",
                 "",
                 "**Dataset caveat:** the corpus collapses several MAUD sub-questions under one name (e.g. `No-Shop` "
                 "answers include `Yes`, `Strict liability`, `Reasonable standard`), so a per-doc target on those "
                 "names is ambiguous; the clean subset excludes them.", ""]
     if method.endswith("+cuad"):
-        tp, fp, fn = tot("cuad_tp"), tot("cuad_fp"), tot("cuad_fn")
-        P = tp / (tp + fp) if tp + fp else 0.0
-        R = tp / (tp + fn) if tp + fn else 0.0
-        F = 2 * P * R / (P + R) if P + R else 0.0
-        vc, vk = tot("cuad_value_correct"), tot("cuad_value_checked")
-        labeled = sum(1 for x in sc if x.get("cuad_presence_f1") is not None)
+        pooled = aggregate_sandbox_scores("cuad", sc)
+        P, R, F = pooled["precision"], pooled["recall"], pooled["f1"]
+        vc, vk = pooled["value_correct"], pooled["value_checked"]
+        labeled = pooled["docs_labeled"]
         return ["## Scoring method — CUAD clause detection", "",
                 "The pinned Hub contract rows carry ground truth only as `cuad_clause_labels` (CUAD category → "
                 "annotated spans). The suite field map never meets them, so field F1 was 0 and the overall score "
@@ -295,7 +297,7 @@ def scoring_section(d: dict) -> list[str]:
                 "row's labeled universe (`src/mailroom_sandbox/eval/cuad_scoring.py`).", "",
                 "| metric | value |", "| --- | --- |",
                 f"| docs with CUAD labels (scored) | {labeled} of {len(sc)} ok |",
-                f"| micro precision / recall / F1 | {P:.3f} / {R:.3f} / **{F:.3f}** |",
+                f"| micro precision / recall / F1 | {P:.3f} / {R:.3f} / **{F:.3f}** |" if labeled else "| micro precision / recall / F1 | — |",
                 f"| metadata value checks (name, parties, governing law) | {vc}/{vk} = {vc / vk:.1%} |" if vk else "| metadata value checks | — |",
                 f"| predicted categories outside the labeled universe (ignored, scored docs) | {sum(int(x.get('cuad_out_of_universe') or 0) for x in sc if x.get('cuad_presence_f1') is not None)} |", ""]
     return []

@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- DMR-111: delegate CUAD/MAUD benchmark engines and pooled headline scores to
+  released Dojo 0.24.0. Null MAUD ground truth is unlabelled; real CUAD zero
+  scores no longer disappear. Preserve existing public adapter/result names.
+- Retrieve reviewed commit refs and peeled release tags immutably, validate
+  before checkout/replacement, and preserve vendor recovery bytes if installation
+  and rollback both fail. Use identical exclusion rules for Git/workspace copies.
+- Refresh tracked pipeline/scoring snapshots and truthful source provenance;
+  freeze optional visualizer retrieval and preserve existing local checkouts.
+
 - Complete the SAND-062 dependency lock updates: pypdf 6.21.2, filelock 4.2.1, nbconvert 7.17.2 and OpenTelemetry API/SDK/exporters 1.45.1 (semantic conventions and shared HTTP transport 0.66b1). Initialize sandbox vendor paths in the cold-resume test subprocess before patching its real OpenAI client, and scope the API-evals import path to the test fixture so the module also passes independently; no runtime behavior changes. Related: DMR-097.
 
 - Add the DMR-088 `fetch-deps` regression test (`tests/test_fetch_deps_rc.py`), previously carried only in the Digital-Mailroom hub copy: every vendor refresh runs after an earlier failure and the command exits non-zero if any failed.

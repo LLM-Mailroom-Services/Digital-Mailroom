@@ -109,15 +109,16 @@ The one-command local path is the core of it:
 5. `sandbox pilot --local`
 
 <details>
-<summary>CPU-only smoke test</summary>
+<summary>CPU-only configuration check</summary>
 
-Pull `llama3.2:3b` and run:
+Pull `llama3.2:3b`, select it, then probe the provider:
 
 ```bash
-sandbox cutover --profile ollama --model llama3.2:3b
+sandbox cutover --profile ollama --model llama3.2:3b   # prints the assignment
+sandbox health                                         # probes the active provider
 ```
 
-GPU recommended for Qwen 8B.
+`cutover` does not call the model. GPU recommended for Qwen 8B.
 
 </details>
 

@@ -31,10 +31,9 @@ def dev_defaults_allowed() -> bool:
 
 def configured_jwt_secret() -> str:
     return (
-        os.environ.get("MAILROOM_OPERATOR_JWT_SECRET")
-        or os.environ.get("JWT_SECRET")
-        or ""
-    ).strip()
+        os.environ.get("MAILROOM_OPERATOR_JWT_SECRET", "").strip()
+        or os.environ.get("JWT_SECRET", "").strip()
+    )
 
 
 def bootstrap_password() -> Optional[str]:

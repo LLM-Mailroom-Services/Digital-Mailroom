@@ -23,6 +23,11 @@ and is recorded there, not here.
 
 ### Fixed
 
+- DMR-114: repair the `governance/TASKS.md` open-card table so GitHub renders
+  it as GFM — the separator now matches the six-column header and DMR-105 no
+  longer carries an extra cell — with a rectangular-table regression check in
+  the hermetic scripts suite.
+
 - DMR-113: resolve the surviving CodeAnt findings after the DMR-111/112 rounds.
   Pipeline: archived requeues after a doc-type override, unreadable processing
   roots, periodic stale-claim reconciliation, offline SHA-to-tag refusal,

@@ -70,7 +70,7 @@ one virtualenv**, and no member imports code from outside the workspace.
 
 <div align="center">
 <img src="docs/assets/readme/sorting-floor.gif" alt="Pixel-art sorting floor: letters drop from the inbox, the SORTER classifies them, the JUDGE stamps them, they land in one of five class bins, and a hash-chained receipt grows along the floor" width="100%"/>
-<br/><sub><i>Coming to you live from the sorting floor...</code></i></sub>
+<br/><sub><i>Coming to you live from the sorting floor...</i></sub>
 </div>
 
 <br/>

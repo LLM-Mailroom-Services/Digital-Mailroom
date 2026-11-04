@@ -139,7 +139,7 @@ class TestJudgeGate:
 class TestLaneBRouting:
     def test_complete_and_skipped_proceed(self):
         for verdict in ("complete", "skipped", None, ""):
-            assert after_judge({"judge_verdict": verdict}) == "compile_report"
+            assert after_judge({"judge_verdict": verdict, "extraction_confidence": 0.97}) == "compile_report"
 
     def test_partial_and_incomplete_go_to_arbiter(self):
         for verdict in ("partial", "incomplete"):
@@ -153,7 +153,7 @@ class TestLaneBRouting:
         assert after_judge({"transient_error": True, "transient_retries_judge_verify": 3}) == "human_review"
 
     def test_arbiter_accept_proceeds(self):
-        assert after_arbiter({"arbiter_decision": "accept_with_caveats"}) == "compile_report"
+        assert after_arbiter({"arbiter_decision": "accept_with_caveats", "extraction_confidence": 0.97}) == "compile_report"
 
     def test_arbiter_retry_bounded_to_two(self):
         # Approval-inclusive bound: arbiter_retry_max=2. Counts 1 and 2 still
@@ -187,7 +187,7 @@ class TestTopology:
         nodes = {n for n in g.get_graph().nodes if not n.startswith("__")}
         expected = {
             "intake", "classify", "retry_classify", "review_classify",
-            "extract", "retry_extract", "judge_verify", "arbiter",
+            "extract", "retry_extract", "judge_verify", "arbiter", "classification_arbiter",
             "human_review", "boss_escalation", "compile_report",
             "catalog_write", "archive",
         }

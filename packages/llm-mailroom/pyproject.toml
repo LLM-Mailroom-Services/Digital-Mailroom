@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mailroom"
-version = "0.8.1"
+version = "0.9.1"
 description = "Multi-Agent Legal Document Processing Pipeline"
 requires-python = ">=3.11"
 dependencies = [
@@ -15,6 +15,9 @@ dependencies = [
     "pydantic>=2.0",
     "watchdog>=4.0",
     "fastapi>=0.110",
+    # FastAPI form and upload routes (src/api/main.py) need it. It used to arrive
+    # transitively through arize-phoenix, which c816130 removed.
+    "python-multipart>=0.0.9",
     "uvicorn[standard]>=0.29",
     "sqlalchemy[asyncio]>=2.0",
     "aiosqlite>=0.19",
@@ -32,16 +35,23 @@ dependencies = [
     "python-dotenv>=1.0",
     "jellyfish>=1.0",
     "python-dateutil>=2.8",
-    # Arize Phoenix — local, cost-free OpenTelemetry tracing (default fallback
-    # in `observability/tracing.py`; aligned with llm-entity-extraction).
-    "arize-phoenix>=4.0",
+    # Local, cost-free OpenTelemetry tracing (default fallback in
+    # `observability/tracing.py`; aligned with llm-entity-extraction).
+    # OpenInference instruments the OpenAI SDK for the Phoenix backend; the
+    # full `arize-phoenix` server package is intentionally NOT a dependency
+    # (it pulls arize-phoenix-otel, which has no wheels for Python >=3.15).
+    "openinference-instrumentation-openai>=0.1",
     "opentelemetry-sdk>=1.20",
     "opentelemetry-exporter-otlp-proto-http>=1.20",
+    # Parquet warehouse export (storage/warehouse.py); optional at runtime
+    # (auto-disabled when absent) but kept as a core dep for parity with the
+    # previous arize-phoenix transitive pull.
+    "pyarrow>=15.0",
     # Unified scoring engine (KANBAN-061): llm_dojo_scoring.field_scoring is
     # the canonical engine since v0.5.0.
-    # Interim post-v0.24.2 commit (explicit total_tokens: 0 zero-usage fix);
-    # replace with the released commit when Dojo v0.24.3 is published.
-    "llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4",
+    # v0.27.1 release merge (a82843e): tiered per-document-type scorers and
+    # score_document.
+    "llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@a82843e808336e0078c7d5b27dcdb3ff8b698170",
 ]
 
 [project.optional-dependencies]
@@ -97,7 +107,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["agents*", "langchain_agents*", "graph*", "llm*", "schemas*", "pipeline*", "storage*", "api*", "observability*", "config"]
+include = ["agents*", "dojo_source*", "langchain_agents*", "graph*", "llm*", "schemas*", "pipeline*", "storage*", "api*", "observability*", "config"]
 namespaces = true
 
 [tool.setuptools.package-data]

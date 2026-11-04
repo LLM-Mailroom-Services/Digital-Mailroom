@@ -1,0 +1,50 @@
+# Verify the saved Qwen sorter pass before it is used as training targets
+# (scripts/patch_sorter_handoff.py): the 19 train rows whose title contradicts the label with
+# no reviewer answer, and the sorter class errors no corpus rule confirms. Decisions model,
+# question set 3.1.0, with the saved sorter handoff. Ran on 2026-11-01: 46 documents,
+# 535,592 input tokens, $0.054 at list price (about $0.0012 per document; the pre-run
+# estimate of $0.03 used the shorter 3.0.0 test documents).
+#
+# Rows: data/runtime/handoff/train-verify.jsonl (not tracked). To rebuild it, take the train
+# rows of the dataset runs sorter-handoff-qwen-train and sorter-handoff-qwen-train-rest whose
+# ids are the 46 rows of data/handoff/sorter-qwen3.7-flash/train.targets.jsonl with
+# reviewer_evidence.run == "reviewer-verify-sorter-handoff-train", in id order.
+schema: sandbox.run/v1
+run_id: reviewer-verify-sorter-handoff-train
+task: sorter_reviewer
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file
+  local_path: data/runtime/handoff/train-verify.jsonl
+  config: ground_truth
+  split: train
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna-decisions
+  modal: null
+
+reviewer:
+  backend: decisions
+  model: openai/gpt-6-luna-decisions
+  questions: reviewer_decisions_v3.1.0
+  handoff_run: data/handoff/sorter-qwen3.7-flash/train.jsonl
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 16
+  cost_cap_usd: 0.20
+  max_wall_seconds: 1800
+  api_cost_cap_usd: 0.10
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, reviewer-verification, decisions-api, question-set-3.1.0]

@@ -1,0 +1,44 @@
+# SAND-085: held-out check of the Decisions reviewer (openai/gpt-6-luna-decisions) with the
+# v2 question set, on the whole test split (323 documents, none used to write the questions
+# or pick the cutoffs). Apply the cutoffs from reviewer-calibration-luna-decisions-v2 without
+# re-tuning. Input only at $0.10 per 1M tokens; about $0.30 at the 120k-character cap.
+schema: sandbox.run/v1
+run_id: reviewer-validation-luna-decisions-v2-test
+task: sorter_reviewer
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: test
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
+  sample_seed: 42
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna-decisions
+  modal: null
+
+reviewer:
+  backend: decisions
+  model: openai/gpt-6-luna-decisions
+  questions: reviewer_decisions_v2
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 16
+  cost_cap_usd: 1.00
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 1.00
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, reviewer-validation, decisions-api]

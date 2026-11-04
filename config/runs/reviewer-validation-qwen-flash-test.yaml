@@ -1,0 +1,55 @@
+# SAND-085 / reports/decisions: the measured "1x LLM reviewer". Qwen 3.7 Flash as the chat reviewer
+# (sorter_reviewer agent, code-default prompt) over the whole held-out test split (323 documents),
+# through OpenRouter. It replaces the modelled second Qwen call in reports/decisions/02 with a
+# measurement of cost, accuracy and confidence on the same documents the Decisions model reviewed.
+# A chat model as reviewer is chosen on purpose (allow_chat_model); no cutoffs are applied.
+# Qwen 3.7 Flash call tiers: $0.03/$0.13 below 32k prompt tokens, $0.10/$0.40 from 32k (config/api_prices.yaml).
+# The saved Qwen sorter pass over these documents measured about $0.25 tiered; the reviewer prompt adds a little.
+# Score with: python scripts/calibrate_reviewer.py --run reviewer-validation-qwen-flash-test \
+#       --cutoffs-from reviewer-calibration-luna-decisions-v2
+schema: sandbox.run/v1
+run_id: reviewer-validation-qwen-flash-test
+task: sorter_reviewer
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: test
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_DATA_REVISION)
+  sample_seed: 42
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_routes:
+  sorter_reviewer: {provider: openrouter, model: qwen/qwen3.7-flash}
+
+agent_knobs:
+  sorter_reviewer: {max_input_chars: 600000}
+
+reviewer:
+  backend: api
+  model: qwen/qwen3.7-flash
+  allow_chat_model: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 16
+  cost_cap_usd: 0.60
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.60
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, reviewer-validation, qwen-flash-reviewer, one-x-baseline]

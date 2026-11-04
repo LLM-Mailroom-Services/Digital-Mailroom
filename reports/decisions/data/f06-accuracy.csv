@@ -1,0 +1,8 @@
+run,split,correct / n,class accuracy (%)
+Qwen agent · test (323),test,309 / 323,95.7
+"Qwen agent · train (2,979)",train,"2,852 / 2,979",95.7
+"Qwen reviewer, default prompt · test (323)",test,303 / 323,93.8
+Decisions · v2 · test (323),test,318 / 323,98.5
+Decisions · v3.0.0 · test (323),test,318 / 323,98.5
+Decisions · v1 · train (735),train,723 / 735,98.4
+Decisions · v2 · train (735),train,735 / 735,100.0

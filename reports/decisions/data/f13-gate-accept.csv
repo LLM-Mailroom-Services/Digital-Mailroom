@@ -1,0 +1,7 @@
+class,documents,gate accept,accept rate (%),gate retry,gate human review,really good (%),mean extraction score
+contract,80,9,11.2,71,0,22.5,0.715
+corporate record,200,56,28.0,144,0,0.5,0.397
+correspondence,300,109,36.3,184,7,3.3,0.315
+insurance claim,300,68,22.7,232,0,24.7,0.773
+merger agreement,30,2,6.7,28,0,0.0,0.117
+all classes,910,244,26.8,659,7,11.3,0.513

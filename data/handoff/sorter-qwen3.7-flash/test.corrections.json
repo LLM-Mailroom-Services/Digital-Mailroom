@@ -1,0 +1,97 @@
+{
+  "corrections": [
+    {
+      "filename": "0001547903-13-000006_a42registrationrightsagree.htm",
+      "id": "DOC-2e10b60058bb3b36",
+      "label": [
+        "corporate_record",
+        "articles_of_incorporation"
+      ],
+      "reviewer": {
+        "doc_subclass": "rights_instrument",
+        "doc_type": "corporate_record",
+        "p": 0.9,
+        "run": "reviewer-validation-luna-decisions-v3.0.0-test"
+      },
+      "target": [
+        "corporate_record",
+        "rights_instrument"
+      ]
+    },
+    {
+      "filename": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT_POWEROF.pdf",
+      "id": "DOC-5011e1edb6c85cf4",
+      "label": [
+        "contract",
+        "Service"
+      ],
+      "reviewer": {
+        "doc_subclass": "powers_of_attorney",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-validation-luna-decisions-v3.0.0-test"
+      },
+      "target": [
+        "corporate_record",
+        "powers_of_attorney"
+      ]
+    },
+    {
+      "filename": "0000950137-06-011083_n08078exv3w03.htm",
+      "id": "DOC-59d072355f2c3b14",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "reviewer": {
+        "doc_subclass": "charter_amendment",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-validation-luna-decisions-v3.0.0-test"
+      },
+      "target": [
+        "corporate_record",
+        "charter_amendment"
+      ]
+    },
+    {
+      "filename": "0000950137-07-001855_x09498a3exv3w03.htm",
+      "id": "DOC-fbcdd16e24f143ac",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "reviewer": {
+        "doc_subclass": "charter_amendment",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-validation-luna-decisions-v3.0.0-test"
+      },
+      "target": [
+        "corporate_record",
+        "charter_amendment"
+      ]
+    }
+  ],
+  "disputes": [],
+  "documents": 323,
+  "file": "test.targets.jsonl",
+  "rules": "scripts/patch_sorter_handoff.py docstring",
+  "sha256": "4dafaa760db1c371230e902d9761b124dcf305e11a2d40a668921b9a1b180dd1",
+  "sorter_class_correct": 310,
+  "sorter_class_errors_by_pattern": {
+    "corporate_record -> contract": 8,
+    "correspondence -> contract": 1,
+    "correspondence -> unknown": 4
+  },
+  "sorter_class_errors_label_confirmed": 13,
+  "sorter_class_scored": 323,
+  "sorter_subclass_correct": 226,
+  "sorter_subclass_scored": 315,
+  "target_status": {
+    "corrected": 4,
+    "label": 252,
+    "label_normalized": 59,
+    "unannotated": 8
+  }
+}

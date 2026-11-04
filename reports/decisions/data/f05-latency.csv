@@ -1,0 +1,4 @@
+call,p50 (s),p95 (s)
+Qwen agent (323 test docs),2.52,7.63
+Qwen reviewer (323 test docs),2.68,8.27
+Decisions model (735 train docs),0.50,0.90

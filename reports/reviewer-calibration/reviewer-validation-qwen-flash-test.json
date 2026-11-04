@@ -1,0 +1,58 @@
+{
+  "backend": "api (chat model, allow_chat_model)",
+  "class_accuracy": 0.9381,
+  "class_correct": 303,
+  "completion_tokens": 50206,
+  "dataset": "Lucius-Morningstar/mailroom-dataset ground_truth test, revision ed7576b676343e0b402ec5412cded301e629bdee",
+  "date": "2026-11-02",
+  "docs_ge_32k_prompt_tokens": 23,
+  "documents": 323,
+  "failures": 0,
+  "latency_s": {
+    "concurrency": 16,
+    "p50": 2.68,
+    "p95": 8.27,
+    "wall_seconds": 74.7
+  },
+  "list_cost_usd_flat": 0.0964,
+  "list_cost_usd_tiered": 0.2099,
+  "model": "qwen/qwen3.7-flash",
+  "note": "No cutoffs calibrated: a Qwen reviewer has no train calibration. 'unattended' = answer is a decision class and confidence >= the threshold; 'unknown' parks. Items file carries no document text.",
+  "openrouter_billed_basis": "key usage delta over the run: 11.383514754 -> 11.598133956 USD (assumes no other use of the key during the run)",
+  "openrouter_billed_usd": 0.2146,
+  "prompt": "code-default",
+  "prompt_tokens": 2994203,
+  "route": "openrouter",
+  "run_id": "reviewer-validation-qwen-flash-test",
+  "signed": "JB",
+  "spec_hash": "8b72aee96e7a33c1ada9f2175f604856eadf6c2b25c276b5d23582ba4b8a2d94",
+  "unattended_if_unknown_parks": {
+    "0.0": {
+      "misrouted": 8,
+      "parked_for_a_person": 12,
+      "unattended": 311
+    },
+    "0.9": {
+      "misrouted": 8,
+      "parked_for_a_person": 12,
+      "unattended": 311
+    },
+    "0.95": {
+      "misrouted": 6,
+      "parked_for_a_person": 15,
+      "unattended": 308
+    },
+    "1.0": {
+      "misrouted": 4,
+      "parked_for_a_person": 116,
+      "unattended": 207
+    }
+  },
+  "wrong_answers": 20,
+  "wrong_at_confidence_ge_0_90": 20,
+  "wrong_by_pattern": {
+    "contract -> corporate_record": 1,
+    "corporate_record -> contract": 7,
+    "correspondence -> unknown": 12
+  }
+}

@@ -1,0 +1,188 @@
+# Remote serving: Modal, vLLM, SSH tunnels, CHTC, conda
+
+The sandbox is local-first, but its eval surfaces are provider-agnostic:
+anything that speaks OpenAI `/v1` can back a profile. Four supported paths,
+one env contract (`VLLM_BASE_URL` / `VLLM_API_KEY` everywhere).
+
+> **Default path:** `modal-vllm`. The canonical lifecycle script is
+> [`sandbox runbook show serve`](../runbooks/serving/modal-vllm.md) — generated
+> from `config/runbooks/catalog.yaml`. This page is the overview of all four
+> serving paths; the runbook is the one to execute.
+
+| Path | Profile | Best for |
+| --- | --- | --- |
+| Local vLLM (GPU host) | `vllm-local` | a machine with the GPU in front of you |
+| Modal-hosted vLLM | `modal-vllm` | zero-infra remote GPU, public HTTPS endpoint |
+| SSH-tunneled vLLM | `vllm-remote` | lab GPU boxes, owned CHTC machines, any SSH host |
+| Batch in-job (no server) | — (job-hosted) | CHTC shared GPU Lab (no SSH into jobs) |
+
+## Local vLLM
+
+```bash
+sandbox up -d --compose-profile vllm     # docker compose, needs NVIDIA GPU
+sandbox health --profile vllm-local
+```
+
+The compose service pins `vllm/vllm-openai:v0.29.0` — the same engine
+version as the Modal app — and sends the shared test-sandbox argv:
+`--host 0.0.0.0 --port 8000 --max-model-len 16384
+--gpu-memory-utilization 0.90 --max-num-seqs 256
+--no-enable-log-requests` (DMR-056: 16384 is the boot-valid cap for
+L4-bf16 8B-class rows — v0.29.0 raises at boot rather than shrinking the KV
+pool; AWQ rows opt up to 32768). Compose substitution reads your shell env or
+`deploy/.env` (the compose project directory):
+
+| Env | Default | Notes |
+| --- | --- | --- |
+| `VLLM_MODEL` | `Qwen/Qwen3.5-9B` | HF repo id; the `vllm-local` profile default (served bf16; compose has no quantization knob) |
+| `VLLM_MAX_MODEL_LEN` | `16384` | KV-cache budget (boot-valid for bf16 8B on L4; AWQ rows set 32768) |
+| `VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | vLLM's default is `0.92`; 0.90 leaves headroom on a 24 GB L4 / shared GPU |
+| `VLLM_MAX_NUM_SEQS` | `6` | L4 long-prompt concurrency cap (matches the Modal default; scale-matrix → 256) |
+| `VLLM_API_KEY` | empty | when set, `/v1/*` requires the bearer (same contract as Modal) |
+| `HF_TOKEN` | empty | gated/private weights |
+
+Quantized checkpoints and pinned revisions are one-off command overrides —
+the image entrypoint is `vllm serve`, so the first argument is the model:
+
+```bash
+docker compose -f deploy/docker-compose.yml --profile vllm run --rm --service-ports \
+  vllm Qwen/Qwen3-8B-AWQ --host 0.0.0.0 --port 8000 --max-model-len 32768 \
+  --gpu-memory-utilization 0.90 --max-num-seqs 256 --no-enable-log-requests
+```
+
+The Modal app exposes both as deploy knobs (`MODAL_VLLM_QUANTIZATION`,
+`MODAL_VLLM_REVISION`); `--revision` is the reproducibility pin for runs.
+
+## Modal
+
+Modal SDK **1.6.2** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**
+(v0.29.0 flips the engine core — bump both pins
+after a parity run); full workflow (knobs, costs, security, troubleshooting)
+in [`deploy/README.md`](../../deploy/README.md).
+
+```bash
+pip install -e ".[deploy]" && modal token new
+# Prefer Hermes Agent Gmail credits (mailroom-ml):
+modal profile activate hermes-agent-jjb
+export MODAL_VLLM_MODEL=Qwen/Qwen3.5-9B
+export MODAL_VLLM_GPU=L4
+export MODAL_VLLM_API_TOKEN=<secret>
+
+modal run deploy/modal_vllm.py::download_model   # pre-warm weights (CPU-only)
+modal deploy deploy/modal_vllm.py                # prints the URL
+
+export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+sandbox run benchmark-check --config config/runs/legacy/run-30-contracts-specialist.yaml
+sandbox health --profile modal-vllm              # 401 = token mismatch
+```
+
+The same steps through the sandbox CLI: `sandbox modal prewarm`, `sandbox modal deploy`,
+`sandbox vllm probe`, `sandbox modal status`, `sandbox modal stop` (idempotent, verified).
+`sandbox vllm command` prints the `vllm serve` line the app launches; `sandbox hf download`
+fetches the pinned dataset revision. `--dry-run` prints the argv and spends nothing
+on `modal deploy`, `modal prewarm`, `modal stop`, `modal logs`, `vllm serve`, and
+`hf download`.
+
+Full specialist suite + cost extrapolation: [`docs/runbooks/archived-experiments/qwen/STALE/l4-qwen3-8b.md`](../runbooks/archived-experiments/qwen/STALE/l4-qwen3-8b.md)
+(`sandbox runbook show l4-qwen3-8b`). Default lifecycle:
+[`docs/runbooks/serving/modal-vllm.md`](../runbooks/serving/modal-vllm.md)
+(`sandbox runbook show serve`). Index: [`docs/modal/benchmark-l4.md`](../modal/benchmark-l4.md).
+
+Cost posture (specialist suite): `scaledown=120` attended / `600` unattended,
+`max_containers=1`, one warm app for all five runs then
+`./deploy/teardown_vllm.sh` (L4 ≈ $0.80/hr while warm; rates at
+modal.com/pricing, verified 2026-09-09). Weights survive in the
+`sandbox-hf-cache` Volume.
+
+Throughput runs (Modal `vllm_throughput` exemplar, 2026-09): deploy the
+published FP8 checkpoint on a single H100
+(`MODAL_VLLM_MODEL=Qwen/Qwen3-8B-FP8 MODAL_VLLM_GPU=H100
+MODAL_VLLM_MAX_MODEL_LEN=32768 MODAL_VLLM_ATTENTION_BACKEND=flashinfer
+MODAL_VLLM_ASYNC_SCHEDULING=1`) and set `concurrency: 4-16` in the run
+spec's `job:` block so the eval runner fills vLLM's continuous batching
+(`deploy/README.md`, `docs/jobs.md`). The two throughput flags default OFF —
+empty is the engine default and keeps local compose <-> Modal parity.
+
+## SSH tunnels (`vllm-remote` + `sandbox tunnel`)
+
+For a vLLM server on any machine you can SSH to. The profile's `tunnel:`
+block names the env vars — nothing secret lives in this repo.
+
+```bash
+export SANDBOX_TUNNEL_HOST=gpu.lab.example
+export SANDBOX_TUNNEL_USER=jdoe
+# optional: SANDBOX_TUNNEL_PORT (default 22), SANDBOX_TUNNEL_KEY
+sandbox tunnel --profile vllm-remote plan    # print the exact ssh command
+sandbox tunnel --profile vllm-remote up      # detached forward → localhost:18000
+sandbox health  --profile vllm-remote
+sandbox eval sorter --local                  # evals hit the tunneled engine
+sandbox tunnel  --profile vllm-remote down
+```
+
+CLI conventions: `--profile`, `--model`, `--prompt`, and `--agent-model`
+work before or after subcommands, including tunnel leaf commands. A later
+occurrence wins; `SANDBOX_PROFILE` sets the default profile.
+
+The forward is an `ssh -N -L` with `ExitOnForwardFailure` + keepalives;
+`up` refuses to double-forward a live port and records the pid under
+`data/runtime/tunnel-<profile>.pid`.
+
+## CHTC (HTCondor)
+
+See [`deploy/htcondor/README.md`](../../deploy/htcondor/README.md) for the
+full walkthrough — grounded in CHTC's live docs: access points + Duo/VPN
+login requirements, the GPU Lab roster and job classes (short 12h / medium
+24h / long 7d), container/staging rules, and the one constraint that shapes
+everything: **`condor_ssh_to_job` is unavailable on CHTC's shared GPU Lab
+machines** (allowed on researcher-owned machines), so:
+
+- **Shared pool → batch path** (`vllm_batch_eval.sub`): the job hosts vLLM
+  itself, runs the sandbox evals in-process, transfers `results/` back
+  (`condor_tail` for monitoring).
+- **Owned machines → server path** (`vllm_serve.sub`): long-lived vLLM job
+  + `condor_ssh_to_job` forwarding → the `vllm-remote` profile above.
+
+## Conda
+
+[`deploy/conda/environment.yml`](../../deploy/conda/environment.yml) defines
+the CPU-first `mailroom-sandbox` env (vLLM stays out — it carries its own
+CUDA stack and lives in a container). For CHTC, ship the env portably:
+
+```bash
+conda pack -n mailroom-sandbox -o env-mailroom-sandbox.tar.gz
+```
+
+## Health contract
+
+Every path converges on the same probes: `sandbox health` GETs
+`{base}/v1/models` and posts a 1-token `json_object` chat; structured-output
+gaps surface as `json_object_ok: false` (vLLM ≥0.8 and Modal's image pass).
+
+Bearer semantics (vLLM v0.29.0): `VLLM_API_KEY` (or `--api-key`) makes the
+server require `Authorization: Bearer <token>` on the `/v1`, `/v2`,
+`/inference`, and `/cohere` path prefixes. `/health` is a liveness endpoint
+and is deliberately **unauthenticated** — `sandbox health` validates the
+token through the authenticated `/v1/models` probe (a 401 there means token
+mismatch; use `/health` only for "is the process up"). Modal-hosted servers
+return 503 while scaled to zero, so retry rather than treating 503 as a
+failure.
+
+### Service checks and smoke tests
+
+`sandbox doctor --publish` checks local tools and configuration and publishes the
+services strip shown in `sandbox board` and `sandbox watch --web`. Old snapshots
+are marked stale. For periodic offline refresh, use
+`sandbox board --probe-interval 60`; `--root` selects where snapshots are written.
+Add `--live` explicitly to probe endpoints. Live Modal probes can cold-start a
+billed GPU, so periodic live checks can prevent scale-to-zero.
+
+Run real, read-only CLI flag checks with the verified Modal SDK and installed `hf`:
+
+```bash
+SANDBOX_SERVICE_SMOKE=1 pytest -q tests/test_service_cli_smoke.py
+```
+
+That command does not deploy, download, stop apps, or probe the provider. To also
+probe an existing endpoint (a billed request), explicitly export `VLLM_BASE_URL`
+and set `SANDBOX_LIVE_PROVIDER_SMOKE=1`. The default pytest suite remains offline.

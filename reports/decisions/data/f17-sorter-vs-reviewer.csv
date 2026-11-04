@@ -1,0 +1,8 @@
+measure,scored,sorter correct,sorter (%),reviewer correct,reviewer (%),change (points)
+Primary type · all,1488,1427,95.9,1468,98.7,+2.8
+Subclass · all,1463,1059,72.4,1229,84.0,+11.6
+Subclass · contract,269,223,82.9,233,86.6,+3.7
+Subclass · corporate record,201,107,53.2,184,91.5,+38.3
+Subclass · correspondence,457,248,54.3,278,60.8,+6.6
+Subclass · insurance claim,493,441,89.5,493,100.0,+10.5
+Subclass · merger agreement,43,40,93.0,41,95.3,+2.3

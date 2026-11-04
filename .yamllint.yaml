@@ -1,0 +1,9 @@
+extends: relaxed
+ignore: |
+  vendor/
+  data/
+  uv.lock
+rules:
+  line-length: disable
+  truthy: {check-keys: false}
+  new-line-at-end-of-file: disable

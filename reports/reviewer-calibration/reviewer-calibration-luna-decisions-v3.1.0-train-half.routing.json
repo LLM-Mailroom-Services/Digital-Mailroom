@@ -1,0 +1,107 @@
+{
+  "cutoffs": {
+    "contract": 0.78,
+    "corporate_record": 0.96,
+    "correspondence": 0.64,
+    "insurance_claim": 0.7,
+    "merger_agreement": 0.99
+  },
+  "cutoffs_from": "reviewer-calibration-luna-decisions-v2",
+  "misrouted": 2,
+  "misrouted_rate_among_unattended": 0.001429,
+  "not_scored": 3,
+  "routed_to_human_review": 90,
+  "routed_to_human_review_basis": "reviewer",
+  "routed_to_human_review_by_class": {
+    "contract": {
+      "n": 271,
+      "rate": 0.01476,
+      "routed": 4
+    },
+    "corporate_record": {
+      "n": 202,
+      "rate": 0.118812,
+      "routed": 24
+    },
+    "correspondence": {
+      "n": 442,
+      "rate": 0.029412,
+      "routed": 13
+    },
+    "insurance_claim": {
+      "n": 493,
+      "rate": 0.032454,
+      "routed": 16
+    },
+    "merger_agreement": {
+      "n": 68,
+      "rate": 0.264706,
+      "routed": 18
+    },
+    "unknown": {
+      "n": 15,
+      "rate": 1.0,
+      "routed": 15
+    }
+  },
+  "routed_to_human_review_rate": 0.060362,
+  "run_id": "reviewer-calibration-luna-decisions-v3.1.0-train-half",
+  "sent_on_unattended": 1400,
+  "subclass": {
+    "by_class": {
+      "contract": {
+        "accuracy": 0.872659,
+        "correct": 233,
+        "scored": 267
+      },
+      "corporate_record": {
+        "accuracy": 0.92,
+        "correct": 184,
+        "scored": 200
+      },
+      "correspondence": {
+        "accuracy": 0.631818,
+        "correct": 278,
+        "scored": 440
+      },
+      "insurance_claim": {
+        "accuracy": 1.0,
+        "correct": 493,
+        "scored": 493
+      },
+      "merger_agreement": {
+        "accuracy": 0.953488,
+        "correct": 41,
+        "scored": 43
+      }
+    },
+    "subclass_accuracy": 0.851698,
+    "subclass_correct": 1229,
+    "subclass_scored": 1443,
+    "truth": "targets data/handoff/sorter-qwen3.7-flash/train.targets.jsonl sha256 1221d23f2680c01e58865d6e36860c450218838d16d3a18cd32a921ccf86fc9a"
+  },
+  "truth": "targets data/handoff/sorter-qwen3.7-flash/train.targets.jsonl sha256 1221d23f2680c01e58865d6e36860c450218838d16d3a18cd32a921ccf86fc9a",
+  "verdicts_by_expected": {
+    "continue_sorter_correct": {
+      "continue_sorter_correct": 1056,
+      "continue_with_subclass_correction": 3,
+      "multiple_documents": 18,
+      "reclassify": 5,
+      "route_to_human_review": 2
+    },
+    "continue_with_subclass_correction": {
+      "continue_sorter_correct": 312,
+      "continue_with_subclass_correction": 13,
+      "multiple_documents": 10,
+      "reclassify": 6,
+      "route_to_human_review": 2
+    },
+    "reclassify": {
+      "continue_sorter_correct": 44,
+      "multiple_documents": 1,
+      "reclassify": 3,
+      "route_to_human_review": 12,
+      "unreadable": 1
+    }
+  }
+}

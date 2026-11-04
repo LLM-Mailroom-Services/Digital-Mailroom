@@ -1,0 +1,57 @@
+# Extraction gate question set 1.2.0 over the SAME 880 extractions 1.1.0 judged (baseline + round 2,
+# every class but merger_agreement), so the two sets compare document for document. No new
+# extraction: the handoffs are the existing specialist runs. Mergers are left out: 30 documents,
+# 25 labelled, 96% right on their key fields, so they carry no calibration signal and cost $0.23.
+#
+#   sandbox run start --config config/runs/extraction-gate-luna-v1.2.0-rereview.yaml --initials XX
+#   python scripts/extraction_gate.py calibrate --run extraction-gate-luna-v1.2.0-rereview
+#
+# Cost: Decisions bills input only ($0.10 per 1M): 1.1.0 read ~3.95M tokens for these documents,
+# about $0.40; cap $0.60.
+schema: sandbox.run/v1
+run_id: extraction-gate-luna-v1.2.0-rereview
+task: extraction_gate
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file
+  local_path: data/runtime/handoff/gate-train-rereview-v1.2.0.jsonl
+  config: ground_truth
+  split: train
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna-decisions
+  modal: null
+
+reviewer:
+  backend: decisions
+  model: openai/gpt-6-luna-decisions
+  questions: extraction_gate_v1.2.0
+  handoff_run:
+    - extraction-gate-specialist-insurance-claim-qwen
+    - extraction-gate-specialist-corporate-record-qwen
+    - extraction-gate-specialist-correspondence-qwen
+    - extraction-gate-specialist-contract-qwen
+    - extraction-gate-specialist-insurance-claim-qwen-r2
+    - extraction-gate-specialist-corporate-record-qwen-r2
+    - extraction-gate-specialist-correspondence-qwen-r2
+    - extraction-gate-specialist-contract-qwen-r2
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 12
+  cost_cap_usd: 1.00
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.60
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, extraction-gate, decisions-api, extraction-gate-1.2.0]

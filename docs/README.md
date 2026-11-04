@@ -1,43 +1,28 @@
 <div align="center">
 
-# 📚 Monorepo Documentation
+# 📚 Sandbox Documentation
 
-**The documentation hub for the Digital-Mailroom monorepo — architecture, contracts, audits, and wiki pages.**
+**Documentation for the local-mailroom-sandbox package.**
 
 </div>
 
 ---
 
-## Structure
+## Purpose
 
-| Path | Contents |
-| :--- | :--- |
-| [`assets/`](assets/) | Shared documentation assets (images, diagrams) |
-| [`reports/`](reports/) | Evaluation reports, audits, and analysis documents |
-| [`reports/audits/`](reports/audits/) | Corpus baseline audits plus DMR-009/091/092/093 branch, import and release audits |
-| [`wiki/`](wiki/) | GitHub-wiki pages (synced via `sync-wiki.sh`) |
+Documentation for the local-mailroom-sandbox package, covering:
+- Local development setup
+- Configuration guide
+- Testing procedures
+- **[Mailroom themed logging & live watch](pretty-logging/mailroom-themed-logging.md)** — `sandbox watch` / `--web`, Modal dispatch log tail, SAND-032 operator paths
 
-## Key Documents
+## Related Files
 
-| Document | Description |
-| :--- | :--- |
-| `../README.md` | Root monorepo README |
-| `../CONTRIBUTING.md` | Contributor guide: repo routing, card workflow, testing, commits, PRs |
-| `../SECURITY.md` | Vulnerability reporting, secrets and data handling |
-| `TESTING.md` | Test tiers, per-package commands and the change-type → required-suite matrix |
-| `COMMIT_MESSAGES.md` | Shared commit-message template and examples (`.gitmessage`) |
-| `v7-taxonomy.md` | Canonical five-class taxonomy definition |
-| `DOCCLASS_CONTRACT.md` | Dataset contract and versioning rules |
-| `docclass-merged-plan.md` | Strategic plan for corpus development |
-
-## Related Documentation
-
-| Package | Docs |
-| :--- | :--- |
-| `llm-mailroom` | `packages/llm-mailroom/docs/` — full pipeline documentation |
-| `local-mailroom-sandbox` | `packages/local-mailroom-sandbox/docs/` — sandbox, Modal and vLLM guides |
-| `mailroom-corpus-eda` | `packages/mailroom-corpus-eda/docs/` — dataset cards, source corpora |
-
-## Wiki
-
-The GitHub wiki is pushed from `wiki/` via `sync-wiki.sh`. Edit wiki-native pages directly in `wiki/`; mirror pages are generated from canonical sources at sync time.
+- `README.md` — Package overview
+- [`runbooks/README.md`](runbooks/README.md) — operator runbooks (singular L4 Qwen3-8B + improved configs)
+- [`setting-up/QUICKSTART.md`](setting-up/QUICKSTART.md) — install + full CLI reference
+- [`setting-up/LAYOUT.md`](setting-up/LAYOUT.md) — which folder owns what
+- [`pretty-logging/mailroom-watch-web.md`](pretty-logging/mailroom-watch-web.md) — browser watch cheat sheet
+- [`benchmark-l4.md`](modal/benchmark-l4.md) — catalog pointer
+- `src/` — Source code
+- `config/` — Configuration

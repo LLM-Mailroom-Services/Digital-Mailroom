@@ -1,0 +1,164 @@
+{
+  "schema": "mailroom-interim-labels/v1",
+  "status": "interim: unpublished enhancements to the mailroom-dataset ground truth; a Hub label supersedes the overlay field by field",
+  "built_at": "2026-11-01T18:35:54Z",
+  "builder": "scripts/interim_labels.py build",
+  "rules": {
+    "support_min": 0.9,
+    "null_support_min": 0.95,
+    "gap_fields": {
+      "corporate_record": [
+        "entity_name",
+        "jurisdiction",
+        "effective_date",
+        "filing_number",
+        "signatories"
+      ],
+      "correspondence": [
+        "sender",
+        "recipient",
+        "communication_date"
+      ],
+      "merger_agreement": [
+        "document_name",
+        "parties",
+        "effective_date",
+        "effective_time",
+        "governing_law"
+      ]
+    },
+    "truth_statuses": [
+      "gap_fill",
+      "derived",
+      "correction"
+    ]
+  },
+  "superseded_by": {
+    "corporate_record": "llm-dojo-scoring#52 (corporate-record annotation)",
+    "correspondence": "llm-dojo-scoring#94 (correspondence GT)",
+    "merger_agreement": "llm-dojo-scoring#95 (merger fields without GT)",
+    "insurance_claim": "llm-dojo-scoring#93 (CMS mapping)",
+    "contract": "CUAD Parties / Effective Date scoring (dojo scorer)"
+  },
+  "sources": [
+    {
+      "gate_run": "extraction-gate-luna-v1.3.0",
+      "question_set": "1.3.0",
+      "docs": 1596,
+      "dataset_revision": "bc9eab280044befb51e19dda3071d290a8677f42",
+      "dataset_sha256": "bbe359cf79fddf2c8da7d7bc004ca3a756361fedf054e6c977d2f4d70d6a43b6"
+    }
+  ],
+  "documents": 1596,
+  "admission_precision_proxy": {
+    "contract": {
+      "n": 374,
+      "right_rate": 0.8182
+    },
+    "corporate_record": {
+      "n": 107,
+      "right_rate": 1.0
+    },
+    "correspondence": {
+      "n": 210,
+      "right_rate": 0.6571
+    },
+    "insurance_claim": {
+      "n": 7565,
+      "right_rate": 0.9987
+    },
+    "merger_agreement": {
+      "n": 25,
+      "right_rate": 0.96
+    }
+  },
+  "counts": {
+    "contract": {
+      "cuad_clauses": {
+        "disputed": 4
+      },
+      "document_name": {
+        "disputed": 1
+      },
+      "effective_date": {
+        "correction": 13
+      },
+      "governing_law": {
+        "disputed": 1
+      },
+      "parties": {
+        "correction": 32,
+        "disputed": 3
+      },
+      "renewal_terms": {
+        "disputed": 3
+      }
+    },
+    "corporate_record": {
+      "effective_date": {
+        "gap_fill": 134
+      },
+      "entity_name": {
+        "gap_fill": 172
+      },
+      "filing_number": {
+        "gap_fill": 185
+      },
+      "jurisdiction": {
+        "gap_fill": 153
+      },
+      "record_type": {
+        "derived": 200
+      },
+      "signatories": {
+        "gap_fill": 162
+      }
+    },
+    "correspondence": {
+      "communication_date": {
+        "gap_fill": 235
+      },
+      "communication_type": {
+        "derived": 300
+      },
+      "intent": {
+        "disputed": 72
+      },
+      "recipient": {
+        "gap_fill": 230
+      },
+      "sender": {
+        "gap_fill": 237
+      }
+    },
+    "insurance_claim": {
+      "cms_source_table": {
+        "derived": 536
+      }
+    },
+    "merger_agreement": {
+      "document_name": {
+        "gap_fill": 30
+      },
+      "effective_date": {
+        "gap_fill": 25
+      },
+      "effective_time": {
+        "gap_fill": 9
+      },
+      "governing_law": {
+        "gap_fill": 29
+      },
+      "merger_consideration": {
+        "disputed": 1
+      }
+    }
+  },
+  "files": {
+    "contract.jsonl": "17802d8b410cf32efffe6bd758365ef13ce2e6353c40079bcde088538c0aff44",
+    "corporate_record.jsonl": "afbb0854981f35476c40c588c7f4676c32dc19b348da75623ad81ee38c749c7f",
+    "correspondence.jsonl": "26786f65739b3cc8fb54a5fd425889eea971ca2a9f14e0467f93bfc65c403b48",
+    "insurance_claim.jsonl": "5396ceb39cd72f110184212adbecf28167d0e868a9d1b189741a164377230c97",
+    "merger_agreement.jsonl": "033732dc412f2fc4594283e909d42c3e9a55e27dd623ba7d1ea5862c41be1753"
+  }
+}

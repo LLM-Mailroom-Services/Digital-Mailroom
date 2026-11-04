@@ -1,0 +1,45 @@
+# Extraction gate round 2: NEW insurance_claim documents for the gate's training set. No document (by id or
+# folded text) that any finished specialist run already extracted; each subclass drawn from its
+# shorter half first. qwen/qwen3.7-flash, one call per document, on insurance_claims_specialist_condensed_v2,
+# the frontrunner when this run was signed (2026-11-01 09:24:38Z). v3 replaced it afterwards
+# (validation signed 09:29:17Z; config/prompts/specialist_condensed_lineage.yaml), so these 240
+# round-2 extractions come from v2.
+#
+#   python scripts/extraction_gate.py --split train expand \
+#       --dataset-run reviewer-calibration-luna-decisions-v3.1.0-train
+#   sandbox run start --config config/runs/extraction-gate-specialist-insurance-claim-qwen-r2.yaml --initials XX
+schema: sandbox.run/v1
+run_id: extraction-gate-specialist-insurance-claim-qwen-r2
+task: insurance_claims_specialist
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    insurance_claims_specialist: {source: local, file: insurance_claims_specialist_condensed_v2}   # frontrunner at run time; superseded by v3
+
+dataset:
+  provider: file
+  local_path: data/runtime/handoff/gate-train-r2-insurance_claim.jsonl
+  config: ground_truth
+  split: train
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 12
+  cost_cap_usd: 1.00
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.10
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, extraction-gate, specialist-handoff, round-2, insurance-claim]

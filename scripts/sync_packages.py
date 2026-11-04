@@ -1177,6 +1177,9 @@ def cmd_pull(args: argparse.Namespace) -> int:
             worst = max(worst, E_NETWORK)
             continue
         if rev_exists(head) and not upstream_content_not_imported(head, package):
+            # DMR-118: the gap check ignores feeder CI, so a stale tracked copy
+            # would survive this fast path; drop it before recording the tip.
+            drop_feeder_ci_commit(package, reason="pull fast path")
             entries[package] = {
                 "url": url,
                 "branch": DEFAULT_BRANCH,
@@ -2040,7 +2043,19 @@ def cmd_push(args: argparse.Namespace) -> int:
         # feeder tip would delete the feeder's own workflows. --patch rebuilds on
         # top of the upstream tip and keeps them.
         ci_tip = fetch_upstream(package)
-        feeder_ci = sorted(feeder_ci_paths(ci_tip)) if ci_tip and rev_exists(ci_tip) else []
+        if not ci_tip or not rev_exists(ci_tip):
+            # Fail closed: without the upstream tip we cannot tell whether the
+            # push would delete feeder CI.
+            rec = base_record(args.command, package)
+            rec.update({"exit_code": E_NETWORK, "error_class": ERROR_CLASS[E_NETWORK],
+                        "remediation": "could not fetch the upstream tip to check for feeder "
+                                       "CI (DMR-118); check connectivity and retry"})
+            emit(rec)
+            warn(f"!! refusing plain subtree push for {package}: could not fetch the upstream "
+                 "tip to check for feeder CI")
+            worst = max(worst, E_NETWORK)
+            continue
+        feeder_ci = sorted(feeder_ci_paths(ci_tip))
         if feeder_ci:
             rec = base_record(args.command, package)
             rec.update({"exit_code": E_GIT, "error_class": ERROR_CLASS[E_GIT],

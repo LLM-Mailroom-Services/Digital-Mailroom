@@ -946,6 +946,40 @@ class TestFeederCiExclusion(SyncScriptTest):
         self.assertIn(".github/dependabot.yml", files)
         self.assertEqual(git(self.origin, "show", "main:a.txt").stdout, "base a\nhub fix\n")
 
+    def test_j2_plain_push_fails_closed_when_the_ci_check_cannot_fetch(self):
+        self.add_upstream_ci()
+        self.run_script("pull", "--package", PKG, "--json", env_extra=self.origin_env)
+        (self.mono / f"packages/{PKG}/a.txt").write_text("base a\nhub fix\n")
+        git(self.mono, "add", "-A", check=True)
+        git(self.mono, "commit", "-m", "hub fix", check=True)
+        before = git(self.origin, "rev-parse", "main").stdout.strip()
+        # ls-remote still works; only the fetch behind the feeder-CI check fails
+        env = {**self.origin_env, "GIT_CONFIG_COUNT": "1",
+               "GIT_CONFIG_KEY_0": "fetch.negotiationAlgorithm",
+               "GIT_CONFIG_VALUE_0": "not-an-algorithm"}
+        for extra in ((), ("--dry-run",)):
+            res = self.run_script("push", *extra, "--package", PKG, "--json", env_extra=env)
+            self.assertEqual(res.returncode, 1, res.stderr + res.stdout)  # E_NETWORK
+            self.assertIn("feeder CI", self.json_record(res)["remediation"])
+        self.assertEqual(git(self.origin, "rev-parse", "main").stdout.strip(), before)
+
+    def test_j3_pull_fast_path_drops_a_stale_feeder_ci_copy(self):
+        u1 = self.add_upstream_ci()
+        self.run_script("pull", "--package", PKG, "--json", env_extra=self.origin_env)
+        self.assert_no_feeder_ci()
+        # a stale feeder CI copy reaches the hub by hand after the import
+        wf = self.mono / f"packages/{PKG}/.github/workflows"
+        wf.mkdir(parents=True)
+        (wf / "ci.yml").write_text("name: stale copy\n")
+        git(self.mono, "add", "-A", check=True)
+        git(self.mono, "commit", "-m", "stale feeder CI copy", check=True)
+        res = self.run_script("pull", "--package", PKG, "--json", env_extra=self.origin_env)
+        self.assertEqual(res.returncode, 0, res.stderr + res.stdout)
+        self.assertIn("already contained", res.stderr + res.stdout)
+        self.assert_no_feeder_ci()
+        self.assertEqual(self.read_manifest()["packages"][PKG]["synced_sha"], u1)
+        self.assertEqual(git(self.mono, "status", "--porcelain").stdout.strip(), "")
+
     def test_k_is_feeder_ci_table(self):
         mod = _load_sync_module()
         for path in (".github/workflows/ci.yml", ".github/workflows/sub/x.yaml",
@@ -1360,7 +1394,8 @@ class TestSilentNoOpGuard(unittest.TestCase):
         saved = {n: getattr(sp, n) for n in
                  ("assert_clean_tree", "load_manifest", "selected_packages",
                   "url_for", "git_foreground", "upstream_head", "save_manifest",
-                  "emit", "info", "warn")}
+                  "emit", "info", "warn", "fetch_upstream", "rev_exists",
+                  "feeder_ci_paths")}
         sp.assert_clean_tree = lambda *a, **k: None
         sp.info = lambda msg: self.notes.append(msg)
         sp.warn = lambda msg: self.warnings.append(msg)
@@ -1368,6 +1403,10 @@ class TestSilentNoOpGuard(unittest.TestCase):
         sp.selected_packages = lambda *a, **k: [PKG]
         sp.url_for = lambda pkg: "https://fake/up.git"
         sp.git_foreground = lambda args: subprocess.CompletedProcess(args, 0)
+        # DMR-118 feeder-CI check: a reachable upstream that carries no CI
+        sp.fetch_upstream = lambda pkg: self.TIP
+        sp.rev_exists = lambda rev: True
+        sp.feeder_ci_paths = lambda *a, **k: set()
         heads = iter(upstream_heads)
         sp.upstream_head = lambda url, branch: (
             next(heads) if not hasattr(sp, "_heads_exhausted") else upstream_heads[-1])

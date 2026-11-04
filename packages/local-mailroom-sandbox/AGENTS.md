@@ -65,6 +65,7 @@ sibling checkouts). Durable eve doctor:
 ## Commands
 
 ```bash
+python3 -m venv .venv && source .venv/bin/activate   # `sandbox` is only on PATH while the venv is active
 pip install -e ".[dev]"
 # or: pip install -r requirements.txt   # → requirements/dev.txt (mirrors pyproject)
 # .venv/bin/sandbox puts its own venv's bin first on PATH, so its pinned `modal` is used even when the venv is not activated
@@ -95,7 +96,7 @@ sandbox up --compose-profile jupyter  # Lab on :8888 (deploy/Dockerfile)
 sandbox tunnel plan|up|status|down    # SSH forward for vllm-remote (HUB-026)
 modal run deploy/modal_vllm.py::download_model  # Modal: pre-warm HF cache ([deploy])
 modal deploy deploy/modal_job.py  # Modal job worker (remote runs)
-sandbox watch [--web] [--config config/runs/<name>.yaml|--follow <current-file>]  # terminal TUI or localhost browser UI (SSE); docs/pretty-logging/mailroom-themed-logging.md
+sandbox watch [TARGET] [--web]        # terminal TUI or localhost browser UI (SSE); TARGET = run ID | run YAML | config/runs name | experiment.yaml/folder; none = data/runtime/sand032/current when it exists, else the newest run, switching live (--config/--follow still work)
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml [--job-mode endpoint|modal] [--watch] [--initials JB]
 sandbox runbook list|show <id>|check|write   # operator runbooks (catalog → docs/runbooks/)
 sandbox prompts list|show <agent>     # all pipeline agent prompts (local + Langfuse)
@@ -112,8 +113,8 @@ sandbox experiment designs|create|review|preflight|launch|watch|report  # guided
 python scripts/smoke_campaign.py      # offline pre-flight: specialist, sand42 and pipeline mock campaigns must reach a 1.0 extraction headline (needs `sandbox datasets pull` once)
 sandbox doctor [--service NAME] [--live] [--publish] [--json]   # one status table for every external CLI/service (offline by default); --publish feeds the board's services strip; --live adds the active Modal account's app listing (read-only, deploys nothing)
 sandbox hf whoami|download|cache|raw   # guarded hf CLI passthrough (pinned dataset revision; --sandbox-cache = data/cache/hf)
-sandbox watch --web                   # mailroom pretty-logs TUI in the browser (http://127.0.0.1:8765/, SSE); full command matrix in docs/pretty-logging/mailroom-themed-logging.md
-sandbox dev                           # dev server: same themed UI on a synthetic looping run (no Modal/spend)
+sandbox web [TARGET]                  # = watch --web: themed browser watcher (http://127.0.0.1:8765/, SSE); waits for a run if none exists yet; docs/pretty-logging/mailroom-themed-logging.md
+sandbox web --demo                    # = sandbox dev: same themed UI on a synthetic looping run (no Modal/spend)
 scripts/mailroom-tui dev|web|score <run>   # launcher; .claude/launch.json → mailroom-watch-dev / -live
 sandbox board [--tui] [--demo] [--interval SECS] [--probe-interval SECS]  # persistent job board: every mailroom.beacon/v1 job (~/.mailroom/jobs), browser :8767 or terminal; refresh floor 0.1 s
 sandbox beacon update --job ID --package P --done N --total M   # shell jobs publish to the board

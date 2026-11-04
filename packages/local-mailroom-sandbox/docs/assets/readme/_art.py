@@ -328,6 +328,8 @@ def flow(heading, stages, side=None, side_heading=None, mobile=False, desc='', s
         out.append(text(40, 42, heading.upper(), 13, '#8b9bb4', 700, spacing=3))
         mid = top + 52
         out.append(f'<path id="chain" d="M{num(40 + cw / 2)} {mid} H{num(40 + (n - 1) * (cw + gap) + cw / 2)}" fill="none"/>')
+        # Particle first: cards paint over it, so it never crosses card text (DMR-110 paint order).
+        out.append(particle('chain', n * 0.9, 0))
         sz = uniform(stages, cw, (16, 13, 12))
         for i, (label, d1, d2) in enumerate(stages):
             x = 40 + i * (cw + gap)
@@ -338,7 +340,6 @@ def flow(heading, stages, side=None, side_heading=None, mobile=False, desc='', s
                        f'keyTimes="0;.18;1" dur="{num(n * 0.9)}s" begin="{num(i * 0.9)}s" repeatCount="indefinite"/></rect>')
             if i < n - 1:
                 out.append(arrow(x + cw + 2, mid, x + cw + gap - 2, mid))
-        out.append(particle('chain', n * 0.9, 0))
         if side:
             sy = top + 104 + 44
             out.append(text(40, sy - 14, (side_heading or '').upper(), 13, '#8b9bb4', 700, spacing=3))
@@ -356,13 +357,13 @@ def flow(heading, stages, side=None, side_heading=None, mobile=False, desc='', s
     out = [svg_open(width, height, heading, desc)]
     out.append(text(24, 40, heading.upper(), 12, '#8b9bb4', 700, spacing=2))
     out.append(f'<path id="chain" d="M320 {top + ch / 2} V{top + (n - 1) * (ch + gap) + ch / 2}" fill="none"/>')
+    out.append(particle('chain', n * 0.9, 0))
     for i, (label, d1, d2) in enumerate(stages):
         y = top + i * (ch + gap)
         color = PALETTE[i % len(PALETTE)]
         out.append(_card(24, y, 592, ch, color, label, d1, d2, (18, 14, 12)))
         if i < n - 1:
             out.append(arrow(320, y + ch + 3, 320, y + ch + gap - 3))
-    out.append(particle('chain', n * 0.9, 0))
     if side:
         sy = top + n * ch + (n - 1) * gap + 40
         out.append(text(24, sy, (side_heading or '').upper(), 12, '#8b9bb4', 700, spacing=2))
@@ -415,8 +416,8 @@ LAYOUT_MOBILE = {
         'viz': (20, 660, 230, 96), 'langfuse': (350, 660, 230, 96)},
     'edges': [
         ('e1', 'publishes', 'M250 118 H350', SKY, 300, 108),
-        ('e2', 'pinned pull', 'M400 166 C390 205 180 188 140 226', SKY, 285, 186),
-        ('e3', 'trains on', 'M465 166 V226', PINK, 465, 186),
+        ('e2', 'pinned pull', 'M400 166 C390 205 180 188 140 226', SKY, 285, 188),
+        ('e3', 'trains on', 'M465 166 V226', PINK, 465, 188),
         ('e4', 'optional fast path', 'M465 322 V390', PINK, 465, 348),
         ('e5', 'executes', 'M250 274 C300 274 300 438 350 438', VIOLET, 300, 350),
         ('e6', 'pinned pull', 'M580 118 C620 118 620 438 580 438', SKY, 610, 290),
@@ -429,7 +430,9 @@ LAYOUT_MOBILE = {
 
 LABEL_WIDTHS = {'publishes': 80, 'pinned pull': 92, 'trains on': 76,
                 'optional fast path': 144, 'executes': 78, 'scores with': 90,
-                'traces': 60, 'feeds': 48}
+                'traces': 60, 'feeds': 50}
+# 'feeds' sits in a 60px gap between two nodes: a smaller face keeps 8px padding and 4px clearance.
+LABEL_SIZES = {'feeds': 12}
 
 
 def edge_label(eid, label, x, y, rotate=False) -> str:
@@ -437,9 +440,9 @@ def edge_label(eid, label, x, y, rotate=False) -> str:
     width = LABEL_WIDTHS[label]
     transform = f'translate({x} {y})' + (' rotate(90)' if rotate else '')
     return (f'<g data-edge-label="{eid}" transform="{transform}">'
-            f'<rect data-callout-box="" x="{-width / 2}" y="-16" width="{width}" height="32" '
+            f'<rect data-callout-box="" x="{-width / 2}" y="-17" width="{width}" height="34" '
             'rx="8" fill="#10142a"/>'
-            + text(0, 4.5, label, 13, MUTED, anchor='middle', italic=True) + '</g>')
+            + text(1, 4.5, label, LABEL_SIZES.get(label, 13), MUTED, anchor='middle', italic=True) + '</g>')  # x=1 optically centres the italic slant
 
 
 def constellation(current, mobile=False) -> str:
@@ -492,14 +495,22 @@ def constellation(current, mobile=False) -> str:
 
 
 def terminal(title, lines, desc) -> str:
-    """Animated, self-typing terminal. `lines` is [("cmd"|"note", text)]."""
+    """Animated, self-typing terminal. `lines` is [("cmd"|"note", text)].
+
+    The static document is the final frame (every line visible, cursor on the
+    empty prompt line), so renderers without SMIL still show every command.
+    With SMIL, each line is wiped in by its clip and the cursor rides the
+    typing head; the cursor is `.motion` and hidden under reduced motion.
+    """
     cw, fs, top, step = 9.2, 15, 92, 30
+    glyph = fs * 0.6  # advance of a monospace glyph; the cursor tracks real text, the clip keeps slack
     width = 900
     height = top + step * len(lines) + 30
     parts = [(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" '
               f'role="img" aria-labelledby="t d" font-family="{MONO}">\n  <title id="t">{esc(title)}</title>\n'
               f'  <desc id="d">{esc(desc)}</desc>\n  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">'
               '<stop offset="0" stop-color="#0d1117"/><stop offset="1" stop-color="#161b2e"/></linearGradient></defs>\n'
+              '  <style>@media (prefers-reduced-motion: reduce){.motion{display:none}.typed{clip-path:none}}</style>\n'
               '  <rect id="cyc" width="1" height="1" fill="none"><animate id="loop" attributeName="x" from="0" to="0" '
               'dur="__CYCLE__s" begin="0s;loop.end"/></rect>\n'
               f'  <rect x="1" y="1" width="{width - 2}" height="{height - 2}" rx="16" fill="url(#bg)" stroke="#30363d" stroke-width="2"/>\n'
@@ -509,26 +520,40 @@ def terminal(title, lines, desc) -> str:
               '<circle cx="78" cy="23" r="7" fill="#28c840"/>\n'
               f'  <text x="{width // 2}" y="28" text-anchor="middle" font-size="13" fill="#8b949e">{esc(title)}</text>')]
     t = 0.6
+    home = 32
+    keys = [(0.0, home, top - 16)]  # (time, cursor x, cursor y); equal times make an instant jump
     for i, (kind, content) in enumerate(lines):
         y = top + i * step
         prefix = '$ ' if kind == 'cmd' else '  '
         w = len(prefix + content) * cw + 24
         dur = round(len(prefix + content) * 0.04, 2) if kind == 'cmd' else 0.35
-        parts.append(f'  <clipPath id="c{i}"><rect x="30" y="{y - 20}" height="28" width="0">'
+        parts.append(f'  <clipPath id="c{i}"><rect x="30" y="{y - 20}" height="28" width="{num(w)}">'
                      f'<set attributeName="width" to="0" begin="loop.begin"/>'
                      f'<animate attributeName="width" from="0" to="{num(w)}" dur="{dur}s" begin="loop.begin+{num(t)}s" '
                      'fill="freeze"/></rect></clipPath>')
         if kind == 'cmd':
-            parts.append(f'  <text x="32" y="{y}" font-size="{fs}" clip-path="url(#c{i})"><tspan fill="#7ee787">$ </tspan>'
+            parts.append(f'  <text class="typed" x="32" y="{y}" font-size="{fs}" clip-path="url(#c{i})"><tspan fill="#7ee787">$ </tspan>'
                          f'<tspan fill="#e6edf3">{esc(content)}</tspan></text>')
         else:
-            parts.append(f'  <text x="32" y="{y}" font-size="{fs}" clip-path="url(#c{i})" fill="#8b949e" '
+            parts.append(f'  <text class="typed" x="32" y="{y}" font-size="{fs}" clip-path="url(#c{i})" fill="#8b949e" '
                          f'font-style="italic">{esc(prefix + content)}</text>')
+        shown = len(prefix + content) if kind == 'cmd' else len(content)  # SVG collapses a note's leading spaces
+        start_x = home + (len(prefix) if kind == 'cmd' else shown) * glyph
+        end_x = home + shown * glyph + 2
+        keys += [(t, home, y - 16), (t, start_x, y - 16), (t + dur, end_x, y - 16)]
         t += dur + (0.9 if kind == 'cmd' else 0.5)
+        keys.append((t - 0.25, end_x, y - 16))  # hold at the end of the line, then drop to the next one
     cycle = t + 3
     yy = top + len(lines) * step
-    parts.append(f'  <rect class="motion" x="32" y="{yy - 16}" width="9" height="19" fill="#e6edf3"><animate attributeName="opacity" '
-                 'values="1;0;1" dur="1s" repeatCount="indefinite"/></rect>\n</svg>\n')
+    keys += [(t - 0.25, home, yy - 16), (cycle, home, yy - 16)]
+    times = ';'.join(f'{k[0] / cycle:.4f}'.rstrip('0').rstrip('.') or '0' for k in keys)
+    xs = ';'.join(num(round(k[1], 1)) for k in keys)
+    ys = ';'.join(num(k[2]) for k in keys)
+    parts.append(f'  <rect class="motion" x="{home}" y="{yy - 16}" width="9" height="19" fill="#e6edf3">'
+                 f'<animate attributeName="x" values="{xs}" keyTimes="{times}" dur="{num(cycle)}s" begin="loop.begin"/>'
+                 f'<animate attributeName="y" values="{ys}" keyTimes="{times}" dur="{num(cycle)}s" begin="loop.begin"/>'
+                 '<animate attributeName="opacity" values="1;1;0;0" keyTimes="0;.5;.5;1" dur="1s" repeatCount="indefinite"/>'
+                 '</rect>\n</svg>\n')
     return '\n'.join(parts).replace('__CYCLE__', num(cycle))
 
 

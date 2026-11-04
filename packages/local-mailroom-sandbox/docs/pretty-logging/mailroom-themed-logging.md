@@ -61,10 +61,32 @@ Stop the watch with **Ctrl+C** (restores the terminal; does not stop the eval).
 ### Browser watch (same machine)
 
 ```bash
+sandbox web                          # SAND-032 current run if data/runtime/sand032/current exists, else the newest run (switches live)
+sandbox web my-run                   # run ID, config/runs/<name>, run YAML path, or run directory
+sandbox web config/experiments/<study>   # an experiment: follows its current run + Campaign tab
+sandbox web --demo [--pipeline]      # synthetic run, no Modal, no spend (= sandbox dev)
+# long forms still work:
 sandbox watch --web --config config/runs/my-run.yaml
-# or
-scripts/mailroom-tui web --config config/runs/my-run.yaml
+scripts/mailroom-tui web my-run
 ```
+
+`sandbox web` is `sandbox watch --web`. With no TARGET it follows the SAND-032 current
+run while `data/runtime/sand032/current` exists (as bare `sandbox watch` always has),
+otherwise the most recently active run. With no runs yet it still starts and shows
+*waiting for a run*, then switches over when one appears. Every refresh re-reads the
+run's locked configuration (`spec.lock.json`), checkpoint and campaign
+(`experiment.yaml`), so the Configuration and Campaign tabs follow whatever run is
+active. A run that belongs to a study under `config/experiments/` gets its campaign
+attached automatically. A transient read error keeps the last good frame on screen
+with an error banner.
+
+**One page everywhere.** `sandbox dev`, `sandbox web`, `sandbox watch --web`,
+`sandbox experiment watch` and `scripts/mailroom-tui web|dev` all serve the same page
+from `tui/web.py` (`tests/test_watch_parity.py` pins this). The demo only swaps the
+data source, including a three-run demo campaign, so what you see in `sandbox dev` is
+what a real run shows. Each page carries a build fingerprint. A tab left open across a
+watcher restart on newer code reloads itself once, so no browser keeps an old page
+(no hard refresh needed).
 
 Default URL: **http://127.0.0.1:8765/** — live updates via **SSE** (`/api/stream`).
 Leave the server running in one terminal; **Ctrl+C** there stops the web UI only.
@@ -98,6 +120,7 @@ Optional alias: `alias mailroom-tui="$PWD/scripts/mailroom-tui"`.
 
 ```bash
 sandbox watch \
+  [TARGET] \
   [--config config/runs/<name>.yaml] \
   [--follow data/runtime/sand032/current] \
   [--app <modal-app-name>] \
@@ -112,9 +135,10 @@ sandbox watch \
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
-| `--config` | — | Run YAML whose `run_id` resolves the store under `data/runtime/runs/<run_id>/`. |
+| `TARGET` | newest run | Run ID, run YAML, `config/runs/<name>` name, `experiment.yaml` or its folder, or a run directory. |
+| `--config` | — | Same as passing the run YAML as `TARGET`; its `run_id` resolves the store under `data/runtime/runs/<run_id>/`. |
 | `--follow` | — | Path to a **file containing a run YAML path**; re-read every refresh so the UI tracks the active SAND-032 step. |
-| *(bare)* | — | If `data/runtime/sand032/current` exists, sets `--follow` to that file and `--ledger` to `data/runtime/sand032/spend.json`. |
+| *(bare)* | — | If `data/runtime/sand032/current` exists, follows that file and sets `--ledger` to `data/runtime/sand032/spend.json`. Otherwise follows the most recently active run under `data/runtime/runs/` and switches live when a newer one starts. |
 | `--app` | from spec `engine.modal.app` | Serve-app override for `modal app logs -f`; `job.mode=modal` additionally tails `sandbox-job` worker. |
 | `--ledger` | — | JSON with `spent_usd` (and optional `includes_live`) for the **postage** panel. |
 | `--cap-usd` | `5.0` | Spend bar denominator (independent of the $4.50 **gate** warning in the UI). |

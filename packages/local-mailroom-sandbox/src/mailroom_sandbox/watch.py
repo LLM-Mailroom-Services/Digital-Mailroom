@@ -782,7 +782,7 @@ def compose_watch_state(
     from mailroom_sandbox.tui import tray_context as tc
 
     snap = run_snapshot(store)
-    campaign = tc.campaign_context(campaign_path, store.run_id) if campaign_path else None
+    campaign = tc.campaign_context(campaign_path, store.run_id, store.dir.parent) if campaign_path else None
     layout = tc.build_tray_layout(
         store, app=app, times_dir=times_dir, cap_usd=cap_usd, gate_usd=GATE_USD, width=width, campaign=campaign
     )
@@ -994,21 +994,23 @@ def watch(
     log_path: Path | None = None,
     serving_dir: Path | None = None,
     bell: bool = True,
-    campaign_path: Path | None = None,
+    campaign_path: Path | Callable[[str], Path | None] | None = None,
 ) -> int:
     """Live Tray TUI. Redraws when a log line lands or the run store changes, and at
     least every ``interval`` seconds (clocks, spend), painting in place without clearing."""
     from mailroom_sandbox.paths import reports_dir
+    from mailroom_sandbox.watch_target import WaitingForRun
 
     serving_dir = serving_dir or (reports_dir() / "serving")
-    store, _app = resolve()
+    # Resolve once: a live resolver (newest run) may answer differently on a
+    # second call, and the log sink must belong to the run being shown.
+    store, app = resolve()
     _td, resolved_log = _watch_paths(
         store, times_dir=times_dir, sand032_root=sand032_root, log_path=log_path
     )
     sink = LogBuffer(resolved_log)
     stop = threading.Event()
     log_stop = threading.Event()
-    store, app = resolve()
     if not once:
         sys.stdout.write(pl.ALT_ENTER + pl.HIDE_CURSOR + pl.CLEAR_SCREEN)
     if logs and not once:
@@ -1025,7 +1027,10 @@ def watch(
     interval = max(0.25, float(interval or 1.0))
     try:
         while True:
-            store, app = resolve()  # --follow: the current run can change between frames
+            try:
+                store, app = resolve()  # --follow: the current run can change between frames
+            except WaitingForRun:
+                pass  # the marker names a run that has not started: keep showing the last one
             if (store.dir, app) != log_identity:
                 log_stop.set()
                 log_stop = threading.Event()
@@ -1072,7 +1077,7 @@ def watch(
                 width=width,
                 blink=blink,
                 log_rows=rows,
-                campaign_path=campaign_path,
+                campaign_path=campaign_path(store.run_id) if callable(campaign_path) else campaign_path,
                 pipeline_totals=pipeline_totals,
             )
             frame = render_frame(

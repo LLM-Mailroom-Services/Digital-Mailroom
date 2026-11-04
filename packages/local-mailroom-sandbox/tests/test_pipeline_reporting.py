@@ -208,3 +208,27 @@ def test_worker_waits_for_background_mailroom_writers_before_commit():
     assert settle_mailroom_writers(timeout=0.05) == ["relations-scan"]
     release.set()
     assert settle_mailroom_writers(timeout=5) == [] and finished == [True]
+
+
+def test_settle_waits_for_writers_started_while_joining():
+    # CircleCI 419: an aiosqlite worker thread that starts while the first
+    # snapshot is joined must be waited on too, not reported as still running.
+    import threading
+    import time
+
+    from mailroom_sandbox.job.deploy_env import settle_mailroom_writers
+
+    finished = []
+
+    def worker():
+        time.sleep(0.2)
+        finished.append("worker")
+
+    def scan():
+        time.sleep(0.1)  # spawn after settle's first enumerate, mid-join
+        threading.Thread(target=worker, name="_connection_worker_thread", daemon=True).start()
+        finished.append("scan")
+
+    threading.Thread(target=scan, name="relations-scan", daemon=True).start()
+    assert settle_mailroom_writers(timeout=5) == []
+    assert finished == ["scan", "worker"]

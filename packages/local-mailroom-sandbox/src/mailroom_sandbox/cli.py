@@ -685,7 +685,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Tray TUI: live in-tray + spend + Modal dispatch log for any locked run",
         parents=[leaf],
     )
-    watch_p.add_argument("--config", default=None, help="run YAML to watch")
+    _TARGET_HELP = ("what to watch: run ID, run YAML, run name (config/runs/<name>), experiment.yaml or its folder, "
+                    "or a run directory. Omit to follow data/runtime/sand032/current when it exists, else the most recently active run (switches live when a new run starts)")
+    watch_p.add_argument("target", nargs="?", default=None, help=_TARGET_HELP)
+    watch_p.add_argument("--config", default=None, help="run YAML to watch (same as passing it as TARGET)")
     watch_p.add_argument(
         "--follow", default=None,
         help="file holding the CURRENT run YAML path or run ID; re-read every frame",
@@ -724,6 +727,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="with --web: serve a synthetic looping run (dev server; no Modal, no spend)",
     )
     watch_p.set_defaults(handler=_cmd_watch)
+
+    web_p = sub.add_parser(
+        "web",
+        help="themed browser watcher (= watch --web): sandbox web [TARGET] · sandbox web --demo",
+        parents=[leaf],
+    )
+    web_p.add_argument("target", nargs="?", default=None, help=_TARGET_HELP)
+    web_p.add_argument("--port", type=_port, default=None, help="port (default 8765; 0 = ephemeral)")
+    web_p.add_argument("--host", default=None, help="bind host (default 127.0.0.1)")
+    web_p.add_argument("--no-browser", action="store_true", help="do not open a browser tab (also NO_BROWSER=1)")
+    web_p.add_argument("--demo", action="store_true", help="synthetic looping run (no Modal, no spend)")
+    web_p.add_argument("--pipeline", action="store_true", help="with --demo: synthetic full-pipeline run")
+    web_p.add_argument("--app", default=None, help="Modal serve app override (default: from the run lock)")
+    web_p.add_argument("--ledger", default=None, help="spend ledger JSON ({spent_usd})")
+    web_p.add_argument("--cap-usd", type=_positive_float, default=5.0)
+    web_p.add_argument("--interval", type=_positive_float, default=1.0, help="seconds between refreshes")
+    web_p.add_argument("--no-logs", action="store_true", help="do not follow Modal dispatch logs")
+    web_p.set_defaults(handler=_cmd_web)
 
     dev_p = sub.add_parser(
         "dev",
@@ -1389,12 +1410,14 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # workspace packages when available, after importing those reviewed revisions.
 # The fallback rejects moved refs before replacing any tracked vendor file.
 # llm-mailroom: v0.8.1 merged into #135 (sorter V15) until #135 lands in a release.
-# llm-dojo-scoring: the v0.26.0 release (merge of llm-dojo-scoring#112).
+# llm-dojo-scoring: the v0.27.2 release (llm-dojo-scoring#121).
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
     ("llm-mailroom", "a7d7bf0b1c1b2e93b0f185b49d83e1df61a5f7a1",
      "https://github.com/Exios66/llm-mailroom.git", "a7d7bf0b1c1b2e93b0f185b49d83e1df61a5f7a1"),
-    ("llm-dojo-scoring", "v0.26.0",
-     "https://github.com/Exios66/llm-dojo-scoring.git", "2fea5ea7cff79d9e4c8f3513dd4a179089a8e8ff"),
+    # Release v0.27.2 (Dojo #121). Fetched by exact commit until the v0.27.2 tag is on
+    # GitHub; a missing named ref fails closed (DMR-111), so the ref must be resolvable.
+    ("llm-dojo-scoring", "1cd4aba76d82eea20c6e8dfcc0d760881bf84924",
+     "https://github.com/Exios66/llm-dojo-scoring.git", "1cd4aba76d82eea20c6e8dfcc0d760881bf84924"),
 )
 
 
@@ -2789,62 +2812,49 @@ def _cmd_tui(args) -> int:
 
 
 def _cmd_watch(args) -> int:
-    from mailroom_sandbox import watch as watch_mod
-    from mailroom_sandbox.job import spec as spec_mod
-    from mailroom_sandbox.job.checkpoint import RunStore
-
     from mailroom_sandbox import paths
+    from mailroom_sandbox import watch as watch_mod
+    from mailroom_sandbox import watch_target as wt
 
+    target_arg = getattr(args, "target", None)
     if not args.web and (args.host is not None or args.port is not None or args.no_browser or args.demo):
-        raise CLIUsageError("--host, --port, --no-browser and --demo require --web")
+        raise CLIUsageError("--host, --port, --no-browser and --demo require --web (or use `sandbox web`)")
     if args.web and args.once:
         raise CLIUsageError("--once is only available in the terminal (without --web)")
-    if args.demo and (args.config or args.follow or args.ledger or args.app):
-        raise CLIUsageError("--demo cannot watch --config, --follow, --ledger or --app")
+    if args.demo and (args.config or args.follow or args.ledger or args.app or target_arg):
+        raise CLIUsageError("--demo cannot watch a TARGET, --config, --follow, --ledger or --app")
+    if target_arg and (args.config or args.follow):
+        raise CLIUsageError("pass the run either as TARGET or with --config/--follow, not both")
     if getattr(args, "demo", False):
         return _serve_demo(args)
     sand032 = paths.runtime_dir() / "sand032"
-    if not args.config and not args.follow and (sand032 / "current").is_file():
-        # Bare `sandbox watch`: follow the current SAND-032 run with its ledger.
-        args.follow = str(sand032 / "current")
-        if not args.ledger and (sand032 / "spend.json").is_file():
-            args.ledger = str(sand032 / "spend.json")
-    if not args.config and not args.follow:
-        print("ERROR: --config or --follow required", file=sys.stderr)
-        return 2
-
-    def resolve():
-        cfg = args.config
-        if args.follow:
-            cfg = Path(args.follow).read_text(encoding="utf-8").strip() or args.config
-            if cfg and not Path(cfg).is_file():
-                try:
-                    directory = spec_mod.run_dir(cfg)
-                except ValueError as exc:
-                    raise ServiceError(f"follow marker must contain an existing run YAML or valid run ID: {exc}") from exc
-                if (directory / "spec.lock.json").is_file():
-                    store = RunStore(directory)
-                    lock = store.read_lock() or {}
-                    app = args.app or (((lock.get("engine") or {}).get("modal") or {}).get("app")) or "sandbox-vllm"
-                    return store, app
-        if not cfg:
-            raise ServiceError("watch follow marker is empty and no --config fallback was provided")
-        spec = spec_mod.load_run_spec(cfg)
-        app = args.app or (spec.engine.modal.app if spec.engine.modal else "sandbox-vllm")
-        return RunStore(spec_mod.runs_root() / spec_mod.resolve_run_id(spec)), app
+    target = wt.resolve_target(
+        target_arg,
+        config=args.config,
+        follow=args.follow,
+        app=args.app,
+        sand032_current=sand032 / "current",
+    )
+    if target.follow is not None and target.follow == sand032 / "current" and not args.ledger \
+            and (sand032 / "spend.json").is_file():
+        args.ledger = str(sand032 / "spend.json")  # bare watch on a SAND-032 run: its ledger too
+    if not args.web:
+        try:
+            target.resolve()
+        except wt.WaitingForRun as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+    print(f"watching {target.describe}", file=sys.stderr)
 
     common = dict(
-        resolve=resolve,
+        resolve=target.resolve,
         ledger=Path(args.ledger) if args.ledger else None,
         cap_usd=args.cap_usd,
         logs=not args.no_logs,
         interval=args.interval,
         sand032_root=sand032 if sand032.is_dir() else None,
+        campaign_path=target.campaign,
     )
-    if args.follow:
-        campaign_path = Path(args.follow).resolve().parent / "experiment.yaml"
-        if campaign_path.is_file():
-            common["campaign_path"] = campaign_path
     if getattr(args, "web", False):
         from mailroom_sandbox.tui import web as web_mod
 
@@ -2853,6 +2863,18 @@ def _cmd_watch(args) -> int:
         open_browser = False if args.no_browser else None
         return web_mod.serve_watch_web(**common, host=host, port=port, open_browser=open_browser)
     return watch_mod.watch(**common, once=args.once, bell=not getattr(args, "no_bell", False))
+
+
+def _cmd_web(args) -> int:
+    """`sandbox web [TARGET]` = `sandbox watch --web [TARGET]`; `--demo` = `sandbox dev`."""
+    if args.pipeline and not args.demo:
+        raise CLIUsageError("--pipeline requires --demo")
+    if args.demo:
+        if args.target or args.ledger or args.app:
+            raise CLIUsageError("--demo cannot watch a TARGET, --ledger or --app")
+        return _serve_demo(args)
+    args.web, args.once, args.config, args.follow = True, False, None, None
+    return _cmd_watch(args)
 
 
 def _serve_demo(args) -> int:
@@ -2867,7 +2889,7 @@ def _serve_demo(args) -> int:
     return web_mod.serve_watch_web(
         resolve=demo.resolve,
         ledger=demo.ledger,
-        cap_usd=5.0,
+        cap_usd=getattr(args, "cap_usd", None) or 5.0,
         logs=False,
         interval=getattr(args, "interval", None) or 1.0,
         times_dir=demo.times_dir,
@@ -2877,6 +2899,7 @@ def _serve_demo(args) -> int:
         port=web_mod.DEFAULT_PORT if args.port is None else args.port,
         open_browser=False if args.no_browser else None,
         tick=demo.step,
+        campaign_path=demo.campaign_path,
     )
 
 

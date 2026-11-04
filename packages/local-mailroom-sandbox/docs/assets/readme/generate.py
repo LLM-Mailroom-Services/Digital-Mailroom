@@ -41,14 +41,16 @@ PROFILES = [('ollama', art.GREEN), ('vllm-local', art.SKY), ('vllm-remote', art.
 STATS = [('7', 'provider profiles', art.SKY), ('2', 'vendored snapshots', art.VIOLET), ('13', 'graph nodes', art.LIME),
          ('5', 'document classes', art.YELLOW), ('3,302', 'rows · pinned pull', art.PINK),
          ('--mock', 'no LLM needed', art.GREEN)]
-STAGES = [('Install', 'pip install -e', '".[dev]"'), ('Up', 'sandbox up', 'Langfuse'),
+STAGES = [('Install', 'venv + pip -e', '".[dev]"'), ('Up', 'sandbox up', 'Langfuse'),
           ('Deploy', 'runbook show serve', 'Modal vLLM L4'), ('Health', 'sandbox health', 'provider + sinks'),
           ('Mock', 'pilot --mock', 'machinery only'), ('Live', 'pilot --local', 'deployed endpoint'),
           ('Score', 'sandbox eval', 'vendored dojo')]
 SIDE = [('Matrix', 'sandbox matrix', 'providers × models'), ('Runs', 'sandbox run start', 'config/runs/*.yaml'),
         ('Modal', '--job-mode modal', 'GPU worker'), ('Compare', 'metrics compare', 'local · modal · api'),
         ('Watch', 'sandbox watch', 'mailroom TUI')]
-TERMINAL = [('cmd', 'pip install -e ".[dev]"'),
+TERMINAL = [('cmd', 'python3 -m venv .venv && source .venv/bin/activate'),
+            ('note', '# puts `sandbox` on PATH; repeat the activate in every new shell'),
+            ('cmd', 'pip install -e ".[dev]"'),
             ('cmd', 'cp config/.env.example .env'),
             ('cmd', 'sandbox up'),
             ('note', '# langfuse only; the GPU endpoint is external'),
@@ -121,7 +123,7 @@ def build() -> dict[str, str]:
                            'Dashboard: the seven provider profiles with what each targets, and a log of a mock '
                            'pilot run on the default Modal vLLM profile.', left='PROVIDER PROFILES', right='RUN LOG'),
         'terminal.svg': art.terminal('~/local-mailroom-sandbox — zsh', TERMINAL,
-                                     'Animated terminal: install, copy the env file, bring up Langfuse, deploy the '
+                                     'Animated terminal: create and activate a virtualenv, install, copy the env file, bring up Langfuse, deploy the '
                                      'Modal vLLM endpoint with the serve runbook, check health, then run the pilot with '
                                      'the mock and against the deployed endpoint.'),
     }

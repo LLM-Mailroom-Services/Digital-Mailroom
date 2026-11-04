@@ -359,8 +359,12 @@ def configuration_lines(lock: dict[str, Any]) -> list[str]:
     return lines
 
 
-def campaign_context(path: Path, current: str) -> dict[str, Any]:
-    """Read campaign membership and fresh checkpoints without probes or inference."""
+def campaign_context(path: Path, current: str, runs_dir: Path | None = None) -> dict[str, Any]:
+    """Read campaign membership and fresh checkpoints without probes or inference.
+
+    ``runs_dir`` is where the watched run lives; sibling runs are looked up
+    there first, then under the default runs root.
+    """
     from mailroom_sandbox.experiments import _load
     from mailroom_sandbox.job.spec import run_dir
     from mailroom_sandbox.services._exec import ServiceError
@@ -373,6 +377,8 @@ def campaign_context(path: Path, current: str) -> dict[str, Any]:
     rows = []
     for _, spec in runs:
         directory = run_dir(spec.run_id)
+        if runs_dir is not None and (runs_dir / spec.run_id).is_dir():
+            directory = runs_dir / spec.run_id
         cp = (RunStore(directory).read_checkpoint() or {}) if directory.is_dir() else {}
         rows.append({"run_id": spec.run_id, "state": cp.get("state", "waiting"),
                      "done": cp.get("cursor", 0), "total": cp.get("total", 0)})

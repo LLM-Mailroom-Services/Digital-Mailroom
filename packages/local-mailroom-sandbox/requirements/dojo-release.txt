@@ -2,5 +2,7 @@
 #   pip install -r requirements/dojo-release.txt
 # The tracked snapshot under vendor/llm-dojo-scoring stays the fallback when this release is
 # missing, off-pin or fails to import. Kept out of pyproject.toml so the base install stays
-# offline (DMR-057). Keep this commit equal to the snapshot's pin (tests/test_dojo_source.py).
-llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@2fea5ea7cff79d9e4c8f3513dd4a179089a8e8ff
+# offline (DMR-057), so scripts/sync_requirements.py does not generate it: it is the one
+# hand-maintained file here. Update it together with _VENDOR_PINS on every Dojo vendor refresh;
+# tests/test_dojo_source.py fails if this commit differs from the snapshot's pin.
+llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@1cd4aba76d82eea20c6e8dfcc0d760881bf84924

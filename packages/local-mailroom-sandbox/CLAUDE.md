@@ -48,7 +48,9 @@ sandbox doctor                                              # offline status of 
   `llm-dojo-scoring` for scoring), then refresh with `python scripts/sync_vendor.py`
   or `sandbox fetch-deps`. Pins live in `_VENDOR_PINS` in `src/mailroom_sandbox/cli.py`.
 - `requirements/*.txt` — generated: edit `pyproject.toml`, then
-  `python scripts/sync_requirements.py`.
+  `python scripts/sync_requirements.py`. The one exception is
+  `requirements/dojo-release.txt` (DMR-057, kept out of `pyproject.toml`): it is moved
+  with `_VENDOR_PINS` on a Dojo vendor refresh, and `tests/test_dojo_source.py` checks it.
 - `uv.lock` (use `uv lock`), `.env` / `config/.env` (secrets), `data/runtime/` and
   `data/cache/` (gitignored runtime state).
 

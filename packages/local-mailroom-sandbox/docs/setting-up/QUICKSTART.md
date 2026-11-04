@@ -219,16 +219,17 @@ Full guide: **[mailroom-themed-logging.md](../pretty-logging/mailroom-themed-log
 # Pane A: run the eval
 sandbox run start --config config/runs/my-run.yaml --job-mode endpoint
 
-# Pane B: themed TUI + live `modal app logs -f` tail
-sandbox watch --config config/runs/my-run.yaml
-sandbox watch --web --config config/runs/my-run.yaml    # browser :8765, frees the tab
+# Pane B: themed browser watcher (http://127.0.0.1:8765/) + live `modal app logs -f` tail
+sandbox web                       # newest run, switching by itself when the next starts (a published sand032/current marker wins)
+sandbox web my-run                # one run: run ID, config/runs/<name>, a run YAML path, or an experiment
+sandbox watch my-run              # same panels in the terminal
 
 # SAND-032 warm flows (run_one.sh maintains data/runtime/sand032/current)
 sandbox watch
 scripts/mailroom-tui web
 
 # One-shot frame / post-run scorecard
-sandbox watch --config … --once
+sandbox watch my-run --once
 sandbox scorecard --run <run_id>
 
 # Manual Modal tail (same stream the dispatch log uses)
@@ -278,6 +279,7 @@ sandbox health                       # after the serve runbook: provider reachab
 
 | Symptom | Cause / fix |
 | --- | --- |
+| `command not found: sandbox` | the console script lives in `.venv/bin`: `source .venv/bin/activate` (each new shell), or call `.venv/bin/sandbox` |
 | `ModuleNotFoundError: numpy` on first `sandbox` call | stale editable install; `pip uninstall mailroom-sandbox` then `pip install -e ".[dev]"` |
 | `sandbox datasets pull` says `pip install -e "[hf]"` | base install is offline-first; Hub client lives in `[dev]`/`[hf]` |
 | `run … --job-mode modal` says `[deploy]` | Modal SDK is an opt-in extra → `pip install -e ".[deploy]"` + `modal token new` |

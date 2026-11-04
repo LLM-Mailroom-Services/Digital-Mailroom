@@ -250,11 +250,12 @@ def test_client_renders_errors_logs_scorecard_and_gate():
     assert 'metric("docs"' in page and 'metric("tokens"' in page
 
 
-def test_cli_watch_web_wires_host_port_and_no_browser(monkeypatch, tmp_path):
+def test_cli_watch_web_wires_host_port_and_no_browser(monkeypatch, tmp_path, job_data_dir):
     from mailroom_sandbox import cli
 
     cfg = tmp_path / "run.yaml"
-    cfg.write_text("x")
+    cfg.write_text("schema: sandbox.run/v1\nrun_id: web-wiring\ntask: sorter\nprofile: ollama\n"
+                   "engine: {kind: vllm-local, model: qwen3:8b, modal: null}\n")
     seen = {}
     monkeypatch.setattr(web_mod, "serve_watch_web", lambda **kw: seen.update(kw) or 0)
     rc = cli.main(["watch", "--config", str(cfg), "--web", "--port", "0", "--no-browser",

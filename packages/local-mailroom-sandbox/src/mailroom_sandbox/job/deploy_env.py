@@ -146,12 +146,18 @@ def settle_mailroom_writers(timeout: float = 60.0) -> list[str]:
     captures a WAL mid-write, and a container exit kills the scan. Call this
     before committing a run directory. Returns the names of writers still
     running when ``timeout`` expires (empty when everything settled).
+
+    Threads are re-enumerated every round: a writer can start another one
+    (aiosqlite opens a ``_connection_worker_thread`` per connection) while the
+    previous snapshot is being joined, and a single pass would never wait on it.
     """
     deadline = time.monotonic() + timeout
     current = threading.current_thread()
-    for thread in threading.enumerate():
-        if thread is current or not any(tag in thread.name for tag in _MAILROOM_WRITER_THREADS):
-            continue
-        thread.join(max(0.0, deadline - time.monotonic()))
-    return [t.name for t in threading.enumerate()
-            if t is not current and t.is_alive() and any(tag in t.name for tag in _MAILROOM_WRITER_THREADS)]
+    while True:
+        pending = [t for t in threading.enumerate()
+                   if t is not current and t.is_alive()
+                   and any(tag in t.name for tag in _MAILROOM_WRITER_THREADS)]
+        if not pending or time.monotonic() >= deadline:
+            return [t.name for t in pending]
+        for thread in pending:
+            thread.join(max(0.0, deadline - time.monotonic()))

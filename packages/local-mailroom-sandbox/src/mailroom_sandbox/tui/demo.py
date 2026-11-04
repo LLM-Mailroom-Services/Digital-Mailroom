@@ -2,8 +2,8 @@
 
 Writes the same files a real SAND-032 run produces — driver ``.times`` stamps, run
 store items, a serving record, a spend ledger, Modal-style boot/throughput log
-lines — and advances one step per refresh, so every web panel (lifecycle, in-tray,
-postage, scorecard, dispatch log) can be seen and browser-tested without Modal,
+lines, a three-run experiment campaign — and advances one step per refresh, so every
+web panel (lifecycle, in-tray, postage, scorecard, dispatch log, campaign) can be seen and browser-tested without Modal,
 credentials, or spend. Loops back to a fresh run after the fleet "stops".
 """
 
@@ -20,6 +20,8 @@ from mailroom_sandbox.watch import LogBuffer
 
 RUN_ID = "sand032-demo"
 APP = "sandbox-vllm-demo"
+# Demo campaign: a finished baseline, the live demo run, and one still queued.
+CAMPAIGN_RUNS = ("sand032-demo-baseline", RUN_ID, "sand032-demo-followup")
 
 # (tick offset within a cycle, log line) — lines match watch.BOOT_MARKERS / classify_log_line
 _BOOT_LOGS = {
@@ -47,6 +49,7 @@ class DemoRun:
         self._spent = 0.0
         for d in (self.times_dir, self.serving_dir):
             d.mkdir(parents=True, exist_ok=True)
+        self.campaign_path = self._write_campaign()
         self._reset_run()
 
     # ── public surface used by the web session / CLI ─────────────────────────
@@ -92,6 +95,29 @@ class DemoRun:
         self.ledger.write_text(json.dumps({"spent_usd": self._spent, "includes_live": True}))
 
     # ── internals ─────────────────────────────────────────────────────────────
+    def _write_campaign(self) -> Path:
+        """A real experiment.yaml + run specs, so the Campaign tab renders through the normal code path."""
+        folder = self.root / "experiment"
+        folder.mkdir(parents=True, exist_ok=True)
+        task = "pipeline" if self.pipeline else "correspondence_specialist"
+        names = []
+        for rid in CAMPAIGN_RUNS:
+            name = f"{rid}.yaml"
+            (folder / name).write_text(
+                f"schema: sandbox.run/v1\nrun_id: {rid}\ntask: {task}\nprofile: ollama\n"
+                "engine: {kind: vllm-local, model: Qwen/Qwen3-8B-AWQ, modal: null}\n"
+                "job: {mode: endpoint, mock: true, concurrency: 32}\n", encoding="utf-8")
+            names.append(name)
+        (folder / "experiment.yaml").write_text(
+            "schema: sandbox.experiment/v1\nstudy: demo-study\ndesign: paired · synthetic\nruns:\n"
+            + "".join(f"  - {n}\n" for n in names), encoding="utf-8")
+        baseline = RunStore(self.root / "runs" / CAMPAIGN_RUNS[0])
+        baseline.write_checkpoint(state="done", cursor=self.n_docs, total=self.n_docs)
+        # Queued run: an empty local directory, so the campaign never falls back
+        # to a real run of the same ID under the global runs root.
+        RunStore(self.root / "runs" / CAMPAIGN_RUNS[2])
+        return folder / "experiment.yaml"
+
     def _reset_run(self) -> None:
         shutil.rmtree(self.run_dir, ignore_errors=True)
         (self.times_dir / f"{RUN_ID}.times").write_text("")

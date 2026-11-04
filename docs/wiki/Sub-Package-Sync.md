@@ -59,7 +59,19 @@ python scripts/sync_packages.py snapshot --package <name>            # content-v
 ```
 
 `pull` refuses a dirty worktree by default. Squash imports keep source history
-out of the hub log. The driver skips merges when the source tip is already
+out of the hub log.
+
+**Cursor-based squash import (DMR-117).** With git 2.40 or newer and a usable
+cursor, `pull --squash` merges the package using the recorded cursor as the
+merge base and writes one single-parent `Squashed 'packages/<name>/' …`
+commit with `git-subtree-dir`/`git-subtree-split` trailers. Do not hand-roll
+`git merge FETCH_HEAD` or a non-squash `subtree pull`. Those pull the full
+source history into the hub, and git then picks a merge base from months
+ago. That is how hub PR #223 brought back 48 moved Dojo modules and doubled
+hunks in two test files. After every import, the **parity guard** checks each
+path the hub left alone since the cursor against the source tip. A `stale`,
+`dropped` or `mis-merged` path refuses the import with exit 5
+(`parity_violations`): no cursor advance, no push, no PR. The driver skips merges when the source tip is already
 contained. `snapshot` refuses cursor advancement past missing source blobs
 (gitignored prunes are exempt); do not use `--force` to bypass missing content.
 After imports, preserve documented hub-only heavy-asset exclusions without
@@ -139,6 +151,8 @@ echo "exit=$?"
 | `CONFLICT ... The pull was ABORTED`, exit 3 | normal when hub files drifted from the source | Step 4 |
 | exit 1 | network problem | retry once, then report |
 | exit 4 | git/internal error | stop, paste the output into the card |
+| exit 5 with `PARITY VIOLATION` | the import does not match the source at paths the hub never changed | undo it (`git reset --hard <pre-pull sha>`); never hand-fix the listed paths. Re-run on git >= 2.40 with a valid cursor |
+| `cursor-based squash import unavailable (...)` | no usable cursor: the driver fell back to `git subtree pull` | the guard could not run: compare the package tree with the source tip by hand (Step 1) before trusting it |
 
 **Step 4 — on conflict, import through a PR branch.**
 
@@ -149,8 +163,14 @@ python3 scripts/sync_packages.py pull --package <name> --squash --open-pr --reso
 `ours` keeps the hub's copy of the conflicted files. That is correct when the
 conflicted files are NOT in the upstream diff (check the Step 2 `git diff --stat`; the PR diff must contain only those files). If the upstream commits DO
 touch a conflicted file, do not use `ours` blindly: ask the board owner.
-The driver makes branch `sync/<name>/import-<sha12>`, merges, and, if the test
-suite passes, pushes and opens a PR. It may print `could not return to main`
+Start on main (or a worktree on `origin/main`): the branch flow refuses any
+other HEAD, because the branch is cut from HEAD and would carry the extra
+commits. **One import PR per package.** Do not run a second package's import on
+top of the first one's branch. The driver makes branch
+`sync/<name>/import-<sha12>`, imports one cursor-based squash commit, runs the
+parity guard and, if the test suite passes, pushes and opens a PR whose body
+names the import mode, the hub-ahead paths for review, and any required
+follow-up (vendor refresh, `uv lock`). Commit those follow-ups on the same branch. It may print `could not return to main`
 and leave you on the sync branch: that is expected in a worktree where `main`
 is checked out elsewhere; just stay on the branch. Read stderr for `resolution_divergences`;
 any entry there must be reviewed against the source commit before merge.
@@ -194,7 +214,12 @@ Commit the changed `scripts/packages_sync.json` (in the import PR, as its own co
 `--force`.
 
 **Landing the import PR.** Merge it with a MERGE COMMIT (`gh pr merge <n>
---merge`), not a squash: git-subtree finds the previous import point by the
+--merge`), not a squash. A squash merge also folds several packages'
+`git-subtree-dir`/`git-subtree-split` trailers into one commit body, and
+`git subtree` then reads the wrong split hash for a package. That happened
+after #205: `subtree pull --squash` for llm-dojo-scoring failed on The-Mailroom's
+split. The cursor-based import does not depend on those trailers, but plain
+`git subtree` still does. Also: git-subtree finds the previous import point by the
 `Squashed 'packages/<name>/' changes from A..B` commit in main's history, and a
 squash-merge discards it, so the next pull starts from an older base and
 produces spurious conflicts (as happened with The-Mailroom on 2026-10-23).

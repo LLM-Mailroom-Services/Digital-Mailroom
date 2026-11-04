@@ -700,6 +700,152 @@ class TestBackwardCompat(SyncScriptTest):
 # --------------------------------------------------------------------------- #
 
 
+# --------------------------------------------------------------------------- #
+# DMR-117: cursor-based squash import + parity guard (hub PR #223 regression)
+# --------------------------------------------------------------------------- #
+
+
+class TestCursorSquashImport(SyncScriptTest):
+    """Reproduces the hub PR #223 import shape on the hermetic fixture.
+
+    The hub holds the upstream U0 history (old full-history subtree add), then
+    takes U1 as a SQUASH (U1 not in hub history; cursor = U1). Upstream U2
+    moves flat.py into pkg/ and grows notes.txt. A history merge of U2 finds U0
+    as its base, sees flat.py as a hub-only addition and keeps it: the stale-file
+    class that shipped 48 moved dojo modules back into packages/llm-dojo-scoring.
+    """
+
+    def pr223_shape(self, *, hub_conflict=True, heavy_asset=False):
+        p = self.mono / f"packages/{PKG}"
+        (self.src / "flat.py").write_text("legacy module\n")
+        (self.src / "notes.txt").write_text("n1\n")
+        if heavy_asset:
+            (self.src / "big.bin").write_text("heavy\n")
+        git(self.src, "add", "-A", check=True)
+        git(self.src, "commit", "-m", "U1: flat module + notes", check=True)
+        git(self.src, "push", "origin", "main", check=True)
+        u1 = sha_of(self.src)
+        # the hub takes U1 as a squash: same bytes, no upstream history
+        (p / "flat.py").write_text("legacy module\n")
+        (p / "notes.txt").write_text("n1\n")
+        if heavy_asset:  # the hub prunes the heavy asset on import (HUB-018)
+            (self.mono / ".gitignore").write_text(f"packages/{PKG}/big.bin\n")
+        git(self.mono, "add", "-A", check=True)
+        git(self.mono, "commit", "-m", f"Squashed 'packages/{PKG}/' changes (U1)", check=True)
+        (self.src / "pkg").mkdir()
+        git(self.src, "mv", "flat.py", "pkg/flat.py", check=True)
+        (self.src / "notes.txt").write_text("n1\nn2\n")
+        (self.src / "a.txt").write_text("base a\nupstream change\n")
+        git(self.src, "add", "-A", check=True)
+        git(self.src, "commit", "-m", "U2: move flat.py, grow notes", check=True)
+        git(self.src, "push", "origin", "main", check=True)
+        u2 = sha_of(self.src)
+        if hub_conflict:
+            (p / "a.txt").write_text("base a\nmono change\n")
+            git(self.mono, "add", "-A", check=True)
+            git(self.mono, "commit", "-m", "mono ahead on a.txt", check=True)
+        (self.tmp / "manifest.json").write_text(json.dumps({"version": 1, "packages": {PKG: {
+            "url": str(self.origin), "branch": "main", "synced_sha": u1,
+            "synced_at": "2026-11-04T00:00:00Z"}}}))
+        return u1, u2
+
+    def gh_env(self):
+        log = self.tmp / "gh.log"
+        bin_dir = self.make_fake_gh(log)
+        return {**self.origin_env, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+                "FAKE_GH_LOG": str(log)}
+
+    def pkg_tree(self, cwd, rev):
+        return git(cwd, "rev-parse", f"{rev}:packages/{PKG}").stdout.strip()
+
+    def test_a_legacy_history_merge_is_caught_by_the_parity_guard(self):
+        """The exact PR #223 path: --open-pr --resolve theirs, history merge."""
+        self.pr223_shape()
+        env = {**self.gh_env(), "SYNC_PACKAGES_LEGACY_MERGE": "1"}
+        res = self.run_script("pull", "--open-pr", "--resolve", "theirs", "--package", PKG,
+                              "--json", env_extra=env)
+        self.assertEqual(res.returncode, 5, res.stderr + res.stdout)
+        rec = self.json_record(res)
+        self.assertEqual(rec["import_mode"], "legacy-history-merge")
+        stale = {v["path"]: v["kind"] for v in rec["parity_violations"]}
+        self.assertEqual(stale.get(f"packages/{PKG}/flat.py"), "stale", rec["parity_violations"])
+        self.assertIn("PARITY VIOLATION", res.stderr)
+        # nothing pushed, no PR opened
+        self.assertEqual(git(self.origin, "branch", "--list", "sync/*").stdout.strip(), "")
+        self.assertFalse((self.tmp / "gh.log").exists())
+
+    def test_b_cursor_squash_branch_flow_matches_the_source_exactly(self):
+        _u1, u2 = self.pr223_shape()
+        pre = sha_of(self.mono)
+        res = self.run_script("pull", "--squash", "--open-pr", "--resolve", "theirs",
+                              "--package", PKG, "--json", env_extra=self.gh_env())
+        self.assertEqual(res.returncode, 0, res.stderr + res.stdout)
+        rec = self.json_record(res)
+        self.assertEqual(rec["import_mode"], "cursor-squash")
+        self.assertEqual(rec["parity_violations"], [])
+        self.assertEqual(rec["hub_ahead_paths"], [f"packages/{PKG}/a.txt"])
+        branch = f"sync/{PKG}/import-{u2[:12]}"
+        # theirs everywhere -> the package tree IS the source tip tree
+        self.assertEqual(self.pkg_tree(self.origin, branch), git(self.origin, "rev-parse", f"{u2}^{{tree}}").stdout.strip())
+        # one single-parent squash commit on main, with git-subtree trailers
+        parents = git(self.origin, "log", "-1", "--format=%P", branch).stdout.split()
+        self.assertEqual(parents, [pre])
+        body = git(self.origin, "log", "-1", "--format=%B", branch).stdout
+        self.assertIn(f"git-subtree-dir: packages/{PKG}", body)
+        self.assertIn(f"git-subtree-split: {u2}", body)
+        self.assertNotIn("upstream U2", git(self.origin, "log", "--format=%s", f"{pre}..{branch}").stdout)
+        gh_body = (self.tmp / "gh.log").read_text()
+        self.assertIn("cursor-squash", gh_body)
+        self.assertIn("Hub-ahead paths", gh_body)
+
+    def test_c_clean_squash_pull_imports_exact_tip_and_advances_cursor(self):
+        _u1, u2 = self.pr223_shape(hub_conflict=False)
+        pre = sha_of(self.mono)
+        res = self.run_script("pull", "--squash", "--package", PKG, "--json", env_extra=self.origin_env)
+        self.assertEqual(res.returncode, 0, res.stderr + res.stdout)
+        self.assertEqual(self.pkg_tree(self.mono, "HEAD"), git(self.mono, "rev-parse", f"{u2}^{{tree}}").stdout.strip())
+        self.assertFalse((self.mono / f"packages/{PKG}/flat.py").exists())
+        self.assertEqual(git(self.mono, "log", "-1", "--format=%P").stdout.split(), [pre])
+        self.assertEqual(self.read_manifest()["packages"][PKG]["synced_sha"], u2)
+        self.assertEqual(git(self.mono, "status", "--porcelain").stdout.strip(), "")
+        # git-subtree accepts the new import point (its trailer scan finds U2)
+        sub = git(self.mono, "subtree", "pull", f"--prefix=packages/{PKG}", "--squash",
+                  str(self.origin), "main")
+        self.assertIn("already at commit", sub.stdout + sub.stderr)
+
+    def test_d_cursor_squash_conflict_leaves_the_tree_untouched(self):
+        self.pr223_shape()
+        pre = sha_of(self.mono)
+        res = self.run_script("pull", "--squash", "--package", PKG, "--json", env_extra=self.origin_env)
+        self.assertEqual(res.returncode, 3, res.stderr + res.stdout)
+        rec = self.json_record(res)
+        self.assertEqual(rec["conflicted_paths"], [{"path": f"packages/{PKG}/a.txt", "kind": "both-modified"}])
+        self.assertEqual(sha_of(self.mono), pre)
+        self.assertEqual(git(self.mono, "status", "--porcelain").stdout.strip(), "")
+
+    def test_e_branch_flow_refuses_to_stack_on_a_non_main_head(self):
+        self.pr223_shape()
+        git(self.mono, "switch", "-q", "-c", "sync/other-import", check=True)
+        (self.mono / "unrelated.txt").write_text("another package's import\n")
+        git(self.mono, "add", "-A", check=True)
+        git(self.mono, "commit", "-m", "unrelated import", check=True)
+        res = self.run_script("pull", "--squash", "--open-pr", "--package", PKG, "--json",
+                              env_extra=self.gh_env())
+        self.assertEqual(res.returncode, 4, res.stderr + res.stdout)
+        self.assertIn("start the import from main", self.json_record(res)["remediation"])
+        self.assertEqual(git(self.origin, "branch", "--list", "sync/*").stdout.strip(), "")
+
+    def test_f_gitignored_heavy_asset_stays_pruned(self):
+        """A heavy asset the hub pruned (HUB-018) stays out, and is not a violation."""
+        _u1, u2 = self.pr223_shape(hub_conflict=False, heavy_asset=True)
+        res = self.run_script("pull", "--squash", "--package", PKG, "--json", env_extra=self.origin_env)
+        self.assertEqual(res.returncode, 0, res.stderr + res.stdout)
+        self.assertNotIn("PARITY VIOLATION", res.stderr)
+        self.assertFalse((self.mono / f"packages/{PKG}/big.bin").exists())
+        self.assertTrue((self.mono / f"packages/{PKG}/pkg/flat.py").exists())
+        self.assertEqual(self.read_manifest()["packages"][PKG]["synced_sha"], u2)
+
+
 def _load_sync_module():
     """Import scripts/sync_packages.py as a module for unit-level seams."""
     import importlib.util

@@ -49,16 +49,39 @@ clean entry state) plus a structured per-path summary and exit 3.
 ``--allow-dirty`` also blocks the auto-abort (it would clobber the user's
 pre-existing uncommitted work).
 
-PR branch flow (pull --open-pr): on conflict the pull is aborted, a branch
-``sync/<package>/import-<upstream12>`` is created from main, the upstream is
-fetched and merged with ``git merge --no-ff -s recursive
--X subtree=packages/<package> -X <ours|theirs> FETCH_HEAD`` (git-subtree has
-no ``-X`` passthrough; ours = monorepo content wins, the HUB-021 containment
-doctrine — ``theirs`` drops monorepo content), remaining add/add /
-modify-delete paths are taken via ``git checkout --ours/--theirs`` (or
-``git rm -f`` to keep a deletion), the merge is committed, pushed, and a PR
-against main is opened via ``gh``. The sync cursor is NEVER advanced from a
-branch/PR state — it bounces only when the import lands on main
+Cursor-based squash import (DMR-117, git >= 2.40): ``pull --squash`` with a
+usable sync cursor merges the package with the CURSOR as an explicit merge
+base (``git merge-tree --write-tree --merge-base``) and writes ONE
+single-parent squash commit carrying ``git-subtree-dir``/``git-subtree-split``
+trailers. It never pulls upstream history into the hub log and does not rely
+on git-subtree's trailer scan, which a squash-merged hub PR can break. A
+conflict leaves the worktree untouched (exit 3, or the branch flow with
+--open-pr). Without a usable cursor (none recorded, missing, or not an
+ancestor of the tip) the driver says so and falls back to ``git subtree pull``.
+
+Parity guard (DMR-117, both import paths): every path the hub left alone
+since the cursor (hub blob == cursor blob) must equal the source tip after the
+import. ``stale`` (the source removed it, the import kept it), ``dropped`` and
+``mis-merged`` (e.g. a doubled hunk) paths refuse the import (exit 5,
+``parity_violations``): pull does not advance the cursor, and the branch flow
+does not push or open a PR. Hub-ahead paths are listed as ``hub_ahead_paths``
+for an ownership review. Gitignored heavy-asset prunes are exempt.
+
+PR branch flow (pull --open-pr): refuses unless HEAD is the tip of main or
+origin/main, because the branch is cut from HEAD and would otherwise stack
+other work into the import PR (DMR-117). Then a branch
+``sync/<package>/import-<upstream12>`` is created, the upstream is fetched
+and, with a usable cursor, imported as one cursor-based squash commit using
+``-X <ours|theirs>`` (ours = monorepo content wins, the HUB-021 containment
+doctrine; ``theirs`` drops monorepo content at conflicting hunks), with
+leftover conflicts resolved to that side's blob or deletion. Without a usable
+cursor the legacy ``git merge --no-ff -s recursive -X subtree=packages/<package>
+-X <ours|theirs> FETCH_HEAD`` runs (full history; git picks the base), with
+remaining paths taken via ``git checkout --ours/--theirs`` or ``git rm -f``.
+The branch is pushed and a PR against main is opened via ``gh``. The PR body
+names the import mode, the parity result, hub-ahead paths and required
+follow-ups (vendor refresh, ``uv lock``). The sync cursor is NEVER advanced
+from a branch/PR state — it bounces only when the import lands on main
 (``unimported_upstream_paths`` stays the containment safety net).
 
 Post-import verification (DMR-070, the v0.6.0 lessons): (a) every resolved
@@ -80,7 +103,8 @@ paths — content pushes cannot carry deletions; use the full subtree-push leg.
 cursor_updated, branch, pr_url}  (+ upstream_tip/resolution/aborted where
 relevant; DMR-070 additions: ``deleted_paths`` on a refused patch push,
 ``resolution_divergences`` on a resolved import, ``verify_detail_tail`` on a
-failed --verify-suite).
+failed --verify-suite; DMR-117 additions: ``parity_violations``, and on the
+branch flow ``import_mode``, ``hub_ahead_paths``, ``integration_followups``).
 
 Cursor safety (HUB-021; incidents HUB-012/HUB-018): every cursor write is
 guarded by a CONTENT check — the upstream tip's blob tree must be fully
@@ -105,8 +129,8 @@ Test seams (hermetic harness in scripts/tests/): ``--manifest`` and
 ``SYNC_PACKAGES_ORIGIN`` overrides the upstream URL prefix (default
 https://github.com/Exios66) so local fixtures can stand in for the remotes.
 
-Requires: git with the ``subtree`` contrib command, network for fetch-based
-commands. Stdlib only.
+Requires: git with the ``subtree`` contrib command (>= 2.40 for the
+cursor-based squash import), network for fetch-based commands. Stdlib only.
 """
 
 from __future__ import annotations
@@ -606,6 +630,304 @@ def cursor_gap_report(package: str, synced_sha: str | None) -> dict[str, object]
 
 
 # --------------------------------------------------------------------------- #
+# DMR-117: cursor-based squash import + import parity guard
+#
+# Incident (hub PR #223): `git merge -Xsubtree -Xtheirs FETCH_HEAD` pulled the
+# full upstream history in and let git pick its own merge base. The hub's
+# earlier imports were squashed, so the newest common ancestor git could find
+# was two months old. Against that base, 48 files the source had since moved
+# looked like "hub-only additions" and survived, and two test files that both
+# sides had extended came out with the hunk pasted twice. Nothing flagged it:
+# the DMR-070 audit only looks at conflicted paths. Separately, a squash-merged
+# hub PR stacked several packages' git-subtree trailers in one commit body,
+# which broke `git subtree pull --squash` for llm-dojo-scoring outright.
+#
+# The fix: merge with the recorded, content-verified sync cursor as an
+# EXPLICIT base (`git merge-tree --merge-base`), write one single-parent squash
+# commit with correct git-subtree trailers, and check every path afterwards.
+# --------------------------------------------------------------------------- #
+
+MERGE_TREE_MIN_GIT = (2, 40)  # merge-tree --write-tree --merge-base -X
+
+
+def git_version() -> tuple[int, ...]:
+    out = git(["version"]).stdout.strip()  # "git version 2.43.0[.windows.1]"
+    nums: list[int] = []
+    for piece in out.split()[-1].split(".") if out else []:
+        if not piece.isdigit():
+            break
+        nums.append(int(piece))
+    return tuple(nums)
+
+
+def explicit_base_supported() -> bool:
+    """The cursor-based import needs merge-tree --merge-base (git >= 2.40).
+
+    ``SYNC_PACKAGES_LEGACY_MERGE=1`` forces the pre-DMR-117 history merge; it is
+    a test seam for the parity guard, not an operator option.
+    """
+    if os.environ.get("SYNC_PACKAGES_LEGACY_MERGE") == "1":
+        return False
+    return git_version() >= MERGE_TREE_MIN_GIT
+
+
+def git_with_env(args: list[str], env_extra: dict[str, str], *, stdin: str | None = None) -> subprocess.CompletedProcess:
+    env = dict(os.environ)
+    env.update(env_extra)
+    return subprocess.run(["git", *args], cwd=str(REPO_ROOT), check=False, text=True,
+                          capture_output=True, env=env, input=stdin)
+
+
+def ignored_untracked(package: str, rel_paths: set[str], rev: str = "HEAD") -> set[str]:
+    """Package-relative paths that the hub prunes on purpose (HUB-018).
+
+    A path counts when the hub does not track it at ``rev`` and .gitignore
+    matches it: the documented heavy-asset exclusions.
+    """
+    if not rel_paths:
+        return set()
+    tracked = tree_map(rev, f"packages/{package}")
+    probe_paths = sorted(p for p in rel_paths if p not in tracked)
+    if not probe_paths:
+        return set()
+    prefix = f"packages/{package}/"
+    res = git_with_env(["check-ignore", "--no-index", "--stdin"], {},
+                       stdin="\n".join(prefix + p for p in probe_paths) + "\n")
+    out: set[str] = set()
+    if res.returncode in (0, 1):
+        for line in res.stdout.splitlines():
+            line = line.strip()
+            if line.startswith(prefix):
+                out.add(line[len(prefix):])
+    return out
+
+
+def graft_package_tree(base_rev: str, package: str, sub_tree: str, drop: set[str]) -> str:
+    """Tree of ``base_rev`` with ``packages/<package>`` replaced by ``sub_tree``.
+
+    ``drop`` lists package-relative paths to leave out. Uses a throwaway index,
+    so the real index and worktree are untouched.
+    """
+    prefix = f"packages/{package}"
+    with tempfile.TemporaryDirectory(prefix="dmr117-index-") as tmp:
+        env = {"GIT_INDEX_FILE": str(Path(tmp) / "index")}
+        steps = [
+            ["read-tree", base_rev],
+            ["rm", "-r", "--cached", "-q", "--ignore-unmatch", "--", prefix],
+            ["read-tree", f"--prefix={prefix}/", sub_tree],
+        ]
+        for step in steps:
+            r = git_with_env(step, env)
+            if r.returncode != 0:
+                raise RuntimeError(f"git {' '.join(step)} failed: {r.stderr.strip()}")
+        if drop:
+            r = git_with_env(["rm", "--cached", "-q", "--ignore-unmatch", "--pathspec-from-file=-",
+                              "--pathspec-file-nul"], env,
+                             stdin="".join(f"{prefix}/{p}\0" for p in sorted(drop)))
+            if r.returncode != 0:
+                raise RuntimeError(f"git rm (heavy-asset prune) failed: {r.stderr.strip()}")
+        r = git_with_env(["write-tree"], env)
+        if r.returncode != 0:
+            raise RuntimeError(f"git write-tree failed: {r.stderr.strip()}")
+        return r.stdout.strip()
+
+
+def commit_tree(tree: str, parents: list[str], message: str) -> str:
+    args = ["commit-tree", tree]
+    for p in parents:
+        args += ["-p", p]
+    r = git_with_env(args, {}, stdin=message)
+    if r.returncode != 0:
+        raise RuntimeError(f"git commit-tree failed: {r.stderr.strip()}")
+    return r.stdout.strip()
+
+
+def squash_message(package: str, cursor: str, tip: str, *, subject: str | None = None) -> str:
+    """git-subtree compatible squash message (so `git subtree` keeps working)."""
+    n = git(["rev-list", "--count", "--no-merges", f"{cursor}..{tip}"]).stdout.strip() or "?"
+    head = subject or f"Squashed 'packages/{package}/' changes from {cursor[:9]}..{tip[:9]}"
+    return (
+        f"{head}\n\n"
+        f"Imported by scripts/sync_packages.py (DMR-117 cursor-based squash import):\n"
+        f"merge base = recorded sync cursor {cursor[:12]}; {n} non-merge upstream commit(s);\n"
+        f"full list: git log {cursor[:12]}..{tip[:12]} in the source repository.\n\n"
+        f"git-subtree-dir: packages/{package}\n"
+        f"git-subtree-split: {tip}\n"
+    )
+
+
+def _kind_for_stages(stages: set[int]) -> str:
+    if {1, 2, 3} <= stages:
+        return "both-modified"
+    if {2, 3} <= stages:
+        return "add/add"
+    return "modify-delete"
+
+
+def explicit_base_merge(package: str, cursor: str, tip: str, resolve: str | None,
+                        ours_rev: str = "HEAD") -> dict:
+    """Three-way merge of the package with the CURSOR as the merge base.
+
+    Outside ``packages/<package>`` the base, ours and theirs trees are the same,
+    so nothing else can change. Returns {tree, conflicts: [{path, kind, stages}]}.
+    ``tree`` holds the merge result; conflicted paths carry conflict markers or
+    one side's blob, and the caller resolves them before committing.
+    """
+    # No prune here: like `git subtree pull`, the import brings every source path.
+    # A path the hub already removed (the HUB-018 heavy-asset prune) is a hub-side
+    # deletion against the cursor, so the three-way merge keeps it removed.
+    base_tree = graft_package_tree(ours_rev, package, f"{cursor}^{{tree}}", set())
+    tip_tree = graft_package_tree(ours_rev, package, f"{tip}^{{tree}}", set())
+    base_c = commit_tree(base_tree, [], f"DMR-117 synthetic merge base ({package} @ {cursor[:12]})\n")
+    tip_c = commit_tree(tip_tree, [base_c], f"DMR-117 synthetic upstream ({package} @ {tip[:12]})\n")
+    args = ["merge-tree", "--write-tree", "-z", f"--merge-base={base_c}"]
+    if resolve:
+        args.append(f"-X{resolve}")
+    args += [ours_rev, tip_c]
+    r = git(args)
+    if r.returncode not in (0, 1):
+        raise RuntimeError(f"git merge-tree failed: {r.stderr.strip()}")
+    fields = r.stdout.split("\0")
+    tree = fields[0].strip()
+    stages: dict[str, set[int]] = {}
+    for entry in fields[1:]:
+        if not entry:
+            break  # end of the conflicted-file section; informational messages follow
+        meta, _, path = entry.partition("\t")
+        pieces = meta.split()
+        if len(pieces) == 3 and pieces[2].isdigit():
+            stages.setdefault(path, set()).add(int(pieces[2]))
+    conflicts = [{"path": p, "kind": _kind_for_stages(s), "stages": sorted(s), "status": None}
+                 for p, s in sorted(stages.items())]
+    return {"tree": tree, "conflicts": conflicts, "theirs_commit": tip_c}
+
+
+def resolve_tree_conflicts(tree: str, conflicts: list[dict], side: str, ours_rev: str,
+                           theirs_rev: str) -> str:
+    """Take ``side``'s blob (or its deletion) for every conflicted path."""
+    src = ours_rev if side == "ours" else theirs_rev
+    with tempfile.TemporaryDirectory(prefix="dmr117-resolve-") as tmp:
+        env = {"GIT_INDEX_FILE": str(Path(tmp) / "index")}
+        r = git_with_env(["read-tree", tree], env)
+        if r.returncode != 0:
+            raise RuntimeError(f"git read-tree failed: {r.stderr.strip()}")
+        for c in conflicts:
+            path = c["path"]
+            ls = git(["ls-tree", src, "--", path]).stdout.strip()
+            if ls:
+                meta, _, _ = ls.partition("\t")
+                mode, _otype, sha = meta.split()
+                r = git_with_env(["update-index", "--add", "--cacheinfo", f"{mode},{sha},{path}"], env)
+                verb = f"took {side} version"
+            else:
+                r = git_with_env(["update-index", "--force-remove", "--", path], env)
+                verb = f"kept deletion under {side}"
+            if r.returncode != 0:
+                raise RuntimeError(f"git update-index failed for {path}: {r.stderr.strip()}")
+            warn(f"   resolved {path}: {verb}")
+        r = git_with_env(["write-tree"], env)
+        if r.returncode != 0:
+            raise RuntimeError(f"git write-tree failed: {r.stderr.strip()}")
+        return r.stdout.strip()
+
+
+def advance_to(commit: str) -> bool:
+    """Fast-forward the current branch, index and worktree to ``commit``."""
+    return git(["merge", "--ff-only", "-q", commit]).returncode == 0
+
+
+def import_parity_violations(package: str, cursor: str | None, pre_head: str, tip: str,
+                             result: str = "HEAD") -> list[dict]:
+    """Paths an import got mechanically wrong (DMR-117 guard).
+
+    For every path the hub left alone since the last import (pre-import hub
+    blob == cursor blob), the imported result MUST equal the upstream tip:
+      stale       the source removed or moved it, the import kept it
+      dropped     the source has it, the import lost it
+      mis-merged  both present, but the bytes differ from the source
+                  (the doubled-hunk class)
+    Hub-ahead paths (hub blob != cursor blob) are ownership questions, so they
+    are reported by ``hub_ahead_paths`` and not judged here. Gitignored
+    heavy-asset prunes are exempt. Without a usable cursor, nothing can be
+    judged and the list is empty (the caller says so).
+    """
+    if not cursor or not rev_exists(cursor) or not rev_exists(tip):
+        return []
+    prefix = f"packages/{package}"
+    c_map, u_map = tree_map(cursor), tree_map(tip)
+    h_map, r_map = tree_map(pre_head, prefix), tree_map(result, prefix)
+    ignored = ignored_untracked(package, (set(c_map) | set(u_map)) - set(h_map), pre_head)
+    out: list[dict] = []
+    for path in sorted(set(c_map) | set(u_map) | set(h_map) | set(r_map)):
+        if path in ignored:
+            continue
+        c, u, h, r = c_map.get(path), u_map.get(path), h_map.get(path), r_map.get(path)
+        if h != c or r == u:
+            continue
+        kind = "stale" if u is None else "dropped" if r is None else "mis-merged"
+        out.append({"path": f"{prefix}/{path}", "kind": kind})
+    return out
+
+
+def hub_ahead_paths(package: str, cursor: str | None, pre_head: str) -> list[str]:
+    """Paths the hub changed since the cursor (need an ownership review)."""
+    if not cursor or not rev_exists(cursor):
+        return []
+    prefix = f"packages/{package}"
+    c_map, h_map = tree_map(cursor), tree_map(pre_head, prefix)
+    ignored = ignored_untracked(package, set(c_map) - set(h_map), pre_head)
+    return sorted(f"{prefix}/{p}" for p in set(c_map) | set(h_map)
+                  if p not in ignored and c_map.get(p) != h_map.get(p))
+
+
+def cursor_usable(cursor: str | None, tip: str) -> str | None:
+    """None when ``cursor`` can be the merge base for ``tip``, else the reason."""
+    if not cursor:
+        return "no sync cursor recorded for this package"
+    if not rev_exists(cursor):
+        return f"sync cursor {cursor[:12]} is not available locally after fetching the upstream"
+    if git(["merge-base", "--is-ancestor", cursor, tip]).returncode != 0:
+        return (f"sync cursor {cursor[:12]} is not an ancestor of the upstream tip {tip[:12]} "
+                "(rewritten upstream history?)")
+    return None
+
+
+def branch_flow_start_ok() -> str | None:
+    """None when HEAD is the main tip (local or origin), else the reason.
+
+    The PR branch is cut from HEAD. Starting anywhere else stacks unrelated
+    work into the import PR (hub PR #223 carried three packages this way).
+    """
+    head = git(["rev-parse", "HEAD"]).stdout.strip()
+    for ref in ("refs/heads/main", "refs/remotes/origin/main"):
+        r = git(["rev-parse", "--verify", "--quiet", ref])
+        if r.returncode == 0 and r.stdout.strip() == head:
+            return None
+    branch = git(["rev-parse", "--abbrev-ref", "HEAD"]).stdout.strip()
+    return (f"HEAD ({branch} @ {head[:12]}) is not the tip of main or origin/main; the import "
+            "branch would carry those extra commits")
+
+
+def integration_followups(package: str) -> list[str]:
+    """Post-import gates the import itself cannot satisfy (reported, not fatal)."""
+    notes: list[str] = []
+    vendor = REPO_ROOT / "scripts" / "sync_vendor.py"
+    if package in ("llm-dojo-scoring", "llm-mailroom", "local-mailroom-sandbox") and vendor.is_file():
+        r = subprocess.run([sys.executable, str(vendor), "--check"], cwd=str(REPO_ROOT),
+                           capture_output=True, text=True, check=False)
+        if r.returncode != 0:
+            notes.append("vendor drift: run `python scripts/sync_vendor.py`, then "
+                         "`python scripts/sync_vendor.py --check`, and commit the refresh")
+    if (REPO_ROOT / "uv.lock").is_file() and shutil.which("uv"):
+        r = subprocess.run(["uv", "lock", "--check"], cwd=str(REPO_ROOT), capture_output=True,
+                           text=True, check=False)
+        if r.returncode != 0:
+            notes.append("stale uv.lock: run `uv lock`, verify with `uv lock --check`, and "
+                         "commit it as its own card-prefixed commit")
+    return notes
+
+
+# --------------------------------------------------------------------------- #
 # commands
 # --------------------------------------------------------------------------- #
 
@@ -662,6 +984,101 @@ def cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def finish_import(args: argparse.Namespace, manifest: dict, package: str, url: str, tip: str,
+                  pre_head: str, cursor: str | None, *, how: str) -> int:
+    """Gate a committed import, then advance the cursor (shared by both pull paths).
+
+    Order: DMR-117 parity guard -> DMR-070 verify-suite -> cursor write. A
+    refusal leaves the import commit in place (undo: git reset --hard <pre_head>)
+    and the cursor untouched.
+    """
+    undo = f"git reset --hard {pre_head[:12]}"
+    usable = cursor_usable(cursor, tip) is None
+    violations = import_parity_violations(package, cursor, pre_head, tip) if usable else []
+    if violations:
+        for v in violations:
+            warn(f"!! {package}: PARITY VIOLATION (DMR-117): {v['path']} is {v['kind']} — the hub "
+                 "left it alone since the cursor, so it must equal the source tip")
+        rec = base_record(args.command, package)
+        rec.update({"exit_code": E_VERIFY, "error_class": ERROR_CLASS[E_VERIFY],
+                    "parity_violations": violations, "upstream_tip": tip[:12],
+                    "remediation": f"the {how} produced a tree that does not match the source; "
+                                   f"undo it ({undo}) and re-run with --squash (cursor-based "
+                                   "import); the cursor was NOT advanced"})
+        emit(rec)
+        return E_VERIFY
+    if getattr(args, "verify_suite", False):
+        ok, detail = run_verify_suite(package)
+        if not ok:
+            rec = base_record(args.command, package)
+            rec.update(
+                {
+                    "exit_code": E_VERIFY,
+                    "error_class": ERROR_CLASS[E_VERIFY],
+                    "remediation": "verify-suite failed on the imported merge — fix or revert "
+                                   f"the import ({undo}), then re-run; "
+                                   "the cursor was NOT advanced",
+                    "verify_detail_tail": detail[-1500:],
+                    "upstream_tip": tip[:12],
+                }
+            )
+            emit(rec)
+            return E_VERIFY
+    manifest.setdefault("packages", {})[package] = {
+        "url": url,
+        "branch": DEFAULT_BRANCH,
+        "synced_sha": tip,
+        "synced_at": utc_now(),
+    }
+    save_manifest(manifest)
+    for note in integration_followups(package):
+        warn(f"   follow-up ({package}): {note}")
+    emit(record_ok(args.command, package, cursor_updated=True))
+    return E_OK
+
+
+def explicit_squash_pull(args: argparse.Namespace, manifest: dict, package: str, url: str,
+                         tip: str, cursor: str) -> int:
+    """DMR-117 `pull --squash`: cursor-based three-way merge, one squash commit.
+
+    Does not depend on git-subtree's trailer scan (which a squash-merged hub PR
+    can break). A conflict leaves the worktree untouched (nothing to abort).
+    """
+    pre_head = git(["rev-parse", "HEAD"]).stdout.strip()
+    info(f"== {package}: cursor-based squash import {cursor[:12]}..{tip[:12]} (DMR-117)")
+    try:
+        merged = explicit_base_merge(package, cursor, tip, None)
+    except RuntimeError as exc:
+        rec = base_record(args.command, package)
+        rec.update({"remediation": f"inspect git state: {exc}"})
+        emit(rec)
+        warn(f"!! {package}: cursor-based merge failed: {exc}")
+        return E_GIT
+    if merged["conflicts"]:
+        cs = {"paths": merged["conflicts"]}
+        if args.open_pr:
+            rc, rec = pr_branch_flow(args, package, url, tip, cs, cursor=cursor)
+            emit(rec)
+            render_conflict_summary(package, tip, cs, aborted=True, pr_url=rec.get("pr_url"))
+            if rc == E_OK:
+                info(f"== {package}: import PR opened at {rec['pr_url']}; main untouched; "
+                     "the cursor does not advance until the PR merges")
+            return rc
+        emit(conflict_record(args.command, package, tip, cs, aborted=True, exit_code=E_CONFLICT))
+        render_conflict_summary(package, tip, cs, aborted=True)
+        return E_CONFLICT
+    commit = commit_tree(merged["tree"], [pre_head], squash_message(package, cursor, tip))
+    if not advance_to(commit):
+        rec = base_record(args.command, package)
+        rec.update({"remediation": "could not fast-forward the worktree to the import commit "
+                                   f"{commit[:12]} (untracked files in the way?)"})
+        emit(rec)
+        warn(f"!! {package}: fast-forward to the import commit failed")
+        return E_GIT
+    return finish_import(args, manifest, package, url, tip, pre_head, cursor,
+                         how="cursor-based squash import")
+
+
 def cmd_pull(args: argparse.Namespace) -> int:
     require_subtree(args.command)
     assert_clean_tree(args.command, "pull", args.allow_dirty)
@@ -700,6 +1117,27 @@ def cmd_pull(args: argparse.Namespace) -> int:
             )
             emit(record_ok(args.command, package, cursor_updated=True))
             continue
+        cursor = (entries.get(package) or {}).get("synced_sha")
+        if args.squash and not args.keep_conflicts and not args.allow_dirty and explicit_base_supported():
+            fetched = fetch_upstream(package)
+            if fetched is None:
+                rec = base_record(args.command, package)
+                rec.update({"exit_code": E_NETWORK, "error_class": "network",
+                            "remediation": "check connectivity / upstream URL; verify with: "
+                                           "git ls-remote <url> main"})
+                emit(rec)
+                warn(f"!! {package}: fetch of {url} failed")
+                worst = max(worst, E_NETWORK)
+                continue
+            head = fetched
+            why_not = cursor_usable(cursor, head)
+            if why_not is None:
+                worst = max(worst, explicit_squash_pull(args, manifest, package, url, head, cursor))
+                continue
+            warn(f"!! {package}: cursor-based squash import unavailable ({why_not}); falling back "
+                 "to `git subtree pull --squash`. The DMR-117 parity guard cannot run without a "
+                 "usable cursor: review the import diff by hand against the source tip.")
+        pre_head = git(["rev-parse", "HEAD"]).stdout.strip()
         info(
             f"== git subtree pull --prefix packages/{package} {url} {DEFAULT_BRANCH}"
             + (" --squash" if args.squash else "")
@@ -709,36 +1147,11 @@ def cmd_pull(args: argparse.Namespace) -> int:
             cmd.append("--squash")
         result = git_foreground(cmd)
         if result.returncode == 0:
-            # DMR-070: --verify-suite gates cursor advance on the touched
-            # package's suite. The merge is already committed here; a red
-            # suite leaves the merge in place (fix or revert it) and the
-            # cursor untouched.
-            if getattr(args, "verify_suite", False):
-                ok, detail = run_verify_suite(package)
-                if not ok:
-                    rec = base_record(args.command, package)
-                    rec.update(
-                        {
-                            "exit_code": E_VERIFY,
-                            "error_class": ERROR_CLASS[E_VERIFY],
-                            "remediation": "verify-suite failed on the imported merge — fix or revert "
-                                           f"the merge commit (git reset --hard ORIG_HEAD), then re-run; "
-                                           "the cursor was NOT advanced",
-                            "verify_detail_tail": detail[-1500:],
-                            "upstream_tip": head[:12],
-                        }
-                    )
-                    emit(rec)
-                    worst = max(worst, E_VERIFY)
-                    continue
-            entries[package] = {
-                "url": url,
-                "branch": DEFAULT_BRANCH,
-                "synced_sha": upstream_head(url, DEFAULT_BRANCH),
-                "synced_at": utc_now(),
-            }
-            save_manifest(manifest)
-            emit(record_ok(args.command, package, cursor_updated=True))
+            # record the tip that was actually merged, not a fresh ls-remote: the
+            # source may have moved during the pull (cursor would claim un-imported commits)
+            merged_tip = git(["rev-parse", "FETCH_HEAD"]).stdout.strip() or head
+            worst = max(worst, finish_import(args, manifest, package, url, merged_tip,
+                                             pre_head, cursor, how="subtree pull"))
             continue
         cs = conflict_state()
         if cs is None:
@@ -806,7 +1219,7 @@ def cmd_pull(args: argparse.Namespace) -> int:
             )
         # Aborted cleanly — the worktree is back on the pre-pull state.
         if args.open_pr:
-            rc, rec = pr_branch_flow(args, package, url, head, cs)
+            rc, rec = pr_branch_flow(args, package, url, head, cs, cursor=cursor)
             emit(rec)
             if rc == E_OK:
                 render_conflict_summary(package, head, cs, aborted=True, pr_url=rec["pr_url"])
@@ -892,7 +1305,7 @@ def pr_body(package: str, url: str, head: str, cs: dict, resolve: str) -> str:
 
 
 def pr_branch_flow(args: argparse.Namespace, package: str, url: str, head: str,
-                   cs: dict) -> tuple[int, dict]:
+                   cs: dict, *, cursor: str | None = None) -> tuple[int, dict]:
     """Import the upstream tip onto a PR branch (`pull --open-pr`).
 
     Precondition: main clean + the conflicting merge aborted (cmd_pull verified
@@ -923,6 +1336,14 @@ def pr_branch_flow(args: argparse.Namespace, package: str, url: str, head: str,
         warn(message)
         return code, record
 
+    # DMR-117: the branch is cut from HEAD, so HEAD must be main (no stacking).
+    not_main = branch_flow_start_ok()
+    if not_main:
+        record.update({"exit_code": E_GIT, "error_class": ERROR_CLASS[E_GIT],
+                       "remediation": "start the import from main: `git switch main` (or a "
+                                      "worktree on origin/main) and re-run; one import PR per package"})
+        warn(f"!! {package}: refusing the PR branch flow: {not_main}")
+        return E_GIT, record
     # Drop any stale branch from an earlier interrupted run.
     if git(["rev-parse", "--verify", "--quiet", branch]).returncode == 0:
         git(["branch", "-D", branch])
@@ -944,11 +1365,36 @@ def pr_branch_flow(args: argparse.Namespace, package: str, url: str, head: str,
         f"sync: import {package} upstream {sha12} ({args.resolve} resolution) "
         "from Digital-Mailroom — DMR-064 branch flow"
     )
-    merged = git_foreground(
-        ["merge", "--no-ff", "-m", msg, "-s", "recursive",
-         f"-Xsubtree=packages/{package}", f"-X{args.resolve}", "FETCH_HEAD"],
-    )
     resolved_paths: list[str] = []
+    use_cursor = explicit_base_supported() and cursor_usable(cursor, theirs) is None
+    record["import_mode"] = "cursor-squash" if use_cursor else "legacy-history-merge"
+    if use_cursor:
+        # DMR-117: merge base = the recorded cursor; one single-parent squash commit.
+        try:
+            merged_tree = explicit_base_merge(package, cursor, theirs, args.resolve)
+            tree = merged_tree["tree"]
+            if merged_tree["conflicts"]:
+                tree = resolve_tree_conflicts(tree, merged_tree["conflicts"], args.resolve,
+                                              pre_head, merged_tree["theirs_commit"])
+                resolved_paths = [c["path"] for c in merged_tree["conflicts"]]
+            subject = (f"Squashed 'packages/{package}/' changes from {cursor[:9]}..{theirs[:9]}"
+                       f" ({args.resolve} resolution, DMR-064 branch flow)")
+            commit = commit_tree(tree, [pre_head], squash_message(package, cursor, theirs, subject=subject))
+        except RuntimeError as exc:
+            return teardown(E_GIT, f"!! {package}: cursor-based import failed: {exc}",
+                            "inspect git state; nothing was pushed")
+        if not advance_to(commit):
+            return teardown(E_GIT, f"!! {package}: could not fast-forward the branch to {commit[:12]}",
+                            "inspect git status on the branch")
+        merged = subprocess.CompletedProcess([], 0)
+    else:
+        warn(f"!! {package}: legacy history merge (no usable cursor or git < 2.40) — git picks the "
+             "merge base, and stale paths are possible; the DMR-117 parity guard runs only "
+             "with a usable cursor")
+        merged = git_foreground(
+            ["merge", "--no-ff", "-m", msg, "-s", "recursive",
+             f"-Xsubtree=packages/{package}", f"-X{args.resolve}", "FETCH_HEAD"],
+        )
     if merged.returncode != 0:
         cs2 = conflict_state()
         if cs2 is None:
@@ -982,6 +1428,21 @@ def pr_branch_flow(args: argparse.Namespace, package: str, url: str, head: str,
              f"resolved blob {d['resolved']} matches NEITHER merge side "
              f"(ours {d['ours']}, theirs {d['theirs']}) — review before merging this import")
     record["resolution_divergences"] = divergences
+    # DMR-117: every path the hub left alone since the cursor must equal the source tip.
+    violations = (import_parity_violations(package, cursor, pre_head, theirs)
+                  if cursor_usable(cursor, theirs) is None else [])
+    record["parity_violations"] = violations
+    if violations:
+        for v in violations:
+            warn(f"!! {package}: PARITY VIOLATION (DMR-117): {v['path']} is {v['kind']}")
+        return teardown(E_VERIFY, f"!! {package}: the import does not match the source tip at "
+                                  f"{len(violations)} path(s) the hub never changed — not pushing",
+                        "re-run on a git >= 2.40 with a valid cursor (cursor-based squash import), "
+                        "or fix the listed paths on the branch")
+    ahead = hub_ahead_paths(package, cursor, pre_head)
+    record["hub_ahead_paths"] = ahead
+    followups = integration_followups(package)
+    record["integration_followups"] = followups
     # DMR-070: --verify-suite gates the push/PR on the touched package's
     # suite. A red suite refuses to push the branch and open the PR.
     if getattr(args, "verify_suite", False):
@@ -1014,6 +1475,18 @@ def pr_branch_flow(args: argparse.Namespace, package: str, url: str, head: str,
                         f"run the gh command above (or install gh): {cmd_hint}")
     title = f"sync({package}): import upstream {sha12}"
     body = pr_body(package, url, head, cs, args.resolve)
+    body += (f"\n\nImport mode: `{record['import_mode']}`"
+             + (f" (merge base = sync cursor `{cursor}`)" if use_cursor else "")
+             + ". DMR-117 parity guard: "
+             + ("passed (every path the hub left alone equals the source tip)."
+                if cursor_usable(cursor, theirs) is None else "NOT RUN (no usable cursor) — review by hand."))
+    if ahead:
+        body += ("\n\n## Hub-ahead paths (ownership review)\n\nThe hub changed these since the "
+                 "cursor; check each against the source before merging:\n\n"
+                 + "\n".join(f"- `{a}`" for a in ahead[:200])
+                 + (f"\n- … and {len(ahead) - 200} more" if len(ahead) > 200 else ""))
+    if followups:
+        body += "\n\n## Required follow-ups (same PR)\n\n" + "\n".join(f"- {n}" for n in followups)
     if divergences:
         lines = [
             "", "## DMR-070 resolution divergences", "",

@@ -23,6 +23,20 @@ and is recorded there, not here.
 
 ### Fixed
 
+- DMR-117: stop the hub PR #223 import failure from recurring in
+  `scripts/sync_packages.py`. `pull --squash` and the `--open-pr` branch flow
+  now merge each package with the recorded sync cursor as an explicit base
+  (`git merge-tree --merge-base`, git >= 2.40) and write one single-parent
+  squash commit with git-subtree trailers. The old flow pulled full source
+  history and let git pick a merge base two months back, which brought 48
+  moved Dojo modules back and doubled hunks in two test files. A new parity
+  guard refuses any import (exit 5) where a path the hub left alone does not
+  equal the source tip. The branch flow refuses to start anywhere but the tip
+  of main, so imports no longer stack into one PR. Import PR bodies now list
+  hub-ahead paths and the vendor-refresh / `uv lock` follow-ups. The cursor
+  records the tip actually merged, not a later `ls-remote`. Six hermetic
+  tests reproduce the #223 shape; the runbook covers the new outcomes.
+
 - DMR-114: repair the `governance/TASKS.md` open-card table so GitHub renders
   it as GFM — the separator now matches the six-column header and DMR-105 no
   longer carries an extra cell — with a rectangular-table regression check in

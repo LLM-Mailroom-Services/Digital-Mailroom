@@ -29,8 +29,8 @@ Python path; there is no need to change into a package subdirectory.
 
 - **Agents, evaluation, and data:** agent and eval behavior (`test_agents`,
   `test_eval`, `test_overlay`); corpus, dataset, and fixture preparation
-  (`test_corpus`, `test_datasets`, `test_prep`, `test_sampling`); LegalBench,
-  extraction, and scoring (`test_legalbench`, `test_eval_environment_lineage`,
+  (`test_corpus`, `test_datasets`, `test_prep`, `test_sampling`);
+  extraction and scoring (`test_eval_environment_lineage`,
   `test_extraction_scope`, `test_cuad_scoring`, `test_maud_scoring`,
   `test_schema_adherence`, `test_sorter_isolated_shape`,
   `test_modernbert_feeder`, `test_qwen_flash_ledger`).

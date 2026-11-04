@@ -1,0 +1,61 @@
+# SPECIALIST-CONDENSED lineage: token-budgeted specialist system prompts. Every further improvement
+# to these three specialists is a mutation here (<agent>_condensed_v<N>.txt, a new file per version;
+# never edit a frozen one). The frozen eval-environment stems (*_simplified, *_subclass_v2) stay the
+# production reference and are not mutated further.
+#
+# Budget: each system prompt stays <= 3,000 chars (about 750 tokens; the frozen stems are ~6k);
+# insurance <= 4,500 for its per-template field map (budget_chars_by_agent), still under its frozen stem. Field
+# definitions live in the JSON schema the agent appends to the user message, so a condensed prompt
+# carries only what the schema does not: the class boundary, layout/subclass cues, vocabulary
+# mappings and the null/[] rules. No version may claim a sorter subclass handoff (the specialist
+# harness passes none). A version is adopted only when, on the SAME documents as its reference run,
+# its mean dojo extraction score is not lower by more than 0.02 and it adds no parse errors
+# (scripts/compare_specialist_prompt.py). Enforced by tests/test_specialist_condensed_prompt.py.
+#
+# Contracts and merger agreements are outside this lineage: they keep the frozen production
+# prompts (contracts_specialist_v33_simplified, merger_agreement_specialist_simplified).
+lineage: specialist-condensed
+budget_chars: 3000
+budget_chars_by_agent:
+  insurance_claims_specialist: 4500   # six source templates, each with its own field map (v3)
+max_mean_drop: 0.02
+agents:
+  insurance_claims_specialist:
+    frontrunner: insurance_claims_specialist_condensed_v3
+    versions:
+      - version: insurance_claims_specialist_condensed_v1
+        parent: insurance_claims_specialist_simplified (frozen v1) + simplified_v2 layout cues
+        reference_run: extraction-gate-specialist-insurance-claim-qwen
+        validation_run: specialist-condensed-v1-insurance-claim-qwen-ab
+        status: superseded   # mean -0.013 (passes) but claimed_amount 55 -> 47 exact: CMS allowed vs paid, FNOL invoice vs Estimated Damage
+      - version: insurance_claims_specialist_condensed_v2
+        parent: insurance_claims_specialist_condensed_v1 (claimed_amount = CMS paid line, FNOL Estimated Damage, never an invoice total)
+        reference_run: extraction-gate-specialist-insurance-claim-qwen
+        validation_run: specialist-condensed-v2-insurance-claim-qwen-ab
+        status: superseded   # by v3; was adopted: mean +0.006 (0.770 -> 0.776), claimed_amount 55 -> 58 exact, insurer 40 -> 46, 0 parse errors, -22% input tokens
+      - version: insurance_claims_specialist_condensed_v3
+        parent: insurance_claims_specialist_condensed_v2 (per-template field map for all six corpus templates, incl. the system claim extract and FNOL; claim_type = printed line of business)
+        reference_run: extraction-gate-specialist-insurance-claim-qwen
+        validation_run: specialist-condensed-v3-insurance-claim-qwen-ab
+        status: adopted   # mean +0.130 (0.770 -> 0.899), 60/60 docs better, 0 parse errors, -15% input tokens; every subclass up (property 0.69 -> 0.89)
+  correspondence_specialist:
+    frontrunner: correspondence_specialist_condensed_v2
+    versions:
+      - version: correspondence_specialist_condensed_v1
+        parent: correspondence_specialist_simplified (frozen v7)
+        reference_run: extraction-gate-specialist-correspondence-qwen
+        validation_run: specialist-condensed-v1-correspondence-qwen-ab
+        status: rejected   # mean -0.022 > 0.02: intent over-predicted update (notice -> update 8, press_communication -> update 5)
+      - version: correspondence_specialist_condensed_v2
+        parent: correspondence_specialist_condensed_v1 (notice / update / press_communication boundaries)
+        reference_run: extraction-gate-specialist-correspondence-qwen
+        validation_run: specialist-condensed-v2-correspondence-qwen-ab
+        status: adopted   # mean +0.002 (0.327 -> 0.328), intent 32 -> 33 exact, 0 parse errors, -28% input tokens
+  corporate_records_specialist:
+    frontrunner: corporate_records_specialist_condensed_v1
+    versions:
+      - version: corporate_records_specialist_condensed_v1
+        parent: corporate_records_specialist_subclass_v2 (frozen v7) record_type/intent map
+        reference_run: extraction-gate-specialist-corporate-record-qwen
+        validation_run: specialist-condensed-v1-corporate-record-qwen-ab
+        status: adopted   # mean +0.075 (0.352 -> 0.427), intent 19 -> 27 exact, 0 parse errors, fewer tokens

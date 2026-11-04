@@ -26,13 +26,18 @@ data/runtime/runs/<run_id>/
 ```yaml
 schema: sandbox.run/v1
 run_id: <optional; auto ><task>-<model>-<utc>
-task: sorter                # per-item: sorter | legalbench (resumable row-by-row)
+task: sorter                # primary: specialist | pipeline (whole-run)
+                            # per-item: sorter (resumable row-by-row)
                             # whole-run: pipeline | extract | chained | local_vs_api
                             #   | isolated (sorter spec) | ANY registered agent name
                             #   (e.g. judge, contracts_specialist — DMR-056: every
                             #   AgentSpec in eval/agents.py is a whole-run task; a
                             #   bogus task is rejected at spec parse, never "locks
                             #   prepared then dies")
+target: null                # level 2 of specialist/pipeline: contract | merger_agreement
+                            #   | corporate_record | correspondence | insurance_claim
+                            #   (or the specialist name); unset = all five / every class.
+                            #   `sandbox run … --target X` overrides it. Hashed only when set.
 profile: vllm-local         # ollama | vllm-local | vllm-remote | modal-vllm | openrouter
 
 prompt:                     # ALL pipeline agents: local variants + Langfuse + code
@@ -64,7 +69,11 @@ engine:
   model: Qwen/Qwen3-8B
   vllm: {max_model_len: 16384, gpu_memory_utilization: 0.90,
          max_num_seqs: 6, enable_prefix_caching: true, enforce_eager: true,
-         quantization: "", revision: ""}
+         quantization: "", revision: "", max_inputs: 4}
+  # max_inputs: requests one Modal container admits at once (@modal.concurrent).
+  # Default 0 serves one request at a time; preflight refuses a live modal-vllm
+  # run with job.concurrency > 1 and max_inputs 0, since the GPU bills while
+  # the other requests queue. Mock runs are not checked.
   # DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.29.0
   # raises at boot when the KV pool can't fit one request); AWQ rows set 32768.
   modal: {app: sandbox-vllm, gpu: L4, image_tag: v0.29.0,
@@ -80,6 +89,28 @@ job:
                             # vs Modal vLLM continuous batching (docs: 4-16);
                             # set 1 explicitly for serial/CPU-Ollama runs
                             # — bounded to [1, 64] at spec validation
+  cost_cap_usd: 1.00        # USD; estimated GPU spend (every warm Modal app) is
+                            # checked before each document; the run then fails
+                            # loud. An in-flight document is not interrupted and
+                            # can take spend past the cap
+  max_wall_seconds: 1800    # seconds (>= 60); checked the same way, before each
+                            # document. The run then aborts and its fleet is torn down
+  api_cost_cap_usd: 0.25    # USD; OpenRouter token spend (SAND-089), priced at the
+                            # highest input/output price among the run's API models
+                            # and checked before each document. Required when any
+                            # agent bills tokens; every such model needs a price
+                            # (config/api_prices.yaml, the built-in fallback
+                            # SANDBOX_MODEL_PRICES in job/metrics.py, or both
+                            # SANDBOX_TOKEN_PRICE_IN_PER_M and _OUT_PER_M) or the run
+                            # is refused. Paid runs need max_wall_seconds, plus
+                            # cost_cap_usd when they warm a Modal GPU and
+                            # api_cost_cap_usd when they bill API tokens. `experiment
+                            # create` fills unset ceilings from a recommendation.
+
+reviewer:                   # optional decision reviewer (SAND-085); see docs/experiments.md
+  backend: api              # jev | local | api | mock
+  model: openai/gpt-6-luna  # pinned: jev-X.Y.Z, the in-house model, or an OpenRouter id
+  classes: {contract: 0.90, correspondence: 0.90}   # class -> cutoff in [0, 1]
 
 trace:
   sink: langfuse            # langfuse | phoenix | otlp | none
@@ -137,7 +168,7 @@ preserve legacy spec hashes. Run-id-only resume refuses runtime overrides that
 differ from the lock; use a config and a safe explicit reset for new choices.
 Provider endpoint URLs and credentials remain operator environment settings.
 
-For a running row-resumable `sorter`/`legalbench` endpoint task, `run cancel`
+For a running row-resumable `sorter` endpoint task, `run cancel`
 writes `cancel.request.json` without waiting for the runner's lock and reports
 `cancel_requested`. Prepared, paused and terminal local runs report their
 current state without creating a pending token. The runner marks `running`
@@ -196,6 +227,12 @@ locked prompts/models/knobs rather than later ambient generation settings.
    prompt-text change refuses (DMR-049), and `dataset.sha256` is re-verified
    at worker start and at resume — drift refuses (exit 3) unless `--force`
    re-locks and archives the old generation.
+
+The engine step also refuses a live `modal-vllm` run whose `job.concurrency` is
+above 1 while `engine.vllm.max_inputs` is 0 (mock runs are not checked). The
+reviewer gets its own checks: `local` must be in-house and a different model from
+the sorter, `api` needs an OpenRouter `sorter_reviewer` route, and `jev` is refused
+for mock runs and Modal jobs.
 
 ## Checkpoint / resume
 
@@ -374,24 +411,27 @@ AWQ floor (no GPU):
 [`docs/archive/extraction-quality-diagnosis.md`](archive/extraction-quality-diagnosis.md).
 
 TTFT is only populated when a run records it (never inferred from e2e).
-Document-pipeline eval traces stay on the Langfuse SDK path (family
-contract); job/preflight/item spans travel over OTEL (job spans only).
+Document-pipeline eval traces follow the locked `trace.sink`: `langfuse` or
+`phoenix` sets the vendored pipeline's SDK to that sink, while `otlp` and
+`none` turn the pipeline SDK off (`otel.pipeline_provider`). Job, preflight and
+item spans travel over OTEL (job spans only).
 
 ## Tests
 
 The job surface is covered by network-free suites:
 
 ```
-uv run pytest packages/local-mailroom-sandbox/tests/test_job_spec.py
-uv run pytest packages/local-mailroom-sandbox/tests/test_job_checkpoint.py
-uv run pytest packages/local-mailroom-sandbox/tests/test_job_preflight.py
-uv run pytest packages/local-mailroom-sandbox/tests/test_job_runner.py
-uv run pytest packages/local-mailroom-sandbox/tests/test_job_otel.py
-uv run pytest packages/local-mailroom-sandbox/tests/test_job_remote.py
-uv run pytest packages/local-mailroom-sandbox/tests/test_job_metrics.py
-uv run pytest packages/local-mailroom-sandbox/tests/test_job_cli.py
-uv run pytest packages/local-mailroom-sandbox/tests/test_corpus.py
-uv run pytest packages/local-mailroom-sandbox/tests/test_prompt_registry.py
+uv run pytest tests/test_job_spec.py
+uv run pytest tests/test_job_checkpoint.py
+uv run pytest tests/test_job_preflight.py
+uv run pytest tests/test_job_runner.py
+uv run pytest tests/test_job_otel.py
+uv run pytest tests/test_job_remote.py
+uv run pytest tests/test_job_metrics.py
+uv run pytest tests/test_job_cli.py
+uv run pytest tests/test_corpus.py
+uv run pytest tests/test_prompt_registry.py
+uv run pytest tests/test_api_budget.py
 ```
 ### Generation integrity
 

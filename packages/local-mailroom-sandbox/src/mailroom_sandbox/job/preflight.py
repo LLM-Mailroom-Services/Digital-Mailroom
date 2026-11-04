@@ -11,11 +11,14 @@ and CI-safe.
 
 from __future__ import annotations
 
+import ipaddress
 import os
 import time
 import uuid
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any, Mapping
+from urllib.parse import urlparse
 
 import llm_dojo_scoring
 from llm_dojo_scoring.experiment import git_snapshot
@@ -31,7 +34,6 @@ from mailroom_sandbox.job.spec import (
     resolve_run_id,
     run_dir,
     spec_core,
-    spec_hash,
 )
 from mailroom_sandbox.prompt_registry import prompt_lock_block
 from mailroom_sandbox.prompt_versions import PromptSelectionError, selection_from_lock
@@ -42,6 +44,12 @@ def _versions() -> dict[str, Any]:
         "mailroom_sandbox": sandbox_version,
         "llm_dojo_scoring": getattr(llm_dojo_scoring, "__version__", "?"),
     }
+    from mailroom_sandbox import dojo_source
+
+    choice = dojo_source.current()
+    if choice is not None:
+        # installed (the release) or vendored (the fallback snapshot): which one scored this run.
+        out["llm_dojo_scoring_source"] = choice.source
     try:
         import opentelemetry  # type: ignore
 
@@ -51,8 +59,324 @@ def _versions() -> dict[str, Any]:
     return out
 
 
+def _effective_model(spec: RunSpec, agent: str) -> str:
+    """The model activation installs for ``agent``: ``agent_models`` wins, then its route, then the engine."""
+    route = spec.agent_routes.get(agent)
+    return spec.agent_models.get(agent) or (route.model if route else spec.engine.model)
+
+
+def _in_house_url(spec: RunSpec, base_url: str) -> bool:
+    """Whether a ``vllm`` route's URL is one the run controls, not any OpenAI-compatible host.
+
+    Loopback, private and link-local addresses (a local server or SSH tunnel),
+    the run's own engine host (unless that engine is OpenRouter), and this Modal
+    workspace's apps qualify.
+    """
+    host = (urlparse(base_url).hostname or "").lower()
+    if not host:
+        return False
+    if host == "localhost":
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        address = None
+    if address is not None:
+        return address.is_loopback or address.is_private or address.is_link_local
+    workspace = os.environ.get("MODAL_WORKSPACE", "").strip().lower()
+    if workspace and host.endswith(".modal.run") and host.startswith(f"{workspace}--"):
+        return True
+    if spec.engine.kind == "openrouter":
+        return False  # the engine itself is a third party, so its host proves nothing
+    try:
+        engine_host = (urlparse(engine_base_url(spec)).hostname or "").lower()
+    except Exception:  # noqa: BLE001 - an unresolvable engine proves nothing about the route
+        return False
+    return host == engine_host
+
+
+def _local_reviewer_errors(spec: RunSpec) -> list[str]:
+    """The in-house reviewer must be a second model, on a route the run controls."""
+    model = spec.reviewer.model
+    errs = []
+    reviewer_model = _effective_model(spec, "sorter_reviewer")
+    if model == _effective_model(spec, "sorter") or (
+            spec.agent_routes.get("sorter_reviewer") and reviewer_model == _effective_model(spec, "sorter")):
+        errs.append("decision reviewer backend local must use a different model from the sorter, or it only repeats its answer")
+    if spec.job.mock:
+        return errs
+    route = spec.agent_routes.get("sorter_reviewer")
+    if route is None:
+        errs.append("decision reviewer backend local needs an agent_routes.sorter_reviewer entry serving its model")
+    elif route.provider not in {"modal-vllm", "vllm"}:
+        errs.append(f"decision reviewer backend local must stay in-house; agent route provider {route.provider!r} is a third party")
+    else:
+        if route.provider == "vllm" and not _in_house_url(spec, route.base_url or ""):
+            errs.append(f"decision reviewer backend local must stay in-house; vllm route {route.base_url!r} is not a "
+                        "loopback/private address, the run's engine host or this MODAL_WORKSPACE (use provider modal-vllm)")
+        if reviewer_model != model:
+            errs.append(f"decision reviewer model {model!r} differs from the sorter_reviewer agent's effective model "
+                        f"{reviewer_model!r}")
+    return errs
+
+
+def _api_reviewer_errors(spec: RunSpec) -> list[str]:
+    """The API reviewer must be a second model on an OpenRouter route with a token cap."""
+    model = spec.reviewer.model
+    errs = []
+    # A sorter_reviewer calibration never runs the sorter (the engine model IS the reviewer), so the
+    # same-model guard applies to a pipeline, where the reviewer would only repeat the sorter's answer.
+    if spec.task != "sorter_reviewer" and model == _effective_model(spec, "sorter"):
+        errs.append("decision reviewer backend api must use a different model from the sorter, or it only repeats its answer")
+    if spec.job.mock:
+        return errs
+    route = spec.agent_routes.get("sorter_reviewer")
+    if route is None:
+        errs.append("decision reviewer backend api needs an agent_routes.sorter_reviewer entry serving its model")
+    elif route.provider != "openrouter":
+        errs.append(f"decision reviewer backend api needs provider openrouter; agent route provider is {route.provider!r}")
+    elif _effective_model(spec, "sorter_reviewer") != model:
+        errs.append(f"decision reviewer model {model!r} differs from the sorter_reviewer agent's effective model "
+                    f"{_effective_model(spec, 'sorter_reviewer')!r}")
+    if spec.job.mode == "modal":
+        errs.append("decision reviewer backend api is not supported for modal jobs (use job.mode endpoint)")
+    return errs
+
+
+def _extraction_gate_lock(spec: RunSpec) -> dict[str, Any]:
+    """The pipeline extraction-gate block as locked: the question set frozen by content and hash."""
+    import hashlib
+
+    from mailroom_sandbox.decision_backends import EXTRACTION_GATE, decisions_dir, load_question_set
+
+    gate = spec.extraction_gate
+    qset = load_question_set(gate.questions)
+    if qset.get("kind") != EXTRACTION_GATE:
+        raise ValueError(f"extraction_gate.questions {gate.questions!r} is not an extraction_gate question set")
+    path = decisions_dir() / f"{gate.questions}.yaml"
+    return {**gate.model_dump(), "questions_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "question_set": qset}
+
+
+def _reviewer_lock(spec: RunSpec) -> dict[str, Any]:
+    """The reviewer block as locked; a Decisions question set is frozen by content and hash."""
+    block = spec.reviewer.model_dump()
+    if spec.reviewer.backend == "decisions" and spec.reviewer.questions:
+        import hashlib
+
+        from mailroom_sandbox.decision_backends import decisions_dir, load_question_set
+
+        path = decisions_dir() / f"{spec.reviewer.questions}.yaml"
+        block["questions_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        block["question_set"] = load_question_set(spec.reviewer.questions)
+    if spec.reviewer.handoff_run:
+        # Freeze the handoff (by document id) so a resumed run sees the same answers: the
+        # sorter's on a reviewer calibration, the specialist's extraction on a gate run.
+        block["handoff"] = (extraction_handoff_map(spec.reviewer.handoff_run) if spec.task == "extraction_gate"
+                            else sorter_handoff_map(spec.reviewer.handoff_run))
+    return block
+
+
+def extraction_handoff_map(run_id: str | list[str]) -> dict[str, dict[str, Any]]:
+    """``{doc_id: extraction handoff}`` from finished specialist runs (task: <class>_specialist).
+
+    Each item's prediction is the specialist's real extraction; the class is the run's
+    specialist class. A list merges several runs (one per class), later runs winning.
+    """
+    import json
+
+    from mailroom_sandbox.decision_backends import extraction_handoff
+    from mailroom_sandbox.eval.agents import SPECIALIST_CLASS
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+
+    out: dict[str, dict[str, Any]] = {}
+    for rid in [run_id] if isinstance(run_id, str) else list(run_id):
+        store = RunStore(run_dir(str(rid)))
+        lock = store.read_lock() or {}
+        doc_type = SPECIALIST_CLASS.get(str(lock.get("task") or ""))
+        if not doc_type:
+            raise ValueError(f"handoff_run {rid!r} is not a specialist run (task {lock.get('task')!r})")
+        if (lock.get("job") or {}).get("mock", True):
+            raise ValueError(f"handoff_run {rid!r} is a mock run; the gate calibrates on real extractions only")
+        state = (store.read_checkpoint() or {}).get("state")
+        if state != "done":
+            raise ValueError(f"handoff_run {rid!r} is not a finished run (state {state!r})")
+        found = 0
+        for item in store.load_items():
+            pred = item.get("pred")
+            if item.get("ok") and isinstance(pred, dict) and pred and not pred.get("_parse_error"):
+                out[str(item.get("item_id"))] = extraction_handoff(doc_type, pred)
+                found += 1
+        if not found:
+            raise ValueError(f"handoff_run {rid!r} has no usable extractions")
+    json.dumps(out)
+    return out
+
+
+def _committed_handoff(path: str) -> dict[str, dict[str, Any]]:
+    """A sorter pass saved by scripts/export_sorter_handoff.py (repo-relative .jsonl path)."""
+    import json
+    from pathlib import Path
+
+    from mailroom_sandbox.paths import repo_root
+
+    file = Path(path)
+    file = file if file.is_absolute() else repo_root() / file
+    if not file.is_file():
+        raise ValueError(f"handoff_run file {path!r} not found")
+    out: dict[str, dict[str, Any]] = {}
+    with file.open(encoding="utf-8", newline="\n") as handle:
+        for line in handle.read().split("\n"):
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            if row.get("ok") and row.get("sorter_doc_type"):
+                out[str(row["id"])] = {
+                    "sorter_doc_type": row["sorter_doc_type"],
+                    "sorter_doc_subclass": row.get("sorter_doc_subclass"),
+                    "sorter_confidence": row.get("sorter_confidence"),
+                }
+    if not out:
+        raise ValueError(f"handoff_run file {path!r} has no usable sorter answers")
+    return out
+
+
+def sorter_handoff_map(run_id: str | list[str]) -> dict[str, dict[str, Any]]:
+    """``{doc_id: sorter answer}`` from finished sorter runs (isolated or per-item sorter task).
+
+    A list merges several runs, the later run winning on overlap. A run stopped by its API
+    cost cap counts as finished: every persisted item is a complete sorter answer, and the
+    run that sorts the documents it did not reach goes later in the list.
+    """
+    import json
+
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+
+    out: dict[str, dict[str, Any]] = {}
+    for rid in [run_id] if isinstance(run_id, str) else list(run_id):
+        if str(rid).endswith(".jsonl"):
+            out.update(_committed_handoff(rid))
+            continue
+        store = RunStore(run_dir(rid))
+        checkpoint = store.read_checkpoint() or {}
+        state = checkpoint.get("state")
+        capped = state == "failed" and "api_cost_cap_usd" in str((checkpoint.get("last_error") or {}).get("message"))
+        if state != "done" and not capped:
+            raise ValueError(f"handoff_run {rid!r} is not a finished run (state {state!r})")
+        found = 0
+        for item in store.load_items():
+            pred = item.get("pred") or {}
+            if not item.get("ok") or not isinstance(pred, dict) or not pred.get("doc_type"):
+                continue
+            found += 1
+            out[str(item.get("item_id"))] = {
+                "sorter_doc_type": pred.get("doc_type"),
+                "sorter_doc_subclass": pred.get("doc_subclass") or pred.get("contract_subtype"),
+                "sorter_confidence": pred.get("confidence"),
+            }
+        if not found:
+            raise ValueError(f"handoff_run {rid!r} has no usable sorter answers")
+    json.dumps(out)  # must serialise into the lock
+    return out
+
+
+def _reviewer_route_bills_tokens(spec: RunSpec) -> bool:
+    """Whether the sorter_reviewer chat agent would call a token-billed API.
+
+    Its own route decides when it has one (a paid route can sit on a local engine); otherwise
+    it runs on the engine.
+    """
+    from mailroom_sandbox.job.api_budget import API_PROVIDERS
+
+    route = spec.agent_routes.get("sorter_reviewer")
+    provider = route.provider if route is not None else spec.engine.kind
+    return str(provider) in API_PROVIDERS
+
+
+def _decisions_reviewer_errors(spec: RunSpec) -> list[str]:
+    """The Decisions reviewer: a loadable question set, an OpenRouter key, and on a calibration
+    run the engine model must be the reviewer model (the run's model label and price)."""
+    from mailroom_sandbox.decision_backends import decision_questions, load_question_set
+
+    from mailroom_sandbox.decision_backends import EXTRACTION_GATE
+
+    errs: list[str] = []
+    gate = spec.task == "extraction_gate"
+    try:
+        qset = load_question_set(spec.reviewer.questions or "")
+        if (qset.get("kind") == EXTRACTION_GATE) != gate:
+            raise ValueError("an extraction_gate run needs a kind: extraction_gate question set, and only it may use one")
+        if not gate:
+            decision_questions(qset)
+    except Exception as exc:  # noqa: BLE001 - every shape error is a preflight error
+        errs.append(f"decision reviewer questions: {exc}")
+    if spec.job.mode == "modal":
+        errs.append("decision reviewer backend decisions is not supported for modal jobs (use job.mode endpoint)")
+    if not spec.job.mock and not os.environ.get("OPENROUTER_API_KEY", "").strip():
+        errs.append("decision reviewer backend decisions needs OPENROUTER_API_KEY")
+    if spec.reviewer.handoff_run:
+        try:
+            (extraction_handoff_map if gate else sorter_handoff_map)(spec.reviewer.handoff_run)
+        except Exception as exc:  # noqa: BLE001
+            errs.append(f"decision reviewer handoff_run: {exc}")
+    elif gate:
+        errs.append("an extraction_gate run needs reviewer.handoff_run: the finished specialist runs it reviews")
+    if spec.task in ("sorter_reviewer", "extraction_gate") and spec.engine.model != spec.reviewer.model:
+        errs.append(f"{spec.task} calibration: engine.model {spec.engine.model!r} must equal reviewer.model "
+                    f"{spec.reviewer.model!r}, so the run is labelled and priced as the model it calls")
+    return errs
+
+
 def _engine_errors(spec: RunSpec) -> list[str]:
     errs: list[str] = []
+    if spec.agent_models or spec.agent_knobs:
+        from mailroom_sandbox.agent_routes import known_agents
+        unknown = (set(spec.agent_models) | set(spec.agent_knobs)) - known_agents()
+        if unknown:
+            errs.append(f"unknown or retired agents: {sorted(unknown)}")
+    if spec.agent_routes:
+        from mailroom_sandbox.agent_routes import validate
+        from mailroom_sandbox.services._exec import ServiceError
+        try:
+            validate(spec.agent_routes, credentials=not spec.job.mock)
+        except (ValueError, ServiceError) as exc:
+            errs.append(str(exc))
+    if spec.reviewer:
+        from mailroom_sandbox.overlay import live_doc_classes
+
+        live = live_doc_classes()
+        unknown = sorted(set(spec.reviewer.classes) - set(live))
+        if unknown:
+            errs.append(f"decision reviewer classes {unknown} are not live taxonomy classes; valid: {sorted(live)}")
+        if spec.reviewer.backend == "jev" and spec.job.mock:
+            # A mock pipeline run patches the LLM clients but not the decision backend.
+            errs.append("decision reviewer backend jev would make live Jev calls in a mock run; use backend mock")
+        elif spec.reviewer.backend == "jev" and spec.job.mode == "modal":
+            # The Modal worker image excludes the decision extra.
+            errs.append("decision reviewer backend jev is not supported for modal jobs (the Modal worker image has no decision extra); use endpoint mode or backend mock")
+        elif spec.reviewer.backend == "jev" and not os.environ.get("TYPESAFE_API_KEY", "").strip():
+            errs.append("decision reviewer backend jev needs TYPESAFE_API_KEY set (offline runs should use backend mock)")
+        if spec.reviewer.backend == "local":
+            errs.extend(_local_reviewer_errors(spec))
+        if spec.reviewer.backend == "api":
+            errs.extend(_api_reviewer_errors(spec))
+        if spec.reviewer.backend == "decisions":
+            errs.extend(_decisions_reviewer_errors(spec))
+        if spec.task == "pipeline" and not spec.reviewer.classes:
+            errs.append("decision reviewer on a pipeline run needs at least one class with a cutoff")
+        if spec.task == "extraction_gate" and not spec.job.mock and spec.reviewer.backend != "decisions":
+            errs.append("a live extraction_gate run needs reviewer backend decisions; "
+                        f"{spec.reviewer.backend!r} has no extraction-gate path")
+    elif spec.task == "extraction_gate" and not spec.job.mock:
+        errs.append("a live extraction_gate run needs a reviewer block: backend decisions with a Decisions-API "
+                    "model, a kind: extraction_gate question set and reviewer.handoff_run")
+    elif spec.task == "sorter_reviewer" and not spec.job.mock and _reviewer_route_bills_tokens(spec):
+        # A paid reviewer calibration must name its reviewer: without a reviewer block the
+        # sorter_reviewer chat agent runs, which is how chat Luna was calibrated by mistake.
+        errs.append("a paid sorter_reviewer run needs a reviewer block: backend decisions with a Decisions-API model "
+                    "(e.g. openai/gpt-6-luna-decisions) and questions, or backend api with allow_chat_model: true")
     vllm = spec.engine.vllm
     if vllm.max_model_len < 1:
         errs.append("max_model_len must be >= 1")
@@ -65,6 +389,12 @@ def _engine_errors(spec: RunSpec) -> list[str]:
             errs.append("modal image_tag must be pinned (never 'latest')")
         if spec.engine.modal.max_containers < 1:
             errs.append("modal max_containers must be >= 1 (cost guard)")
+        # Mock runs call no vLLM endpoint, so admission cannot serialize billed GPU time.
+        if not spec.job.mock and spec.engine.kind == "modal-vllm" and spec.job.concurrency > 1 and vllm.max_inputs < 1:
+            errs.append(
+                f"job.concurrency {spec.job.concurrency} needs engine.vllm.max_inputs >= 1: "
+                "with 0 Modal serves one request at a time while the GPU bills"
+            )
     return errs
 
 
@@ -105,7 +435,16 @@ def _probe_timeout_seconds(spec: RunSpec) -> float:
 
 def _probe_engine(spec: RunSpec) -> dict[str, Any]:
     base = engine_base_url(spec)
-    api_key = os.environ.get("VLLM_API_KEY", "").strip()
+    from mailroom_sandbox.overlay import load_profile
+    profile = load_profile(spec.profile)
+    api_key_env = str(profile.get("api_key_env") or "VLLM_API_KEY")
+    # ``engine_base_url`` resolves VLLM_BASE_URL BEFORE the profile base for
+    # every non-OpenRouter kind. The probe must then use the vLLM credential:
+    # an ``openrouter`` profile pointed at a vLLM endpoint would otherwise
+    # send OPENROUTER_API_KEY to that host.
+    if spec.engine.kind != "openrouter" and os.environ.get("VLLM_BASE_URL", "").strip():
+        api_key_env = "VLLM_API_KEY"
+    api_key = os.environ.get(api_key_env, "").strip()
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     detail: dict[str, Any] = {"base_url": base}
     import httpx
@@ -142,7 +481,7 @@ def _probe_engine(spec: RunSpec) -> dict[str, Any]:
             if resp.status_code == 401:
                 return {
                     "ok": False,
-                    "reason": "401 — set VLLM_API_KEY to the deployed token",
+                    "reason": f"401 — set {api_key_env} to the configured provider token",
                     "cold_boot_seconds": round(time.perf_counter() - started, 3),
                     **detail,
                 }
@@ -193,6 +532,35 @@ def probe_engine(spec: RunSpec) -> dict[str, Any]:
     the whole preflight.
     """
     return _probe_engine(spec)
+
+
+def probe_timeout_seconds(spec: RunSpec) -> float:
+    """Public boot budget for direct probes (CLI and per-agent route checks)."""
+    return _probe_timeout_seconds(spec)
+
+
+def record_cold_boot(store: RunStore, probe: Mapping[str, Any], *, run_id: str | None = None) -> dict[str, Any] | None:
+    """Persist a successful live-probe measurement as the run's cold boot.
+
+    Direct probes (``sandbox run preflight --live`` / ``run start``) bypass
+    ``preflight(live=True)``, so the runner and metrics never saw the measured
+    boot time. Only successful measurements are recorded; a failed probe must
+    not overwrite an existing measurement.
+    """
+    boot_seconds = probe.get("cold_boot_seconds") if probe.get("ok") else None
+    if boot_seconds is None:
+        return None
+    measurement = {
+        "cold_boot_seconds": float(boot_seconds),
+        "base_url": probe.get("base_url"),
+        "served_models": probe.get("served_models"),
+        "probe_timeout_seconds": probe.get("probe_timeout_seconds"),
+        "measured_at": checkpoint.utc_now(),
+        "run_id": run_id or store.run_id,
+    }
+    store.write_cold_boot(measurement)
+    store.append_event("cold_boot", "info", **measurement)
+    return measurement
 
 
 def _modal_check(spec: RunSpec) -> bool:
@@ -331,6 +699,12 @@ def preflight(
 
     load_env_file()
     run_id = run_id or resolve_run_id(spec)
+    if dry_run:
+        # Read-only: no run directory and no lock files for a dry run.
+        if not run_dir(run_id).exists():
+            return {"run_id": run_id, "status": "prepared", "checks": []}
+        return _preflight(spec, run_id=run_id, config_path=config_path,
+                          offline=offline, force=force, dry_run=True, live=live)
     store = RunStore(run_dir(run_id))
     try:
         with store.acquire(blocking=False), store.control():
@@ -502,6 +876,20 @@ def _preflight(
         report["checks"].append({"name": "dataset", "ok": False, "detail": str(exc)})
         return report
 
+    if spec.target:
+        # Level-2 target: the lock keeps the prepared subset (its sha is the
+        # dataset identity); the runner narrows it. Zero matching rows is a
+        # config error now, not an empty run later.
+        from mailroom_sandbox.eval.primary import rows_for_class
+
+        try:
+            narrowed = len(rows_for_class(store.dataset_rows(), spec.target))
+        except ValueError as exc:
+            report["status"] = "failed"
+            report["checks"].append({"name": "target", "ok": False, "detail": str(exc)})
+            return report
+        report["checks"].append({"name": "target", "ok": True, "detail": f"{spec.target}: {narrowed} row(s)"})
+
     # 3) engine spec validators (pydantic ranges + repo guards)
     eng_errors = _engine_errors(spec)
     if eng_errors:
@@ -526,21 +914,13 @@ def _preflight(
             return report
         boot_seconds = probe.get("cold_boot_seconds")
         if boot_seconds is not None:
-            measurement = {
-                "cold_boot_seconds": float(boot_seconds),
-                "base_url": probe.get("base_url"),
-                "served_models": probe.get("served_models"),
-                "probe_timeout_seconds": probe.get("probe_timeout_seconds"),
-                "measured_at": checkpoint.utc_now(),
-                "run_id": run_id,
-            }
-            store.write_cold_boot(measurement)
-            store.append_event("cold_boot", "info", **measurement)
-            report["cold_boot_seconds"] = float(boot_seconds)
-            report["cold_boot_path"] = str(store.cold_boot_path)
-            report["checks"][-1]["detail"] += (
-                f" | cold_boot={float(boot_seconds):.2f}s"
-            )
+            measurement = record_cold_boot(store, probe, run_id=run_id)
+            if measurement is not None:
+                report["cold_boot_seconds"] = measurement["cold_boot_seconds"]
+                report["cold_boot_path"] = str(store.cold_boot_path)
+                report["checks"][-1]["detail"] += (
+                    f" | cold_boot={measurement['cold_boot_seconds']:.2f}s"
+                )
 
     # 5) trace sink
     try:
@@ -557,6 +937,13 @@ def _preflight(
             report["status"] = "failed"
             report["checks"].append(
                 {"name": "trace_sink", "ok": False, "detail": "langfuse keys unset (LANGFUSE_PUBLIC_KEY/SECRET_KEY)"}
+            )
+            return report
+        if spec.trace.sink == "langfuse" and not offline and find_spec("langfuse") is None:
+            report["status"] = "failed"
+            report["checks"].append(
+                {"name": "trace_sink", "ok": False,
+                 "detail": "langfuse SDK missing: install mailroom-sandbox[observability] or set trace.sink: none"}
             )
             return report
         report["checks"].append({"name": "trace_sink", "ok": True, "detail": f"{spec.trace.sink} -> {sink.endpoint or '(no exporter)'}"})
@@ -581,8 +968,12 @@ def _preflight(
         "spec_hash": spec.spec_hash(),
         "prompt_text_sha": prompt_text_sha,
         "task": spec.task,
+        **({"target": spec.target} if spec.target else {}),
         "profile": spec.profile,
         "agent_models": dict(spec.agent_models),
+        **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
+        **({"reviewer": _reviewer_lock(spec)} if spec.reviewer else {}),
+        **({"extraction_gate": _extraction_gate_lock(spec)} if spec.extraction_gate else {}),
         "prompt": prompt_block,
         "engine": spec.engine.model_dump(),
         "job": spec.job.model_dump(),
@@ -601,7 +992,13 @@ def _preflight(
     from mailroom_sandbox.job.specialist_posture import agent_knobs_for_run
     from mailroom_sandbox.runtime import resolve_agent_knobs
 
-    lock["agent_knobs"] = resolve_agent_knobs(agent_knobs_for_run(run_id))
+    lock["agent_knobs"] = resolve_agent_knobs(spec.agent_knobs or agent_knobs_for_run(run_id))
+    # Freeze the resolved table for model-only runs too: otherwise runtime.activate()
+    # rebuilds the remaining agents from the live profile/taxonomy, so a later
+    # judge_model edit silently changes a resumed run without changing its lock.
+    if spec.agent_routes or spec.agent_knobs or spec.agent_models:
+        from mailroom_sandbox.agent_routes import describe
+        lock["agent_assignments"] = describe(spec)
     selected = selection_from_lock(prompt_block)
     if selected:
         # The selected eval-environment keys + sha256 are part of the run's identity.
@@ -612,6 +1009,10 @@ def _preflight(
         lock["report_group"] = report_group
     store.write_lock(lock)
     total = len(store.dataset_rows())
+    if spec.target:
+        from mailroom_sandbox.eval.primary import rows_for_class
+
+        total = len(rows_for_class(store.dataset_rows(), spec.target))
     store.write_checkpoint(state="prepared", cursor=0, total=total, remote=None)
     store.append_event("preflight_ok", "info", spec_hash=spec.spec_hash())
     report.update({"status": "prepared", "spec_hash": spec.spec_hash(), "lock_path": str(store.lock_path)})

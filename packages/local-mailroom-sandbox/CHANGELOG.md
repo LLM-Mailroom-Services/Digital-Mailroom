@@ -2,8 +2,350 @@
 
 ## [Unreleased]
 
+- llm-dojo-scoring vendor snapshot → `v0.27.2` (`1cd4aba7`, Dojo #121): tiered per-document-type scoring (`score_document`, new `score_archive_block` keys) from 0.27.0, 0.27.1's no-raise field scoring and CMS `cms_source_table` derived from `doc_subclass`, and 0.27.2's fixes for this PR's review findings (no-raise, linear-time parsing of deeply nested or brace-heavy text; any `Mapping` prediction is adherent; prose-wrapped Python repr sets `prose_wrapper`; `rescore` reports the CUAD/MAUD headline). The `v0.27.2` tag is not yet on GitHub, so `_VENDOR_PINS` fetches the release commit by SHA (a missing named ref fails closed). Refreshed with `sandbox fetch-deps` (SHA-verified; only the Dojo snapshot changed, llm-mailroom stays `a7d7bf0`). `_VENDOR_PINS`, `requirements/dojo-release.txt`, `vendor/README.md`, `vendor/llm-dojo-scoring/VENDOR.md` and `tests/test_eval.py` updated to match. Unblocks the Digital-Mailroom hub import of Dojo 0.27.1.
+- llm-dojo-scoring vendor snapshot → `v0.26.0` (`2fea5ea7`, the release merge of Dojo #112): reviewer-lane scoring and `dojo-rescore`, the CMS #93 mapping (`claim_type` and `cms_source_table` scored separately), and the five-class extraction schema registry. Dojo modules moved into subpackages; legacy flat imports keep working through Dojo's aliases. Refreshed through `cli._refresh_vendor` (SHA-verified, Dojo only; the llm-mailroom snapshot is unchanged). `_VENDOR_PINS`, `requirements/dojo-release.txt`, `vendor/README.md`, `vendor/llm-dojo-scoring/VENDOR.md` and `tests/test_eval.py` updated to match. The vendored llm-mailroom (`a7d7bf0`) still declares Dojo 0.25.0 until its own pin bump is re-vendored.
+- Vendor pins aligned with the workspace repos: llm-mailroom `main` `a7d7bf0` (#141: v0.8.1 + a0ed476 + #135 + #136 with review fixes), refreshed by `sandbox fetch-deps` (SHA-verified, adds `agents/extraction_gate.py`); llm-dojo-scoring then stayed on its published `v0.25.0` (`e35504db`, superseded by the `v0.26.0` bump above). `vendor/README.md` no longer lists the stale `175e6711077f`.
+- `scripts/setup_t3.sh`: guided checkout setup (venv, editable install, `.env`, vendor import check, Modal/HF credential status, overlay check, optional git worktree, subagent stubs). `--dry-run` changes nothing; every step records its real outcome (ok / failed / skipped / planned) in `data/runtime/setup/evidence.jsonl` and a run card in `data/runtime/setup/card.json` (gitignored). `.env` is loaded without overriding exported variables; the script exits 1 when any step failed.
+### Added
+
+- **Pipeline extraction gate** (`extraction_gate:` in a `task: pipeline` run spec). It is advisory.
+  - Preflight freezes the question set into the lock.
+  - Activation registers `decision_backends.extraction_gate_backend` with llm-mailroom's `agents.extraction_gate` hook (llm-mailroom #136). An activation without the block clears it.
+  - The gate reads the **sorter's** `doc_subclass` from the pipeline handoff, with no fallback to the labelled subclass.
+  - Pipeline records carry `doc_subclass` and `extraction_gate`.
+  - Gate calls count against the run budget and the OpenRouter key reserve.
+  - The spec hash changes only for specs that set the block.
+
+- Vendor pins after merging `main`: llm-mailroom `d1e2811`, which is `v0.8.1` merged into llm-mailroom #135 (sorter V15), and llm-dojo-scoring by its published `v0.25.0` tag (SHA-verified `e35504db`).
+- CI lint: drop an unused counter in `scripts/export_sorter_handoff.py`; `scripts/refresh_api_prices.py` accepts only an `https://` catalog URL (bandit B310).
+- PR #226 review fixes:
+  - Interim labels: a null truth label is written as `gt_presence` `schema_documented_absence` (was `interim_absent`), so the Dojo's corporate scorer counts it as expected-empty instead of dropping it as unlabeled.
+  - `scripts/interim_labels.py check --prune` still exits 1 when integrity or stale-run problems remain, and rewrites the manifest `counts` from the pruned files. `build` and `--prune` replace each file atomically and remove old class files only after every replacement is written.
+  - `--prune` is refused while the overlay fails its integrity check (it would otherwise re-hash a hand-edited file and hide the mismatch); each atomic write stages to a unique temp file, and the counts tolerate a label with no status.
+  - `key_field_score` scores every key field the gate asked. A missing or non-numeric answer counts as support 0.0, so it can never raise the gating score. Calibration skips a document (`key_support_missing:<class>`) when some key fields have no support, for example `--key-set` fields an older run never asked.
+  - The serving report's TTFT note says "hosted API" for OpenRouter runs. It said "served locally" for every run.
+- Spend guard: a fixed 3.00 USD reserve of the OpenRouter key's remaining limit is never spent. `require_key_headroom` and `scripts/estimate_spend.py` compare caps/estimates with `remaining - reserve`; `OPENROUTER_KEY_RESERVE_USD` can raise the floor, never lower it.
+
+### Added
+
+- **Decision-reviewer reports (`reports/decisions/`).** Five reports, 17 theme-aware SVG figures with CSV table twins, a self-contained dashboard and `build_decisions_report.py` (stdlib only; `--check` fails on stale outputs).
+  - Prices every reviewer arm against one Qwen 3.7 Flash call as 1x, per document, on the same 323 held-out test documents. Qwen is priced per call against the tiered OpenRouter sheet: $0.2513, where the handoff manifest's flat figure is $0.1298.
+  - **Measured Qwen reviewer** (`config/runs/reviewer-validation-qwen-flash-test.yaml`, signed JB, 323 of 323 answered, $0.2099 at the sheet, $0.2146 billed): 0.84x of the agent call, 93.8% class accuracy, all 20 wrong answers at confidence 0.90 or higher, 8 wrong documents routed with no person (24.8 per 1,000 against 3.1 for Decisions). Results are tracked in `reports/reviewer-calibration/reviewer-validation-qwen-flash-test.{json,items.jsonl}` (no document text).
+  - A Decisions review is 0.91x (v3.0.0) to 1.14x (v2) of a Qwen review, so agent plus Decisions is 1.76x to 1.95x against 1.84x for agent plus the Qwen reviewer: 4% cheaper to 7% dearer, and dearer at flat Qwen prices. The case for Decisions is accuracy and usable confidence, not cost.
+  - Calibrated reviewers cut documents needing a person from 356 to 15 per 1,000 (Decisions v2); the extraction gate shows no ranking signal (pooled AUROC 0.41).
+  - Source inconsistencies found on the way are listed in `reports/decisions/05-method-and-data-quality.md`; none was edited at the source.
+- **Question set 3.1.0 with the sorter handoff, measured on half the train split** (`config/runs/reviewer-calibration-luna-decisions-v3.1.0-train-half.yaml`, signed JB, 1,491 of 2,979 train documents drawn per class in proportion, seed 42, `openai/gpt-6-luna-decisions`).
+  - 1,491 of 1,491 answered, $1.0648 billed (10.65M input tokens), median 0.62 s. Every request carried the sorter's primary type, subclass and confidence.
+  - Against the verified targets: primary type 98.7% vs the sorter's 95.9% (45 fixed, 4 broken), subclass 84.0% vs 72.4% (266 fixed, 96 broken); 98.3% and 82.8% on the 1,096-document clean subset.
+  - Routing at the v2 cutoffs: 1,367 of 1,488 scored documents routed correctly with no person under the pipeline's rule (1,398 if the reviewer alone decides), 2 misrouted, 119 (88) parked. The sorter alone would misroute 61.
+  - Results are tracked in `reports/reviewer-calibration/reviewer-calibration-luna-decisions-v3.1.0-train-half.{json,routing.json,run.json,items.jsonl}` (no document text); `reports/decisions/` now has 17 figures.
+- **Preflight: the same-model reviewer guard no longer applies to `task: sorter_reviewer` runs.** The sorter never runs there and the engine model is the reviewer by rule, so a reviewer on the sorter's own model (Qwen reviewing for Qwen, with `allow_chat_model: true`) is a valid measurement there; pipeline runs keep the guard. Test: `test_api_reviewer_may_share_the_sorter_model_on_a_calibration_run_only`.
+- **Extraction-gate question set 1.3.0: per-template rules from a field-by-field GT vetting** (`docs/EXTRACTION_GATE_VETTING.md`).
+  - `subclass_fields` replaces a class rule with the rule of the document's own template or record kind. The subclass comes from the handoff (`doc_subclass`, the sorter's) or, in calibration runs, the labelled subclass.
+  - Agreement with the dojo field truth: insurance claim_type 0.87 → 0.98, insurer 0.85 → 0.95, date_filed 0.57 → 0.80, corporate intent 0.76 → 0.90 (false accepts 47 → 0).
+  - Contracts: parties judged on legal names; CUAD clauses judged on precision only.
+  - `decide_extraction` emits `key_field_score`, the product of key-field supports, and calibration reports it. It is the gating score. Key-field AUROC: overall 0.764 against the verdict's 0.667; insurance 0.865, corporate 0.891, contract 0.844 on corrected truth. The verdict ignores the field rules and was unchanged from 1.2.0.
+  - `calibrate --corrected-truth` corrects the documented CUAD parties and effective-date defects from the Hub's own evidence, without consulting the gate.
+  - Runs:
+
+    | Run | Documents | Cost |
+    | --- | --- | ---: |
+    | `extraction-gate-luna-v1.3.0` | 1,596 | $0.87 |
+    | `extraction-gate-luna-v1.2.0-rereview` | 880 | $0.41 |
+    | `extraction-gate-luna-v1.2.0-r3` | 686 | $0.25 |
+
+    The insurance round-3 extraction (686 new documents, condensed v3 prompt) had an exact match of 0.896.
+- **Extraction-gate question set 1.2.0.** The verdict judges key fields only; class scopes are named, and ungrounded free-text fields are dropped.
+  - `calibrate` adds a key-field target (`keyfields`, `--key-set` to compare sets on one target).
+  - Insurance key-field AUROC 0.63 → 0.78.
+- **Interim GT labels** (`data/labels/interim/`, `mailroom_sandbox.interim_labels`, `scripts/interim_labels.py`). These are the unpublished enhancements expected in the next dataset revision:
+  - gap fills for the key fields the Hub leaves unlabelled: corporate, correspondence and merger (dojo #52/#94/#95);
+  - derived `cms_source_table` (dojo #93), and `record_type` / `communication_type` from the subclass;
+  - CUAD parties and effective-date corrections;
+  - `disputed` correspondence intents for human review, which are not truth.
+  - Every label carries its provenance and the hash of the document text it was read from.
+  - Opt-in per run (`dataset.interim_labels: true`), hashed into the spec and recorded in the lock.
+  - `build --add-run` keeps the labels current; `check` refuses stale or hand-edited files and prunes labels a Hub revision publishes.
+- **Extraction-gate round 2: 690 new real documents, no repeats.** `scripts/extraction_gate.py expand` draws documents no finished specialist run has extracted, checked by id and by whitespace/case-folded text (the run refuses when it finds no history to exclude).
+  - insurance_claim +240, correspondence +240, corporate_record +160: each subclass drawn from its shorter half first.
+  - contract +40 and merger_agreement +10: drawn representatively at full length; contracts cover all 26 CUAD subtypes, mergers only labelled consideration subclasses (no `other`).
+  - Merger specialist input limit raised to 1,000,000 chars, so the longest (739,511 chars) is read in one call.
+- **Specialist-condensed prompt lineage** (`config/prompts/specialist_condensed_lineage.yaml`, `<agent>_condensed_v<N>.txt`). Each version is validated against the frozen prompt on the baseline documents with `scripts/compare_specialist_prompt.py`; those validation runs are never handed to the gate.
+  - insurance v3: a per-template field map for all six corpus templates (Medicare Part A/B/carrier notices, Part D pharmacy statements, auto decision letters, auto system claim extracts, property FNOL). Mean 0.770 → 0.899, better on 60/60 documents. v1 was superseded; v2 was adopted, then replaced by v3.
+  - correspondence v2: mean +0.002, −28% input tokens. v1 was rejected: it over-predicted `update`.
+  - corporate v1: mean 0.352 → 0.427.
+  - Contracts and mergers keep their frozen prompts.
+- **Extraction-gate question set 1.1.0.** Every document is read whole (limit 1,000,000 chars for every class); 1.0.0 cut 24 of the 220 baseline documents at 120k (merger 240k). The request timeout scales with document length.
+  - `calibrate` pools several gate runs (`--run` repeated, `--name`) and refuses overlapping documents or mixed question sets.
+  - Pooled 910-document calibration: `reports/extraction-gate/extraction-gate-luna-v1.1.0-pooled.calibration.json`. Its insurance extractions mix two prompts: the baseline round used the frozen specialist prompt and round 2 (240 documents) used `insurance_claims_specialist_condensed_v2`, the frontrunner when it ran; v3 came after.
+- `scripts/estimate_spend.py` sizes a pinned local prompt file from the file itself.
+- **Dojo: installed release first, vendored snapshot as fallback** (`mailroom_sandbox/dojo_source.py`).
+  - When a `llm-dojo-scoring` release is installed (`pip install -r requirements/dojo-release.txt`, the pinned GitHub release) and matches the snapshot's version and commit, it is the scoring source.
+  - The snapshot under `vendor/llm-dojo-scoring` takes over when the release is missing, off-pin or fails to import, so scoring keeps working through a broken install or outage.
+  - `SANDBOX_DOJO_SOURCE=auto|installed|vendored` picks the policy; `DOJO_SRC` still overrides. The run lock records the source as `versions.llm_dojo_scoring_source`.
+  - The release pin lives in `requirements/`, not `pyproject.toml`, so the base install stays offline (DMR-057).
+- **Full API price sheets (`config/api_prices.yaml`).** Qwen 3.7 Flash, GPT-6 Luna, Luna Decisions, DeepSeek V4 Flash and Qwen3.5-9B each carry their complete OpenRouter sheet:
+  - every long-prompt tier (Qwen 3.7 Flash: $0.03/$0.13 per 1M below 32k prompt tokens, $0.10/$0.40 from 32k, $0.20/$0.80 from 256k), input-cache read/write, context length and max completion tokens.
+  - `call_price` / `call_cost` price each call at its own tier; the built-in table is the fallback if the file is missing.
+  - `scripts/refresh_api_prices.py` rewrites the file from `GET /api/v1/models` (`--check` reports drift, `--add MODEL` adds one).
+  - The openrouter profile lists the callable models under `api_models`.
+- **Extraction-gate baseline results.** Five Qwen 3.7 Flash specialist runs (220 real dataset documents, all five classes, one call per document, no chunking) and the `openai/gpt-6-luna-decisions` gate over their handoffs; calibration in `reports/extraction-gate/extraction-gate-luna-v1.0.0-baseline.calibration.json`.
+- **Run ledger (`reports/run-ledger.md`).** Every paid run that passes the spend gate appends one row:
+  - columns: UTC time, the signer's initials, `start` or `resume`, run id, config, spec hash, rows, API cap and result;
+  - the result cell is filled when the run reaches a terminal state (`✓` done, `✗` failed). For a Modal run this happens when `sandbox run status` syncs it back;
+  - it is a Markdown table that `mailroom_sandbox.job.ledger.rows()` parses back;
+  - tests write to a temporary ledger, never the tracked one.
+- **Key-headroom spend gate.** A paid OpenRouter run refuses to start when its `job.api_cost_cap_usd` exceeds the key's remaining limit (`GET /api/v1/key`). The check fails closed when the limit cannot be read.
+- `scripts/estimate_spend.py` estimates the planned runs' token spend and checks the total against the key's live remaining limit. (Its accuracy against a measured run is unverified: no comparison is recorded.)
+- **Sorter-condensed lineage, the sorter mutation surface.**
+  - `config/prompts/sorter_condensed_v1.txt` is V15's class boundaries and subclass conventions, condensed.
+  - Its system prompt renders to 3,681 chars against V15's 25,074, about 5.3k fewer prompt tokens per call. Per-key meanings stay in the Dojo catalog in the user message.
+  - `sorter_condensed_lineage.yaml` lists the versions and the frontrunner. `tests/test_sorter_condensed_prompt.py` holds the 4,000-char budget and the V15 conventions.
+  - Validation run: `config/runs/sorter-condensed-v1-qwen-train-errors.yaml`, the same 1,003 documents as the V15 run.
+- **Extraction quality gate (`task: extraction_gate`).**
+  - `openai/gpt-6-luna-decisions` reads a document together with the specialist's real extraction of it, under question set `config/decisions/extraction_gate_v1.0.0.yaml`.
+  - It answers a verdict (`accept`, `retry_extraction` or `human_review`) plus one yes/no support question per key field, for all five classes.
+  - Contract and merger_agreement fields cover entity extraction and the native CUAD clauses / MAUD answers.
+  - `reviewer.handoff_run` names the finished specialist runs. Preflight refuses mock, unfinished or non-specialist runs.
+  - The gate's truth is the dojo score of the extraction it judged. `scripts/extraction_gate.py` builds the 220-document stratified train baseline and calibrates per class and per field (AUROC, accept cutoff at a target precision).
+  - Specs: `config/runs/extraction-gate-specialist-<class>-qwen.yaml` (qwen/qwen3.7-flash) and `config/runs/extraction-gate-luna-v1.0.0-baseline.yaml`.
+
+### Changed
+
+- Vendored llm-dojo-scoring 0.25.0, the release merge commit `e35504db` of Dojo PR #91, replacing the interim `db15b7c5`.
+
+- **SAND-085 — sorter V15 with the V14 subclass fixes, scored on verified targets.**
+  - The vendored sorter prompt V15 (llm-mailroom PR #135) now carries subclass conventions S1-S5 alongside its class boundaries. They cover:
+    - CMS carrier vs outpatient;
+    - Certificates of Designation as officer_certificate;
+    - charter amendments vs the charter;
+    - board-adopted bylaw amendments;
+    - the correspondence marker precedence;
+    - contract family over `other`.
+  - The sorter's subclass catalog is the Dojo sorter guide. The Dojo pin moves to `db15b7c`, which adds `sorter_guide`, stops scoring the unannotated merger `other`, and adds the `arbitrate-classification` node.
+  - `scripts/calibrate_reviewer.py` scores against `data/handoff/<name>/<split>.targets.jsonl` next to the lock's `handoff_run`, with `--targets` or `--labels` to override. It also reports reviewer subclass accuracy and records the truth it used.
+  - `scripts/compare_sorter_prompt.py` builds the V15 validation set and scores it: every V14 error plus 200 controls, 1,003 train documents.
+  - `config/runs/sorter-v15-qwen-train-errors.yaml` raises its API cap to $1.20, since the cap prices tokens at the profile's DeepSeek route (about $0.83).
+- **Fixed: decision review parked every document.** A decision backend behind a `**kwargs` wrapper (a Mock or a forwarding decorator) was passed `handoff=` and raised `TypeError`, so every document parked as `reviewer_unavailable`. The handoff now goes only to a backend that declares a `handoff` parameter (vendored llm-mailroom, PR #135). The routing matrix walks the new classification-arbiter edges, and the stale V14 CLI test and CLI reference are updated.
+
+- **SAND-092 — Smoke audit fixes.** `llm-mailroom` re-vendored at `16ddd08`: corporate, insurance and correspondence extractions now report confidence, an unsure extraction reaches the judge before a person, and the judge checks accuracy against the source. `run_limits.max_total_output_tokens` rises to 200000 per document. An aborted document is now recorded as failed and no longer fails the whole run, and tests can no longer rewrite the real repo's git config from a commit hook.
+- **SAND-085 — OpenRouter decision reviewer.** A new `api` decision backend (`--decision-reviewer api:openai/gpt-6-luna`, with `--decision-class CLASS=CUTOFF`) runs `sorter_reviewer` through OpenRouter on `agent_routes.sorter_reviewer`. Only pinned provider ids are accepted: `-latest`, `~`, `:floor` and `openrouter/*` ids are refused, because a tuned cutoff is tied to one model. The `local` backend runs the same agent on the run's own serving route. Decision classes reach their reviewer at any sorter confidence after the sorter's retries; agreement at the cutoff goes to `extract`, a sorter below its low band may be corrected at the cutoff, and an unsure reviewer or a disagreement with a medium or high sorter parks for human review. Cutoffs are provisional until issue #208. `config/runs/pipeline-luna-qwen-smoke.yaml` is a 7-document pipeline smoke with the reviewer on all five classes. `scripts/calibrate_reviewer.py --run <id>` picks each class's cutoff from a finished calibration run. `activate` defaults `MAILROOM_CHECKPOINTER=sqlite`, so parked reviews survive a restart. The vendored llm-mailroom pin moves to `45e7075` for the decision-reviewer routing fixes (SAND-090).
+- **Named Modal image.** `sandbox modal publish-image` publishes the vLLM serving image to the active workspace as `sandbox-vllm:v0.29.0`, and `sandbox modal deploy --named-image` deploys from it without rebuilding. `sandbox experiment create` turns this on through `engine.modal.named_image`; `--no-named-image` opts out. A named image belongs to one workspace, so publish once per Modal account.
+- **Correspondence on every decision backend (SAND-086 cancelled).** No backend refuses correspondence; the Enron correspondence is public.
+- **`sandbox modal status` lists scoped apps.** Besides `sandbox-vllm` and `sandbox-job`, it lists every other `sandbox-*` app that is not stopped (except the `sandbox-image-builds` app, which holds no function), and shows the container count for deployed apps.
+- **`sandbox doctor --live` checks the Modal account.** The `modal` row lists the apps in the active account (`MODAL_PROFILE`, read-only). For `modal-vllm`, an account check that fails or finds no deployed app fails the row.
+- **Venv tools without activation.** `.venv/bin/sandbox` puts its own venv's `bin` first on `PATH`, so its pinned `modal` is used even when the venv is not activated.
+- **`SANDBOX_SKIP_DOTENV=1` (tests only).** `tests/conftest.py` sets it so a developer's `.env` never loads into the suite.
+- **SAND-089 — API token spend ceiling and recommended run ceilings.** Every paid run needs `job.max_wall_seconds`; a run that warms a Modal GPU also needs `job.cost_cap_usd`; a run that sends any agent to OpenRouter needs `job.api_cost_cap_usd` and a token price for every API model, or it is refused. The GPU cap never limited OpenRouter spend. The API ceiling prices observed tokens at the highest API model price and is checked before each document. `sandbox experiment create` fills unset ceilings from the design (`src/mailroom_sandbox/job/budget_advice.py`); flags win. Prices added for `qwen/qwen3.5-9b`, `qwen/qwen3.5-35b-a3b`, `qwen/qwen3.5-27b` and `openai/gpt-4o`. Experiment reports show API-only runs without a GPU cost and report estimated API spend separately.
+- **SAND-079 — specialist tiers.** `sandbox experiment create --specialist-tier {base,mid,full}` moves the five specialists off the base model. `mid` is `Qwen/Qwen3.5-35B-A3B` (fp8, `L4:2`); `full` is the judge's `Qwen/Qwen3.5-27B` and shares the judge's Modal app. On OpenRouter the tiers use `qwen/qwen3.5-35b-a3b` and `qwen/qwen3.5-27b`. An explicit per-specialist route or model wins; the frozen `sand42` study refuses the flag.
+- **SAND-078 — larger judge on Modal.** Modal pipeline experiments route the judge to `Qwen/Qwen3.5-27B` (fp8, text-only) on its own `L40S` app, defined once in `config/models.yaml` `critical_tier`. An explicit `--agent-route` or `--agent-model` for the judge wins. OpenRouter runs keep the `deepseek/deepseek-v4-flash` judge. Unverified until the first spend-gated deploy: `/health` and the VRAM peak on L40S.
+- **SAND-077 — Qwen3.5-9B is the default model.** `modal-vllm`, `vllm-local` and `vllm-remote` default to `Qwen/Qwen3.5-9B`, served with online fp8 and text-only `--limit-mm-per-prompt` (deploy script, run spec, `sandbox runbook show serve`, `modal-matrix`). The `openrouter` profile defaults to `qwen/qwen3.5-9b`, the same weights, so API runs compare directly with Modal runs. `config/models.yaml` `openrouter_preference` ranks the OpenRouter picks: `qwen/qwen3.5-9b`, `qwen/qwen3.5-35b-a3b`, `qwen/qwen3.5-27b`. Frozen Qwen3-8B studies keep their model and spec hash. A served-model pin now re-points both the old and new default ids, so a Qwen3-8B serve never leaves the champion on Qwen3.5-9B. Unverified on L4: `/health`, VRAM peak, and the Gated-DeltaNet kernels missing from the deploy image.
+- **SAND-076 — live pipeline floor.** `task: pipeline` runs record each graph node a document enters, as it starts and ends, in `nodes.jsonl`. They use a LangChain configure hook, so no vendored code changes. `sandbox watch` (terminal) and `watch --web` show the newest document's route and the previous document's full route, with latency, routed agent and model, and per-node totals. Decision nodes record typed decisions (`noul` / `choice` / `score`) that match the incoming Decisions-API model (`openai/gpt-6-luna-decisions`, Discussion #193). A native `decisions` list passes through validated. `sandbox dev --pipeline` demos it.
+
+- `sandbox eval` has two primary tasks with two levels: `specialist [TARGET]` (all five
+  live-class specialists, or one) and `pipeline [--class C]` (the full connected graph,
+  every class or one). Run YAMLs take an optional `target`; `run --target` narrows it.
+  Every other eval task still runs and is listed by `sandbox eval --all-tasks`.
+- OpenRouter key probe (`/key`: limit, remaining credit, usage) in `sandbox health` and
+  a `sandbox doctor --service openrouter` row; example API, Modal and hybrid pipeline
+  run configs under `config/runs/examples/pipeline-*.yaml`.
+- `sandbox tui`, a local interactive command terminal, and a browser live inspector with
+  parser-derived nested CLI manuals. Full execution stays local and keeps the spend gates.
+
+- `docs/cli-reference.md`: generated, complete reference for every parser node,
+  argument, parser-required marker and choice, plus `python scripts/check_cli_surface.py
+  [--check]` and parser-surface tests that exercise help, required arguments and
+  handler dispatch for every leaf (no live services).
+- `sandbox experiment designs|create|review|preflight|launch|watch|report`: single and
+  SAND42 paired designs, pinned Hub slices/sample sizes, full pipeline or specialist
+  jobs, explicit vLLM/GPU/decode/trace choices, separate bounded smoke subsets,
+  managed-cell teardown, observer following, coverage and paired outcome reports.
+- Per-agent `agent_routes` and `--agent-route NAME=PROVIDER:MODEL` (or a route YAML):
+  API, Modal/vLLM, and hybrid pipelines through the native/LangChain shared seam.
+  Resolved agent assignments and generation knobs are locked; vendor bytes stay intact.
+- Configuration-bound, expiring initials receipts for paid run start/resume and live
+  preflight; campaign receipts also bind smoke settings. Mock endpoint work stays
+  unsigned. Initials attest operator review; they are not cryptographic identity proof.
+
+- `tests/_fakebin.py` and the `fake_bin` fixture: fake `modal`/`vllm`/`hf`/`ssh`/
+  `docker`/`ollama` executables on an isolated `PATH` (argv logged, canned output per
+  subcommand), so CLI wrappers are tested without the real tools or a network.
+- `mailroom_sandbox.services._exec`: one guarded way to run an external CLI
+  (`require_tool`, `run_tool`; `ToolMissing`, `ToolFailed`, `ToolTimeout`).
+  `main()` renders any `ServiceError` as a single `error:` line (exit 1).
+- `sandbox modal deploy|prewarm|status|logs|stop|url|raw`: guarded passthrough to the
+  Modal CLI. Injects the pinned `deploy/modal_vllm.py` entrypoint and the `--model`/`--gpu`
+  row from `config/models.yaml`; `deploy`, `prewarm`, `stop` and `logs` have
+  `--dry-run` (prints the argv, spends nothing); `deploy` prints the endpoint exports; `stop` is idempotent and verified
+  against `modal app list --json`; an SDK other than the `modal==1.6.2` pin warns.
+- `sandbox vllm probe|command|serve|metrics`: `probe` checks models, chat, `/health` and
+  `/metrics` plus that the served model is the one a run will ask for; `command` prints
+  the exact `vllm serve` argv the Modal app launches (loaded from
+  `deploy/modal_vllm.py::build_vllm_command`, no Modal SDK needed); `serve` runs it on a
+  local NVIDIA host bound to 127.0.0.1; `metrics` wraps `vllm_metrics.scrape`.
+- `sandbox hf whoami|download|cache|raw`: guarded passthrough to the `hf` CLI. `download`
+  defaults to the sandbox dataset at the pinned `FAMILY_HF_REVISION`; the cache is
+  explicit (your own `HF_HOME`, or `--sandbox-cache` for `data/cache/hf`).
+- `services._exec.stream_tool` / `passthrough_tool` (live-streamed and terminal-attached
+  runs) and ANSI stripping in tool-failure messages.
+
+- `sandbox doctor [--service NAME]… [--live] [--publish] [--json]`: one status table for
+  modal, modal-auth, hf, hf-auth, docker, ollama, ssh, git, vllm, provider, langfuse,
+  phoenix, tunnel and compose. Offline by default (binaries and config only); `--live`
+  adds network probes and warns that a request to a scale-to-zero Modal URL wakes a
+  billed GPU. Exit 1 only on a `fail` row. `--publish` writes the snapshot the board shows.
+- TUI services panel: `sandbox board` renders the published `mailroom.services/v1`
+  snapshot as a status strip (terminal and browser, `/api/services`), also in
+  `sandbox watch --web`; a snapshot older
+  than 15 minutes is marked stale. `board --probe-interval SECS` refreshes offline checks;
+  add `--live` explicitly for network probes (can wake a billed GPU). Viewing snapshots stays network-free.
+- Service beacons: `sandbox modal deploy|prewarm|stop`, `sandbox hf download`,
+  `sandbox tunnel up`, `sandbox datasets pull`, `sandbox doctor`, `sandbox up` and
+  Ollama `sandbox pull-models` publish a `mailroom.beacon/v1` job, so
+  they appear on the board like `run start` does.
+
+### Changed
+
+- **Compose stack hardening.** Every published Compose port binds `127.0.0.1` (previously all interfaces). MinIO moves from `minio/minio:RELEASE.2025-09-07…` to the Chainguard image pinned by digest; a `minio_data` volume from the old image needs a one-time owner change ([docker-offline.md](docs/setting-up/docker-offline.md)). Langfuse web and worker pin `3.225.15` (were `3`). ClickHouse gets the `SYS_NICE` capability. The default `LANGFUSE_INIT_USER_EMAIL` is `sandbox@example.com` (was `sandbox@localhost`), in `config/.env.example` and the compose file.
+- `sandbox doctor`: the `provider` row warns instead of failing on a Modal cold-start timeout, with the explanation; the `langfuse` row warns when the Langfuse SDK is not installed, because runs then record no traces.
+- Spend caps price every Modal app a run keeps warm. `job.cost_cap_usd` on a routed run now sums the base engine and each distinct `modal-vllm` agent-route app (the SAND-078 judge's L40S, a SAND-079 `mid` specialist `L4:2` app), counting the GPUs in an `L4:2` suffix. It previously priced the base engine alone.
+- An explicit `quantization: ""` (bf16) on a model whose serve default is fp8 now reaches the deploy as `MODAL_VLLM_QUANTIZATION=bf16`. It previously rendered as unset, so the deploy served fp8 while the run lock said bf16.
+- The local `vllm` compose service and the `vllm-local` profile's `pull-models` hint now serve and name `Qwen/Qwen3.5-9B`, the profile's own default (bf16; compose has no quantization knob). Before this, a `vllm-local` run asked a Qwen3-8B server for Qwen3.5-9B. README, Quickstart, providers, deploy and remote-serving docs cover the SAND-074–079 model tiers, primary eval tasks and live pipeline view.
+- Vendored llm-mailroom pin moves to `main` HEAD `175e6711` (snapshot bytes unchanged;
+  the intervening commit is README-only). llm-dojo-scoring stays on `main` HEAD
+  `718e326c` (0.24.2 plus the DMR-113 zero-token fix), the newest Dojo source.
+
+- Observer numeric arguments, incompatible options and malformed beacon handling are
+  hardened; campaign run-ID markers are followed and switch the associated log streams.
+- The watch UI shows locked model/provider settings and campaign checkpoints instead of
+  inherited demo labels, with log filters, follow controls and accessibility fixes.
+
+- CLI startup loads the checkout's `.env` files (root `.env`, then `config/.env`) before
+  building the parser, so profiles and secrets resolve from `config/.env.example`;
+  exported variables still win, then root `.env`, then `config/.env`. The template is
+  refreshed against the variables the CLI, deploy scripts and Modal app actually read
+  (Modal workspace/app name, deploy knobs, per-agent route key variables).
+- Serve through **Modal vLLM by default**: `SANDBOX_PROFILE=modal-vllm` and
+  `DEFAULT_PROVIDER=vllm` (CLI, runtime fallbacks, `.env.example`, generated
+  runbooks and README/quickstart). `--profile ollama` is the explicit
+  offline/CPU opt-out. `sandbox profiles` marks the active default,
+  `sandbox health` prints a deploy hint when `VLLM_BASE_URL` is unset, and
+  `MODAL_WORKSPACE` derives the gateway URL when no endpoint is exported.
+  New `serving` runbook (`sandbox runbook show serve`) covers pre-warm →
+  deploy → point → verify → teardown and is the first entry in
+  `docs/runbooks/`.
+
+### Removed
+
+- LegalBench: the `sandbox legalbench` command, the `legalbench` eval/run task, its
+  loaders, scorer and fixtures.
+
 ### Fixed
 
+- **Runtime taxonomy no longer becomes the next merge base.** After
+  `patch_mailroom_config` pointed mailroom at `data/runtime/taxonomy.yaml`,
+  a second `build_merged_taxonomy` in the same process merged onto that
+  output and kept the previous run's served-model pins. The shipped path is
+  now remembered before the patch (SAND-077).
+
+- `sandbox matrix` plans the model you ask for. An id with no `config/models.yaml` row (e.g. `Qwen/Qwen3.5-9B`, `qwen/qwen3.5-9b`) used to be swapped silently for the serving family's default (`Qwen/Qwen3-8B`, `qwen/qwen3.7-flash`). Champion rows still map per family. The pipeline example configs now say where prompt versions live and how to pin one per role.
+- **PR #192 review fixes (CodeRabbit).** Switching runs in `watch` / `watch --web` now closes the old log buffer, so the new buffer takes the writer lock and `--no-logs` still loads the saved dispatch log. `eval specialist <target> --prompt-version` accepts versions for that target's specialists. The tray configuration shows a prompt's identity and hash, never its text. `probe_openrouter_key` fails when the key response has no key record. The pipeline example configs no longer suggest `--dry-run` preflight, which skips the checks. The browser-test docs install Chromium first.
+- Serving records follow the vendored Dojo's repaired usage rules. A cost the sandbox
+  writes is authoritative in the Dojo, so `record_from_run` now applies the same gates.
+  An ok item with no recorded usage makes the run cost unknown (Dojo 0.24.2): the
+  record carries `usage_unobserved_items` and no `estimated_cost_usd`. Explicit zero
+  usage on a priced model is a known `0.0` (DMR-113). OpenAI usage parsing keeps an
+  explicit `prompt_tokens: 0` instead of falling through to `input_tokens`.
+- The GPU telemetry sampler takes an optional stop event. Its test now stops the
+  thread, which had outlived its monkeypatches and printed into a later test's
+  captured `doctor --json` output (the CircleCI `test` failure).
+- `sandbox board` rejects beacon counters and timestamps too large for a float
+  instead of raising `OverflowError` for every job.
+- Watch UI: the current phase's lane is never marked skipped; the no-campaign hint
+  shows its `<experiment.yaml>` placeholder; a campaign keeps the run manifest and
+  drops the SAND-032 program title; the single-stream dispatch title names the
+  tailed app.
+
+- Command-audit fixes: repeatable `--agent-model` accumulates across the root, group
+  and leaf parsers (last value wins); `--mock` and `--local` are mutually exclusive;
+  zero, negative, NaN and infinite sample/cost/concurrency inputs are rejected;
+  options that would have been silently ignored (`--from-log`, `--group`,
+  `--connected`, empty matrix lists, unknown agents) return a usage error; commands
+  that cannot honor `--dry-run` reject it instead of acting; `pilot`, `legalbench`,
+  `matrix` and `hf-pilot` forward agent overrides; matrix cells share one seeded draw
+  and forward the seed.
+- Direct live probes now persist `cold_boot.json` (preflight/start), per-agent Modal
+  route probes wait out the boot budget, teardown keeps the original failure when
+  cleanup also fails, the engine probe uses the credential of the resolved transport,
+  model-only runs freeze `agent_assignments`, ambiguous credential URLs are rejected
+  by redaction, and an unwritable snapshot root no longer stops the board.
+- Complete SAND-064 review fixes: credential-free doctor URLs and fake-tool logs; `.env`
+  loading for HF and local vLLM commands; malformed snapshot rejection; safe HTML
+  attributes; independent doctor checks; per-app teardown guidance; trimmed workspaces;
+  interrupted SSH startup cleanup and macOS zombie detection.
+- Deploy startup detects an exited vLLM child and reaps failed children. Teardown
+  refuses failed/malformed Modal listings, uses `MODAL_VLLM_APP_NAME`, and is idempotent.
+- Opt-in real CLI contract tests (`SANDBOX_SERVICE_SMOKE=1`); a live endpoint probe
+  additionally requires `SANDBOX_LIVE_PROVIDER_SMOKE=1` and an explicit endpoint.
+
+- Review follow-ups on the Slice 1 fixes: `tunnel plan` accepts the shared flags after the
+  subcommand; the health probe treats only 2xx as healthy (a 3xx is `HTTP 3xx`, and the
+  non-JSON detail names the real status); a modal-vllm run spec with `engine.modal: null`
+  resolves its gateway from `MODAL_VLLM_APP_NAME`/`sandbox-vllm` instead of raising.
+- `sandbox beacon update --finish` clears the stale `phase`; a paused or still-running
+  job's runner no longer stamps its beacon `done` (it publishes `PAUSED`/`RUNNING`).
+- `sandbox watch` no longer leaks the `modal app logs -f` child it spawned when the
+  watcher stops.
+- Test suite: the vendored pipeline's fire-and-forget `relations-scan` threads are joined
+  at the end of each test (`tests/conftest.py`). Their `schema_ready` log line used to
+  land in a later test's captured stdout and intermittently broke
+  `test_generation_protocol.py::test_idle_local_cancel_does_not_poison_next_resume`.
+- `run preflight --live`, `run start` and `run scrape-metrics` no longer resolve the
+  default `modal-vllm` profile to `http://localhost:8000/v1`: the run-spec resolver now
+  uses `VLLM_BASE_URL`, then the `MODAL_WORKSPACE` gateway for the spec's Modal app, and
+  fails with a clear error (`EndpointUnresolved`) instead of probing localhost.
+- `sandbox health` no longer crashes with `JSONDecodeError` when an endpoint answers
+  2xx with a non-JSON body; a model endpoint reports `non-JSON body`, and the Langfuse
+  and Phoenix liveness probes treat any 2xx as healthy.
+- `--profile`, `--model`, `--prompt` and `--agent-model` now work before or after the
+  subcommand on every command, including `tunnel` and `run`; a value before the
+  subcommand was previously overwritten by the leaf default.
+- `sandbox tunnel up` reports a missing `ssh`, shows ssh's own error, waits for the
+  forward port and cleans up a forward that never opened; `tunnel down` clears a stale
+  pidfile instead of failing forever and never signals a process that is not ssh;
+  `tunnel status` reports `pid_alive`; a non-numeric `SANDBOX_TUNNEL_PORT` is a clear
+  error. A port already in use and a timed-out external tool are one-line errors.
+
+- Review follow-ups on the Modal-default change: a `SANDBOX_PROFILE` set only in
+  `.env` (e.g. `ollama`) is honoured when the CLI resolves its default; the
+  `serve` script exports `VLLM_API_KEY` from the token it just deployed (and
+  every runbook that defines and deploys with that token now does the same, so
+  health no longer gets a 401), keeps its teardown commented because the script
+  runs no eval, and marks the endpoint URL as required before health; docs and
+  skills that told people to run a bare `sandbox pull-models` for Ollama now pass
+  `--profile ollama`; `health`'s exit-code description no longer claims Langfuse
+  or Phoenix gate it; activating `modal-vllm` with no endpoint no longer seeds
+  `VLLM_BASE_URL` with the localhost fallback, so the pipeline's live-or-loud
+  warning fires instead of a run quietly using whatever listens on :8000;
+  `cost_cap_usd: .nan` is rejected instead of silently disabling the cap. Stale
+  "Ollama is the default" wording is gone from the skills (router, ollama, modal,
+  langfuse, index), `docs/setting-up/` and the `modal-vllm` profile comment, the
+  `[deploy]` pin reads `modal==1.6.2`, trace tags and run records fall back to the
+  default profile like activation does, and every function this PR touches has a
+  docstring and test coverage.
+- Record that Hub tag `v9.1` (`bc9eab28`) is published, and drop dead
+  identical branches, constant conditions, and duplicated success returns
+  flagged by CodeAnt (#144, #155–#159). `_cmd_run_cancel` already returns
+  distinct codes and was left as-is. Review follow-ups: the dataset card and
+  `SANDBOX-GUIDE.md` now label `ed7576b6` as the parquet data revision
+  (`FAMILY_HF_DATA_REVISION`) and cite tag `v9.1` as `bc9eab28`; the Hub `v9.2`
+  / `main` SHAs are marked unverified; `sandbox board --interval` is clamped to
+  0.1 s so `0` no longer spins a core (TUI, SSE stream, demo loop); the floor is
+  in the `--interval` help, `AGENTS.md` and the board docs. Docstrings now cover
+  every function the PR touches, and `tests/test_cli_simplified_commands.py` pins
+  the exit codes of the commands whose redundant returns were collapsed (it
+  passes on `main` too). The two dated 2026-09-27 serving-ladder docs carry an
+  as-of note for the `FAMILY_HF_REVISION` pin.
 - DMR-111: refresh reviewed standalone snapshots to released Dojo v0.24.2,
   consuming source-owned cost/FNOL and document-ownership/storage corrections;
   provenance and loaded scorer identity agree with the generated bytes.

@@ -1,6 +1,5 @@
 """SAND-033: mailroom-themed CLI session layer (network-free)."""
 
-import os
 
 from mailroom_sandbox.tui.session import (
     MailroomConsole,

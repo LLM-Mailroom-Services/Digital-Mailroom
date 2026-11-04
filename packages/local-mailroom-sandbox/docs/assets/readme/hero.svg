@@ -41,4 +41,4 @@
 <text x="980" y="363" font-size="12" fill="#94a3b8" text-anchor="middle">trace → The-Mailroom</text>
 <path d="M750 318 L846 348" fill="none" stroke="#38bdf8" stroke-width="2" marker-end="url(#arr)"/>
 <path id="po1" d="M750 318 L846 348" fill="none"/>
-<g class="motion"><circle class="motion" r="4" fill="#38bdf8" filter="url(#soft)"><animateMotion dur="1.4s" begin="0.7s" repeatCount="indefinite"><mpath href="#po1"/></animateMotion></circle></g><text x="600" y="414" font-size="13" fill="#8b9bb4" text-anchor="middle">Ollama qwen3:8b by default · vLLM, Modal, llama.cpp, LM Studio or OpenRouter by profile · Langfuse traces</text></svg>
+<g class="motion"><circle class="motion" r="4" fill="#38bdf8" filter="url(#soft)"><animateMotion dur="1.4s" begin="0.7s" repeatCount="indefinite"><mpath href="#po1"/></animateMotion></circle></g><text x="600" y="414" font-size="13" fill="#8b9bb4" text-anchor="middle">Modal vLLM is the default · Ollama qwen3:8b offline · vLLM, llama.cpp, LM Studio or OpenRouter by profile · Langfuse traces</text></svg>

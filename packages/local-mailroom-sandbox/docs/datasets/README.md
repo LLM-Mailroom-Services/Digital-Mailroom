@@ -17,7 +17,7 @@ before publishing.
 | Test split per class | Run configs record contract 60, corporate_record 47, correspondence 62, insurance_claim 114 and merger_agreement ~17 test rows (300). The docs and the ModernBERT held-out eval say 323, with 85 correspondence | Card states 323 total with no per-class split table; reconcile before adding one |
 | Full `gt_fields` key list | Docs describe a 27-key schema; this repo only shows the subset in `data/fixtures/hf/docclass_mini.jsonl` | Card lists key groups, not all 27 keys |
 | Citation author | Hub namespace used as author | Replace with the preferred author and institution |
-| v9.1 tag | `FAMILY_HF_REVISION` notes the Hub tag is still pending (#58) | Card cites the revision SHA |
+| v9.1 tag | Published 2026-09-27. Tag `v9.1` is `bc9eab28` (`FAMILY_HF_REVISION`); parquet rows stay `ed7576b6` (`FAMILY_HF_DATA_REVISION`). Hub tag `v9.2` is reported as `1eb5b42` and `main` as `670e8bc6` (unverified here: confirm on the Hub before citing; neither is the pipeline pin) | Card should cite tag `v9.1` = `bc9eab28` |
 
 ## Publish
 

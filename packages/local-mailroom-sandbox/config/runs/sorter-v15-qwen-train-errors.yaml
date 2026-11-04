@@ -1,0 +1,53 @@
+# Sorter prompt V15 validation (langchain_agents.prompts SORTER_PROMPT_V15, the production
+# "sorter" pin): qwen/qwen3.7-flash, whole document in one call, same settings as the V14 pass
+# in data/handoff/sorter-qwen3.7-flash.
+#
+# Documents (1,003; data/runtime/handoff/train-sorter-errors.jsonl, sha256 14fbdee4...):
+# every train document V14 got wrong against the verified targets (122 class, 681 subclass)
+# plus 200 seeded controls V14 got right (40 per class). Build, run, score:
+#   python scripts/compare_sorter_prompt.py --split train inputs \
+#       --dataset-run reviewer-calibration-luna-decisions-v3.1.0-train
+#   sandbox run start --config config/runs/sorter-v15-qwen-train-errors.yaml --initials XX
+#   python scripts/compare_sorter_prompt.py --split train score --run sorter-v15-qwen-train-errors
+#
+# Cost: V14 read these documents in 13.47M prompt + 0.15M completion tokens; V15 adds about
+# 2.2k prompt tokens per call (prompt + subclass catalog), so about 15.7M. List price
+# ($0.03/$0.13 per 1M) about $0.49. The API cap prices every token at the profile's highest
+# route (deepseek/deepseek-v4-flash, $0.05/$0.25): about $0.83, so the cap is $1.20 (the
+# first V14 pass stopped at a cap set from list price).
+schema: sandbox.run/v1
+run_id: sorter-v15-qwen-train-errors
+task: isolated
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file
+  local_path: data/runtime/handoff/train-sorter-errors.jsonl
+  config: ground_truth
+  split: train
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  sorter: {max_input_chars: 600000}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 24
+  cost_cap_usd: 2.00
+  max_wall_seconds: 5400
+  api_cost_cap_usd: 1.20
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, sorter-handoff, sorter-v15]

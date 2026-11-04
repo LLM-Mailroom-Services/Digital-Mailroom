@@ -22,8 +22,8 @@ from mailroom_sandbox.overlay import (
     patch_mailroom_config,
     write_runtime_taxonomy,
 )
-from mailroom_sandbox.paths import repo_root, runtime_dir, vendor_dir
-from mailroom_sandbox.providers import endpoints_for
+from mailroom_sandbox.paths import dotenv_files, repo_root, runtime_dir, vendor_dir
+from mailroom_sandbox.providers import default_profile, endpoints_for, modal_gateway_url
 
 _log = logging.getLogger("mailroom_sandbox.runtime")
 
@@ -41,6 +41,7 @@ class Activation:
 
 
 _ACTIVE: Activation | None = None
+_ACTIVE_REVIEWER: dict[str, Any] | None = None
 _LOCKED_RUNTIME: ContextVar[dict[str, Any] | None] = ContextVar("sandbox_locked_runtime", default=None)
 
 
@@ -71,6 +72,11 @@ def active() -> Activation | None:
     return _ACTIVE
 
 
+def active_reviewer() -> dict[str, Any] | None:
+    """The reviewer block of the last activation (a locked run's includes its frozen question set)."""
+    return _ACTIVE_REVIEWER
+
+
 def agent_knobs_for(agent: str) -> dict[str, Any]:
     """Run-scoped knobs for one agent in the current activation ({} when none)."""
     knobs = (_ACTIVE.agent_knobs if _ACTIVE else {}) or {}
@@ -79,10 +85,13 @@ def agent_knobs_for(agent: str) -> dict[str, Any]:
 
 
 def _load_dotenv() -> None:
-    root = repo_root()
-    for candidate in (root / ".env", root / "config" / ".env"):
-        if candidate.is_file():
-            load_dotenv(candidate, override=False)
+    """Load the sandbox ``.env`` files into ``os.environ`` without overriding variables that are already set.
+
+    """
+    if os.environ.get("SANDBOX_SKIP_DOTENV"):
+        return  # tests: a developer's real keys must never reach a test
+    for candidate in dotenv_files():
+        load_dotenv(candidate, override=False)
 
 
 def load_env_file() -> None:
@@ -114,8 +123,21 @@ def resolve_mailroom_src() -> Path | None:
     return None
 
 
+def dojo_uses_installed_release() -> bool:
+    from mailroom_sandbox import dojo_source
+
+    choice = dojo_source.current()
+    return choice is not None and choice.source == "installed"
+
+
 def resolve_dojo_src() -> Path | None:
-    """llm-dojo-scoring import root (vendored snapshot first, DMR-057)."""
+    """llm-dojo-scoring source tree to prepend, or None when the installed release is in use.
+
+    ``mailroom_sandbox.dojo_source`` picks the installed release first and the vendored
+    snapshot (DMR-057) as the fallback; a sibling checkout is the last resort.
+    """
+    if dojo_uses_installed_release():
+        return None
     env = os.environ.get("DOJO_SRC")
     candidates = []
     if env:
@@ -133,15 +155,27 @@ def resolve_dojo_src() -> Path | None:
 
 
 def apply_profile_env(profile: dict, *, base_url_override: str | None = None) -> None:
+    """Export the profile's provider settings into ``os.environ``.
+
+    Sets ``SANDBOX_PROFILE`` and ``DEFAULT_PROVIDER``, the profile's base-URL variable when it is unset, and the Langfuse and observability defaults. For ``modal-vllm`` an unset URL stays unset unless ``MODAL_WORKSPACE`` derives the gateway URL.
+    """
     endpoints = endpoints_for(profile, base_url_override=base_url_override)
     os.environ["SANDBOX_PROFILE"] = str(profile.get("name") or "")
     os.environ["DEFAULT_PROVIDER"] = str(
         profile.get("default_provider_env") or profile.get("provider") or "ollama"
     )
     if endpoints.base_url_env:
-        os.environ.setdefault(endpoints.base_url_env, endpoints.base_url)
+        # A deployed Modal endpoint wins: either the exported VLLM_BASE_URL or
+        # the deterministic gateway URL from MODAL_WORKSPACE. For the Modal
+        # profile an unset URL stays unset: seeding its static localhost value
+        # would defeat the pipeline's live-or-loud warning (DMR-052) and let a
+        # live run quietly use whatever listens on localhost:8000.
         if not os.environ.get(endpoints.base_url_env):
-            os.environ[endpoints.base_url_env] = endpoints.base_url
+            gateway = modal_gateway_url(profile)
+            if gateway:
+                os.environ[endpoints.base_url_env] = gateway
+            elif str(profile.get("name") or "") != "modal-vllm":
+                os.environ[endpoints.base_url_env] = endpoints.base_url
     init_pub = os.environ.get("LANGFUSE_INIT_PROJECT_PUBLIC_KEY")
     init_sec = os.environ.get("LANGFUSE_INIT_PROJECT_SECRET_KEY")
     if init_pub:
@@ -171,6 +205,8 @@ def apply_profile_env(profile: dict, *, base_url_override: str | None = None) ->
     os.environ.setdefault("PHOENIX_ENDPOINT", "http://localhost:6006/v1/traces")
     os.environ.setdefault("PHOENIX_PROJECT", "mailroom-sandbox")
     os.environ.setdefault("MAILROOM_BASE_DIR", str(repo_root() / "data"))
+    # Parked human reviews keep their graph position across a process restart.
+    os.environ.setdefault("MAILROOM_CHECKPOINTER", "sqlite")
 
 
 def resolve_agent_knobs(agent_knobs: dict | None = None) -> dict:
@@ -206,6 +242,78 @@ def stamp_locked_record(record: dict[str, Any]) -> None:
                       run_generation=generation_identity(lock), run_task=lock["task"], run_state="done")
 
 
+def _install_reviewer(reviewer: Any, taxonomy: dict) -> Any:
+    """Write the taxonomy ``reviewer`` block; return the backend to register (or None).
+
+    The base taxonomy comes from the shipped file (``overlay.mailroom_taxonomy_path``),
+    and the reviewer block is overwritten unconditionally, including when no
+    reviewer is configured, so earlier settings do not carry over.
+    """
+    if reviewer is None:
+        taxonomy["reviewer"] = {"default_mode": "llm", "by_class": {}}
+        return None
+    from mailroom_sandbox.decision_backends import build_backend
+    from mailroom_sandbox.job.spec import ReviewerSpec
+
+    if not isinstance(reviewer, ReviewerSpec):
+        # A locked block also carries the frozen question set and its hash.
+        reviewer = {k: v for k, v in dict(reviewer).items() if k not in {"question_set", "questions_sha256", "handoff"}}
+    spec = reviewer if isinstance(reviewer, ReviewerSpec) else ReviewerSpec.model_validate(reviewer)
+    taxonomy["reviewer"] = {
+        "default_mode": "llm",
+        "by_class": {name: {"mode": "decision_only", "cutoff": cutoff} for name, cutoff in spec.classes.items()},
+    }
+    if spec.backend == "decisions":
+        from mailroom_sandbox.decision_backends import decisions_backend
+
+        policy = _LOCKED_RUNTIME.get()
+        locked = ((policy or {}).get("lock") or {}).get("reviewer") or {}
+        # A locked run answers from the frozen question set, never a later edit of the file.
+        return decisions_backend(spec.model, spec.questions, qset=locked.get("question_set"))
+    return build_backend(spec.backend, spec.model, questions=spec.questions)
+
+
+def _extraction_gate_backend(gate: Any, *, mock: bool = False) -> Any:
+    """The gate callable for a locked ``extraction_gate`` block (frozen question set), or None.
+
+    ``mock`` (a ``job.mock`` run) gives an offline stub that never calls the Decisions API.
+    """
+    if not gate:
+        return None
+    from mailroom_sandbox.decision_backends import extraction_gate_backend, mock_extraction_gate_backend
+
+    if mock:
+        return mock_extraction_gate_backend(str(gate.get("model") or ""), gate.get("question_set") or {})
+
+    qset = gate.get("question_set")
+    if not qset:
+        raise ValueError("extraction_gate needs its frozen question set; re-run sandbox run preflight")
+    return extraction_gate_backend(str(gate["model"]), qset)
+
+
+def _register_extraction_gate(gate: Any) -> None:
+    """Replace the process-wide pipeline extraction gate (None clears it)."""
+    try:
+        from agents.extraction_gate import register_extraction_gate
+    except ImportError:
+        if gate is not None:
+            raise RuntimeError("the vendored llm-mailroom has no extraction-gate hook (agents.extraction_gate); "
+                               "re-vendor llm-mailroom at a commit that includes it") from None
+        return
+    register_extraction_gate(gate)
+
+
+def _register_reviewer(backend: Any) -> None:
+    """Replace the process-wide decision backend (None clears it)."""
+    try:
+        from agents.decision_backend import register_decision_backend
+    except ImportError:
+        if backend is not None:
+            raise
+        return  # no mailroom source: nothing could have been registered
+    register_decision_backend(backend)
+
+
 def activate(
     profile_name: str | None = None,
     *,
@@ -215,6 +323,9 @@ def activate(
     load_env_file: bool = True,
     agent_models: dict[str, str] | None = None,
     agent_knobs: dict | None = None,
+    agent_routes: dict | None = None,
+    reviewer: Any = None,
+    extraction_gate: Any = None,
 ) -> Activation:
     """Load overlay, write runtime taxonomy, patch mailroom, set env.
 
@@ -227,6 +338,15 @@ def activate(
     ``SANDBOX_AGENT_KNOBS`` env var (JSON), which is how ``sandbox run`` carries
     it without threading a new field through every call site.
 
+    ``extraction_gate`` (a locked block with its frozen question set) registers the
+    advisory pipeline extraction gate with llm-mailroom; without it any earlier gate is cleared.
+    ``reviewer`` (a ``ReviewerSpec`` or its dict form) selects the decision-model
+    reviewer: its classes become ``decision_only`` in the runtime taxonomy and
+    its backend is registered with the graph. There is no deactivate step, so
+    every activation replaces the previous registration and rewrites the
+    ``reviewer`` block; an activation without ``reviewer`` leaves every class
+    on ``llm`` and nothing registered.
+
     Inside ``locked_runtime``, the frozen profile, model, per-agent settings,
     and prompt texts override these arguments; ambient knob JSON is ignored.
     The explicit ``base_url`` argument is ignored there, while transport
@@ -237,18 +357,24 @@ def activate(
     """
     global _ACTIVE
     policy = _LOCKED_RUNTIME.get()
+    gate_mock = False
     if policy is not None:
         lock = policy["lock"]
-        profile_name = lock.get("profile") or "ollama"
+        profile_name = lock.get("profile") or default_profile()
         model = (lock.get("engine") or {}).get("model")
         agent_models = deepcopy(lock.get("agent_models") or {})
         agent_knobs = deepcopy(lock.get("agent_knobs") or {})
+        agent_routes = deepcopy(lock.get("agent_routes") or {})
+        reviewer = deepcopy(lock.get("reviewer"))
+        extraction_gate = deepcopy(lock.get("extraction_gate"))
+        # A mock run patches the LLM clients, not the Decisions gate: it gets an offline stub.
+        gate_mock = bool((lock.get("job") or {}).get("mock"))
         prompt_variant = None  # the locked TEXT, not today's local stem
         base_url = None
     if load_env_file:
         _load_dotenv()
     agent_knobs = resolve_agent_knobs(agent_knobs)
-    name = profile_name or os.environ.get("SANDBOX_PROFILE") or "ollama"
+    name = profile_name or default_profile()
     profile = load_profile(name)
     apply_profile_env(profile, base_url_override=base_url)
     if not model and str(profile.get("provider") or "") == "vllm":
@@ -272,7 +398,7 @@ def activate(
     dojo_src = resolve_dojo_src()
     if dojo_src is not None:
         _prepend_sys_path(dojo_src)
-    else:
+    elif not dojo_uses_installed_release():
         _log.warning(
             "no llm-dojo-scoring source resolvable (vendored snapshot under %s, "
             "sibling repo, or DOJO_SRC) — scoring will fail on import. Run "
@@ -280,15 +406,35 @@ def activate(
             vendor_dir() / "llm-dojo-scoring",
         )
 
+    frozen_models = {name: row["model"] for name, row in (policy["lock"].get("agent_assignments") or {}).items()} if policy else {}
+    # A frozen assignment is the *resolved* table: for agents whose model comes from a
+    # per-agent knob ("model") it only echoes the engine default, and must not clobber
+    # the knob that was frozen alongside it.
+    knob_models = {name for name, knob in (agent_knobs or {}).items() if isinstance(knob, dict) and knob.get("model")}
+    effective_agent_models = {
+        **{name: model for name, model in frozen_models.items() if name not in knob_models},
+        **(agent_models or {}),
+    }
     taxonomy = build_merged_taxonomy(
         profile,
         model_override=model,
-        agent_models=agent_models,
+        agent_models=effective_agent_models,
         agent_knobs=agent_knobs,
     )
+    from mailroom_sandbox.agent_routes import install as install_agent_routes
+
+    install_agent_routes(agent_routes or {}, taxonomy, agent_models=effective_agent_models)
+    reviewer_backend = _install_reviewer(reviewer, taxonomy)
+    global _ACTIVE_REVIEWER
+    # Process-wide, like the registered backend: agent-task workers do not inherit the lock's ContextVar.
+    _ACTIVE_REVIEWER = None if reviewer is None else (
+        reviewer.model_dump() if hasattr(reviewer, "model_dump") else deepcopy(dict(reviewer)))
     taxonomy_path = write_runtime_taxonomy(taxonomy)
     os.environ["MAILROOM_TAXONOMY"] = str(taxonomy_path)
     patched = patch_mailroom_config(taxonomy_path)
+    _register_reviewer(reviewer_backend)
+    # Always replaced, so a gate from an earlier activation never carries over.
+    _register_extraction_gate(_extraction_gate_backend(extraction_gate, mock=gate_mock))
 
     # SAND-018: the vendored LangChain agents hardcode timeout=120 (drift-
     # guarded). Apply the taxonomy's run_limits pin so a long L4 generation does

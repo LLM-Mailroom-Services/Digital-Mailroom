@@ -1,0 +1,119 @@
+{
+  "dataset": "Lucius-Morningstar/mailroom-dataset (ground_truth)",
+  "dataset_revision": "ed7576b676343e0b402ec5412cded301e629bdee",
+  "model": "qwen/qwen3.7-flash",
+  "name": "sorter-qwen3.7-flash",
+  "splits": {
+    "test": {
+      "answered": 323,
+      "class_accuracy": 0.956656,
+      "class_correct": 309,
+      "completion_tokens": 45021,
+      "dataset_documents": 323,
+      "documents": 323,
+      "file": "test.jsonl",
+      "list_cost_usd": 0.1298,
+      "prompt_tokens": 4132455,
+      "routed_to_human_review_sorter_alone": {
+        "routed_to_human_review": 115,
+        "routed_to_human_review_rate": 0.356037
+      },
+      "runs": [
+        {
+          "items": 323,
+          "run_id": "sorter-handoff-qwen-test",
+          "spec_hash": "2e11ab5bf35123be040ffd69e4d50ca64dd414b6fe1720d516001bf28965ab41",
+          "state": "done",
+          "stopped_by": null
+        }
+      ],
+      "sha256": "52164ff5cdb36fca1bd46c8160f480366806646563b7a7c5b9327bbdbf77c568",
+      "targets": {
+        "documents": 323,
+        "file": "test.targets.jsonl",
+        "rules": "scripts/patch_sorter_handoff.py docstring",
+        "sha256": "4dafaa760db1c371230e902d9761b124dcf305e11a2d40a668921b9a1b180dd1",
+        "sorter_class_correct": 310,
+        "sorter_class_errors_by_pattern": {
+          "corporate_record -> contract": 8,
+          "correspondence -> contract": 1,
+          "correspondence -> unknown": 4
+        },
+        "sorter_class_errors_label_confirmed": 13,
+        "sorter_class_scored": 323,
+        "sorter_subclass_correct": 226,
+        "sorter_subclass_scored": 315,
+        "target_status": {
+          "corrected": 4,
+          "label": 252,
+          "label_normalized": 59,
+          "unannotated": 8
+        }
+      },
+      "usd_per_million_tokens": [
+        0.03,
+        0.13
+      ]
+    },
+    "train": {
+      "answered": 2979,
+      "class_accuracy": 0.957368,
+      "class_correct": 2852,
+      "completion_tokens": 411699,
+      "dataset_documents": 2979,
+      "documents": 2979,
+      "file": "train.jsonl",
+      "list_cost_usd": 1.2007,
+      "prompt_tokens": 38237951,
+      "routed_to_human_review_sorter_alone": {
+        "routed_to_human_review": 964,
+        "routed_to_human_review_rate": 0.323599
+      },
+      "runs": [
+        {
+          "items": 2942,
+          "run_id": "sorter-handoff-qwen-train",
+          "spec_hash": "5c63fc55531cbb093ed3ba96bb65244be47c525b368a8cc8d6cfcaddb584f6bb",
+          "state": "failed",
+          "stopped_by": "RuntimeError: isolated eval aborted: api_cost_cap_usd=2.0 reached (est_api_usd=2.0001 at $0.05/$0.25 per 1M tokens) \u2014 aborting to protect spend"
+        },
+        {
+          "items": 37,
+          "run_id": "sorter-handoff-qwen-train-rest",
+          "spec_hash": "5a9db0b6c19aa21167ecc79c04da4d32d1676a62189049afc23132181e334d32",
+          "state": "done",
+          "stopped_by": null
+        }
+      ],
+      "sha256": "185cedaec9fe8bd3b3545cd3bd302340fda31f8ce6e2c6b1cb3ec54b10a00963",
+      "targets": {
+        "documents": 2979,
+        "file": "train.targets.jsonl",
+        "rules": "scripts/patch_sorter_handoff.py docstring",
+        "sha256": "1221d23f2680c01e58865d6e36860c450218838d16d3a18cd32a921ccf86fc9a",
+        "sorter_class_correct": 2852,
+        "sorter_class_errors_by_pattern": {
+          "contract -> correspondence": 1,
+          "corporate_record -> contract": 88,
+          "correspondence -> contract": 3,
+          "correspondence -> unknown": 30
+        },
+        "sorter_class_errors_label_confirmed": 121,
+        "sorter_class_scored": 2974,
+        "sorter_subclass_correct": 2122,
+        "sorter_subclass_scored": 2925,
+        "target_status": {
+          "ambiguous": 5,
+          "corrected": 28,
+          "label": 2359,
+          "label_normalized": 538,
+          "unannotated": 49
+        }
+      },
+      "usd_per_million_tokens": [
+        0.03,
+        0.13
+      ]
+    }
+  }
+}

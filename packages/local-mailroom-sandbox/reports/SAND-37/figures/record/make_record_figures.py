@@ -218,7 +218,7 @@ posture_set(S37_2, C_2L4_50, "2xL4-C32-n50", "Experiment 3 (2× L4 · C=32 · n=
 
 
 def pooled(data):
-    busy = sum(m["busy"] for m in data.values()); ok = sum(m["ok"] for m in data.values())
+    busy = sum(m["busy"] for m in data.values())
     n = sum(m["n"] for m in data.values()); wall = sum(m["wall"] for m in data.values())
     # Pooled cost uses the master card's basis: busy GPU $ per attempted document.
     return {"cost_1k": busy / n * 1000, "dpm": n / (wall / 60)}

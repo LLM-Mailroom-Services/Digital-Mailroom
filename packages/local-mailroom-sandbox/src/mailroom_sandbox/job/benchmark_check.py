@@ -608,6 +608,7 @@ def check_suite_benchmark_posture(
     *,
     require_hermes: bool = True,
     require_modernbert: bool = False,
+    expected_modal_profile: str | None = None,
 ) -> dict[str, Any]:
     """Run benchmark-check for every config in a suite track (DMR-077).
 
@@ -619,7 +620,21 @@ def check_suite_benchmark_posture(
     from mailroom_sandbox.job.suite import load_suite
 
     suite = load_suite(suite_name)
-    expected = suite.resolve_modal_profile()
+    resolved = suite.resolve_modal_profile()
+    if expected_modal_profile and resolved and expected_modal_profile != resolved:
+        return {
+            "ok": False,
+            "suite_id": suite.suite_id,
+            "track": suite.track,
+            "errors": [f"--modal-profile {expected_modal_profile} conflicts with suite profile {resolved}"],
+            "configs": [],
+            "markdown": (
+                f"## Suite benchmark-check — BLOCKED\n\n"
+                f"- suite: `{suite.suite_id}` track=`{suite.track}`\n"
+                f"- requested profile `{expected_modal_profile}` is not the suite's `{resolved}`\n"
+            ),
+        }
+    expected = resolved or expected_modal_profile
     if expected is None and suite.modal_profile_env:
         return {
             "ok": False,

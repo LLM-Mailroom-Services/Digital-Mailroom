@@ -1,0 +1,49 @@
+# SAND-085: held-out check of the decision reviewer, openai/gpt-6-luna-decisions, question set
+# 3.0.0, on the whole test split (323 documents), with the sorter handoff from
+# sorter-handoff-qwen-test. No v3.0.0 train calibration was run (3.1.0 superseded it first), so
+# this run was scored at the v2 train cutoffs, without re-tuning:
+#   python scripts/calibrate_reviewer.py --run reviewer-validation-luna-decisions-v3.0.0-test \
+#       --cutoffs-from reviewer-calibration-luna-decisions-v2
+# Its human-review count (23, 7.1%) therefore mixes v3.0.0 answers with v2 cutoffs
+# (config/decisions/LINEAGE.yaml: routed_to_human_review_at_v2_cutoffs).
+# About 2.2M input tokens at $0.10 per 1M input, $0 output = about $0.22.
+schema: sandbox.run/v1
+run_id: reviewer-validation-luna-decisions-v3.0.0-test
+task: sorter_reviewer
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: test
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna-decisions
+  modal: null
+
+reviewer:
+  backend: decisions
+  model: openai/gpt-6-luna-decisions
+  questions: reviewer_decisions_v3.0.0
+  handoff_run: data/handoff/sorter-qwen3.7-flash/test.jsonl   # saved Qwen pass, 323 documents
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 24
+  cost_cap_usd: 0.60
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.40
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, reviewer-validation, decisions-api, question-set-3.0.0]

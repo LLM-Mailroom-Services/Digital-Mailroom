@@ -1,0 +1,22 @@
+# SORTER-CONDENSED lineage: the token-budgeted sorter prompt. Every further sorter improvement is a
+# mutation here (sorter_condensed_v<N>.txt, a new file per version; never edit a frozen one).
+# The long-form SORTER_PROMPT_V15 (llm-mailroom langchain_agents.prompts, ~25k chars rendered) is
+# frozen as the production reference and is not mutated further.
+#
+# Budget: the rendered system prompt stays <= 4,000 chars (about 1k tokens); the subclass catalog
+# (llm_dojo_scoring.sorter_guide, ~5.5k chars) travels in the user message for every version.
+# A mutation is adopted only when it matches or beats the frontrunner on the same validation set
+# (scripts/compare_sorter_prompt.py: class and subclass fixed - broken against the V14 saved pass)
+# at equal or lower prompt length. The rule is applied by hand from the compare reports;
+# tests/test_sorter_condensed_prompt.py checks only the prompt budget, structure and this metadata.
+lineage: sorter-condensed
+agent: sorter
+budget_chars: 4000
+frontrunner: sorter_condensed_v1
+versions:
+  - version: sorter_condensed_v1
+    file: sorter_condensed_v1.txt
+    parent: SORTER_PROMPT_V15 (B1-B3, S1-S5 condensed; per-key meanings left to the catalog)
+    rendered_chars: 3681
+    status: candidate   # pending sorter-condensed-v1-qwen-train-errors
+    validation_run: sorter-condensed-v1-qwen-train-errors

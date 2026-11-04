@@ -1,0 +1,4 @@
+needed,documents,continue_sorter_correct,continue_with_subclass_correction,reclassify,multiple_documents,route_to_human_review
+sorter was right,174,170,2,0,1,1
+subclass was wrong,135,125,4,2,3,1
+class was wrong,14,10,0,1,0,3

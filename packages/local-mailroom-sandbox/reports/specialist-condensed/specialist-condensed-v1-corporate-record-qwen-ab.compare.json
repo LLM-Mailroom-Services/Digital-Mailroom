@@ -1,0 +1,17 @@
+{
+  "reference": "extraction-gate-specialist-corporate-record-qwen",
+  "candidate": "specialist-condensed-v1-corporate-record-qwen-ab",
+  "documents": 40,
+  "reference_mean": 0.3523,
+  "candidate_mean": 0.4272,
+  "mean_delta": 0.0748,
+  "wins": 16,
+  "ties": 15,
+  "losses": 9,
+  "reference_parse_errors": 0,
+  "candidate_parse_errors": 0,
+  "reference_prompt_tokens_per_doc": 15525,
+  "candidate_prompt_tokens_per_doc": 14782,
+  "max_mean_drop": 0.02,
+  "verdict": "adopt"
+}

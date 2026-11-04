@@ -518,7 +518,6 @@ def ladder_report() -> Path:
             f"{_f(m['usd_doc'], 6)} | **{verdict}** |")
     fig = SERVING / "figures"
     fig.mkdir(parents=True, exist_ok=True)
-    kept = {rid for rid, m, sc in rows}  # verdicts shown in the table; emphasis = measured rungs
     def panel(title, key, unit="", nd=2, lower_better=True):
         vals = [(rid.removeprefix("sand032-"), m[key]) for rid, m, _ in rows]
         best = (min if lower_better else max)((v for _, v in vals if v is not None), default=None)

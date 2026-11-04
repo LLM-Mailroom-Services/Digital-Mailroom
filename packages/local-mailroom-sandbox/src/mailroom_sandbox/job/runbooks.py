@@ -13,6 +13,7 @@ come from ``specialist_posture``; suite order comes from ``config/runs/suites/``
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from functools import lru_cache
@@ -48,6 +49,7 @@ ENV_FIELDS: tuple[tuple[str, str], ...] = (
 )
 
 REQUIRED_IDS: tuple[str, ...] = (
+    "modal-vllm-serving",
     "l4-qwen3-8b",
     "l4-qwen3-8b-track-a",
     "l4-qwen3-8b-track-b",
@@ -74,14 +76,18 @@ REQUIRED_IDS: tuple[str, ...] = (
 )
 
 FAMILIES: tuple[tuple[str, str], ...] = (
+    ("serving", "Modal + vLLM serving (default path)"),
     ("baseline", "Singular 1×L4 / 1-container Qwen3-8B"),
     ("improved", "Improved run configurations"),
     ("grid", "Qwen3-8B-AWQ specialist grid (SAND-037)"),
     ("sand42", "SAND-042 paired concurrency × fleet grid (n=50, five specialists)"),
 )
 
+# SAND-077: the serving variant that the serve runbook and deploy defaults share.
+APP_DEFAULT_SERVING = "qwen35-9b"
+
 _DEPLOY_DEFAULT_RE = {
-    "model": re.compile(r'MODEL = os\.environ\.get\("MODAL_VLLM_MODEL", "([^"]+)"\)'),
+    "model": re.compile(r'^DEFAULT_MODEL = "([^"]+)"', re.M),
     "gpu": re.compile(r'GPU = os\.environ\.get\("MODAL_VLLM_GPU", "([^"]+)"\)'),
     "max_model_len": re.compile(
         r'MAX_MODEL_LEN = os\.environ\.get\("MODAL_VLLM_MAX_MODEL_LEN", "([^"]+)"\)'
@@ -287,6 +293,20 @@ def env_script(runbook: Mapping[str, Any], *, include_token: bool = True) -> str
     return "\n".join(lines)
 
 
+def _api_key_export(*, deploys: bool) -> str:
+    """The ``VLLM_API_KEY`` line before cutover/health.
+
+    The deployed app only accepts the ``MODAL_VLLM_API_TOKEN`` it was started
+    with, and probes read ``VLLM_API_KEY``. When this script both defines the
+    token (env step) and runs the deploy that bakes it in, the export is exact
+    and must be live: left as a comment, health sends no bearer and gets 401.
+    Otherwise the operator supplies the key of the endpoint they point at.
+    """
+    if deploys:
+        return 'export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"   # bearer this deploy was started with'
+    return "# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN"
+
+
 def _ops() -> dict[str, Any]:
     ops = load_catalog().get("ops") or {}
     return dict(ops) if isinstance(ops, Mapping) else {}
@@ -461,10 +481,12 @@ def render_shell(name: str) -> str:
         elif kind == "cutover":
             lines += [
                 "",
+                "# REQUIRED before health (shell or .env): `sandbox health` exits 1 without an endpoint",
                 "# VLLM_BASE_URL is the FULL base: deploy output + '/v1'",
                 "#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1",
+                "#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)",
                 "#   (without /v1 every chat call 404s — the profile appends /chat/completions)",
-                "# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN",
+                _api_key_export(deploys={"env", "deploy"} <= step_set),
                 "sandbox cutover --profile modal-vllm",
             ]
         elif kind == "health":
@@ -496,7 +518,6 @@ def render_shell(name: str) -> str:
                 )
             else:
                 rels = _config_paths(runbook)
-                pid_file = f"$HOME/.sand42-{midrun_cell}-midrun.pid"
                 lines += [
                     "",
                     "# SAND-047: sample /metrics MID-RUN every $MIDRUN_INTERVAL seconds.",
@@ -548,12 +569,13 @@ def render_shell(name: str) -> str:
                     lines.append(f"  {rel}{cont}")
                 lines += ["do", *_run_lines('"$cfg"', "  "), "done"]
         elif kind == "teardown":
-            after = (
-                "the last config in this track"
-                if "suite" in step_set
-                else "this run"
-            )
-            lines += ["", f"{teardown}   # ONLY after {after}"]
+            if "suite" in step_set or _config_paths(runbook):
+                after = "the last config in this track" if "suite" in step_set else "this run"
+                lines += ["", f"{teardown}   # ONLY after {after}"]
+            else:
+                # No eval runs in this script, so a live teardown would stop the endpoint
+                # right after health: leave it for the operator's last eval.
+                lines += ["", f"# {teardown}   # run by hand ONLY after the last eval on this endpoint"]
         elif kind == "after":
             after = runbook.get("after") or []
             if after:
@@ -737,6 +759,10 @@ def render_markdown(name: str, *, output_path: Path | None = None) -> str:
 
 
 def render_index(*, output_path: Path | None = None) -> str:
+    """Render the runbook index page (``docs/runbooks/README.md``) from the catalog.
+
+    It holds the command cheat sheet, a linked list of runbooks per family, and the anti-patterns.
+    """
     cat = load_catalog()
     docs = _generated_doc_paths()
     output_path = output_path or docs["index"]
@@ -749,6 +775,7 @@ def render_index(*, output_path: Path | None = None) -> str:
         "",
         "```bash",
         "sandbox runbook list",
+        "sandbox runbook show serve                 # DEFAULT: Modal vLLM deploy → point → verify → teardown",
         "sandbox runbook show l4-qwen3-8b          # singular 1×L4 / 1-container Qwen3-8B",
         "sandbox runbook show l4-qwen3-8b-track-a  # Operator A",
         "sandbox runbook show improved-awq-c8      # improved config",
@@ -959,7 +986,8 @@ def _phase_shell(runbook: Mapping[str, Any], *, deploy: str, preflight_force: st
             "",
             deploy,
             "",
-            "# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN",
+            "# set VLLM_BASE_URL from deploy output (shell or .env); the bearer is this deploy's token",
+            _api_key_export(deploys=True),
             "sandbox cutover --profile modal-vllm",
             "sandbox health --profile modal-vllm",
             "",
@@ -1016,6 +1044,10 @@ def verify_live_pins() -> list[str]:
         if rid not in cat["runbooks"]:
             errors.append(f"catalog missing required runbook {rid}")
     baseline = serving_knobs("baseline")
+    # The deploy script's defaults are the app default (SAND-077), not the frozen
+    # Qwen3-8B cost-eval baseline: GPU / container / window knobs are shared,
+    # the model and its serve flags come from the APP_DEFAULT_SERVING variant.
+    app_default = serving_knobs(APP_DEFAULT_SERVING)
     deploy = _deploy_defaults()
     for key in (
         "model",
@@ -1027,12 +1059,24 @@ def verify_live_pins() -> list[str]:
         "max_containers",
         "min_containers",
     ):
-        left = str(baseline.get(key))
+        left = str(app_default.get(key))
         right = str(deploy.get(key))
         if left != right:
             errors.append(
-                f"serving.baseline.{key}={left!r} != deploy/modal_vllm.py default {right!r}"
+                f"serving.{APP_DEFAULT_SERVING}.{key}={left!r} != deploy/modal_vllm.py default {right!r}"
             )
+
+    from mailroom_sandbox.job.spec import DEFAULT_ENGINE_MODEL, MODEL_SERVE_DEFAULTS
+
+    if str(app_default.get("model")) != DEFAULT_ENGINE_MODEL:
+        errors.append(f"serving.{APP_DEFAULT_SERVING}.model != job.spec.DEFAULT_ENGINE_MODEL")
+    serve = MODEL_SERVE_DEFAULTS.get(DEFAULT_ENGINE_MODEL, {})
+    if str(app_default.get("quantization") or "") != str(serve.get("quantization", "")):
+        errors.append(f"serving.{APP_DEFAULT_SERVING}.quantization != job.spec.MODEL_SERVE_DEFAULTS")
+    mm = (app_default.get("extra_env") or {}).get("MODAL_VLLM_LIMIT_MM_PER_PROMPT", "")
+    want_mm = serve.get("limit_mm_per_prompt")
+    if (json.loads(mm) if mm else None) != want_mm:
+        errors.append(f"serving.{APP_DEFAULT_SERVING} MODAL_VLLM_LIMIT_MM_PER_PROMPT != job.spec.MODEL_SERVE_DEFAULTS")
 
     from mailroom_sandbox.job.specialist_posture import BENCHMARK_MODEL, MAX_MODEL_LEN
     from mailroom_sandbox.modal_matrix import DEFAULT_MODAL_GPU, DEFAULT_MODAL_MODEL, modal_models
@@ -1043,14 +1087,15 @@ def verify_live_pins() -> list[str]:
         )
     if int(baseline.get("max_model_len")) != int(MAX_MODEL_LEN):
         errors.append("serving.baseline.max_model_len != specialist_posture.MAX_MODEL_LEN")
-    if str(baseline.get("model")) != DEFAULT_MODAL_MODEL:
-        errors.append("serving.baseline.model != modal_matrix.DEFAULT_MODAL_MODEL")
-    if str(baseline.get("gpu")) != DEFAULT_MODAL_GPU:
-        errors.append("serving.baseline.gpu != modal_matrix.DEFAULT_MODAL_GPU")
+    if str(app_default.get("model")) != DEFAULT_MODAL_MODEL:
+        errors.append(f"serving.{APP_DEFAULT_SERVING}.model != modal_matrix.DEFAULT_MODAL_MODEL")
+    if str(app_default.get("gpu")) != DEFAULT_MODAL_GPU:
+        errors.append(f"serving.{APP_DEFAULT_SERVING}.gpu != modal_matrix.DEFAULT_MODAL_GPU")
 
     models = modal_models()
     expected_matrix = {
         "baseline": str(baseline.get("model")),
+        APP_DEFAULT_SERVING: DEFAULT_MODAL_MODEL,
         "awq-16k": "Qwen/Qwen3-8B-AWQ",
         "awq-32k": "Qwen/Qwen3-8B-AWQ",
         "granite-fp8": "ibm-granite/granite-4.2-8b-fp8",

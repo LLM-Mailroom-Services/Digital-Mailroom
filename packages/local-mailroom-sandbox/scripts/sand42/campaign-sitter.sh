@@ -11,7 +11,7 @@
 #
 #   bash scripts/sand42/campaign-sitter.sh [cadence_seconds]
 set -uo pipefail
-cd /Users/luciusjmorningstar/Downloads/local-mailroom-sandbox
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)" || exit 1
 GAP="${1:-45}"
 STALL_MIN="${STALL_MIN:-15}"
 BEAT_EVERY="${BEAT_EVERY:-300}"

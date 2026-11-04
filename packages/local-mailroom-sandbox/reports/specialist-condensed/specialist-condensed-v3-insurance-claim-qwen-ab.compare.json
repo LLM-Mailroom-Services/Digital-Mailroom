@@ -1,0 +1,17 @@
+{
+  "reference": "extraction-gate-specialist-insurance-claim-qwen",
+  "candidate": "specialist-condensed-v3-insurance-claim-qwen-ab",
+  "documents": 60,
+  "reference_mean": 0.7698,
+  "candidate_mean": 0.8993,
+  "mean_delta": 0.1295,
+  "wins": 60,
+  "ties": 0,
+  "losses": 0,
+  "reference_parse_errors": 0,
+  "candidate_parse_errors": 0,
+  "reference_prompt_tokens_per_doc": 3461,
+  "candidate_prompt_tokens_per_doc": 2940,
+  "max_mean_drop": 0.02,
+  "verdict": "adopt"
+}

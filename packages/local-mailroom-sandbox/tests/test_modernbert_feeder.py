@@ -206,7 +206,8 @@ def test_modal_matrix_default_and_awq():
     rows = list_modal_models()
     assert any(r["default"] and r["model"] == DEFAULT_MODAL_MODEL for r in rows)
     default = resolve_modal_row()
-    assert default["model"] == "Qwen/Qwen3-8B"
+    assert default["model"] == "Qwen/Qwen3.5-9B"  # SAND-077
+    assert default["quantization"] == "fp8"
     assert default["gpu"] == "L4"
     assert default["is_default"] is True
     awq = resolve_modal_row("Qwen/Qwen3-8B-AWQ")

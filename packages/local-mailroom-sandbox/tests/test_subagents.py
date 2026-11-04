@@ -150,7 +150,6 @@ def test_package_alias_mailroom_dev():
 
 
 def test_sync_opencode_global_writes_home_config(tmp_path, monkeypatch):
-    home_agents = tmp_path / "global_agents"
     monkeypatch.setenv("HOME", str(tmp_path))
     (tmp_path / ".config" / "opencode" / "agents").mkdir(parents=True)
 

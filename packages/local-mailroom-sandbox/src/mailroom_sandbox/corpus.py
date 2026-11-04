@@ -699,6 +699,18 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
     )
     # …and refuse a draw/limit that dropped a requested stratum AFTER it.
     strata_draw_guard(chosen, spec.strata)
+    if getattr(spec, "interim_labels", False):
+        from mailroom_sandbox import interim_labels as il
+
+        problems = il.verify()
+        if problems:
+            raise ValueError(f"interim label overlay is inconsistent: {problems[0]}")
+        overlay, overlay_sha = il.load_overlay(), il.overlay_fingerprint()
+        chosen = [il.apply_overlay(r, overlay, overlay_sha=overlay_sha) for r in chosen]
+        source_meta = {**source_meta, "interim_labels": {
+            "overlay_sha256": overlay_sha,
+            "rows_with_labels": sum(1 for r in chosen if r.get("interim_labels")),
+            "fields_applied": sum(len(r["interim_labels"]["fields"]) for r in chosen if r.get("interim_labels"))}}
 
     payload = "".join(_cache_line(r) for r in chosen)
     dest.write_text(payload, encoding="utf-8")

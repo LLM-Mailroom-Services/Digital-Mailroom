@@ -1,0 +1,89 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pytest:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(python3 -m pytest:*)",
+      "Bash(.venv/bin/python -m pytest:*)",
+      "Bash(ruff check:*)",
+      "Bash(python scripts/sync_requirements.py --check:*)",
+      "Bash(python3 scripts/sync_requirements.py --check:*)",
+      "Bash(python reports/dashboard/build_hub.py --check:*)",
+      "Bash(python scripts/smoke_campaign.py:*)",
+      "Bash(sandbox profiles:*)",
+      "Bash(sandbox agents list:*)",
+      "Bash(sandbox doctor:*)",
+      "Bash(sandbox runbook list:*)",
+      "Bash(sandbox runbook show:*)",
+      "Bash(sandbox runbook check:*)",
+      "Bash(sandbox prompts list:*)",
+      "Bash(sandbox prompts show:*)",
+      "Bash(sandbox subagents list:*)",
+      "Bash(sandbox subagents show:*)",
+      "Bash(sandbox subagents doctor:*)",
+      "Bash(sandbox run preflight:*)",
+      "Bash(sandbox run status:*)",
+      "Bash(sandbox run list:*)",
+      "Bash(sandbox pilot --mock:*)",
+      "Bash(sandbox eval * --mock:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch --show-current:*)",
+      "Bash(git branch --list:*)"
+    ],
+    "ask": [
+      "Bash(sandbox doctor --live:*)",
+      "Bash(sandbox doctor * --live*)",
+      "Bash(git push:*)",
+      "Bash(python scripts/sync_vendor.py:*)",
+      "Bash(sandbox fetch-deps:*)",
+      "Bash(python scripts/sync_requirements.py:*)",
+      "Bash(sandbox up:*)",
+      "Bash(sandbox datasets pull:*)",
+      "Bash(sandbox subagents propagate:*)",
+      "Bash(uv lock:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./config/.env)",
+      "Bash(sandbox run start:*)",
+      "Bash(sandbox run resume:*)",
+      "Bash(sandbox experiment launch:*)",
+      "Bash(sandbox modal deploy:*)",
+      "Bash(sandbox modal prewarm:*)",
+      "Bash(modal deploy:*)",
+      "Bash(modal run:*)",
+      "Bash(* --real*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_paths.py\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/ruff_check.py\""
+          }
+        ]
+      }
+    ]
+  }
+}

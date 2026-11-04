@@ -1,0 +1,67 @@
+# SAND-085: calibrate the in-house decision reviewer's per-class cutoffs.
+#
+# Reviewer only, one L4. The labels come from the corpus, so the sorter is not
+# served. No measured results exist for this model on this deployment, so run
+# reviewer-probe-gemma4.yaml first and take the duration and cost from it. The
+# caps below stop this run at $1. A signed `sandbox run start` is the spend
+# approval. Afterwards:
+#   python scripts/calibrate_reviewer.py --run reviewer-calibration-gemma4
+schema: sandbox.run/v1
+run_id: reviewer-calibration-gemma4
+task: sorter_reviewer
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: train   # test stays untouched for final evaluation; it has only 17 mergers
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_DATA_REVISION)
+  strata:
+    buckets:
+      - {doc_class: contract, count: 40}
+      - {doc_class: merger_agreement, count: 40}
+      - {doc_class: corporate_record, count: 40}
+      - {doc_class: correspondence, count: 40}
+      - {doc_class: insurance_claim, count: 40}
+  limit: 200
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: google/gemma-4-E4B-it   # Apache-2.0, ungated, not the sorter's family
+  vllm:
+    max_model_len: 16384
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6
+    enable_prefix_caching: true
+    enforce_eager: true
+    quantization: ""
+    revision: ee0ef6023621cff504d758262d4e04895a5af4a2
+    limit_mm_per_prompt: {image: 0, video: 0, audio: 0}
+    max_inputs: 6
+  modal:
+    app: sandbox-vllm-reviewer
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 1
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 6
+  cost_cap_usd: 1.0
+  max_wall_seconds: 2400
+
+trace:
+  sink: none
+  otlp: false
+  environment: calibration
+  tags: [sandbox, job, reviewer-calibration]

@@ -1,0 +1,531 @@
+{
+  "corrections": [
+    {
+      "filename": "0001010412-03-000076_amend.txt",
+      "id": "DOC-0d9dd64d13b1c270",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "reviewer": {
+        "doc_subclass": "charter_amendment",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-calibration-luna-decisions-v2"
+      },
+      "target": [
+        "corporate_record",
+        "charter_amendment"
+      ]
+    },
+    {
+      "filename": "0001469709-14-000003_ex3_2apg.htm",
+      "id": "DOC-12a7cb184e28c2da",
+      "label": [
+        "corporate_record",
+        "articles_of_incorporation"
+      ],
+      "reviewer": {
+        "doc_subclass": "bylaws",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-verify-sorter-handoff-train"
+      },
+      "target": [
+        "corporate_record",
+        "bylaws"
+      ]
+    },
+    {
+      "filename": "0000828940-03-000001_exh31.htm",
+      "id": "DOC-18f2fafa6d8fd491",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "reviewer": {
+        "doc_subclass": "charter_amendment",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-calibration-luna-decisions-v2"
+      },
+      "target": [
+        "corporate_record",
+        "charter_amendment"
+      ]
+    },
+    {
+      "filename": "0001144204-11-007398_v210722_ex3-1.htm",
+      "id": "DOC-19866f91da21f20d",
+      "label": [
+        "corporate_record",
+        "other"
+      ],
+      "reviewer": {
+        "doc_subclass": "articles_of_incorporation",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-calibration-luna-decisions-v2"
+      },
+      "target": [
+        "corporate_record",
+        "articles_of_incorporation"
+      ]
+    },
+    {
+      "filename": "0001561743-13-000006_exhibit31bylaws1.htm",
+      "id": "DOC-2338d194d5250def",
+      "label": [
+        "corporate_record",
+        "articles_of_incorporation"
+      ],
+      "reviewer": {
+        "doc_subclass": "bylaws",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-calibration-luna-decisions-v2"
+      },
+      "target": [
+        "corporate_record",
+        "bylaws"
+      ]
+    },
+    {
+      "filename": "0001144204-03-000304_doc2.txt",
+      "id": "DOC-310fa993e212a342",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "reviewer": {
+        "doc_subclass": "charter_amendment",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-calibration-luna-decisions-v2"
+      },
+      "target": [
+        "corporate_record",
+        "charter_amendment"
+      ]
+    },
+    {
+      "filename": "0001079974-10-000369_bulkstors1ex32_72110.htm",
+      "id": "DOC-4a8f1db0546e42be",
+      "label": [
+        "corporate_record",
+        "articles_of_incorporation"
+      ],
+      "reviewer": {
+        "doc_subclass": "bylaws",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-verify-sorter-handoff-train"
+      },
+      "target": [
+        "corporate_record",
+        "bylaws"
+      ]
+    },
+    {
+      "filename": "0001214782-03-000393_doc6.txt",
+      "id": "DOC-4afb96e7104c4749",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "reviewer": {
+        "doc_subclass": "charter_amendment",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-verify-sorter-handoff-train"
+      },
+      "target": [
+        "corporate_record",
+        "charter_amendment"
+      ]
+    },
+    {
+      "filename": "0001035704-06-000123_d33369a1exv3w1.htm",
+      "id": "DOC-512450d428967187",
+      "label": [
+        "corporate_record",
+        "charter_amendment"
+      ],
+      "reviewer": {
+        "doc_subclass": "articles_of_incorporation",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-verify-sorter-handoff-train"
+      },
+      "target": [
+        "corporate_record",
+        "articles_of_incorporation"
+      ]
+    },
+    {
+      "filename": "0001010549-01-500050_zkid8kmay1ex33.txt",
+      "id": "DOC-54d5c7b5b9e789c0",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "reviewer": {
+        "doc_subclass": "officer_certificate",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-verify-sorter-handoff-train"
+      },
+      "target": [
+        "corporate_record",
+        "officer_certificate"
+      ]
+    },
+    {
+      "filename": "0000950137-07-001852_x08078a3exv3w03.htm",
+      "id": "DOC-565a3f2fcfc0e5e7",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "reviewer": {
+        "doc_subclass": "charter_amendment",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-calibration-luna-decisions-v2"
+      },
+      "target": [
+        "corporate_record",
+        "charter_amendment"
+      ]
+    },
+    {
+      "filename": "0001214782-03-000402_doc2.txt",
+      "id": "DOC-571cffbc7867e8ef",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "reviewer": {
+        "doc_subclass": "charter_amendment",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-calibration-luna-decisions-v2"
+      },
+      "target": [
+        "corporate_record",
+        "charter_amendment"
+      ]
+    },
+    {
+      "filename": "0001469709-14-000529_ex3_2apg.htm",
+      "id": "DOC-5c087a08edcb4a91",
+      "label": [
+        "corporate_record",
+        "powers_of_attorney"
+      ],
+      "reviewer": {
+        "doc_subclass": "bylaws",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-verify-sorter-handoff-train"
+      },
+      "target": [
+        "corporate_record",
+        "bylaws"
+      ]
+    },
+    {
+      "filename": "0001079974-08-000839_artdimensionss1x32_9252008.htm",
+      "id": "DOC-5f97f49508148da1",
+      "label": [
+        "corporate_record",
+        "articles_of_incorporation"
+      ],
+      "reviewer": {
+        "doc_subclass": "bylaws",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-verify-sorter-handoff-train"
+      },
+      "target": [
+        "corporate_record",
+        "bylaws"
+      ]
+    },
+    {
+      "filename": "0001021432-06-000037_certamendcal092706.txt",
+      "id": "DOC-64af9a1b82bf5de2",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "reviewer": {
+        "doc_subclass": "charter_amendment",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-verify-sorter-handoff-train"
+      },
+      "target": [
+        "corporate_record",
+        "charter_amendment"
+      ]
+    },
+    {
+      "filename": "0001079974-09-000387_univests1ex32_42809.htm",
+      "id": "DOC-6740a73048d819f0",
+      "label": [
+        "corporate_record",
+        "articles_of_incorporation"
+      ],
+      "reviewer": {
+        "doc_subclass": "bylaws",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-verify-sorter-handoff-train"
+      },
+      "target": [
+        "corporate_record",
+        "bylaws"
+      ]
+    },
+    {
+      "filename": "0001193125-21-167195_d29047dex31.htm",
+      "id": "DOC-76cf6d686e56b29b",
+      "label": [
+        "corporate_record",
+        "charter_amendment"
+      ],
+      "reviewer": {
+        "doc_subclass": "articles_of_incorporation",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-calibration-luna-decisions-v2"
+      },
+      "target": [
+        "corporate_record",
+        "articles_of_incorporation"
+      ]
+    },
+    {
+      "filename": "0000950137-07-000990_x09498a2exv3w03.htm",
+      "id": "DOC-7ca9eefc5f17d24f",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "reviewer": {
+        "doc_subclass": "charter_amendment",
+        "doc_type": "corporate_record",
+        "p": 0.99,
+        "run": "reviewer-verify-sorter-handoff-train"
+      },
+      "target": [
+        "corporate_record",
+        "charter_amendment"
+      ]
+    },
+    {
+      "filename": "0000950137-06-012987_i08078a2exv3w03.htm",
+      "id": "DOC-8de72b7f93fda86c",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "reviewer": {
+        "doc_subclass": "charter_amendment",
+        "doc_type": "corporate_record",
+        "p": 0.99,
+        "run": "reviewer-verify-sorter-handoff-train"
+      },
+      "target": [
+        "corporate_record",
+        "charter_amendment"
+      ]
+    },
+    {
+      "filename": "0001021432-06-000027_certamend060606.txt",
+      "id": "DOC-92681e1a30e75a66",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "reviewer": {
+        "doc_subclass": "charter_amendment",
+        "doc_type": "corporate_record",
+        "p": 0.99,
+        "run": "reviewer-verify-sorter-handoff-train"
+      },
+      "target": [
+        "corporate_record",
+        "charter_amendment"
+      ]
+    },
+    {
+      "filename": "0001157523-05-009381_a4994842ex31_c.txt",
+      "id": "DOC-a8c0f3d975e591d3",
+      "label": [
+        "corporate_record",
+        "articles_of_incorporation"
+      ],
+      "reviewer": {
+        "doc_subclass": "charter_amendment",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-verify-sorter-handoff-train"
+      },
+      "target": [
+        "corporate_record",
+        "charter_amendment"
+      ]
+    },
+    {
+      "filename": "0001547903-13-000020_a42registrationrightsagree.htm",
+      "id": "DOC-bb76516ef24f4900",
+      "label": [
+        "corporate_record",
+        "articles_of_incorporation"
+      ],
+      "reviewer": {
+        "doc_subclass": "rights_instrument",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-calibration-luna-decisions-v2"
+      },
+      "target": [
+        "corporate_record",
+        "rights_instrument"
+      ]
+    },
+    {
+      "filename": "0001078782-12-001347_s1_ex3z2.htm",
+      "id": "DOC-c2304ee259662c25",
+      "label": [
+        "corporate_record",
+        "articles_of_incorporation"
+      ],
+      "reviewer": {
+        "doc_subclass": "bylaws",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-calibration-luna-decisions-v2"
+      },
+      "target": [
+        "corporate_record",
+        "bylaws"
+      ]
+    },
+    {
+      "filename": "0001021432-06-000035_certamendriv090106.txt",
+      "id": "DOC-c4c9c37a96291975",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "reviewer": {
+        "doc_subclass": "charter_amendment",
+        "doc_type": "corporate_record",
+        "p": 0.99,
+        "run": "reviewer-verify-sorter-handoff-train"
+      },
+      "target": [
+        "corporate_record",
+        "charter_amendment"
+      ]
+    },
+    {
+      "filename": "0000950137-07-002206_x08078a4exv3w03.htm",
+      "id": "DOC-ce2e65d67f477467",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "reviewer": {
+        "doc_subclass": "charter_amendment",
+        "doc_type": "corporate_record",
+        "p": 0.99,
+        "run": "reviewer-verify-sorter-handoff-train"
+      },
+      "target": [
+        "corporate_record",
+        "charter_amendment"
+      ]
+    },
+    {
+      "filename": "0001010412-06-000215_ex3-1.txt",
+      "id": "DOC-d2969f9629acc901",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "reviewer": {
+        "doc_subclass": "charter_amendment",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-calibration-luna-decisions-v2"
+      },
+      "target": [
+        "corporate_record",
+        "charter_amendment"
+      ]
+    },
+    {
+      "filename": "0001144204-08-022035_v110604_ex3-1.htm",
+      "id": "DOC-db84eb3d59faee66",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "reviewer": {
+        "doc_subclass": "charter_amendment",
+        "doc_type": "corporate_record",
+        "p": 0.99,
+        "run": "reviewer-verify-sorter-handoff-train"
+      },
+      "target": [
+        "corporate_record",
+        "charter_amendment"
+      ]
+    },
+    {
+      "filename": "0001062993-15-000198_s1011515_ex3z2.htm",
+      "id": "DOC-e00ef4799dbd6b37",
+      "label": [
+        "corporate_record",
+        "powers_of_attorney"
+      ],
+      "reviewer": {
+        "doc_subclass": "bylaws",
+        "doc_type": "corporate_record",
+        "p": 1.0,
+        "run": "reviewer-calibration-luna-decisions-v2"
+      },
+      "target": [
+        "corporate_record",
+        "bylaws"
+      ]
+    }
+  ],
+  "disputes": [],
+  "documents": 2979,
+  "file": "train.targets.jsonl",
+  "rules": "scripts/patch_sorter_handoff.py docstring",
+  "sha256": "1221d23f2680c01e58865d6e36860c450218838d16d3a18cd32a921ccf86fc9a",
+  "sorter_class_correct": 2852,
+  "sorter_class_errors_by_pattern": {
+    "contract -> correspondence": 1,
+    "corporate_record -> contract": 88,
+    "correspondence -> contract": 3,
+    "correspondence -> unknown": 30
+  },
+  "sorter_class_errors_label_confirmed": 121,
+  "sorter_class_scored": 2974,
+  "sorter_subclass_correct": 2122,
+  "sorter_subclass_scored": 2925,
+  "target_status": {
+    "ambiguous": 5,
+    "corrected": 28,
+    "label": 2359,
+    "label_normalized": 538,
+    "unannotated": 49
+  }
+}

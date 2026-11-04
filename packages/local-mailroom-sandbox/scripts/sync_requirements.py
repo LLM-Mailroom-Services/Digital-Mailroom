@@ -34,11 +34,12 @@ EXPORTS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("deploy.txt", ("deploy",)),
     ("observability.txt", ("observability",)),
     ("hf.txt", ("hf",)),
+    ("decision.txt", ("decision",)),
     ("notebooks.txt", ("notebooks",)),
     # Modal job worker image (deploy/modal_job.py::uv_pip_install) — no Modal
     # SDK / pytest / jupyter on the worker.
     ("modal-job.txt", ("pipeline", "hf", "observability")),
-    ("all.txt", ("dev", "deploy", "hf", "observability", "notebooks", "pipeline")),
+    ("all.txt", ("dev", "deploy", "hf", "observability", "notebooks", "pipeline", "decision")),
 )
 
 

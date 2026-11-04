@@ -24,6 +24,7 @@ engine:
   model: Qwen/Qwen3-8B
   vllm:
     max_model_len: 16384      # DMR-056: boot-valid cap for L4-bf16 8B rows
+    max_inputs: 4              # match job.concurrency (preflight refuses 0)
     gpu_memory_utilization: 0.90
     max_num_seqs: 6              # L4 long-prompt: 4–6 (cliff at ~8 × ~8k)
     enable_prefix_caching: true
@@ -45,6 +46,8 @@ job:
   max_retries: 2
   fail_fast: false
   concurrency: 4              # fill the endpoint's continuous batching
+  cost_cap_usd: 1.00          # paid runs refuse to start without a finite cap
+  max_wall_seconds: 1800
 
 trace:
   sink: none

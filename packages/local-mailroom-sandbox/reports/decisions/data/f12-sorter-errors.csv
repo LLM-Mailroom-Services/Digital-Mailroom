@@ -1,0 +1,5 @@
+pattern,errors,share (%)
+corporate record -> contract (indentures),49,39
+corporate record -> contract (rights instruments),40,31
+"correspondence -> unknown (bare URLs, stubs)",30,24
+all other patterns,8,6

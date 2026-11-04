@@ -1,0 +1,118 @@
+# Extraction quality gate, question set 1.2.0 (Decisions API, openai/gpt-6-luna-decisions).
+# 1.2.0 revises 1.1.0 from its pooled calibration (910 documents, reports/extraction-gate/
+# extraction-gate-luna-v1.1.0-pooled.calibration.json) and the field-level failure analysis:
+#   * The verdict judged every value, free text included, and sent 72% of extractions back
+#     (659 retry_extraction / 910). Summaries, keywords, checklists, supporting documents and
+#     confidence are labelled from mailbox/template metadata the text does not carry (dojo truth
+#     rate 0-6% for every class), so no extraction can satisfy them. 1.2.0 judges KEY FIELDS ONLY
+#     and says so per class (verdict.class_scope).
+#   * subject_matter / keywords questions are dropped for correspondence and corporate_record
+#     (truth rate 1% and 1-6%: unattainable from the text); merger maud_clauses is dropped
+#     (0 of 30 reach the 0.8 MAUD accuracy, so the question carries no signal).
+#   * Field questions name the dataset's own conventions, the ones the specialists got wrong:
+#     insurance date_filed (truth rate 50%, never asked in 1.1.0), claimed_amount and insurer per
+#     template, FNOL coverage = pending; the full intent label sets with their definitions
+#     (correspondence 55%, corporate 69%: corporate intent is fixed by the record kind);
+#     contract parties as the preamble names them (34%) and effective_date (66%).
+#   * Calibration target: scripts/extraction_gate.py calibrate --target keyfields (all asked,
+#     labelled key fields right) next to the dojo score; on 1.1.0 the verdict already reaches
+#     AUROC 0.84 on insurance against that target (0.41 against the dojo score).
+# Inputs are the whole document (max_input_chars as 1.1.0). Ground truth as 1.1.0: real
+# qwen/qwen3.7-flash extractions of mailroom-dataset ground_truth rows, never mock output.
+kind: extraction_gate
+version: 1.2.0
+handoff: extraction
+max_input_chars: 1000000
+verdict:
+  instructions: >-
+    The state holds a document and a structured extraction another model produced from it
+    (extraction_handoff.fields). Judge only the KEY FIELDS named below against the document; may
+    the extraction be passed on as it is? Ignore summaries, keywords, checklists, supporting
+    document lists, confidence and any other field not named: their wording never decides the
+    verdict. A key field the document does not state is right when it is empty.
+  criteria:
+    accept: >-
+      Every key field is supported by the document (or empty because the document does not state
+      it). Formatting differences (date format, currency symbols, letter case, name order) are fine.
+    retry_extraction: >-
+      At least one key field is wrong, invented, attributed to the wrong party, uses a label the
+      field does not allow, or is empty although the document clearly states it.
+    human_review: >-
+      The key fields cannot be checked: the document is unreadable or cut off, it is not the
+      document class the extraction assumes, or the document is too ambiguous to judge them.
+  class_scope:
+    insurance_claim: "Key fields: claim_number, policy_number, insured_party, insurer, date_of_loss, date_filed, claimed_amount, claim_type, coverage_determination."
+    corporate_record: "Key fields: record_type, entity_name, jurisdiction, effective_date, filing_number, signatories, intent."
+    correspondence: "Key fields: intent, communication_type, sender, recipient, communication_date."
+    contract: "Key fields: document_name, parties, effective_date, governing_law, term_length, renewal_terms, cuad_clauses."
+    merger_agreement: "Key fields: document_name, parties, effective_date, effective_time, governing_law, merger_consideration."
+human_verdicts: [human_review]
+field_instructions: >-
+  Look only at the field "{field}" of extraction_handoff.fields. What it must hold: {meaning}
+  Is it right for this document? Yes when its value follows that rule and is supported by the
+  document, or the document does not state it and the field is empty. No when it is wrong,
+  invented, breaks the rule, or is empty although the document states it.
+fields:
+  insurance_claim:
+    claim_number: the claim reference as printed (Claim Reference, Notice ID or Fill Reference).
+    policy_number: the policy number as printed; empty when it is withheld or not provided.
+    insured_party: the insured person or Medicare beneficiary as printed.
+    insurer: >-
+      Medicare notices and Part D statements -> "CMS Medicare"; automobile letters and claim record
+      extracts -> the named insurance company; first notice of loss (property) -> the full Product
+      line as printed (e.g. "<Country> Property Building Insurance").
+    date_of_loss: the Date of loss, or the Admission date / Service start date / Date of service.
+    date_filed: >-
+      automobile letters -> Date filed; claim record extracts and first notices of loss -> Date of
+      report; Medicare notices -> the Discharge date / Service end date; Part D -> the Date of
+      service (fill date). Not a letter or print date.
+    claimed_amount: >-
+      one number: Medicare -> "Claim total paid by Medicare", Part D -> "Total drug cost" (never an
+      allowed, coinsurance, deductible or line amount); automobile -> Claimed amount (never the
+      repair estimate); claim record extract -> Claim amount; first notice of loss -> Estimated
+      Damage (never a contractor quote or invoice total).
+    claim_type: the line of business (health, auto, property; Medicare CMS claim types such as pde, inpatient, outpatient, carrier count as health).
+    coverage_determination: >-
+      one of approved, denied, partial, pending as the document states the outcome; a first notice
+      of loss with no decision stated is pending.
+  corporate_record:
+    record_type: the record the document's own title names (bylaws, articles_of_incorporation, powers_of_attorney, rights_instrument, other, ...).
+    entity_name: the company the record is for.
+    jurisdiction: the state or country of incorporation or filing; empty when not stated.
+    effective_date: the date the record is adopted, filed or takes effect.
+    filing_number: a filing, file or registration number the document states; empty otherwise.
+    signatories: the people who sign or certify the record, by name.
+    intent: >-
+      exactly one label, fixed by the kind of record: bylaws or officer's/secretary's certificate ->
+      governance_rules; articles/certificate of incorporation or a charter amendment ->
+      entity_formation; board or shareholder resolution or minutes -> corporate_action_approval;
+      power of attorney -> authority_delegation; indenture, rights plan, warrant or stock
+      certificate -> investor_rights; subsidiary list or anything else -> other.
+  correspondence:
+    intent: >-
+      exactly one label for the message's main purpose: payment_demand (demands payment or cure),
+      notice (announces a fact, change, schedule, outage, policy or event to its readers, incl.
+      automated messages), request (asks the reader to do, send, approve or answer something),
+      update (one person's status report without asking for action), analysis (discusses or
+      evaluates an issue), meeting_invite (proposes or schedules a meeting or call),
+      press_communication (a press release, news item or newsletter, also when forwarded), other
+      (personal or social chatter, or none of these).
+    communication_type: the form of the message (email, letter, memo, notice, demand, attorney_demand, press_release, meeting_request).
+    sender: who sent the message.
+    recipient: who the message is addressed to.
+    communication_date: the date the message was sent.
+  contract:
+    document_name: the agreement's title as the document gives it.
+    parties: every contracting party exactly as the preamble or signature blocks name them, with no extra or invented party.
+    effective_date: the date the agreement takes effect as stated (the dated-as-of date when no separate effective date is given); empty when undated.
+    governing_law: the jurisdiction whose law governs the agreement.
+    term_length: the agreement's term or expiration as stated.
+    renewal_terms: how and for how long the agreement renews; empty when it does not renew.
+    cuad_clauses: "the CUAD clause categories the agreement contains, as '<Category>: <evidence>' (e.g. Exclusivity, Non-Compete, Cap On Liability); right only when the listed categories are present and no clearly present category is missing."
+  merger_agreement:
+    document_name: the agreement's title (e.g. Agreement and Plan of Merger).
+    parties: Parent, Merger Sub and Target as the document names them, with no invented roles.
+    effective_date: the Effective Date when a calendar date is stated (empty when only an Effective Time is defined).
+    effective_time: the Effective Time as written.
+    governing_law: the governing-law jurisdiction.
+    merger_consideration: "what each share of the target's common stock converts into, from the conversion section: all_cash, all_stock, mixed_cash_stock, mixed_cash_stock_election (holders elect cash or stock), other."

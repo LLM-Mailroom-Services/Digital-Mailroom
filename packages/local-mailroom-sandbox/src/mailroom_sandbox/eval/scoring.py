@@ -154,6 +154,8 @@ def score_extraction_row(
     predicted = predicted or {}
     expected = expected or {}
     raw_expected = expected  # MAUD/CUAD label maps may be scoped out below
+    # Scoping drops meta keys; the adherence check still needs the parse facts.
+    parse_facts = {k: predicted[k] for k in ("_parse_error", "_raw") if k in predicted}
     predicted, expected = scope_extraction_pair(doc_type, predicted, expected)
     sub_kwargs = {"doc_subclass": sub} if sub else {}
     detailed = bool(sub or doc_type == "corporate_record")
@@ -246,7 +248,7 @@ def score_extraction_row(
         # The dojo's per-row presence contract, verbatim: the unlabeled
         # key-entity fields this row scored (or none).
         payload["unlabeled_fields"] = result["unlabeled_fields"]
-    payload.update(assess_extraction_payload(predicted, doc_type, doc_subclass=sub))
+    payload.update(assess_extraction_payload({**predicted, **parse_facts}, doc_type, doc_subclass=sub))
     if doc_type == "merger_agreement" and raw_expected.get("maud_clause_labels"):
         # SAND-032: merger GT is MAUD question→answer labels only; the suite's
         # field map never meets it (F1 0 by construction). Headline = MAUD accuracy.
@@ -264,14 +266,6 @@ def score_extraction_row(
         payload["overall_extraction_score"] = cuad["cuad_presence_f1"]
         payload["scoring_method"] = f"{scoring_method}+cuad"
     return payload
-
-
-def score_legalbench(expected: list[str], predicted: list[str]) -> dict[str, Any]:
-    result = score_task("legalbench", expected, predicted)
-    if not isinstance(result, dict):
-        result = {"result": result}
-    result.setdefault("exact_match", accuracy(expected, predicted))
-    return result
 
 
 def score_stage(expected: list[str], predicted: list[str]) -> dict[str, Any]:

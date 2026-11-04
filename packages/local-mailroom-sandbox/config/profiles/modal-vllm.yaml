@@ -1,9 +1,16 @@
 # yaml-language-server: $schema=./profile.schema.json
 name: modal-vllm
-description: Modal-deployed vLLM (same OpenAI /v1 surface as vllm-local).
+description: >-
+  Modal-deployed vLLM — the sandbox default serving path (no local GPU, no
+  Ollama daemon). Needs VLLM_BASE_URL/VLLM_API_KEY from a deployed
+  deploy/modal_vllm.py app; `sandbox runbook show serve` is the full runbook.
 provider: vllm
-default_model: Qwen/Qwen3-8B
-judge_model: Qwen/Qwen3-8B
+default_model: Qwen/Qwen3.5-9B
+judge_model: Qwen/Qwen3.5-9B
+# Parity value for `endpoints_for()` and `sandbox profiles` only: health and
+# activation never use it for this profile. The real endpoint is VLLM_BASE_URL
+# (https://<workspace>--sandbox-vllm-serve.modal.run/v1 after `modal deploy`) or
+# the URL derived from MODAL_WORKSPACE; an unset URL stays unset.
 base_url: http://localhost:8000/v1
 base_url_env: VLLM_BASE_URL
 api_key_env: VLLM_API_KEY

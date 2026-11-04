@@ -5,7 +5,383 @@ Format based on Keep a Changelog; versioning is SemVer.
 
 ## [Unreleased]
 
+## [0.27.2] - 2026-11-04
 ### Fixed
+
+Review findings on the 0.27.1 sandbox snapshot (local-mailroom-sandbox#245):
+
+- `score_document` no longer raises on deeply nested prediction text. The JSON
+  parsing behind `coerce_predicted_payload` catches `RecursionError` the way its
+  `ast.literal_eval` fallback already did, and the text is reported as unparseable.
+- Brace-heavy prediction text parses in linear time. The greedy `\{.*\}` span is
+  found with `find`/`rfind` instead of a regex that rescanned from every `{`, the
+  per-brace fallback only tries positions that can open a JSON object (`{"` or `{}`),
+  and it stops at the first `RecursionError`. `"{" * 200000` took about 16 s; it now
+  takes about 10 ms. An object too deeply nested to decode is skipped in one pass to its
+  closing brace, so a later sibling object in the same text is still found.
+- `coerce_predicted_payload` accepts any `Mapping` (`MappingProxyType`, `UserDict`),
+  as `score_document` already did. Such a prediction is no longer reported as
+  `parse_error: True` / `schema_adherence: 0.0` while its fields score normally.
+- A Python-repr object wrapped in prose sets `prose_wrapper`, like a wrapped JSON object.
+- `rescore` reports `headline_score` as the extraction `score` when the type has a
+  headline (CUAD contract and MAUD merger rows), matching 0.27.1's rule that those
+  rows are judged by the headline. It reported `overall_score`, or null when that was
+  unset, for all 7 such goldens. Re-running an already-current output reports the same
+  headline instead of showing a score move.
+- `scripts/release.py cut` moves the README release badge's `[Release vX]` alt text with
+  the badge and link, and `check` counts it as a pin. It had stayed at v0.27.0.
+
+### Comparability
+
+- `rescore` output: the top-level `score` of contract and merger rows with a non-null
+  `headline_score` is now the headline, so a rescore diff against a pre-0.27.2 rescore
+  shows a change for those rows. The stored `payload` is unchanged.
+- Adherence keys change only for non-dict `Mapping` predictions (now adherent like the
+  equivalent dict) and Python-repr objects wrapped in prose (`prose_wrapper` now true).
+  No field-map, tier 0 or headline score changes.
+
+## [0.27.1] - 2026-11-03
+### Fixed
+
+- `score_document` and `score_archive_block` no longer raise on a bad field value inside a
+  dict prediction or ground truth (CUAD `cuad_clauses: True` or `5`, a NaN or `True`
+  CUAD label span, a list or `{}` correspondence `content_topic` / `sentiment_label`).
+  Type extras and the headline are guarded like the tier 0 suite: a failure logs a
+  warning, keeps the tier 0 score and appends `+extras-failed` to `scoring_method`. The
+  new block keys are computed behind a guard too, so a failure leaves them null and never
+  touches the keys that existed before 0.27.0.
+- `score_archive_block` derives the CMS `cms_source_table` from `doc_subclass` when
+  `expected_subclass` is `None`, through `InsuranceClaimScorer.derived_fields`. The
+  field-map score now agrees with the tiered keys and with `score_document`.
+- `entity_list_f1` is null on a block that is not countable, and `unlabeled_fields` is
+  null when the ground truth is missing (`reason: gt_missing`).
+- `status` stays unchanged for MAUD and CUAD rows. Documented: rows with a non-null
+  `headline_score` are judged by the headline, so readers that filter on
+  `status == 'scored'` must also keep rows whose `headline_score` is not null.
+
+### Comparability
+
+- `score_archive_block` field-map scores change only for CMS insurance rows called with
+  `doc_subclass` and no `expected_subclass` (the CMS table is now scored, as it already
+  was with `expected_subclass`). Every other call returns the same field-map keys as 0.27.0.
+  `entity_list_f1` and `unlabeled_fields` can turn null on rows the block already marks
+  unscorable.
+
+## [0.27.0] - 2026-11-03
+### Fixed
+
+- `uv.lock` recorded `llm-dojo-scoring` 0.25.0 after the 0.26.0 cut; relocked so it
+  records 0.26.0.
+
+### Added
+
+- Tiered per-document-type scoring (llm-mailroom unified audit row, spec §3 and §3.1):
+  - `score_document(...)`: one entry point that returns the sandbox's
+    `score_extraction_row` payload (every field score proved equal on 89 recorded sandbox
+    goldens), plus a `scorer` record. Bad predictions (`None`, JSON text, prose, lists)
+    are coerced or field-scored as empty instead of raising. Three deliberate departures
+    from the sandbox, none of which changes a field score:
+    - a `None` prediction is a parse error (`parse_failure_reason: null_payload`,
+      `schema_adherence` 0.0); the sandbox called it adherent;
+    - adherence is checked on the prediction as given, so keys outside the class schema
+      appear in `extra_schema_keys`; the sandbox checked the scoped prediction;
+    - correspondence topic/sentiment (`content_topic_accuracy`, `sentiment_accuracy`, ...)
+      and insurance `determination_consistency` / `amount_exactness` are reported. The
+      suites computed them, but the sandbox payload dropped them. They never feed
+      `overall_extraction_score`.
+  - `scoring/doc_scorers/`: tier 0 `score_common` (Hub scoping, class suite, PRF keys,
+    `unlabeled_fields`), one module per corpus type (`contract` with the CUAD headline,
+    `merger_agreement` with the MAUD headline, `corporate_record` always detailed,
+    `correspondence`, `insurance_claim` deriving `cms_source_table`), the `generic`
+    fallback, and `get_doc_scorer`.
+  - `scoring/extraction_scope.py` and `assess_extraction_payload(..., schema_lookup=)`,
+    moved from the sandbox.
+  - `score_archive_block(..., doc_subclass=)` and five new block keys:
+    `headline_score`, `headline_metric`, `unlabeled_fields`, `entity_list_f1`, `scorer`
+    (`ARCHIVE_SCORING_V027_KEYS`; not required on older rows). Existing keys are unchanged.
+    A non-mapping prediction (JSON text, prose, a list) is coerced or scored as empty;
+    before 0.27.0 it raised.
+  - Review fixes: a JSON object after braced prose is recovered (the greedy match no
+    longer hides it); `score_document` canonicalises the doc type (case, padding,
+    specialist aliases) before scoring; an empty serialized CUAD/MAUD label map (`"{}"`)
+    no longer replaces the field score with null; with a caller's `field_types`,
+    `score_archive_block`'s `entity_list_f1` describes that map.
+  - `tests/fixtures/contract_surface.json` pins these names and signatures for llm-mailroom
+    and the sandbox until they adopt them and `consumer_surface.json` is rescanned.
+- `scripts/release.py check` now fails when `uv.lock` records a different
+  `llm-dojo-scoring` version than `pyproject.toml`, and `publish` refuses a commit
+  whose `uv.lock` is stale. CI installs with `uv sync --frozen`, which never
+  flags this. `cut` now lists `uv lock` as a next step.
+- `docs/guides/PUBLIC_API.md`: the surface other repositories rely on (37 root names,
+  35 modules, the `embed_texts` patch target, the archive-scoring contract), built from
+  the consumer scan. `tests/test_public_api_doc.py` fails when a consumed name is missing.
+- `docs/guides/MIGRATION.md`: a table of every pre-0.26 flat import path and its
+  subpackage path, checked against `_layout.LEGACY_MODULES`.
+
+### Changed
+
+- `import llm_dojo_scoring` no longer imports `matplotlib.pyplot`; `analysis.visualize`
+  loads it the first time a plot is drawn (warm import 0.73s → 0.43s).
+  `visualize.plt` still resolves. No scores change.
+- `tests/test_release_tools.py`: the release-notes test skips, instead of failing, in a
+  shallow clone without the release tags.
+
+## [0.26.0] - 2026-11-02
+
+### Added (five-class extraction schema registry)
+
+- `schemas.extraction_schemas`: a document-type schema and a schema per subtype
+  for all five mailroom classes (61 schemas). Field statuses (`scored`,
+  `partial`, `derived`, `documented_absent`, `label_task`,
+  `pending_annotation`, `not_applicable`) are frozen from mailroom-dataset
+  `ground_truth` v9.2.1 (branch `corporate-labels-v9.2.1` @ `0a2f8292`: v9.2
+  plus the corporate relabel, so corporate `entity_name` is labelled;
+  `schemas/data/extraction_status.json`, rebuilt by
+  `scripts/build_extraction_status.py`). Subtype schemas carry their own fields
+  and guidance:
+  - CMS `cms_source_table` and identifier-aware `supporting_documents`;
+  - corporate subclass entities;
+  - CUAD salient categories;
+  - MAUD priority questions.
+
+  Exported from the package root: `extraction_schema`, `extraction_subtypes`,
+  `iter_extraction_schemas`, `schema_coverage`, `ExtractionSchema` and
+  `FieldSchema`.
+- `score_document` / `score(..., detailed=True)` payloads gain an additive
+  `schema` coverage block naming the doc-type or subtype schema. Goldens gained
+  only that block; no score moved.
+
+### Fixed (bug sweep and second #104 review round)
+
+- Reviewer scorecard `acceptance`: an accepted row that has ground truth but no
+  usable reviewer answer (reviewer error, no label, no text) was counted as
+  `n_accepted_without_truth`. It is now `n_accepted_unanswered` (new, additive),
+  and `n_accepted_without_truth` counts only accepts with no GT label. The
+  wrong-accept rate and bound are unchanged.
+- `schema_coverage` (third #104 review round): CUAD / MAUD-derived fields are
+  scorable only when the row carries live clause labels, and a
+  `pending_annotation` / `not_applicable` presence status overrides a stale
+  value. Golden contract and merger rows, which carry no labels, now list those
+  fields as unlabelled. A value supplied directly for a CUAD-derived field
+  also counts, and a documented absence counts only on CMS rows, matching
+  field scoring.
+- `rescore`: stored `NaN` / `Infinity` never become a headline, a scorecard
+  move or a non-standard JSON literal in the rescored JSONL or in
+  `rescore_records` results (they become `null`). `rescore_file` with a
+  dataset join re-scores current-release records against the joined GT
+  (`force_rescore`).
+- Grid: the cost table escapes session names. Scope footnotes: rows sharing a specialist and label but with different
+  unscored fields keep separate notes.
+- CMS rows (#93 follow-ups): a GT row naming a product line other than
+  `health` is never CMS; a stated `adjuster` / `denial_reasons` on a CMS row
+  whose GT omits the key scores 0 (silence there is not scored); hyphenated
+  10-digit NDCs pad per segment to 5-4-2; a scalar subclass is no longer
+  broadcast across a batch for CMS derivation, and NumPy / pandas subclass
+  arrays are read per row; CMS archive blocks carry
+  `method = ARCHIVE_SCORING_METHOD_CMS` (same `metric_id`).
+- `is_empty_value` treats `"nan"` and float NaN as empty (pandas exports).
+- Grid report escapes `|`, `*`, backticks and newlines in free text.
+- Scored-enum JSON-schema fragments carry an explicit `type`.
+- Rescore: raw-input tasks resolve through `TASK_KINDS` (`wer`, `cer`,
+  `maud_clause`), stored JSON-array batches are decoded, `word_accuracy` /
+  `maud_question_accuracy` are headlines, and `doc_subclass` is read for CMS rows.
+- Reviewer lane: a non-finite `cost_usd` falls back to a finite `cost`;
+  `risk_cutoff` and curve cutoffs are exact (unrounded).
+- `audit_consumer_surface`: star imports bind dispatch functions.
+  `freeze_goldens --write` stages each write in a unique temp file.
+
+### Comparability
+
+- Golden scores are unchanged. CMS rows can move only where GT omits a
+  documented-absent key and the model states a value (now 0 on that field), or
+  where a labelled hyphenated NDC is in 5-3-2 / 5-4-1 form (now matches).
+
+### Added
+
+- `scripts/release.py`: agent-facing release governor (`status`, `check`, `cut`,
+  `notes`, `assets`, `publish`, `edit`) with dry-run-by-default, `--json` plans,
+  annotated tag + GitHub Release publish, and wheel / `SHA256SUMS` /
+  `release-manifest.json` assets (#92 Option B). Guide: `docs/guides/RELEASES.md`.
+  Template: `.github/RELEASE_TEMPLATE.md`.
+
+- `scripts/t3-setup.sh`: T3 Code worktree setup script (uv-first, venv
+  fallback) plus registered project scripts (Setup/Tests/Release status) so
+  agent worktrees boot importable and smoke-tested.
+
+- `scoring.reviewer`: `ReviewRecord` and `score_review_lane`, the reviewer-lane
+  scorecard. It reports class/subclass accuracy, wrong auto-accepts with an exact
+  one-sided Clopper-Pearson bound, required sample size, ECE/Brier/reliability,
+  human-review rate and causes, accept-rule violations, model-verdict confusion,
+  reviewer cost, and per-predicted-class operating points. Existing
+  `get_suite("sorter_reviewer").score` behavior is unchanged. Contract:
+  `docs/contracts/REVIEWER_SCORING.md`.
+
+- `analysis.calibration`: exact risk bounds and sample size
+  (`clopper_pearson_upper`, `required_samples`), ECE/Brier/reliability bins,
+  AUROC, Spearman, precision-constrained cutoffs, and five-fold cross-fit.
+  The 1% reviewer bar at 95% confidence needs 299 clean accepts (473 with one
+  error); the old 95%-accuracy target was a 5% error target.
+
+- `scoring.rescore` and `dojo-rescore`: re-score stored predictions under the
+  current scorer, emit fresh provenance, and report old-to-new score moves.
+  Serving records are refused because timings are not reproducible. A record
+  without both ground truth and a prediction is skipped and named.
+
+- `schemas.scored_enums` (#96): `scored_vocabulary`, `scored_enum_schema(s)`,
+  `scored_enum_hint`, and `enum_hint_violations` generate consumer grammar hints
+  for every scored enum (`intent` per class, insurance `claim_type` and
+  `cms_source_table`) from the scored vocabulary, so a consumer can no longer
+  teach labels the scorer marks wrong. Exported from the package root.
+
+- `metrics.scorecard_honesty.headline_scope` (#95): says which live fields a
+  class headline covers (`maud_only` / `mixed` / `partial` / `full` /
+  `unknown`), classified per document so MAUD-only documents beside full-field
+  ones read as `mixed`, never `full`. `aggregate_quality_honest(..., doc_class=)`
+  and `specialist_grid_rows` carry `headline_scope`, `headline_label`,
+  `scored_fields`, `unscored_fields`; the grid keys appear only on rows with
+  field data, so rows without it are unchanged. The report marks MAUD-only and
+  mixed scores (`†`), partial scores (`‡`) and unknown scores (`?`) with
+  per-experiment footnotes. A field counts as scored only for a real-number
+  score. Additive: existing keys and the default aggregate shape are unchanged.
+
+- Correspondence GT audit (#94): `schemas.correspondence_gt_audit` and
+  `scripts/audit_correspondence_gt.py` flag templated `subject_matter` and
+  metadata-derived `keywords` GT, and report the scored population per live
+  field. `metrics.scorecard_honesty.intent_split` (also `intent_split` on
+  `aggregate_quality_honest(..., doc_class=)`) reports `intent` apart from the
+  other fields. No scores change; the Hub audit and relabel are still to run.
+
+- `metrics.score_changelog`: machine ledger of releases that moved a score,
+  used by `compare_serving` to explain a release mismatch.
+
+- `scripts/freeze_goldens.py` and `tests/test_golden_scores.py`: a committed
+  golden baseline for every `TASK_KINDS` key and every live suite (#67).
+
+- `scripts/audit_consumer_surface.py`, `tests/fixtures/consumer_surface.json`,
+  and contract tests pinning every consumer import, dispatch literal, and
+  Langfuse score name (#84).
+
+### Fixed
+
+- Reviewer/rescore review fixes (PR #103): `clopper_pearson_upper` uses the Beta
+  quantile and no longer overflows on large error counts; `required_samples`
+  validates `confidence` and returns `None` past its search cap;
+  `cross_fit_cutoffs` applies its `confidence`. An unrouted reviewer row is
+  inferred as an auto-accept only when it passes the full accept rule (cutoff,
+  confidence, eligibility); a missing predicted subclass counts as a subclass
+  miss; measured zero cost/tokens are kept; `score_review_lane([])` has the
+  same keys as a non-empty card. `rescore_records` skips rows a scorer rejects
+  with `ValueError`; the dataset join keeps item truth when the dataset row has
+  none; `diff_scorecards` matches by `doc_id`/`id`/`item_id`. Strict
+  `compare_serving` refuses a partially stamped leg, and an unparseable
+  `scorer_version` is flagged `scorer_version_unverified`.
+  `audit_consumer_surface.py` reads git checkouts at HEAD, prunes skipped
+  trees, records submodule aliases, and exits 2 (no write, no false drift) when
+  pinned checkouts are unavailable.
+  `emit_serving_scorecard` keeps each leg's recorded `scorer_version` on the
+  emitted records instead of re-stamping it as the installed release; the
+  golden freezer's idempotence-failure message now says the previous baseline
+  is restored.
+- CUAD `parties` truth: defined-term annotations (`NMS CORP. ("Seller")`) are
+  stripped before containment against the `Parties` spans (`party_core`). Found by
+  the sandbox's extraction-gate vetting: 34% of correct party lists scored right.
+- CUAD `effective_date` truth: when CUAD labels no `Effective Date`, a value equal to
+  the `Agreement Date` is right and is no longer a presence false positive
+  (`effective_from_agreement`, new `cuad_effective_from_agreement` count).
+- `tests/test_docstring_coverage.py` passes again: docstrings for the release
+  governor and its tests. `test_cli_publish_dry_run_json` reads the error payload
+  from stderr and skips when the GitHub CLI cannot reach the API.
+
+### Added
+
+- `sandbox_scoring.field_value_ok(field, value, cuad_clause_labels)`: per-field
+  contract truth for consumers, so they no longer rebuild it from `_value_ok`.
+- `corpus.CMS_SOURCE_TABLES` and `cms_source_table()`: one explicit CMS mapping from
+  source table to `claim_type`, subclass and intent (#93, first part).
+  `score_extraction` scores `cms_source_table` as its own label field, orthogonal to
+  `claim_type`, when the expected row carries it.
+
+### Changed
+
+- **Insurance CMS mapping (#93) — insurance_claim scores move on CMS rows;
+  re-score pre-change cards.** `claim_type` and the CMS source table are scored
+  separately: the SAND-042 fold (a table token on `claim_type` credited as
+  `health`) is retired, and on CMS rows `claim_type` is an exact label.
+  `cms_source_table` is derived from `expected_subclass` for the 600 CMS rows
+  (the published GT never carries it). CMS rows also score `adjuster` /
+  `denial_reasons` as documented-absent (a stated value scores 0) and
+  `supporting_documents` by identifier (NPI / NDC / facility provider id). Non-CMS
+  rows are unchanged. `corpus.INSURANCE_PRODUCT_LINES` is the new `claim_type`
+  vocabulary (the scored-enum hint drops the table tokens);
+  `INSURANCE_CLAIM_TYPES` keeps its old contents as the insurance subclass keys,
+  and `canonical_claim_type` stays importable but is no longer used by the scorer.
+  Validated on all 1,100 Hub insurance rows. A table token on `claim_type`
+  scores 0 on every path, even when the row is not detected as CMS. CMS-row
+  rules apply only when GT is scored, not when the auditor compares model
+  outputs. A null prediction earns no documented-absent credit. **Consumers
+  must pass `expected_subclass` when scoring insurance rows** so that CMS rows
+  get `cms_source_table` (coordinated bump: Exios66/llm-mailroom#142 and the
+  sandbox `vendor/` snapshot).
+
+- **Package layout**: the 63 flat modules are nested into `schemas/`, `scoring/`, `pipeline/`, `metrics/`,
+  `analysis/` and `integrations/`. Only `config`, `cli` and `prompts/` remain at the root (see
+  `llm_dojo_scoring/README.md`).
+  - Every legacy flat path still imports the **same module object**, including `from`-imports and
+    `mock.patch` strings (`_layout.LEGACY_MODULES`, `tests/test_package_layout.py`).
+  - Module `__name__` is now the subpackage path. Code that matches Dojo frames by name needs a one-line
+    update; llm-mailroom's delegation tests are the known case (`docs/guides/MIGRATION.md` §0).
+- **Comparability guard**: `compare_serving` now reads each leg's recorded
+  `scorer_version` and reports `scorer_version_mismatch` (incomparable),
+  `scorer_version_missing`, `scorer_version_mixed`, or
+  `scorer_version_unverified`. `pair_comparable_runs` includes the release in
+  its key. A mismatch also carries the `score_changes` ledger entries between
+  the releases. Guide: `docs/guides/COMPARABILITY.md`.
+
+- **Docs** are grouped into `docs/guides`, `docs/schemas`, `docs/contracts` and `docs/history`, with a new
+  index at `docs/README.md`. Stale pages are refreshed:
+  - the package README (it described modules that do not exist) and the examples README;
+  - the README module map and the pipeline pin note;
+  - the migration install pin;
+  - the sandbox scoring "draft" note.
+
+  Proposal and status pages are marked as historical records.
+
+### Comparability
+
+- Contract `cuad_value_correct` and CUAD presence counts can rise on affected rows.
+  Re-score older runs before comparing (#97). Insurance scores change only for rows
+  whose expectation includes `cms_source_table`. The published merge has none yet.
+- Reviewer metrics are new in this release, so no earlier card has a comparable
+  reviewer number. The sandbox's v3 `meets_target` used a 95%-accuracy target, not
+  the spec's 1% wrong-accept bound; at 95% confidence, 0/149 supports 1.99% and
+  0/135 supports 2.19%. Corporate (`1/405`, 1.17%) and merger (`0/135`, 2.19%) do
+  not meet the 1% bar on the current v3 sample.
+
+## [0.25.0] - 2026-11-01
+
+### Added
+
+- `llm_dojo_scoring.sorter_guide`: the sorter-facing subclass catalog. It gives the
+  keys a sorter may emit (`sorter_subclass_keys`), the corpus meaning of each key
+  (`SORTER_SUBCLASS_GUIDE`), the correspondence marker precedence
+  (`CORRESPONDENCE_SUBCLASS_PRECEDENCE`) and the rendered block
+  (`format_sorter_subclass_guide`). The bare key list caused systematic subclass
+  errors on the 2,979-document train split: 116 CMS carrier tables were labelled
+  outpatient, 48 Certificates of Designation rights_instrument, 35 charter amendments
+  certificate_of_formation or articles_of_incorporation, and 364 correspondence forms
+  ignored the precedence. `certificate_of_formation` stays a scoring key, but a sorter
+  no longer emits it.
+
+- `arbitrate-classification`, llm-mailroom's classification arbiter node between a
+  parked decision review and a person, is now in `NODE_OBSERVATION_TYPES` (agent) and in
+  the archive node-to-agent map (classification_review).
+
+### Fixed
+
+- Merger subclass `other` is unannotated (it has no MAUD Type of Consideration), so it
+  is no longer scored as a label. The `docclass` and hierarchical subclass scores skip
+  those rows and report them as `n_subclass_unannotated`; the class is still scored.
+  `subclass_scorable` and `UNANNOTATED_SUBCLASSES` expose the rule.
 
 - DMR-113: treat an explicit `total_tokens: 0` request as observed zero usage,
   so it neither blocks an otherwise complete run estimate nor makes a fully
@@ -146,7 +522,7 @@ Format based on Keep a Changelog; versioning is SemVer.
 
 ### Removed
 
-- The superseded research issue inventory; GitHub and `docs/TODOS.md` remain
+- The superseded research issue inventory; GitHub and `docs/history/TODOS.md` remain
   the live follow-up sources. Retained research is marked as historical.
 - The one-off MCP push-queue helper and encoded Digital-Mailroom feeder-resync
   bundle. Its target commit `357ac5be` is already an ancestor of
@@ -160,7 +536,7 @@ Format based on Keep a Changelog; versioning is SemVer.
   `UnknownMetricNameError` (a `KeyError`) instead of fabricating
   `pipeline.<class>.<name>` / `maud.<name>`; a made-up id never matched
   the other leg, so it hid incomparable pairs. `tests/test_metric_id_strict.py`
-  keeps `docs/METRIC_IDS.md` and `_METRIC_ID_BY_NAME` / `_CLASS_METRIC_IDS`
+  keeps `docs/contracts/METRIC_IDS.md` and `_METRIC_ID_BY_NAME` / `_CLASS_METRIC_IDS`
   in lockstep.
 - **`Emitter.emit_score` requires a provenance stamp (#22).** Pass
   `provenance=` (bare stamp or a `stamp_provenance` scorecard) carrying
@@ -309,7 +685,7 @@ Format based on Keep a Changelog; versioning is SemVer.
   `principal`/`attorneys_in_fact` for POAs), `scored_field_types`,
   `corporate_record_json_schema`, `render_subclass_block`, and a GT label
   audit (`audit_gt_rows`, `scripts/audit_corporate_record_labels.py`).
-  Reference: `docs/CORPORATE_RECORD_SCHEMA.md`.
+  Reference: `docs/schemas/CORPORATE_RECORD_SCHEMA.md`.
 - **eval-environment prompt lineage.** `llm_dojo_scoring.prompts` now exports
   `list_prompt_versions`, `get_prompt_version`, `prompt_roles`, `prompt_chain`,
   `latest_prompt_version`, `default_prompt_version`, `diff_prompt_versions`,
@@ -319,7 +695,7 @@ Format based on Keep a Changelog; versioning is SemVer.
   provenance, sha256 and a per-version change summary. Data:
   `prompts/eval_environment_lineage.json` (shipped as package data);
   regenerate with `scripts/sync_eval_environment_lineage.py --eval-env PATH [--check]`.
-  See `docs/PROMPTS.md`.
+  See `docs/guides/PROMPTS.md`.
 - `field_scoring.embed_texts(texts)` (top-level export) — the scorer's own
   embedding backend as a public, fail-soft call, so consumers (llm-mailroom
   `pipeline/relations.py`) no longer need `_get_embedding()._embed`.
@@ -337,7 +713,7 @@ Format based on Keep a Changelog; versioning is SemVer.
   salient categories and unscored family hints, `cuad_questions(family)`,
   `render_cuad_question_block`, `cuad_json_schema` for guided decoding.
   Import-time parity with `CUAD_CLAUSE_CATEGORIES`, the corpus subclass
-  catalog and `DEFAULT_FIELD_TYPES["contract"]`. Reference: `docs/CUAD_SCHEMA.md`.
+  catalog and `DEFAULT_FIELD_TYPES["contract"]`. Reference: `docs/schemas/CUAD_SCHEMA.md`.
 - `maud_schema` — authoritative MAUD catalog: 22 questions (deal-point group,
   derived single/multi-label type, valid classes straight from
   `MAUD_ANSWER_CLASSES`, explanation, typical sections, tailored question
@@ -345,7 +721,7 @@ Format based on Keep a Changelog; versioning is SemVer.
   `render_maud_question_block` (with a per-chunk answering duty),
   `maud_json_schema(shape="object"|"lines")` enum grammars,
   `parse_maud_clause` / `maud_answers_to_clauses`. Reference:
-  `docs/MAUD_SCHEMA.md`.
+  `docs/schemas/MAUD_SCHEMA.md`.
 - `schema_contract.contract_violations(doc_type, model)` — probes a
   pydantic extraction model field-by-field against the dojo empty-field
   contract (unstated scalar → `null`, list → `[]`). Catches the SAND-042
@@ -426,8 +802,8 @@ Format based on Keep a Changelog; versioning is SemVer.
   `kind: deterministic`, and every re-vendored row records `source_commit`
   (new `PromptRecord.source_commit`). Catalog `version: 0.20.0`.
   `gmail_triage`, `intake` (LLM) and `relations` are listed as not vendored
-  in `docs/PROMPTS.md`.
-- `docs/EXTRACTION_SCHEMAS.md` / `docs/SCORING.md` / `docs/TODOS.md`:
+  in `docs/guides/PROMPTS.md`.
+- `docs/schemas/EXTRACTION_SCHEMAS.md` / `docs/guides/SCORING.md` / `docs/history/TODOS.md`:
   `label` type, `intent` rows for the three controlled classes, and the
   re-vendored `production` family.
 
@@ -444,7 +820,7 @@ Format based on Keep a Changelog; versioning is SemVer.
   says `name` until the taxonomy fixture is re-pinned.
 - `tests/conftest.py::load_script` loads `scripts/<name>.py` by path so a
   co-installed llm-mailroom `scripts` package cannot shadow the dojo's.
-- **`docs/EXTRACTION_SCHEMAS.md`** — concise field-map report for the five
+- **`docs/schemas/EXTRACTION_SCHEMAS.md`** — concise field-map report for the five
   live mailroom-dataset classes (`contract`, `merger_agreement`,
   `corporate_record`, `correspondence`, `insurance_claim`) pinned to
   v0.19.1 (`DEFAULT_FIELD_TYPES`, frozen `production_prompts` v1, Hub
@@ -475,7 +851,7 @@ Format based on Keep a Changelog; versioning is SemVer.
 
 - Connected-repo follow-ups for the frozen prompt mirrors (eval-environment
   re-freeze scripts, sandbox lineage mirror, downstream imports) are tracked
-  in [`docs/TODOS.md`](docs/TODOS.md).
+  in [`docs/history/TODOS.md`](docs/history/TODOS.md).
 
 ## [0.19.0] - 2026-10-04
 
@@ -504,7 +880,7 @@ completion, and specialist grid reports.
 - **Hash fixture** — `test_issue_236_example_payload_hash_is_stable` now
   pins the llm-mailroom digest. The digest printed in mailroom-issues
   #236 is not reproducible from the payload as shown (noted in
-  `docs/ARCHIVE_SCORING.md`).
+  `docs/contracts/ARCHIVE_SCORING.md`).
 - **Plain extraction paths carry format scores** — batch `score([...])`
   always emits `schema_valid` / `parse_ok` / `schema_adherence`;
   `score_document()` returns the full per-document payload (flattened
@@ -547,7 +923,7 @@ completion, and specialist grid reports.
 
 ### Added
 
-- **`llm_dojo_scoring.gt_metadata`** + **`docs/GT_METADATA.md`** —
+- **`llm_dojo_scoring.gt_metadata`** + **`docs/schemas/GT_METADATA.md`** —
   `parse_gt_fields`, `scoring_gt_fields`, `derive_presence_from_gt`,
   `is_empty_value`, `parse_json_container`; CUAD label spans become presence
   expectations (placeholder spans skipped); raw clause items are presence
@@ -566,7 +942,7 @@ completion, and specialist grid reports.
   `archivist_sign_off` files it as final only when the hash matches and
   the pipeline steps for that document need no revision (report → judge
   → archive; happy-path nodes on a successful job).
-- **`docs/GRID_REPORTS.md`** and **`docs/ISSUE_ALIGNMENT.md`**.
+- **`docs/guides/GRID_REPORTS.md`** and **`docs/history/ISSUE_ALIGNMENT.md`**.
 - **Taxonomy authority fixture** — `tests/fixtures/taxonomy_field_types.json`
   + `tests/test_live_roster_parity.py`: the five live field maps pinned to
   llm-mailroom `taxonomy.yaml` blob
@@ -579,11 +955,11 @@ completion, and specialist grid reports.
   with TP/FP/FN). `upsert_archive_scoring` replaces the block for a
   `doc_id` and never appends a second row. `archive_entry_hash` is hash
   version 2 (SHA-256 of canonical JSON).
-- **`docs/ARCHIVE_SCORING.md`** — example archive row and scoring block;
+- **`docs/contracts/ARCHIVE_SCORING.md`** — example archive row and scoring block;
   sample numbers are not a measured run.
 - **`merger_agreement_specialist`** profile / suite bound to
   `MergerAgreementExtraction`.
-- **`docs/SCORECARD_HONESTY.md`** — MAUD collapsed GT (#19), format vs
+- **`docs/contracts/SCORECARD_HONESTY.md`** — MAUD collapsed GT (#19), format vs
   extraction and empty-field credit (#20), completion / ITT / `cost_basis`
   / honest `serving_kind` (#21).
 - **`score_empty_field_contract`** — correctly-empty fields score 1.0
@@ -597,7 +973,7 @@ completion, and specialist grid reports.
   `compute_calibration_error`). Filed on `ExtractionScoreResult.trace`
   and archive `detail.scoring.trace`; never mixed into `overall_score`.
 - **MAUD answer-class catalogs — no guessing on merger-agreement labels**
-  (`llm_dojo_scoring/maud.py`, `docs/MAUD_LABELS.md`). The 152 published
+  (`llm_dojo_scoring/maud.py`, `docs/schemas/MAUD_LABELS.md`). The 152 published
   merger rows (17 test + 135 train) each carry per-question
   `valid_classes`; the scorer previously dropped them and treated any
   non-empty answer as valid on 21 of 22 questions. Now:
@@ -665,7 +1041,7 @@ and Exios66/llm-dojo-scoring #16–#22.
   (`parse_ok` / `schema_valid` / `schema_adherence`) (#18–#20), MAUD
   `gt_ambiguous` / `n_ambiguous` (#19), run completion + ITT aggregates (#21),
   provenance stamps + export refusal (#22).
-- **`docs/METRIC_IDS.md`** — doc class → allowed `metric_id` map (#17).
+- **`docs/contracts/METRIC_IDS.md`** — doc class → allowed `metric_id` map (#17).
 - **`tests/test_v018_scorecard_honesty.py`** — fixtures locking each failure mode.
 
 ### Changed
@@ -803,8 +1179,8 @@ and Exios66/llm-dojo-scoring #16–#22.
   free-text obligation dumps (historical rescoring only).
 - `suite.score(..., presence_expectations=...)` wires
   `extraction_category_presence` the same way Enron/MAUD extras are peeled.
-- `tests/test_pared_extraction.py` + `docs/MIGRATION.md` §3i.
-- `docs/SCORING.md` field-map tables updated to the pared schema.
+- `tests/test_pared_extraction.py` + `docs/guides/MIGRATION.md` §3i.
+- `docs/guides/SCORING.md` field-map tables updated to the pared schema.
 
 ## [0.12.2] - 2026-08-30
 
@@ -841,7 +1217,7 @@ Scoring formulas from v0.12.1 / v0.12.0 / v0.11.0 / v0.10.0 are unchanged.
 - `tests/test_consumer_compat.py` — network-free contract tests that pin the
   mailroom / entity / sandbox import surface, SCORE_CONFIGS names, and
   serving table/scorecard fields against this package.
-- `docs/MIGRATION.md` §3h — consumer pin matrix and recommended extras.
+- `docs/guides/MIGRATION.md` §3h — consumer pin matrix and recommended extras.
 
 ## [0.12.1] - 2026-08-28
 
@@ -856,7 +1232,7 @@ Scoring formulas from v0.12.1 / v0.12.0 / v0.11.0 / v0.10.0 are unchanged.
   `serving_cost_card` / `serving_card_markdown` / `emit_serving_scorecard`.**
   Emitter writes local and API values as separate runs (`run_id:local` /
   `run_id:api`) so `get_scorecard("local_vs_api")` does not average the two sides.
-- Remaining serving T1 names documented in [`docs/SCORING.md`](docs/SCORING.md).
+- Remaining serving T1 names documented in [`docs/guides/SCORING.md`](docs/guides/SCORING.md).
 
 Honesty: missing metrics stay `None` (status `missing` / `local_only`);
 local Ollama cost stays `None` without a price table.
@@ -912,7 +1288,7 @@ Scoring formulas and T0 names from v0.10.0 / v0.11.0 are unchanged.
 
 ### Added
 
-- **`docs/SCORING.md`** — canonical scoring reference: per-agent T0/T1 from
+- **`docs/guides/SCORING.md`** — canonical scoring reference: per-agent T0/T1 from
   `headline_metrics` / `dashboard_metrics`, `DEFAULT_FIELD_TYPES` field maps,
   full `_HONEST_GAPS` prose, extraction confusion model, and every T0/T1
   metric with citation, inclusion, and ground-truth label.
@@ -930,7 +1306,7 @@ Scoring formulas and T0 names from v0.10.0 / v0.11.0 are unchanged.
   registry ids are forbidden in LLM bodies. Live colloquial “precision” /
   “completeness” and judge JSON keys that collide with registry names are
   flagged on `priming`, not rewritten.
-- **`docs/PROMPTS.md`** — import API, production vs `family="docclass"`,
+- **`docs/guides/PROMPTS.md`** — import API, production vs `family="docclass"`,
   non-LLM roles, anti-priming rule.
 
 ### Changed

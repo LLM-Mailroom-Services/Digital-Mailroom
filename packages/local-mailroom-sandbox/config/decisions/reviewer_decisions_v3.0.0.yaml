@@ -1,0 +1,158 @@
+# Decision reviewer question set 3.0.0 (lineage: config/decisions/LINEAGE.yaml).
+# Model: openai/gpt-6-luna-decisions (OpenRouter Decisions API; $0.10 per 1M input, $0 output).
+#
+# Changes from 2.0.0 (reviewer_decisions_v2.yaml):
+# - Sorter handoff: the request state is {document, sorter_handoff}. The handoff carries the
+#   sorter's doc_type, subclass and confidence and why the document reached review. The
+#   doc_type question still decides from the document alone; the handoff is a claim to check.
+# - verdict question: the routing outcome, including continue with the sorter, correct the
+#   subclass, reclassify, and the edge cases that go to a person (route_to_human_review,
+#   unreadable, out_of_scope, multiple_documents).
+# - Compact criteria: 2.0.0 sent 3,607 tokens of questions per document (half the cost of a
+#   full-corpus run). Every rule learned on the 735-document runs is kept, in fewer words.
+schema: sandbox.decisions/v1
+name: reviewer_decisions
+version: 3.0.0
+max_input_chars: 120000   # every train merger's conversion terms start before char 103,101
+
+# The verdicts that send a document to a person whatever the doc_type probability.
+human_verdicts: [route_to_human_review, unreadable, out_of_scope, multiple_documents]
+
+handoff:
+  # How the sorter handoff is described to the model (sent as state.sorter_handoff).
+  fields: [sorter_doc_type, sorter_doc_subclass, sorter_confidence, review_trigger]
+
+doc_type:
+  instructions: >-
+    Classify state.document from its own text. state.sorter_handoff is the first classifier's
+    answer: a claim to check, never evidence. Classify the instrument the title names, not an
+    exhibit stamp or filing wrapper. Amendments, restatements, joinders, forms and drafts take
+    the class of the instrument they change or copy.
+  criteria:
+    contract: >-
+      Commercial agreement between parties (license, supply, distribution, services, hosting,
+      maintenance, development, manufacturing, marketing, sponsorship, franchise, agency,
+      consulting or employment, collaboration or cooperation, joint venture, note purchase,
+      IP assignment). Insurance policies. Rule 13d-1(k) Joint Filing Agreements. NOT
+      registration/investor/stockholder rights or subscription agreements, warrants or
+      indentures (corporate_record).
+    merger_agreement: >-
+      Agreement and Plan of Merger, its amendments or restatements; also a Transaction or
+      Business Combination Agreement that merges through a Merger Sub.
+    corporate_record: >-
+      A company's own organisation, governance or securities instrument: charter, certificate
+      of incorporation or formation, charter amendment, bylaws, board or stockholder
+      resolution or consent, officer certificate or Certificate of Designation, power of
+      attorney, list or table of subsidiaries, indenture, securities rights instrument.
+    correspondence: >-
+      A communication: letter, email, memo, notice, demand, press release, meeting request.
+      All mailbox text, including forwards, newsletters, automated notices and bare message
+      fragments. NOT a First Notice of Loss or claim file (insurance_claim).
+    insurance_claim: >-
+      Claim paperwork: First Notice of Loss form (Claim Reference, Policy Number, Date of
+      Loss), with its call notes, emails or letters; adjuster reports; claim demand packages;
+      coverage or denial letters; CMS / DE-SynPUF claim tables.
+    unknown: >-
+      Plainly not a communication and fits no class (court opinion, accounting standard,
+      due-diligence checklist), or too garbled to identify.
+
+verdict:
+  instructions: >-
+    Compare your own reading of state.document with state.sorter_handoff and choose what
+    should happen to this document.
+  criteria:
+    continue_sorter_correct: The sorter's class and subclass are both right; continue to extraction.
+    continue_with_subclass_correction: The sorter's class is right but its subclass is wrong.
+    reclassify: The sorter's class is wrong and the text clearly shows the right class.
+    route_to_human_review: Two classes stay plausible, the document mixes classes, or the evidence is too thin to decide.
+    unreadable: The text is empty, garbled or too fragmentary to identify any form.
+    out_of_scope: A real document that fits none of the five classes.
+    multiple_documents: The text holds several separate documents of different classes.
+
+subclass:
+  contract:
+    instructions: >-
+      Agreement family. A title naming one family decides it ("Supply Agreement" is supply
+      even when the supplier manufactures; "Cooperation" or "Collaboration Agreement" is
+      collaboration). Hybrid titles: the family the operating obligations mostly concern.
+    criteria:
+      affiliate: Affiliate or referral programme.
+      agency: Agency or sales agency.
+      collaboration: Collaboration or Cooperation Agreement, incl. shareholder standstill settlements.
+      co_branding: Co-branding.
+      consulting: Consulting, employment agreement or executive offer letter.
+      development: Development work, milestones, steering committee.
+      distributor: Distribution.
+      endorsement: Endorsement, incl. insurance or annuity endorsement riders.
+      franchise: Franchise.
+      hosting: Hosting, platform or SaaS provision.
+      ip: IP assignment, transfer or separation.
+      joint_venture: Joint venture; Rule 13d-1(k) Joint Filing Agreement.
+      license: Licence of IP, software, content or technology.
+      maintenance: Maintenance or support; licence plus support; capital or net-worth maintenance.
+      manufacturing: Manufacturing.
+      marketing: Marketing or remarketing.
+      non_compete_no_solicit: Stand-alone non-compete or non-solicit.
+      outsourcing: Outsourcing.
+      promotion: Promotion.
+      reseller: Reseller.
+      service: Services, master services, statement of work.
+      sponsorship: Sponsorship.
+      strategic_alliance: Strategic alliance.
+      supply: Supply or purchase; note purchase agreements.
+      transportation: Transportation, shipping or logistics.
+      other: No family fits.
+  merger_agreement:
+    instructions: >-
+      What each share of the target's COMMON stock converts into, from the conversion or
+      Effect on Capital Stock section (not the table of contents). Options, appraisal,
+      financing and escrow do not change it.
+    criteria:
+      all_cash: Cash only, incl. a cash tender offer then merger.
+      all_stock: Acquirer shares only; cash in lieu of fractional shares is still all_stock.
+      mixed_cash_stock: A fixed mix of cash and stock for every share.
+      mixed_cash_stock_election: Holders elect cash or stock, usually prorated.
+      other: Cash or stock plus a CVR, units, partnership interests, or other consideration.
+  corporate_record:
+    instructions: Which record, by the document's own title first; an exhibit stamp never decides.
+    criteria:
+      articles_of_incorporation: Charter or restated charter; certificate of formation; articles of organization.
+      charter_amendment: Certificate or Articles of Amendment, Certificate of Correction.
+      bylaws: Bylaws or restated bylaws.
+      board_resolution: Board or stockholder resolution or written consent; short board-adopted bylaw amendment.
+      officer_certificate: Officer certificate; Certificate of Designation and amendments to it.
+      powers_of_attorney: Power of attorney.
+      subsidiary_list: List or table of subsidiaries.
+      indenture: Indenture or supplemental indenture.
+      rights_instrument: Registration/investor/stockholder/preemptive rights or subscription agreement; warrant; specimen stock certificate.
+      other: None fits.
+  correspondence:
+    instructions: Which form the content takes, by markers anywhere in the text, including forwards.
+    order: [attorney_demand, letter, press_release, memo, demand, notice, meeting_request]
+    default: email
+    markers:
+      attorney_demand: Does it contain a demand made by or for an attorney or law firm (Esq., Law Offices, counsel for)?
+      letter: Does it contain a letter, a salutation ("Dear ...") with a formal closing (Sincerely, Very truly yours, Regards)?
+      press_release: Does it contain or discuss a press or news release (For Immediate Release, PR Newswire, Business Wire, media contact)?
+      memo: Does it contain a memorandum (TO / FROM / DATE / RE header lines in the body, or the word memo or memorandum naming it)?
+      demand: Does it contain or discuss a demand (demand letter, demand for payment, past due, final notice)? Mentions in an ordinary email count.
+      notice: Does it contain or discuss a notice (Notice of ..., Notice No., give notice, please be notified)?
+      meeting_request: Does it invite or ask someone to meet or confer (meeting, call, appointment, event invitation)?
+    criteria:
+      attorney_demand: Attorney demand.
+      letter: Letter.
+      press_release: Press release.
+      memo: Memo.
+      demand: Demand.
+      notice: Notice.
+      meeting_request: Meeting request.
+      email: Ordinary message.
+  insurance_claim:
+    instructions: CMS tables by file type; claim paperwork by line of insurance.
+    criteria:
+      inpatient: CMS inpatient claims table.
+      outpatient: CMS outpatient claims table.
+      carrier: CMS carrier (professional) claims table.
+      pde: CMS Part D prescription drug events.
+      auto: Auto claim.
+      property: Property, household or building claim.

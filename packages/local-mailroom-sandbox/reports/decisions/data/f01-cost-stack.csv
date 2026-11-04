@@ -1,0 +1,5 @@
+pipeline,basis,agent (x),reviewer (x),total (x),"USD per 1,000 docs"
+Qwen agent alone,measured,1.00,0.00,1.00,0.78
+Agent + Qwen reviewer,measured,1.00,0.84,1.84,1.43
+Agent + Decisions v2,measured,1.00,0.95,1.95,1.52
+Agent + Decisions v3.0.0,measured,1.00,0.76,1.76,1.37

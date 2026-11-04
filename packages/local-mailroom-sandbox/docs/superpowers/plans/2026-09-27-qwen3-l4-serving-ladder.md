@@ -22,7 +22,7 @@ Part B (Tasks 10–15) is live execution with explicit spend gates, on the **`ex
 - **Modal profile:** `exios66` for every live run.
 - **Serving pins:**
   - model `Qwen/Qwen3-8B-AWQ`, image `v0.29.0`, `max_model_len` 32768, `gpu_memory_utilization` 0.90, prefix caching on, seed 42
-  - dataset `Lucius-Morningstar/mailroom-dataset` config `ground_truth` at `FAMILY_HF_REVISION` (`ed7576b676343e0b402ec5412cded301e629bdee`), `split: all`
+  - dataset `Lucius-Morningstar/mailroom-dataset` config `ground_truth` at `FAMILY_HF_REVISION` as of 2026-09-27 (`ed7576b676343e0b402ec5412cded301e629bdee`, now `FAMILY_HF_DATA_REVISION`; the constant records Hub tag `v9.1` = `bc9eab28…`), `split: all`
   - **`kv_cache_dtype=fp8` on every Stage 2–3 run** (and the 1-replica baseline)
   - bf16 arm: `Qwen/Qwen3-8B`, `max_model_len` 16384
 - **Data:** only the public HF dataset. No AmFam/proprietary data, and no wording that implies otherwise.
@@ -1630,7 +1630,7 @@ For each rung `R` in `l0-baseline, l1-nothink, l2-marlin, l3-fp8kv, l4-seqs16, l
 
 - [ ] **Step 1:** Run the spend preamble with `config/runs/sand032/sand032-R.yaml`. Then deploy: `modal deploy deploy/modal_vllm.py`, set `VLLM_BASE_URL` to the printed URL + `/v1`, and run `sandbox run preflight --config … --live` (records the cold boot).
 - [ ] **Step 2:** `sandbox run scrape-metrics --config … --label before`, then `sandbox run start --config … --job-mode endpoint --watch`, then `sandbox run scrape-metrics --config … --label after`.
-- [ ] **Step 3:** Write the serving record with the existing `sandbox metrics serving` command (cli.py ~L2387) and export offline rows with `sandbox run export-bt --config …`. Stop the app: `modal app stop sandbox-vllm`.
+- [ ] **Step 3:** Write the serving record with `sandbox metrics serving-record --run sand032-R` (parser in `src/mailroom_sandbox/cli.py` under `serving-record`, handler `_cmd_metrics_serving_record`) and export offline rows with `sandbox run export-bt --config …`. Stop the app the SAND-032 configs deploy (`engine.modal.app`): `modal app stop sandbox-vllm-sand032`.
 - [ ] **Step 4:** Apply the gate, paired on the same 20 doc ids vs L0: ok 20/20; mean score ≥ L0 − 0.02; schema_valid ≥ L0 − 0.05; `gpu_cost_per_document` ≤ the previous kept rung. A failing rung (other than L3) is reverted: the next rung's YAML drops that change. Record every rung, kept or reverted, in `reports/serving/SAND-32/SAND032-LADDER.md`: boot s, wall, p50/p95, measured TTFT, tok/s, KV usage, preemptions, length finishes, score, schema_valid, $/doc, run_span_usd_lower_bound.
 - [ ] **Step 5:** Freeze. Edit the eight `sand032-s2*`/`sand032-s3*` YAMLs so their `vllm:` blocks equal the best passing stack, always with `kv_cache_dtype: fp8`. Re-run `pytest tests/test_sand032_configs.py`, then commit and push.
 

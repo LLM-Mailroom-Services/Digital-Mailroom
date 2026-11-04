@@ -1,0 +1,8 @@
+schema: sandbox.experiment/v1
+study: tiers-mid
+design: single
+runs:
+- runs/tiers-mid-pipeline-1r-c8.yaml
+smoke_rows: 1
+smoke_cost_cap_usd: 0.1
+smoke_wall_seconds: 120

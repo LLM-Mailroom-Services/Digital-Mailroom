@@ -23,8 +23,6 @@ import argparse
 import json
 import pathlib
 import re
-import shutil
-import statistics
 import subprocess
 import sys
 

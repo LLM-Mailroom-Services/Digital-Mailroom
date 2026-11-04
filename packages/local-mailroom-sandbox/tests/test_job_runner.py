@@ -118,6 +118,27 @@ def test_whole_run_forwards_report_group_to_scoring_runner(tmp_path, monkeypatch
     assert captured["kwargs"]["score_metadata"] == {"report_group": "SAND-123"}
 
 
+def test_target_specialist_starts_with_selected_row_total(tmp_path, monkeypatch):
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "targeted")
+    store.write_lock({"task": "specialist", "target": "contract", "profile": "ollama",
+                      "engine": {"model": "test", "modal": None}, "job": {"mock": True}})
+    store.dataset_path.write_text('\n'.join(json.dumps(row) for row in [
+        {"id": "a", "expected_doc_class": "contract"},
+        {"id": "b", "expected_doc_class": "insurance_claim"},
+        {"id": "c", "expected_doc_class": "contract"},
+    ]) + '\n')
+    def fake_eval(agent, **kwargs):
+        assert store.read_checkpoint()["total"] == 2
+        assert len(kwargs["rows"]) == 2
+        return {"n": 2, "scores": {"n": 2}}
+
+    monkeypatch.setattr(eval_runners, "run_isolated_eval", fake_eval)
+    assert runner._run_whole_run(store, "specialist", mock=True, model=None, profile="ollama")["state"] == "done"
+
+
 def test_whole_run_local_vs_api_forwards_score_metadata(tmp_path, monkeypatch):
     """local_vs_api whole-run scoring receives the lock's report_group."""
     from mailroom_sandbox.eval import runners as eval_runners
@@ -150,6 +171,49 @@ def test_whole_run_local_vs_api_forwards_score_metadata(tmp_path, monkeypatch):
 
     assert summary["state"] == "done"
     assert captured["kwargs"]["score_metadata"] == {"report_group": "SAND-123"}
+
+
+def _whole_run_with(rows, tmp_path, monkeypatch):
+    store = _prepped_store(tmp_path, rows=len(rows), job={"mock": True, "concurrency": 1})
+    lock = store.read_lock()
+    store.lock_path.write_text(json.dumps({**lock, "task": "local_vs_api", "profile": "ollama", "dataset": {}}))
+    monkeypatch.setattr(runner.eval_runners, "run_local_vs_api_eval", lambda **_: {"rows": rows, "scores": {}})
+    return store, runner._run_whole_run(store, "local_vs_api", mock=True, model=None, profile="ollama")
+
+
+def test_whole_run_counts_failed_rows_as_errors(tmp_path, monkeypatch):
+    rows = [{"id": "a", "score": {}}, {"id": "b", "error": "boom", "score": {}}]
+    _, summary = _whole_run_with(rows, tmp_path, monkeypatch)
+    assert summary["state"] == "done"
+    assert (summary["ok"], summary["errors"]) == (1, 1)
+
+
+@pytest.mark.parametrize("row, message", [
+    ({"error": "engine unreachable"}, "engine unreachable"),
+    ({"score": {"parse_error": True}}, "failed to parse"),
+], ids=["errored", "unparseable"])
+def test_whole_run_with_no_usable_answer_fails(row, message, tmp_path, monkeypatch):
+    rows = [{"id": str(i), **row} for i in range(2)]
+    store, summary = _whole_run_with(rows, tmp_path, monkeypatch)
+    assert summary["state"] == store.read_checkpoint()["state"] == "failed"
+    assert message in summary["last_error"]["message"]
+    assert not any(e["event"] == "done" for e in store.events())
+
+
+def test_pipeline_run_whose_every_extraction_fails_to_parse_fails(tmp_path, monkeypatch):
+    """The real run_pipeline_eval path must keep parse_error on each item for the run to fail."""
+    store = _prepped_store(tmp_path, rows=2, job={"mock": True, "concurrency": 1})
+    lock = store.read_lock()
+    store.lock_path.write_text(json.dumps({**lock, "task": "pipeline", "profile": "ollama"}))
+    rows = [{**row, "expected_fields": json.dumps({"agreement_date": "2020-01-01"})} for row in store.dataset_rows()]
+    store.dataset_path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    monkeypatch.setattr(runner.eval_runners, "_run_pipeline_doc", lambda row, **_: {
+        "id": row["id"], "doc_type": row["expected_doc_class"], "stage": "archived",
+        "extracted_data": {"_parse_error": "unterminated JSON", "_raw": "{"}, "error": None})
+    summary = runner._run_whole_run(store, "pipeline", mock=True, model=None, profile="ollama")
+    assert all(item["score"]["parse_error"] is True for item in store.load_items())
+    assert summary["state"] == store.read_checkpoint()["state"] == "failed"
+    assert "failed to parse" in summary["last_error"]["message"]
 
 
 def test_run_job_all_items_failed_writes_failed_not_done(tmp_path, monkeypatch):
@@ -311,26 +375,6 @@ def test_build_record_bills_wall_not_latency_sum_under_concurrency(tmp_path, mon
     rec = runner._build_record(store, "sorter", None, {}, mock=False, wall_seconds=12.0)
     assert rec["gpu_seconds"] == pytest.approx(17.0)
     assert rec["gpu_seconds"] != pytest.approx(40.0 + 5.0)
-
-
-def test_build_record_modalt_billed_env_override(tmp_path, monkeypatch):
-    from mailroom_sandbox.job.checkpoint import RunStore
-
-    monkeypatch.setenv("MODAL_BILLED_GPU_SECONDS", "99")
-    store = RunStore(tmp_path / "run-env")
-    store.write_lock(
-        {
-            "run_id": store.run_id,
-            "task": "sorter",
-            "profile": "modal-vllm",
-            "spec_hash": "abc",
-            "engine": {"model": "Qwen/Qwen3-8B", "modal": {"gpu": "L4"}},
-            "job": {"mock": False},
-        }
-    )
-    store.append_item({"item_id": "d0", "index": 0, "ok": True, "latency_ms": 1000.0})
-    rec = runner._build_record(store, "sorter", None, {}, mock=False, wall_seconds=1.0)
-    assert rec["gpu_seconds"] == pytest.approx(99.0)
 
 
 def test_run_record_lands_in_experiment_log(tmp_path):
@@ -568,6 +612,27 @@ def test_whole_run_pipeline_receives_locked_rows(tmp_path, monkeypatch):
     assert captured["n"] == 3, "whole-run pipeline must score the locked rows"
 
 
+def test_pipeline_cost_resources_come_from_distinct_locked_modal_apps(tmp_path, monkeypatch):
+    store = _whole_run_store(tmp_path, task="pipeline")
+    lock = store.read_lock()
+    lock["engine"] = {"kind": "modal-vllm", "modal": {"app": "base", "gpu": "L4:2", "max_containers": 2}}
+    lock["agent_routes"] = {
+        "judge": {"provider": "modal-vllm", "modal": {"app": "judge", "gpu": "L40S", "max_containers": 2}},
+        "specialist": {"provider": "modal-vllm", "modal": {"app": "judge", "gpu": "L40S", "max_containers": 2}},
+        "sorter": {"provider": "modal-vllm", "modal": {"app": "mid", "gpu": "L4:2", "max_containers": 3}},
+        "base_agent": {"provider": "modal-vllm", "modal": {"app": "base", "gpu": "L4"}},
+        "api": {"provider": "openrouter", "modal": None},
+    }
+    store.lock_path.unlink()
+    store.write_lock(lock)
+    captured = {}
+    monkeypatch.setattr(runner.eval_runners, "run_pipeline_eval", lambda **kwargs: captured.update(kwargs) or {"scores": {}, "n": 0})
+    runner._run_whole_run(store, "pipeline", mock=True, model=None, profile="ollama")
+    # base L4:2 x 2 containers, judge app once (shared), mid L4:2 x 3; the
+    # route on the base app is not billed twice.
+    assert sorted(captured["gpu_fleet"]) == [("L4", 4), ("L4", 6), ("L40S", 2)]
+
+
 def test_registering_new_agent_spec_is_the_extension_point(tmp_path, monkeypatch):
     # THE DMR-056 extension-point contract: registering ONE AgentSpec is the
     # one-file change; the new task then passes spec validation, is a whole-run
@@ -746,3 +811,111 @@ def test_aborted_isolated_run_keeps_completed_items(tmp_path, monkeypatch):
     out = runner._run_whole_run(store, "judge", mock=False, model=None, profile="modal-vllm")
     assert out["state"] == "failed"
     assert [i["item_id"] for i in store.load_items()] == ["d0", "d1"]
+
+
+def test_run_job_uses_locked_trace_sink_over_ambient_provider(tmp_path, monkeypatch):
+    """SAND-087: `.env`'s OBSERVABILITY_PROVIDER=langfuse must not beat `trace.sink: none`.
+
+    The pipeline adds Langfuse-only `name=` kwargs under the langfuse provider;
+    without the SDK installed every chat call then failed.
+    """
+    import os
+
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    store = _prepped_store(tmp_path, rows=2, job={"mock": False, "max_retries": 0})
+    monkeypatch.setenv("OBSERVABILITY_PROVIDER", "langfuse")
+    seen = []
+
+    def _record_provider(task, row, *, mock, model, run_id=None):
+        seen.append(os.environ.get("OBSERVABILITY_PROVIDER"))
+        return eval_runners._classify_mock(row), {}
+
+    monkeypatch.setattr(runner, "_predict_row", _record_provider)
+    summary = runner.run_job(store, mock=None)
+    assert summary["state"] == "done"
+    assert seen == ["none", "none"]
+    assert os.environ["OBSERVABILITY_PROVIDER"] == "langfuse"
+
+
+def test_per_item_run_aborts_once_api_token_spend_reaches_its_cap(tmp_path, monkeypatch):
+    """SAND-089: token spend on API-billed agents aborts the run as its own cap type."""
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.api_budget import ApiBudget
+
+    store = _prepped_store(tmp_path, rows=4, job={"mock": False, "max_retries": 0, "concurrency": 1})
+    monkeypatch.setattr(runner, "_api_budget", lambda _store: ApiBudget(0.10, 0.17, 0.25, ["qwen/qwen3.5-9b"]))
+    monkeypatch.setattr(runner, "_predict_row", lambda task, row, **_: (
+        eval_runners._classify_mock(row), {"prompt_tokens": 600_000, "completion_tokens": 1}))
+    summary = runner.run_job(store, mock=None)
+    assert summary["state"] == "failed"
+    error = (store.read_checkpoint() or {})["last_error"]
+    assert error["type"] == "api_cost_cap" and "api_cost_cap_usd=0.1 reached" in error["message"]
+    assert len(store.load_items()) < 4
+
+
+def test_a_resumed_run_counts_the_tokens_of_a_pipeline_document_that_raised(tmp_path, monkeypatch):
+    """SAND-089: the failed document has no item row, so its usage is kept as an event."""
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "r")
+    store.write_lock({"task": "pipeline", "profile": "openrouter", "prompt": {},
+                      "engine": {"kind": "openrouter", "model": "qwen/qwen3.5-9b"},
+                      "job": {"mock": False, "concurrency": 1, "api_cost_cap_usd": 1.0}})
+
+    def fake_pipeline(**kwargs):
+        exc = RuntimeError("graph raised after a paid call")
+        exc.sandbox_failed_usage = {"item_id": "d0", "prompt_tokens": 1_000_000, "completion_tokens": 0}
+        raise exc
+
+    monkeypatch.setattr(eval_runners, "run_pipeline_eval", fake_pipeline)
+    out = runner._run_whole_run(store, "pipeline", mock=False, model=None, profile="openrouter")
+    assert out["state"] == "failed" and store.load_items() == []
+    assert runner._api_budget(store).spent_usd == pytest.approx(0.17)
+
+
+def test_a_capped_api_run_is_refused_on_tasks_whose_evaluator_cannot_enforce_the_cap(tmp_path):
+    """CodeRabbit: extract/chained/local_vs_api/sorter_vs_modernbert take no api_budget."""
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    for task in ("extract", "chained", "local_vs_api", "sorter_vs_modernbert"):
+        store = RunStore(tmp_path / task)
+        store.write_lock({"task": task, "profile": "openrouter", "prompt": {},
+                          "engine": {"kind": "openrouter", "model": "qwen/qwen3.5-9b"},
+                          "job": {"mock": False, "concurrency": 1, "api_cost_cap_usd": 1.0}})
+        out = runner._run_whole_run(store, task, mock=False, model=None, profile="openrouter")
+        assert out["state"] == "failed" and "cannot enforce job.api_cost_cap_usd" in out["error"]
+
+
+def test_a_parse_failed_isolated_answer_is_not_persisted_as_ok(tmp_path):
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "r")
+    runner._persist_isolated_items(store, [
+        {"id": "a", "score": {"parse_error": True}, "error": None},
+        {"id": "b", "score": {"parse_error": False}, "error": None},
+    ])
+    assert {i["item_id"]: i["ok"] for i in store.load_items()} == {"a": False, "b": True}
+
+
+def test_the_tokens_of_a_sorter_attempt_that_raised_are_counted_on_the_retried_item(tmp_path, monkeypatch):
+    """CodeRabbit: a paid call that raised was billed; retries must not hide it from the API cap."""
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    store = _prepped_store(tmp_path, rows=1, job={"mock": False, "max_retries": 1, "concurrency": 1})
+    calls = {"n": 0}
+    billed = {"prompt_tokens": 100, "completion_tokens": 10, "llm_calls": 1}
+
+    def flaky(task, row, **_):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("paid call, then the graph raised")
+        return eval_runners._classify_mock(row), dict(billed)
+
+    monkeypatch.setattr(runner, "_predict_row", flaky)
+    monkeypatch.setattr(runner, "usage_from_pipeline", lambda: dict(billed))
+    monkeypatch.setattr(runner.time, "sleep", lambda _s: None)
+    assert runner.run_job(store, mock=None)["state"] == "done"
+    (item,) = store.load_items()
+    assert (item["prompt_tokens"], item["completion_tokens"], item["llm_calls"]) == (200, 20, 2)

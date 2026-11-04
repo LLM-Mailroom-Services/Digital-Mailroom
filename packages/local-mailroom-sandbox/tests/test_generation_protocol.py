@@ -1,10 +1,10 @@
 """Independent DMR-091 frozen-source edge probes; no production substitutions."""
-import os, sys, json, shutil, types, subprocess, threading
+import os, json, shutil, types, subprocess, threading
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import pytest
 import yaml
-from test_job_generation_residuals import source_root, sdk, spec_file, worker_body
+from test_job_generation_residuals import source_root, sdk, spec_file, worker_body  # noqa: F401 - pytest fixtures
 from mailroom_sandbox import runtime
 from mailroom_sandbox.cli import main
 from mailroom_sandbox.job import preflight, runner, remote
@@ -30,6 +30,7 @@ def http_fixture():
  server.shutdown();server.server_close();thread.join(timeout=3)
 
 def test_cli_loads_dotenv_endpoint_before_live_preflight(tmp_path,source_root,monkeypatch,http_fixture):
+ monkeypatch.delenv("SANDBOX_SKIP_DOTENV", raising=False)
  spec,path,store,_=spec_file(tmp_path,source_root)
  spec.job.mock=True;path.write_text(yaml.safe_dump(spec.model_dump(mode='json')))
  base,calls=http_fixture
@@ -42,9 +43,13 @@ def test_cli_loads_dotenv_endpoint_before_live_preflight(tmp_path,source_root,mo
  assert rc==0 and '/v1/models' in calls
 
 def test_cli_loads_dotenv_trace_keys_before_preflight(tmp_path,source_root,monkeypatch,http_fixture):
+ monkeypatch.delenv("SANDBOX_SKIP_DOTENV", raising=False)
  spec,path,store,_=spec_file(tmp_path,source_root)
  base,calls=http_fixture
  spec.job.mock=True;spec.trace.sink='langfuse';spec.trace.endpoint=base+'/api/public/otel';path.write_text(yaml.safe_dump(spec.model_dump(mode='json')))
+ # The SDK guard is not under test here; CI installs [dev] without langfuse.
+ real_find_spec=preflight.find_spec
+ monkeypatch.setattr(preflight,'find_spec',lambda name:object() if name=='langfuse' else real_find_spec(name))
  for key in ('LANGFUSE_PUBLIC_KEY','LANGFUSE_SECRET_KEY','LANGFUSE_INIT_PROJECT_PUBLIC_KEY','LANGFUSE_INIT_PROJECT_SECRET_KEY'):
   monkeypatch.delenv(key,raising=False)
  (source_root/'.env').write_text('LANGFUSE_PUBLIC_KEY=pk-review-fixture\nLANGFUSE_SECRET_KEY=sk-review-fixture\nLANGFUSE_HOST='+base+'\n')
@@ -95,6 +100,7 @@ def test_named_posture_precedence_freezes_complete_map(tmp_path,source_root,monk
   assert runtime.activate().agent_knobs==expected
 
 def test_cli_loads_dotenv_before_resolving_pinned_langfuse_prompt(tmp_path,source_root,monkeypatch):
+ monkeypatch.delenv("SANDBOX_SKIP_DOTENV", raising=False)
  langfuse=pytest.importorskip('langfuse')
  spec,path,store,_=spec_file(tmp_path,source_root)
  spec.job.mock=True

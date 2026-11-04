@@ -76,7 +76,7 @@ def dataset_fingerprint(rows: list[dict[str, str]]) -> str:
         ],
         sort_keys=True,
     )
-    return hashlib.md5(blob.encode()).hexdigest()[:12]
+    return hashlib.md5(blob.encode(), usedforsecurity=False).hexdigest()[:12]
 
 
 def load_hf_fixtures() -> list[dict[str, Any]]:
@@ -96,85 +96,6 @@ def load_hf_fixtures() -> list[dict[str, Any]]:
     return rows
 
 
-LEGALBENCH_FIXTURE = "legalbench/contract_qa.jsonl"
-LEGALBENCH_TASKS = ("contract_qa", "family_classification")
-
-
-def load_legalbench_fixtures(task: str | None = None) -> list[dict[str, Any]]:
-    """Committed offline LegalBench fixture rows (the ``contract_qa`` smoke set).
-
-    Raises when the fixture is missing — an empty fixture must never be scored
-    as a 0-row eval (DMR-049 F2). ``task`` filters rows by their ``task`` key.
-    """
-    path = fixtures_dir() / LEGALBENCH_FIXTURE
-    if not path.is_file():
-        raise FileNotFoundError(f"legalbench fixture missing: {path}")
-    rows = [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
-    if task:
-        rows = [r for r in rows if str(r.get("task") or "contract_qa") == task]
-    return rows
-
-
-def load_legalbench_suite_rows(task: str, *, sample: int, seed: int) -> list[dict[str, Any]]:
-    """Seeded subset from the vendored llm-mailroom LegalBench suite.
-
-    The real suite (``contract_qa``: 510 contracts x 41 categories = 20,910
-    QA pairs; ``family_classification``: 200 labeled contracts) lives in
-    llm-mailroom and needs its CUAD corpus on disk
-    (``python scripts/fetch_full_cuad.py``). Rows are normalized to the
-    sandbox keys (``question``/``document_text``/``answer``) so the runners
-    consume either source identically.
-
-    Raises ``FileNotFoundError`` when the suite is unavailable, and the
-    suite's own ``CorpusUnavailable`` (naming the fetch command) when the
-    corpus is missing — a live run never silently falls back to the toy
-    fixture (DMR-049 F2/F4).
-    """
-    import sys
-
-    from mailroom_sandbox.runtime import resolve_mailroom_src
-
-    src = resolve_mailroom_src()
-    if src is None:
-        raise FileNotFoundError(
-            "llm-mailroom source not found — run `sandbox fetch-deps` to vendor it"
-        )
-    if str(src) not in sys.path:
-        sys.path.insert(0, str(src))
-    try:
-        from legalbench.tasks import get_task  # type: ignore
-    except ModuleNotFoundError as exc:
-        # The suite rides the vendored langchain_agents stack, which the
-        # offline-first base install intentionally omits (DMR-058) — point
-        # at the extra instead of leaking the import traceback.
-        raise FileNotFoundError(
-            f"legalbench suite needs the pipeline deps (missing {exc.name}) — "
-            'pip install -e ".[pipeline]"'
-        ) from exc
-
-    task_obj = get_task(task)
-    rows = task_obj.loader(sample, seed)
-    normalized: list[dict[str, Any]] = []
-    for row in rows:
-        document = str(row.get("document_text") or row.get("text") or "")
-        normalized.append(
-            {
-                "id": str(row.get("qa_id") or row.get("row_id") or row.get("filename") or ""),
-                "filename": str(row.get("filename") or row.get("qa_id") or row.get("row_id") or ""),
-                "task": task,
-                "question": row.get("question"),
-                "document_text": document,
-                "text": document,
-                "answer": str(row.get("answer") or row.get("expected") or ""),
-                "category": row.get("category"),
-                "source_revision": f"legalbench:{task}:n={sample}:seed={seed}",
-            }
-        )
-    return normalized
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:

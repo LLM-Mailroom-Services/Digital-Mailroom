@@ -1,0 +1,179 @@
+{
+  "classes": {
+    "all": {
+      "accept_auroc": 0.8934,
+      "accept_auroc_above_median": 0.5969,
+      "accept_verdict_precision": 0.9982,
+      "cutoff": {
+        "accept_rate": 1.0,
+        "cutoff": 0.04,
+        "precision": 0.9869,
+        "recall": 1.0
+      },
+      "good_rate": 0.9869,
+      "mean_extraction_score": 0.8962,
+      "median_score": 0.906,
+      "n": 686,
+      "spearman_accept_vs_score": 0.2736,
+      "verdicts": {
+        "accept": 571,
+        "retry_extraction": 115
+      }
+    },
+    "insurance_claim": {
+      "accept_auroc": 0.8934,
+      "accept_auroc_above_median": 0.5969,
+      "accept_verdict_precision": 0.9982,
+      "cutoff": {
+        "accept_rate": 1.0,
+        "cutoff": 0.04,
+        "precision": 0.9869,
+        "recall": 1.0
+      },
+      "good_rate": 0.9869,
+      "mean_extraction_score": 0.8962,
+      "median_score": 0.906,
+      "n": 686,
+      "spearman_accept_vs_score": 0.2736,
+      "verdicts": {
+        "accept": 571,
+        "retry_extraction": 115
+      }
+    }
+  },
+  "fields": {
+    "insurance_claim.claim_number": {
+      "n": 686,
+      "support_auroc": null,
+      "truth_rate": 1.0
+    },
+    "insurance_claim.claim_type": {
+      "n": 686,
+      "support_auroc": null,
+      "truth_rate": 1.0
+    },
+    "insurance_claim.claimed_amount": {
+      "n": 686,
+      "support_auroc": 0.6088,
+      "truth_rate": 0.9883
+    },
+    "insurance_claim.coverage_determination": {
+      "n": 686,
+      "support_auroc": null,
+      "truth_rate": 1.0
+    },
+    "insurance_claim.date_filed": {
+      "n": 685,
+      "support_auroc": null,
+      "truth_rate": 1.0
+    },
+    "insurance_claim.date_of_loss": {
+      "n": 685,
+      "support_auroc": 0.9966,
+      "truth_rate": 0.9898
+    },
+    "insurance_claim.insured_party": {
+      "n": 686,
+      "support_auroc": null,
+      "truth_rate": 1.0
+    },
+    "insurance_claim.insurer": {
+      "n": 686,
+      "support_auroc": null,
+      "truth_rate": 1.0
+    },
+    "insurance_claim.policy_number": {
+      "n": 686,
+      "support_auroc": 0.9834,
+      "truth_rate": 0.9738
+    }
+  },
+  "good_threshold": 0.8,
+  "key_field_set": "extraction_gate_v1.2.0",
+  "keyfields": {
+    "all": {
+      "accept_auroc": 0.9435,
+      "accept_verdict_precision": 0.9947,
+      "accept_verdict_recall": 0.8672,
+      "all_right_rate": 0.9548,
+      "cutoff": {
+        "accept_rate": 1.0,
+        "cutoff": 0.04,
+        "precision": 0.9548,
+        "recall": 1.0
+      },
+      "field_score_at_half": {
+        "accept_rate": 0.484,
+        "cutoff": 0.5,
+        "precision": 1.0,
+        "recall": 0.5069
+      },
+      "field_score_auroc": 0.7782,
+      "field_score_cutoff": {
+        "accept_rate": 1.0,
+        "cutoff": 0.0,
+        "precision": 0.9548,
+        "recall": 1.0
+      },
+      "fields": null,
+      "mean_fraction_right": 0.9947,
+      "n": 686,
+      "spearman_accept_vs_fraction": 0.3193,
+      "verdicts": {
+        "accept": 571,
+        "retry_extraction": 115
+      }
+    },
+    "insurance_claim": {
+      "accept_auroc": 0.9435,
+      "accept_verdict_precision": 0.9947,
+      "accept_verdict_recall": 0.8672,
+      "all_right_rate": 0.9548,
+      "cutoff": {
+        "accept_rate": 1.0,
+        "cutoff": 0.04,
+        "precision": 0.9548,
+        "recall": 1.0
+      },
+      "field_score_at_half": {
+        "accept_rate": 0.484,
+        "cutoff": 0.5,
+        "precision": 1.0,
+        "recall": 0.5069
+      },
+      "field_score_auroc": 0.7782,
+      "field_score_cutoff": {
+        "accept_rate": 1.0,
+        "cutoff": 0.0,
+        "precision": 0.9548,
+        "recall": 1.0
+      },
+      "fields": [
+        "claim_number",
+        "claim_type",
+        "claimed_amount",
+        "coverage_determination",
+        "date_filed",
+        "date_of_loss",
+        "insured_party",
+        "insurer",
+        "policy_number"
+      ],
+      "mean_fraction_right": 0.9947,
+      "n": 686,
+      "spearman_accept_vs_fraction": 0.3193,
+      "verdicts": {
+        "accept": 571,
+        "retry_extraction": 115
+      }
+    }
+  },
+  "question_set": "extraction_gate_v1.2.0",
+  "questions_sha256": "d07c81bf08b8fe1928a3b2097c4c3b3135aa69f13286e380276e6a11e6580575",
+  "run_id": "extraction-gate-luna-v1.2.0-r3",
+  "runs": [
+    "extraction-gate-luna-v1.2.0-r3"
+  ],
+  "skipped": {},
+  "target_precision": 0.9
+}

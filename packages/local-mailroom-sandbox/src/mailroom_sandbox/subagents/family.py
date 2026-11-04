@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import os
 from pathlib import Path
 from typing import Any
@@ -37,7 +38,7 @@ def family_roster_path(root: Path | None = None) -> Path:
 def load_family_document(root: Path | None = None) -> dict[str, Any]:
     path = family_roster_path(root)
     if not path.is_file():
-        raise FileNotFoundError(f"family roster not found: {path}")
+        raise FileNotFoundError(errno.ENOENT, "family roster not found", str(path))
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
 

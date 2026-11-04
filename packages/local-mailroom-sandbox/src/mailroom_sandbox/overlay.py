@@ -38,6 +38,13 @@ def resolve_served_vllm_model(explicit: str | None = None) -> str | None:
     return None
 
 
+def _default_vllm_ids() -> set[str]:
+    """Ids a champion remap may hold before a pin: the frozen dense Qwen3-8B and
+    the current models.yaml vLLM default (SAND-077: Qwen/Qwen3.5-9B)."""
+    default = (load_model_map().get("defaults") or {}).get("vllm")
+    return {_DENSE_QWEN3_8B, *([str(default)] if default else [])}
+
+
 def pin_served_vllm_ids(taxonomy: dict, served: str | None) -> dict:
     """Force every vLLM agent + champion remap onto the served HF id."""
     if not served:
@@ -50,11 +57,13 @@ def pin_served_vllm_ids(taxonomy: dict, served: str | None) -> dict:
         if isinstance(agent, dict) and str(agent.get("provider") or "") == "vllm":
             agent["model"] = served
     mapping = taxonomy.setdefault("vllm_model_map", {})
-    if isinstance(mapping, dict) and served != _DENSE_QWEN3_8B:
+    if isinstance(mapping, dict):
+        defaults = _default_vllm_ids() - {served}
         for key, val in list(mapping.items()):
-            if val == _DENSE_QWEN3_8B:
+            if val in defaults:
                 mapping[key] = served
-        mapping[_DENSE_QWEN3_8B] = served
+        for default_id in sorted(defaults):
+            mapping[default_id] = served
     return taxonomy
 
 
@@ -85,11 +94,19 @@ def load_model_map() -> dict:
     return load_yaml(config_dir() / "models.yaml")
 
 
+class UnknownNameError(FileNotFoundError):
+    """A profile or prompt variant name with no config file: an operator typo, not a missing tool."""
+
+
+class UnknownProfileError(UnknownNameError):
+    """No ``config/profiles/<name>.yaml``."""
+
+
 def load_profile(name: str) -> dict:
     path = profiles_dir() / f"{name}.yaml"
     if not path.is_file():
         available = sorted(p.stem for p in profiles_dir().glob("*.yaml"))
-        raise FileNotFoundError(f"Unknown profile {name!r}. Available: {available}")
+        raise UnknownProfileError(f"Unknown profile {name!r}. Available: {available}")
     profile = load_yaml(path)
     profile.setdefault("name", name)
     return profile
@@ -99,12 +116,17 @@ def list_profiles() -> list[str]:
     return sorted(p.stem for p in profiles_dir().glob("*.yaml"))
 
 
+_PACKAGED_ATTR = "_sandbox_packaged_config_path"
+
+
 def mailroom_taxonomy_path() -> Path:
     """Shipped mailroom taxonomy: installed package, then vendored base."""
     try:
         import pipeline.config as cfg  # type: ignore
 
-        packaged = Path(cfg.CONFIG_PATH)
+        # Once patch_mailroom_config has run, CONFIG_PATH is the runtime YAML;
+        # merging onto it would carry the last run's pins into this one.
+        packaged = Path(getattr(cfg, _PACKAGED_ATTR, cfg.CONFIG_PATH))
         if packaged.is_file():
             return packaged
     except Exception as exc:
@@ -263,10 +285,10 @@ def build_merged_taxonomy(
     # context-fit for 16384 while letting one run widen its own budget.
     merged = apply_agent_overrides(merged, agent_knobs)
     # CLI --agent-model is surgical and always wins last.
-    merged = apply_agent_models(merged, agent_models)
     served = resolve_served_vllm_model(model_override)
     if served and serving_family(profile) == "vllm":
         pin_served_vllm_ids(merged, served)
+    merged = apply_agent_models(merged, agent_models)
     return merged
 
 
@@ -276,6 +298,12 @@ def write_runtime_taxonomy(taxonomy: dict, dest: Path | None = None) -> Path:
     with dest.open("w", encoding="utf-8") as fh:
         yaml.safe_dump(taxonomy, fh, default_flow_style=False, sort_keys=False, allow_unicode=True)
     return dest
+
+
+def live_doc_classes() -> list[str]:
+    """Live (non-retired) document class keys of the shipped mailroom taxonomy."""
+    classes = load_yaml(mailroom_taxonomy_path()).get("doc_classes") or []
+    return [c["key"] for c in classes if c.get("key") and c.get("status") != "retired"]
 
 
 def patch_mailroom_config(taxonomy_path: Path) -> bool:
@@ -291,6 +319,8 @@ def patch_mailroom_config(taxonomy_path: Path) -> bool:
             exc_info=exc,
         )
         return False
+    if not hasattr(cfg, _PACKAGED_ATTR):
+        setattr(cfg, _PACKAGED_ATTR, cfg.CONFIG_PATH)
     cfg.CONFIG_PATH = Path(taxonomy_path)
     cache_clear = getattr(cfg.load_config, "cache_clear", None)
     if callable(cache_clear):

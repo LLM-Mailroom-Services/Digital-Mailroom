@@ -8,17 +8,24 @@ have their own guides: [`conda/`](conda/) (environment spec),
 ## Compose
 
 ```bash
-sandbox up                       # langfuse + ollama (from the ollama profile)
+sandbox up                       # langfuse only (default modal-vllm: the GPU endpoint is on Modal)
+sandbox up --compose-profile langfuse --compose-profile ollama   # offline fallback: langfuse + ollama
 sandbox up --compose-profile phoenix --compose-profile vllm
 sandbox up --compose-profile jupyter   # builds deploy/Dockerfile → Lab :8888
 sandbox down
 ```
 
 Profiles: `langfuse`, `phoenix`, `ollama`, `vllm`, `llamacpp`, `jupyter`.
+Each `up` line above is an alternative; `up` runs in the foreground unless `-d`
+is supplied. Explicit compose profiles replace the selected profile defaults.
 
-Langfuse 3 (`langfuse-web` + `langfuse-worker`) is the default tracing sink.
-Phoenix is optional. Headless project keys are `pk-lf-sandbox` / `sk-lf-sandbox`
-(see `config/.env.example`).
+Langfuse 3 (`langfuse-web` + `langfuse-worker`, both pinned to `3.225.15`) is the
+default tracing sink. Phoenix is optional. Headless project keys are
+`pk-lf-sandbox` / `sk-lf-sandbox`, and the sign-in email defaults to
+`sandbox@example.com` (see `config/.env.example`). Every published port binds
+`127.0.0.1`. MinIO is the Chainguard image; a `minio_data` volume left by the old
+`minio/minio` image needs its owner changed once before Langfuse can store
+events and media. The steps are in [`docs/setting-up/docker-offline.md`](../docs/setting-up/docker-offline.md).
 
 vLLM needs an NVIDIA GPU on the host. Ollama runs on CPU for smoke models
 (`llama3.2:3b`); use a GPU host for `qwen3:8b`.
@@ -33,7 +40,7 @@ Jupyter Lab). Full walkthrough: [`docs/setting-up/docker-offline.md`](../docs/se
 docker build -f deploy/Dockerfile -t mailroom-sandbox:offline .
 
 # Or via compose (mounts the repo at /workspace)
-sandbox up --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
+sandbox up -d --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
 # → http://127.0.0.1:8888/lab  (notebooks/01…03)
 sandbox datasets prepare         # same cleaners the notebooks call
 ```
@@ -46,7 +53,7 @@ Dedicated notebooks:
 
 ## Modal vLLM (remote GPU)
 
-Modal SDK **1.6.1** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**
+Modal SDK **1.6.2** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**
 (`vllm/vllm-openai:v0.29.0`, matching the local compose pin). Same knob
 contract as llm-mailroom KANBAN-064 / entity-extraction KANBAN-096, plus
 sandbox-local cost/scale knobs.
@@ -57,7 +64,7 @@ sandbox-local cost/scale knobs.
 pip install -e ".[deploy]"
 modal token new
 
-export MODAL_VLLM_MODEL=Qwen/Qwen3-8B                   # default
+export MODAL_VLLM_MODEL=Qwen/Qwen3.5-9B                 # default (online fp8, text-only)
 export MODAL_VLLM_GPU=L4                                # 24 GB; justify bigger
 export MODAL_VLLM_API_TOKEN="$(openssl rand -hex 24)"   # shared endpoints
 # optional: export HF_TOKEN=...                         # gated weights
@@ -70,6 +77,22 @@ modal deploy deploy/modal_vllm.py
 ```
 
 Endpoint: `https://<workspace>--sandbox-vllm-serve.modal.run`.
+
+To skip the image build on later deploys, publish the image once and deploy from it:
+
+```bash
+sandbox modal publish-image             # sandbox-vllm:v0.29.0 in the active workspace
+sandbox modal deploy --named-image      # sets MODAL_VLLM_USE_NAMED_IMAGE=1
+```
+
+A named image belongs to one workspace, so publish once per Modal account
+(`MODAL_PROFILE`). `--tag TAG` publishes another tag; a deploy uses the tag in
+`MODAL_VLLM_IMAGE_TAG`. `--dry-run` shows the command without running it. Only the
+serving image is published: the job image in `deploy/modal_job.py` bundles the code.
+`sandbox experiment create` sets `engine.modal.named_image: true` on Modal engines and
+routes, so experiments reuse the image; `--no-named-image` builds it instead. Any other
+run YAML opts in with the same field, and a stale shell value shows up as drift. If the
+workspace has no published image, the deploy fails before any GPU starts.
 
 ### Verify + point the sandbox at it
 
@@ -84,14 +107,16 @@ curl -sS -H "Authorization: Bearer $VLLM_API_KEY" "$VLLM_BASE_URL/models"
 modal run deploy/modal_vllm.py --check
 ```
 
-For evals: `SANDBOX_PROFILE=modal-vllm` + `DEFAULT_PROVIDER=vllm` (see
-`config/.env.example`), then `sandbox pilot --local --profile modal-vllm`.
+`modal-vllm` is the default (`SANDBOX_PROFILE=modal-vllm` +
+`DEFAULT_PROVIDER=vllm` in `config/.env.example`), so
+`sandbox pilot --local` uses the deployed endpoint. The offline opt-out is
+`--profile ollama`.
 
 ### Knobs
 
 | Env | Default | Notes |
 | --- | --- | --- |
-| `MODAL_VLLM_MODEL` | `Qwen/Qwen3-8B` | HF repo id |
+| `MODAL_VLLM_MODEL` | `Qwen/Qwen3.5-9B` | HF repo id (SAND-077). Qwen3.5 rows get fp8 and text-only `--limit-mm-per-prompt` from `MODEL_SERVE_DEFAULTS` |
 | `MODAL_VLLM_GPU` | `L4` | 24 GB VRAM |
 | `MODAL_VLLM_MAX_MODEL_LEN` | `16384` | context cap (KV-cache budget). DMR-056: v0.29.0 RAISES at boot when the pool can't hold one request — L4-bf16 8B rows cap at 16384; AWQ/FP8 rows set 32768 |
 | `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | fraction of GPU memory; vLLM's default is `0.92` |
@@ -100,7 +125,7 @@ For evals: `SANDBOX_PROFILE=modal-vllm` + `DEFAULT_PROVIDER=vllm` (see
 | `MODAL_VLLM_ENFORCE_EAGER` | `1` | skip CUDA-graph capture for faster cold boot (`--enforce-eager`; set `0` for graphs / higher steady-state tok/s) |
 | `MODAL_VLLM_ATTENTION_BACKEND` | empty | `flashinfer` for throughput runs (Modal vllm_throughput exemplar); empty = vLLM engine default (parity + reproducible posture) |
 | `MODAL_VLLM_ASYNC_SCHEDULING` | empty | `1`/`true` enables the async batch scheduler (exemplar throughput knob). Not every vLLM feature is supported under it — keep off when a run depends on structured outputs |
-| `MODAL_VLLM_QUANTIZATION` | empty | `awq` / `gptq` / … |
+| `MODAL_VLLM_QUANTIZATION` | the row default (`fp8` for Qwen3.5 rows, else empty) | `awq` / `gptq` / `fp8` / …; `bf16` serves unquantized on a row whose default is quantized. A run spec's explicit `quantization: ""` renders as `bf16` |
 | `MODAL_VLLM_TP_SIZE` | from GPU suffix | tensor-parallel size; default derived from `:N` in `MODAL_VLLM_GPU` (1 for single GPU). **Only** for models that won't fit one GPU (70B-class). For a second L4 on 8B, raise `MAX_CONTAINERS` instead |
 | `MODAL_VLLM_IMAGE_TAG` | `v0.29.0` | pin; tag or `@sha256:` digest |
 | `MODAL_VLLM_REVISION` | empty | HF revision (recommended for runs; travels via the deploy Secret) |
@@ -153,7 +178,8 @@ cap, and tensor-parallel size. Rules of thumb (verified against v0.29.0,
   `eval "$(sandbox modal-matrix env <HF-id> [--gpu GPU])"`) then
   `modal deploy deploy/modal_vllm.py --strategy recreate`. A rolling
   redeploy keeps the old model warm for the scaledown window.
-  **Default specialist cost-eval path stays Qwen/Qwen3-8B @ L4**
+  The app default is Qwen/Qwen3.5-9B @ L4 (online fp8, text-only; SAND-077).
+  **The frozen specialist cost-eval path stays Qwen/Qwen3-8B @ L4**
   (`sandbox runbook show l4-qwen3-8b`); do not edit `run-30-*-specialist.yaml` for
   one-off swaps — copy the YAML if an alternate scorecard needs matching
   `engine.model` / `engine.modal.gpu`.
@@ -292,6 +318,8 @@ still `pending_annotation`.
 ### Teardown + resource safeguards (DMR-063)
 
 ```bash
+sandbox modal status                    # sandbox-vllm, sandbox-job and any other sandbox-* app that is not stopped (except sandbox-image-builds); containers shown when deployed
+sandbox doctor --service modal --live   # the Modal account check: lists apps, deploys nothing
 ./deploy/teardown_vllm.sh              # stop + VERIFY zero containers + spend check
 modal app stop sandbox-vllm          # manual fallback (Volumes persist)
 modal volume ls sandbox-hf-cache     # weights survive

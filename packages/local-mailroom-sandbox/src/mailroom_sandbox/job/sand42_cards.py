@@ -114,6 +114,13 @@ CLASS_SLO_SECONDS: dict[str, float] = {
     "contracts_specialist": 300.0,
     "merger_agreement_specialist": 1800.0,
 }
+DOC_CLASS_SLO_SECONDS: dict[str, float] = {
+    "correspondence": 60.0,
+    "insurance_claim": 60.0,
+    "corporate_record": 60.0,
+    "contract": 300.0,
+    "merger_agreement": 1800.0,
+}
 NOISE_FLOOR_RUN = "sand42-noisefloor-correspondence-awq-1l4-c8"
 
 
@@ -251,11 +258,19 @@ def paired_n_for(delta: float, sd_diff: float | None, *, power: float = 2.8) -> 
     return int(-(-(power * sd_diff / abs(delta)) ** 2 // 1))
 
 
+def _doc_score(doc: Mapping[str, Any]) -> float | None:
+    """A document's quality: zero when it failed (whatever partial score it kept), else its score."""
+    if doc.get("ok") is False:
+        return 0.0
+    score = doc.get("score")
+    return float(score) if isinstance(score, (int, float)) and not isinstance(score, bool) else None
+
+
 def _scores_by_id(card: Mapping[str, Any]) -> dict[str, float]:
     out: dict[str, float] = {}
     for doc in card.get("documents") or []:
         item = doc.get("item_id")
-        score = doc.get("score")
+        score = _doc_score(doc)
         if item is None or not isinstance(score, (int, float)):
             continue
         out[str(item)] = float(score)
@@ -288,8 +303,33 @@ def _reliability(card: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _pipeline_goodput(card: Mapping[str, Any]) -> dict[str, Any]:
+    """A connected run mixes classes, so it meets its SLO only if every class does."""
+    replicas = max(1, int((card.get("conditions") or {}).get("replicas") or 1))
+    wall = (card.get("time") or {}).get("wall_seconds")
+    docs = int((card.get("quality") or {}).get("documents") or 0)
+    by_class: dict[str, dict[str, Any]] = {}
+    for name, row in ((card.get("pipeline") or {}).get("by_class") or {}).items():
+        slo = DOC_CLASS_SLO_SECONDS.get(name)
+        p95 = row.get("latency_p95")
+        by_class[name] = {"slo_seconds": slo, "meets_slo": None if slo is None or p95 is None else p95 <= slo}
+    verdicts = [row["meets_slo"] for row in by_class.values()]
+    # A known miss decides the verdict; a missing measurement only blocks a pass.
+    meets = False if False in verdicts else (None if not verdicts or None in verdicts else True)
+    out: dict[str, Any] = {"documents_per_minute_per_gpu": None, "slo_seconds": None,
+                           "meets_slo": meets, "slo_by_class": by_class}
+    if wall and docs:
+        rate = docs / wall * 60.0 / replicas
+        out["documents_per_minute_per_gpu"] = rate
+        if meets is not None:
+            out["goodput_documents_per_minute_per_gpu"] = rate if meets else 0.0
+    return out
+
+
 def _goodput(card: Mapping[str, Any], task: str) -> dict[str, Any]:
     """docs/min/GPU at the class SLO: throughput only counts a run that meets it."""
+    if task == "pipeline":
+        return _pipeline_goodput(card)
     replicas = max(1, int((card.get("conditions") or {}).get("replicas") or 1))
     wall = (card.get("time") or {}).get("wall_seconds")
     docs = int((card.get("quality") or {}).get("documents") or 0)
@@ -338,7 +378,12 @@ def _summary(run_id: str, card: Mapping[str, Any] | None, task: str) -> dict[str
     if not card:
         return {"run_id": run_id, "task": task, "reported": False}
     docs = card.get("documents") or []
-    scores = [float(d["score"]) for d in docs if isinstance(d.get("score"), (int, float))]
+    # The denominator is documents attempted: a failed document counts as zero,
+    # even when it kept a partial score. A successful document with no score
+    # (nothing to score it against) is counted apart, never as an observation.
+    scores = [score for score in map(_doc_score, docs) if score is not None]
+    scored = [d for d in docs if d.get("ok") is not False and _doc_score(d) is not None]
+    unscored = sum(1 for d in docs if _doc_score(d) is None)
     quality_ci = bootstrap_mean_ci(scores)
     return {
         "run_id": run_id,
@@ -351,7 +396,9 @@ def _summary(run_id: str, card: Mapping[str, Any] | None, task: str) -> dict[str
             "sd": (card.get("quality") or {}).get("overall_sd"),
             "scoring_method": (card.get("quality") or {}).get("scoring_method"),
             "clause": (card.get("quality") or {}).get("clause"),
-            "scored_documents": len(scores),
+            "scored_documents": len(scored),
+            "attempted_documents": len(scores),
+            "unscored_documents": unscored,
         },
         "reliability": _reliability(card),
         "cost": _cost_per_usable(card),
@@ -363,6 +410,7 @@ def _summary(run_id: str, card: Mapping[str, Any] | None, task: str) -> dict[str
         "concurrency": card.get("concurrency") or {},
         "engine_telemetry": card.get("engine_telemetry") or {},
         "gpu": _gpu_block(card),
+        "pipeline": card.get("pipeline"),
     }
 
 

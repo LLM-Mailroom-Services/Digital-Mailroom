@@ -9,7 +9,6 @@ from pydantic import ValidationError
 
 from mailroom_sandbox.job.spec import (
     DatasetSpec,
-    ModalSpec,
     PromptRef,
     RunSpec,
     VLLMSpec,
@@ -262,3 +261,14 @@ def test_spec_hash_changes_when_sand032_knob_set():
     before = spec_hash(spec)
     spec.engine.vllm.kv_cache_dtype = "fp8"
     assert spec_hash(spec) != before
+
+
+def test_cost_cap_rejects_nan_and_non_positive():
+    """NaN fails every comparison, so it would silently disable the spend cap."""
+    from mailroom_sandbox.job.spec import JobSpec
+
+    assert JobSpec().cost_cap_usd is None
+    assert JobSpec(cost_cap_usd=0.55).cost_cap_usd == 0.55
+    for bad in (float("nan"), 0, -1.0):
+        with pytest.raises(ValidationError, match="cost_cap_usd"):
+            JobSpec(cost_cap_usd=bad)

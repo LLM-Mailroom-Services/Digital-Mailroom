@@ -1,0 +1,471 @@
+{
+  "classes": {
+    "all": {
+      "accept_auroc": 0.6241,
+      "accept_auroc_above_median": 0.6185,
+      "accept_verdict_precision": 0.5682,
+      "cutoff": {
+        "accept_rate": 0.0,
+        "cutoff": null,
+        "precision": null,
+        "recall": 0.0
+      },
+      "good_rate": 0.4887,
+      "mean_extraction_score": 0.6776,
+      "median_score": 0.7925,
+      "n": 1596,
+      "spearman_accept_vs_score": 0.2027,
+      "verdicts": {
+        "accept": 1121,
+        "retry_extraction": 475
+      }
+    },
+    "contract": {
+      "accept_auroc": 0.5394,
+      "accept_auroc_above_median": 0.5256,
+      "accept_verdict_precision": 0.24,
+      "cutoff": {
+        "accept_rate": 0.0125,
+        "cutoff": 0.82,
+        "precision": 1.0,
+        "recall": 0.0556
+      },
+      "good_rate": 0.225,
+      "mean_extraction_score": 0.7153,
+      "median_score": 0.7143,
+      "n": 80,
+      "spearman_accept_vs_score": 0.0703,
+      "verdicts": {
+        "accept": 25,
+        "retry_extraction": 55
+      }
+    },
+    "corporate_record": {
+      "accept_auroc": 0.0578,
+      "accept_auroc_above_median": 0.5384,
+      "accept_verdict_precision": 0.0,
+      "cutoff": {
+        "accept_rate": 0.0,
+        "cutoff": null,
+        "precision": null,
+        "recall": 0.0
+      },
+      "good_rate": 0.005,
+      "mean_extraction_score": 0.3974,
+      "median_score": 0.4588,
+      "n": 200,
+      "spearman_accept_vs_score": 0.091,
+      "verdicts": {
+        "accept": 67,
+        "retry_extraction": 133
+      }
+    },
+    "correspondence": {
+      "accept_auroc": 0.4312,
+      "accept_auroc_above_median": 0.5074,
+      "accept_verdict_precision": 0.0242,
+      "cutoff": {
+        "accept_rate": 0.0,
+        "cutoff": null,
+        "precision": null,
+        "recall": 0.0
+      },
+      "good_rate": 0.0333,
+      "mean_extraction_score": 0.3145,
+      "median_score": 0.3333,
+      "n": 300,
+      "spearman_accept_vs_score": 0.0381,
+      "verdicts": {
+        "accept": 248,
+        "retry_extraction": 52
+      }
+    },
+    "insurance_claim": {
+      "accept_auroc": 0.7205,
+      "accept_auroc_above_median": 0.6685,
+      "accept_verdict_precision": 0.8213,
+      "cutoff": {
+        "accept_rate": 0.3742,
+        "cutoff": 0.64,
+        "precision": 0.9024,
+        "recall": 0.4434
+      },
+      "good_rate": 0.7617,
+      "mean_extraction_score": 0.8589,
+      "median_score": 0.8659,
+      "n": 986,
+      "spearman_accept_vs_score": 0.4031,
+      "verdicts": {
+        "accept": 761,
+        "retry_extraction": 225
+      }
+    },
+    "merger_agreement": {
+      "accept_auroc": null,
+      "accept_auroc_above_median": 0.5045,
+      "accept_verdict_precision": 0.0,
+      "cutoff": {
+        "accept_rate": 0.0,
+        "cutoff": null,
+        "precision": null,
+        "recall": 0.0
+      },
+      "good_rate": 0.0,
+      "mean_extraction_score": 0.1173,
+      "median_score": 0.1111,
+      "n": 30,
+      "spearman_accept_vs_score": 0.0539,
+      "verdicts": {
+        "accept": 20,
+        "retry_extraction": 10
+      }
+    }
+  },
+  "field_truth": "dojo",
+  "fields": {
+    "contract.cuad_clauses": {
+      "n": 80,
+      "support_auroc": 0.4507,
+      "truth_rate": 0.225
+    },
+    "contract.document_name": {
+      "n": 80,
+      "support_auroc": 0.3544,
+      "truth_rate": 0.9875
+    },
+    "contract.effective_date": {
+      "n": 80,
+      "support_auroc": 0.6307,
+      "truth_rate": 0.6625
+    },
+    "contract.governing_law": {
+      "n": 80,
+      "support_auroc": 0.8322,
+      "truth_rate": 0.95
+    },
+    "contract.parties": {
+      "n": 80,
+      "support_auroc": 0.5461,
+      "truth_rate": 0.3375
+    },
+    "contract.renewal_terms": {
+      "n": 80,
+      "support_auroc": 0.8831,
+      "truth_rate": 0.825
+    },
+    "contract.term_length": {
+      "n": 80,
+      "support_auroc": 0.7493,
+      "truth_rate": 0.875
+    },
+    "corporate_record.intent": {
+      "n": 200,
+      "support_auroc": 0.9843,
+      "truth_rate": 0.685
+    },
+    "correspondence.intent": {
+      "n": 300,
+      "support_auroc": 0.6759,
+      "truth_rate": 0.5533
+    },
+    "insurance_claim.claim_number": {
+      "n": 986,
+      "support_auroc": null,
+      "truth_rate": 1.0
+    },
+    "insurance_claim.claim_type": {
+      "n": 986,
+      "support_auroc": null,
+      "truth_rate": 1.0
+    },
+    "insurance_claim.claimed_amount": {
+      "n": 986,
+      "support_auroc": 0.9875,
+      "truth_rate": 0.9817
+    },
+    "insurance_claim.coverage_determination": {
+      "n": 986,
+      "support_auroc": 0.8231,
+      "truth_rate": 0.9523
+    },
+    "insurance_claim.date_filed": {
+      "n": 983,
+      "support_auroc": 0.8899,
+      "truth_rate": 0.8494
+    },
+    "insurance_claim.date_of_loss": {
+      "n": 983,
+      "support_auroc": 0.9804,
+      "truth_rate": 0.9919
+    },
+    "insurance_claim.insured_party": {
+      "n": 986,
+      "support_auroc": null,
+      "truth_rate": 1.0
+    },
+    "insurance_claim.insurer": {
+      "n": 986,
+      "support_auroc": 0.9314,
+      "truth_rate": 0.9888
+    },
+    "insurance_claim.policy_number": {
+      "n": 986,
+      "support_auroc": 1.0,
+      "truth_rate": 0.9817
+    },
+    "merger_agreement.merger_consideration": {
+      "n": 25,
+      "support_auroc": 0.4375,
+      "truth_rate": 0.96
+    }
+  },
+  "good_threshold": 0.8,
+  "key_field_set": "extraction_gate_v1.2.0",
+  "keyfields": {
+    "all": {
+      "accept_auroc": 0.6672,
+      "accept_verdict_precision": 0.7614,
+      "accept_verdict_recall": 0.7817,
+      "all_right_rate": 0.6851,
+      "cutoff": {
+        "accept_rate": 0.1094,
+        "cutoff": 0.9,
+        "precision": 0.9023,
+        "recall": 0.144
+      },
+      "field_score_at_half": {
+        "accept_rate": 0.4236,
+        "cutoff": 0.5,
+        "precision": 0.865,
+        "recall": 0.5349
+      },
+      "field_score_auroc": 0.7638,
+      "field_score_cutoff": {
+        "accept_rate": 0.1697,
+        "cutoff": 0.9702,
+        "precision": 0.9,
+        "recall": 0.2229
+      },
+      "fields": null,
+      "mean_fraction_right": 0.8427,
+      "n": 1591,
+      "spearman_accept_vs_fraction": 0.2369,
+      "verdicts": {
+        "accept": 1119,
+        "retry_extraction": 472
+      }
+    },
+    "contract": {
+      "accept_auroc": 0.5303,
+      "accept_verdict_precision": 0.04,
+      "accept_verdict_recall": 0.3333,
+      "all_right_rate": 0.0375,
+      "cutoff": {
+        "accept_rate": 0.0,
+        "cutoff": null,
+        "precision": null,
+        "recall": 0.0
+      },
+      "field_score_at_half": {
+        "accept_rate": 0.1375,
+        "cutoff": 0.5,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "field_score_auroc": 0.2381,
+      "field_score_cutoff": {
+        "accept_rate": 0.0,
+        "cutoff": null,
+        "precision": null,
+        "recall": 0.0
+      },
+      "fields": [
+        "cuad_clauses",
+        "document_name",
+        "effective_date",
+        "governing_law",
+        "parties",
+        "renewal_terms",
+        "term_length"
+      ],
+      "mean_fraction_right": 0.6946,
+      "n": 80,
+      "spearman_accept_vs_fraction": 0.2106,
+      "verdicts": {
+        "accept": 25,
+        "retry_extraction": 55
+      }
+    },
+    "corporate_record": {
+      "accept_auroc": 0.5207,
+      "accept_verdict_precision": 0.7463,
+      "accept_verdict_recall": 0.365,
+      "all_right_rate": 0.685,
+      "cutoff": {
+        "accept_rate": 0.055,
+        "cutoff": 0.97,
+        "precision": 0.9091,
+        "recall": 0.073
+      },
+      "field_score_at_half": {
+        "accept_rate": 0.25,
+        "cutoff": 0.5,
+        "precision": 1.0,
+        "recall": 0.365
+      },
+      "field_score_auroc": 0.8914,
+      "field_score_cutoff": {
+        "accept_rate": 0.6,
+        "cutoff": 0.0096,
+        "precision": 0.9,
+        "recall": 0.7883
+      },
+      "fields": [
+        "effective_date",
+        "entity_name",
+        "filing_number",
+        "intent",
+        "jurisdiction",
+        "record_type",
+        "signatories"
+      ],
+      "mean_fraction_right": 0.685,
+      "n": 200,
+      "spearman_accept_vs_fraction": 0.0333,
+      "verdicts": {
+        "accept": 67,
+        "retry_extraction": 133
+      }
+    },
+    "correspondence": {
+      "accept_auroc": 0.5393,
+      "accept_verdict_precision": 0.5484,
+      "accept_verdict_recall": 0.8193,
+      "all_right_rate": 0.5533,
+      "cutoff": {
+        "accept_rate": 0.01,
+        "cutoff": 0.97,
+        "precision": 1.0,
+        "recall": 0.0181
+      },
+      "field_score_at_half": {
+        "accept_rate": 0.6033,
+        "cutoff": 0.5,
+        "precision": 0.5912,
+        "recall": 0.6446
+      },
+      "field_score_auroc": 0.5835,
+      "field_score_cutoff": {
+        "accept_rate": 0.0,
+        "cutoff": null,
+        "precision": null,
+        "recall": 0.0
+      },
+      "fields": [
+        "communication_date",
+        "communication_type",
+        "intent",
+        "recipient",
+        "sender"
+      ],
+      "mean_fraction_right": 0.5533,
+      "n": 300,
+      "spearman_accept_vs_fraction": 0.0677,
+      "verdicts": {
+        "accept": 248,
+        "retry_extraction": 52
+      }
+    },
+    "insurance_claim": {
+      "accept_auroc": 0.7829,
+      "accept_verdict_precision": 0.8515,
+      "accept_verdict_recall": 0.8526,
+      "all_right_rate": 0.7708,
+      "cutoff": {
+        "accept_rate": 0.502,
+        "cutoff": 0.59,
+        "precision": 0.9071,
+        "recall": 0.5908
+      },
+      "field_score_at_half": {
+        "accept_rate": 0.4361,
+        "cutoff": 0.5,
+        "precision": 0.986,
+        "recall": 0.5579
+      },
+      "field_score_auroc": 0.8649,
+      "field_score_cutoff": {
+        "accept_rate": 0.715,
+        "cutoff": 0.1036,
+        "precision": 0.9007,
+        "recall": 0.8355
+      },
+      "fields": [
+        "claim_number",
+        "claim_type",
+        "claimed_amount",
+        "coverage_determination",
+        "date_filed",
+        "date_of_loss",
+        "insured_party",
+        "insurer",
+        "policy_number"
+      ],
+      "mean_fraction_right": 0.9718,
+      "n": 986,
+      "spearman_accept_vs_fraction": 0.4142,
+      "verdicts": {
+        "accept": 761,
+        "retry_extraction": 225
+      }
+    },
+    "merger_agreement": {
+      "accept_auroc": 0.4167,
+      "accept_verdict_precision": 0.9444,
+      "accept_verdict_recall": 0.7083,
+      "all_right_rate": 0.96,
+      "cutoff": {
+        "accept_rate": 1.0,
+        "cutoff": 0.14,
+        "precision": 0.96,
+        "recall": 1.0
+      },
+      "field_score_at_half": {
+        "accept_rate": 0.08,
+        "cutoff": 0.5,
+        "precision": 1.0,
+        "recall": 0.0833
+      },
+      "field_score_auroc": 0.5417,
+      "field_score_cutoff": {
+        "accept_rate": 1.0,
+        "cutoff": 0.0,
+        "precision": 0.96,
+        "recall": 1.0
+      },
+      "fields": [
+        "document_name",
+        "effective_date",
+        "effective_time",
+        "governing_law",
+        "merger_consideration",
+        "parties"
+      ],
+      "mean_fraction_right": 0.96,
+      "n": 25,
+      "spearman_accept_vs_fraction": -0.0567,
+      "verdicts": {
+        "accept": 18,
+        "retry_extraction": 7
+      }
+    }
+  },
+  "question_set": "extraction_gate_v1.3.0",
+  "questions_sha256": "f2870b9085b889494189fe7c716965b0953baa44d33c0743bd276019838ea4a0",
+  "run_id": "extraction-gate-luna-v1.3.0",
+  "runs": [
+    "extraction-gate-luna-v1.3.0"
+  ],
+  "skipped": {},
+  "target_precision": 0.9
+}

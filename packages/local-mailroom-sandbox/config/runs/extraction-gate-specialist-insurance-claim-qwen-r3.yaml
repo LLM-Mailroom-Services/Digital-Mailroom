@@ -1,0 +1,50 @@
+# Extraction gate round 3: every remaining NEW insurance_claim train document (686) for the gate's
+# training set. No document (by id or folded text) that any finished specialist run already
+# extracted (910 excluded); all six templates (auto 216, property 134, pde 86, inpatient 85,
+# outpatient 85, carrier 80). qwen/qwen3.7-flash, one call per document, on the frontrunner
+# condensed prompt insurance_claims_specialist_condensed_v3 (per-template field map; lineage in
+# config/prompts/specialist_condensed_lineage.yaml).
+#
+#   python scripts/extraction_gate.py --split train expand \
+#       --dataset-run reviewer-calibration-luna-decisions-v3.1.0-train --tag r3 \
+#       --count insurance_claim=100000 --count correspondence=0 --count corporate_record=0 \
+#       --count contract=0 --count merger_agreement=0
+#   sandbox run start --config config/runs/extraction-gate-specialist-insurance-claim-qwen-r3.yaml --initials XX
+#
+# Cost: ~2.1M chars of documents; about 1.9M input / 0.5M output tokens at the <32k tier
+# ($0.03 / $0.13 per 1M), about $0.13; cap $0.30.
+schema: sandbox.run/v1
+run_id: extraction-gate-specialist-insurance-claim-qwen-r3
+task: insurance_claims_specialist
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    insurance_claims_specialist: {source: local, file: insurance_claims_specialist_condensed_v3}   # specialist-condensed frontrunner
+
+dataset:
+  provider: file
+  local_path: data/runtime/handoff/gate-train-r3-insurance_claim.jsonl
+  config: ground_truth
+  split: train
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 12
+  cost_cap_usd: 1.00
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.30
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, extraction-gate, specialist-handoff, round-3, insurance-claim]

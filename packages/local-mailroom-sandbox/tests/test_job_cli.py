@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 
 import pytest
 
@@ -33,6 +32,50 @@ def _write_run_yaml(tmp_path) -> str:
     return str(path)
 
 
+def test_run_preflight_live_persists_direct_probe_cold_boot(tmp_path, monkeypatch, job_data_dir):
+    """A direct ``run preflight --live`` probe must record cold_boot.json too:
+    only ``preflight(live=True)`` used to write it, so the runner/metrics never
+    saw the measurement."""
+    import yaml
+
+    from mailroom_sandbox.job import preflight
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+
+    source = tmp_path / "input.jsonl"
+    source.write_text('{"id": "d0", "doc_text": "hello"}\n', encoding="utf-8")
+    config = tmp_path / "run.yaml"
+    config.write_text(
+        yaml.safe_dump(
+            {
+                "run_id": "cli-direct-probe",
+                "task": "sorter",
+                "dataset": {"provider": "file", "local_path": str(source)},
+                "engine": {"kind": "vllm-local", "modal": None},
+                "job": {"mock": True, "cost_cap_usd": 1.0, "max_wall_seconds": 60},
+                "trace": {"sink": "none"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        preflight,
+        "probe_engine",
+        lambda spec: {
+            "ok": True,
+            "cold_boot_seconds": 3.5,
+            "base_url": "http://localhost:8000/v1",
+            "served_models": ["Qwen/Qwen3-8B"],
+            "probe_timeout_seconds": 10.0,
+        },
+    )
+
+    assert main(["run", "preflight", "--config", str(config), "--live", "--offline", "--initials", "AB"]) == 0
+
+    boot = RunStore(run_dir("cli-direct-probe")).read_cold_boot()
+    assert boot and boot["cold_boot_seconds"] == 3.5
+
+
 def test_prompts_list(capsys):
     rc = main(["prompts", "list"])
     out = capsys.readouterr().out
@@ -46,7 +89,6 @@ def test_metrics_compare_requires_runs(capsys):
 
 
 def test_run_parser_has_lifecycle(tmp_path, capsys):
-    import json as _json
 
     # A config pointing at a non-existent dataset fails harmlessly under dry-run.
     path = tmp_path / "run.yaml"
@@ -98,7 +140,7 @@ def test_run_resume_passes_resolved_config_path(tmp_path, monkeypatch):
     nested.mkdir()
     cfg = nested / "run.yaml"
     cfg.write_text("schema: sandbox.run/v1\n", encoding="utf-8")
-    store = RunStore(run_dir("cli-resume"))
+    RunStore(run_dir("cli-resume"))
     from mailroom_sandbox.job.preflight import preflight
     from mailroom_sandbox.job.spec import RunSpec
 

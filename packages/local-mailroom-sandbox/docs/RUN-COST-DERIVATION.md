@@ -20,11 +20,11 @@ numbers are extrapolated and must be re-derived after the N=20 probe (SAND-028-4
 
 `src/mailroom_sandbox/eval/runners.py` records **per document**, per run:
 
-| Field | Line | Meaning |
+| Field | Where | Meaning |
 | --- | --- | --- |
-| `prompt_tokens` | 307–309 | input tokens billed by the provider |
-| `completion_tokens` | 307–309 | output + thinking tokens billed |
-| `latency_ms` | 223 | end-to-end per-doc latency |
+| `prompt_tokens` | `job/usage_capture.py` `merge_item_metrics` (per item); run totals in `eval/runners.py` | input tokens billed by the provider |
+| `completion_tokens` | as `prompt_tokens` | output + thinking tokens billed |
+| `latency_ms` | `eval/runners.py`, via `merge_item_metrics` | end-to-end per-doc latency |
 | JSON `ok` / error | per item | whether the doc produced a scored output |
 
 Aggregate fields (`cost_per_document`, `gpu_cost_per_document`, `total_tokens`) are
@@ -46,9 +46,36 @@ cost_api(N) = Σ_docs ( prompt_tokens × price_in + completion_tokens × price_o
 ```
 
 `price_in`/`price_out` come from `SANDBOX_TOKEN_PRICE_IN_PER_M` /
-`SANDBOX_TOKEN_PRICE_OUT_PER_M` (`src/mailroom_sandbox/job/metrics.py:47`); for
+`SANDBOX_TOKEN_PRICE_OUT_PER_M` overrides, else the price sheet in `config/api_prices.yaml`
+(a tier applies to a whole call whose prompt reaches its `min_prompt_tokens`), else the built-in
+`SANDBOX_MODEL_PRICES` table in `src/mailroom_sandbox/job/metrics.py` as the fallback; for
 `ibm-granite/granite-4.2-8b` that is **$0.06 / $0.25 per 1M**. No boot, no concurrency term, no
 idle: **Leg B's cost per doc is a pure function of the documents themselves.**
+
+### 2b · Run ceilings and budget advice (SAND-089)
+
+`job.api_cost_cap_usd` bounds the token spend a run can reach. The running estimate prices
+every observed token at the highest input and output price among the run's API models
+(`job/api_budget.py`, `price_bound`), so a hybrid run's estimate errs high. It is checked
+before each document, and a paid run that sends any agent to an unpriced model is refused.
+
+`sandbox experiment create` fills each unset ceiling with a recommendation
+(`job/budget_advice.py`). For a run that bills tokens, the API figure is:
+
+```
+cap_api = max($0.05, ceil($0.05, docs × calls_per_doc × (prompt × price_in + completion × price_out) / 1e6 × 1.5))
+```
+
+- `calls_per_doc`: 5 for the sorter task, 1 for a specialist, and up to 4 for a pipeline
+  (one per API-routed stage).
+- `prompt` and `completion` come from the suite tables in `job/metrics.py` (`_tokens_for`),
+  with the completion capped by the largest `agent_knobs.max_tokens`.
+
+The GPU figure works the same way for Modal: the wall is busy time × 1.5 plus a 120 s cold
+start and the scaledown (never under 600 s), with at most 4 in-flight documents per replica,
+and the cap is that wall × the warm fleet's hourly rate. A ceiling below its recommendation is reported as a
+warning. These are planning figures from those tables, not measurements. Replace them with
+a smoke run's numbers when you have them.
 
 ## 3 · Leg A (Modal 1×L4) — container-time model
 
@@ -98,6 +125,23 @@ output, whose figures are credits-based and workspace-wide rather than per run �
 number is a reconciliation cross-check, never the source. `replicas` bills the full wall
 on every replica (SAND-032), so a 2×L4 cell costs twice a 1×L4 cell at the same wall.
 
+**Routed runs** (per-agent Modal routes: the SAND-078 judge tier, the SAND-079 specialist
+tiers) keep every route app warm for the same window, so the serving report prices the
+locked fleet instead — the base engine (only when it is `modal-vllm`) plus each distinct
+`modal-vllm` route app in the lock's `agent_routes`, each billed as `gpu` count × `max_containers` (SAND-083):
+
+```
+billed_gpu_usd = billed_seconds × Σ_apps (gpus_app × gpu_usd_per_hour_app) / 3600
+```
+
+This is the same formula the runner's record and the spend cap use (`lock_gpu_fleet` /
+`fleet_gpu_cost_usd` in `job/metrics.py`), so the dated serving report and the run record
+agree; the report lists the priced apps under `gpu_fleet`. It applies whatever the base
+profile is, since an API base can route agents to Modal apps. It is a capacity estimate
+for the billed window: a route app that scales to zero bills less. So
+`run_span_usd_lower_bound` and the idle and boot diagnostics stay on the base engine.
+Unrouted runs keep the base-GPU formula above.
+
 **Cell cost.** `min_containers=1` pins the fleet warm from deploy to teardown, so the cold
 boot and the idle between specialists bill too. A cell therefore reports:
 
@@ -113,6 +157,10 @@ filename *is* the container's start). An unrecorded or unclosed window reports
 Both per-run and per-cell figures land on the cards: `Billed GPU $` per specialist,
 `$/1k ok` and `$/1k schema-valid` in the cost-per-usable-record block, and the fleet block
 on the cell card. `Busy-window GPU $` is kept alongside as a diagnostic.
+
+Mock runs and API-only runs (no `modal-vllm` engine or route) carry an empty `cost` block on
+their experiment cards, so no GPU dollars appear for them. Their token spend is estimated
+separately (§2b).
 
 ## 4 · Worked numbers — the contracts class (measured, 17 ok rows)
 

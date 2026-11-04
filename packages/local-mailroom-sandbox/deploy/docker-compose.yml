@@ -81,7 +81,7 @@ services:
     container_name: sandbox-phoenix
     profiles: ["phoenix"]
     ports:
-      - "6006:6006"
+      - "127.0.0.1:6006:6006"
     environment:
       PHOENIX_WORKING_DIR: /data
     volumes:
@@ -92,7 +92,7 @@ services:
     container_name: sandbox-ollama
     profiles: ["ollama"]
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"
     volumes:
       - ollama_data:/root/.ollama
     environment:
@@ -120,7 +120,7 @@ services:
     container_name: sandbox-vllm
     profiles: ["vllm"]
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - hf_cache:/root/.cache/huggingface
     environment:
@@ -130,7 +130,9 @@ services:
       # Gated/private weights; vLLM reads HF_TOKEN via huggingface_hub.
       HF_TOKEN: ${HF_TOKEN:-}
     command:
-      - ${VLLM_MODEL:-Qwen/Qwen3-8B}
+      # SAND-077: the vllm-local profile default. Compose serves it bf16 (no
+      # --quantization knob here); the Modal app adds fp8 + text-only limits.
+      - ${VLLM_MODEL:-Qwen/Qwen3.5-9B}
       - --host
       - 0.0.0.0
       - --port
@@ -188,7 +190,7 @@ services:
     container_name: sandbox-llamacpp
     profiles: ["llamacpp"]
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       LLAMA_ARG_HOST: 0.0.0.0
       LLAMA_ARG_PORT: "8080"
@@ -206,7 +208,7 @@ services:
       POSTGRES_PASSWORD: mailroom
       POSTGRES_DB: mailroom
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -219,17 +221,19 @@ services:
     image: clickhouse/clickhouse-server:24-alpine
     container_name: sandbox-clickhouse
     profiles: ["langfuse"]
+    cap_add:
+      - SYS_NICE
     environment:
       CLICKHOUSE_DB: default
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
     ports:
-      - "8123:8123"
-      - "9000:9000"
+      - "127.0.0.1:8123:8123"
+      - "127.0.0.1:9000:9000"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:8123/ping || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -240,7 +244,7 @@ services:
     profiles: ["langfuse"]
     command: ["redis-server", "--maxmemory-policy", "noeviction"]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -250,7 +254,7 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: cgr.dev/chainguard/minio@sha256:3b6e40c30ecd5cea627e382ff0b82ca841f58c52294578787043ee80c8ef7c82
     container_name: sandbox-minio
     profiles: ["langfuse"]
     entrypoint: sh
@@ -259,8 +263,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniosecret}
     ports:
-      - "9090:9000"
-      - "9091:9001"
+      - "127.0.0.1:9090:9000"
+      - "127.0.0.1:9091:9001"
     volumes:
       - minio_data:/data
     healthcheck:
@@ -270,7 +274,7 @@ services:
       retries: 10
 
   langfuse-worker:
-    image: langfuse/langfuse-worker:3
+    image: langfuse/langfuse-worker:3.225.15
     container_name: sandbox-langfuse-worker
     profiles: ["langfuse"]
     depends_on:
@@ -286,7 +290,7 @@ services:
       <<: *langfuse-env
 
   langfuse-web:
-    image: langfuse/langfuse:3
+    image: langfuse/langfuse:3.225.15
     container_name: sandbox-langfuse
     profiles: ["langfuse"]
     depends_on:
@@ -307,11 +311,11 @@ services:
       LANGFUSE_INIT_PROJECT_NAME: ${LANGFUSE_INIT_PROJECT_NAME:-mailroom-sandbox}
       LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_INIT_PROJECT_PUBLIC_KEY:-pk-lf-sandbox}
       LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_INIT_PROJECT_SECRET_KEY:-sk-lf-sandbox}
-      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-sandbox@localhost}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-sandbox@example.com}
       LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-sandbox}
       LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-sandboxlocal}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
 
 volumes:
   phoenix_data:

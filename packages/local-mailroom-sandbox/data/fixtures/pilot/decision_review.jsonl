@@ -1,0 +1,6 @@
+{"id":"accept","doc_text":"Cedar Sample Ltd board minutes: the directors adopt the annual budget.","sorter_type":"corporate_record","reviewer_type":"corporate_record","reviewer_confidence":0.96,"cause":null}
+{"id":"disagreement","doc_text":"Cedar Sample Ltd board resolution authorizing a new office lease.","sorter_type":"insurance_claim","reviewer_type":"corporate_record","reviewer_confidence":0.96,"cause":"reviewer_disagreement"}
+{"id":"low_confidence","doc_text":"Synthetic claim C-17 requests reimbursement for a damaged storage cabinet.","sorter_type":"insurance_claim","reviewer_type":"insurance_claim","reviewer_confidence":0.4,"cause":"reviewer_low_confidence"}
+{"id":"ineligible","doc_text":"Sample service agreement: Cedar Sample Ltd retains a fictional maintenance provider.","sorter_type":"contract","reviewer_type":"correspondence","reviewer_confidence":0.96,"cause":"reviewer_ineligible_label"}
+{"id":"unavailable","doc_text":"Sample contract for maintenance of a fictional office printer.","sorter_type":"contract","reviewer_type":null,"reviewer_confidence":null,"cause":"reviewer_unavailable"}
+{"id":"no_text","doc_text":"   \n","sorter_type":"corporate_record","reviewer_type":"corporate_record","reviewer_confidence":0.96,"cause":"reviewer_no_text"}

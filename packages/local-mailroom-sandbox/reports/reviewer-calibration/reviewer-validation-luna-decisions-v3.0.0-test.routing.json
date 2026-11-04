@@ -1,0 +1,69 @@
+{
+  "cutoffs": {
+    "contract": 0.78,
+    "corporate_record": 0.96,
+    "correspondence": 0.64,
+    "insurance_claim": 0.7,
+    "merger_agreement": 0.99
+  },
+  "cutoffs_from": "reviewer-calibration-luna-decisions-v2",
+  "misrouted": 1,
+  "misrouted_rate_among_unattended": 0.003333,
+  "routed_to_human_review": 23,
+  "routed_to_human_review_basis": "reviewer",
+  "routed_to_human_review_by_class": {
+    "contract": {
+      "n": 60,
+      "rate": 0.016667,
+      "routed": 1
+    },
+    "corporate_record": {
+      "n": 48,
+      "rate": 0.104167,
+      "routed": 5
+    },
+    "correspondence": {
+      "n": 81,
+      "rate": 0.08642,
+      "routed": 7
+    },
+    "insurance_claim": {
+      "n": 114,
+      "rate": 0.017544,
+      "routed": 2
+    },
+    "merger_agreement": {
+      "n": 17,
+      "rate": 0.294118,
+      "routed": 5
+    },
+    "unknown": {
+      "n": 3,
+      "rate": 1.0,
+      "routed": 3
+    }
+  },
+  "routed_to_human_review_rate": 0.071207,
+  "run_id": "reviewer-validation-luna-decisions-v3.0.0-test",
+  "sent_on_unattended": 300,
+  "verdicts_by_expected": {
+    "continue_sorter_correct": {
+      "continue_sorter_correct": 170,
+      "continue_with_subclass_correction": 2,
+      "multiple_documents": 1,
+      "route_to_human_review": 1
+    },
+    "continue_with_subclass_correction": {
+      "continue_sorter_correct": 125,
+      "continue_with_subclass_correction": 4,
+      "multiple_documents": 3,
+      "reclassify": 2,
+      "route_to_human_review": 1
+    },
+    "reclassify": {
+      "continue_sorter_correct": 10,
+      "reclassify": 1,
+      "route_to_human_review": 3
+    }
+  }
+}

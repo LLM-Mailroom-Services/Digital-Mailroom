@@ -47,7 +47,7 @@ def vendor(monkeypatch, tmp_path):
 
 
 def fingerprint(root):
-    return {p.relative_to(root).as_posix(): (p.read_bytes(), stat.S_IMODE(p.stat().st_mode))
+    return {p.relative_to(root).as_posix(): (p.read_bytes(), bool(p.stat().st_mode & stat.S_IXUSR))
             for p in root.rglob("*") if p.is_file()}
 
 

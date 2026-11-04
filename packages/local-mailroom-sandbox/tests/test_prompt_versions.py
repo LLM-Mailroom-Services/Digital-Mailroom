@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sys
 from types import SimpleNamespace
 
 import pytest
@@ -376,8 +375,16 @@ def test_cli_eval_errors_exit_nonzero_with_one_line(stub_dojo, log_env, capsys, 
 
 
 def test_cli_eval_refuses_a_selection_the_task_would_ignore(stub_dojo, log_env, capsys):
-    assert main(["eval", "legalbench", "--mock", "--prompt-version", "sorter_v3"]) == 1
+    assert main(["eval", "local_vs_api", "--mock", "--prompt-version", "sorter_v3"]) == 1
     assert "does not use the prompt" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(("target", "rc"), [(["correspondence"], 0), ([], 0), (["contract"], 1)])
+def test_cli_eval_specialist_accepts_its_targets_prompt_versions(stub_dojo, log_env, capsys, target, rc):
+    # The primary task resolves its roles from the target: a sweep runs all five.
+    argv = ["eval", "specialist", *target, "--mock", "--dry-run", "--prompt-version", "correspondence_specialist_v3"]
+    assert main(argv) == rc
+    assert ("does not use the prompt" in capsys.readouterr().err) is bool(rc)
 
 
 def test_cli_run_merges_prompt_versions_into_the_spec(stub_dojo, tmp_path, capsys):

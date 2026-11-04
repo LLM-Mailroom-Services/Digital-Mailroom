@@ -5,7 +5,8 @@ import pytest
 import json
 
 from mailroom_sandbox.job import preflight
-from mailroom_sandbox.job.spec import DatasetSpec, RunSpec, run_dir
+from mailroom_sandbox.job.spec import (DEFAULT_ENGINE_MODEL, DatasetSpec, JobSpec,
+    ReviewerSpec, RunSpec, TraceSpec, run_dir)
 
 
 def _run_spec(tmp_path, *, rows=2, limit=2, run_id="pf-1") -> RunSpec:
@@ -33,6 +34,21 @@ def _run_spec(tmp_path, *, rows=2, limit=2, run_id="pf-1") -> RunSpec:
         engine={"kind": "vllm-local", "modal": None},
         trace={"sink": "none"},
     )
+
+
+@pytest.mark.parametrize(("concurrency", "max_inputs", "mock", "ok"),
+                         [(6, 0, False, False), (1, 0, False, True), (6, 6, False, True), (6, 0, True, True)])
+def test_preflight_refuses_concurrency_modal_would_serialize(tmp_path, job_data_dir, concurrency, max_inputs, mock, ok):
+    from mailroom_sandbox.job.spec import EngineSpec, ModalSpec
+
+    spec = _run_spec(tmp_path, run_id=f"pf-serial-{concurrency}-{max_inputs}-{mock}")
+    spec.engine = EngineSpec(kind="modal-vllm", modal=ModalSpec(app="sandbox-vllm"))
+    spec.engine.vllm.max_inputs = max_inputs
+    spec.job.concurrency = concurrency
+    spec.job.mock = mock  # a mock run calls no vLLM endpoint, so it is not refused
+    report = preflight.preflight(spec, offline=True)
+    assert (report["status"] == "prepared") is ok
+    assert ok or "max_inputs" in json.dumps(report)
 
 
 def test_preflight_locks_runbook_identity_without_hashing_it(tmp_path):
@@ -148,7 +164,7 @@ class _FakeResp:
     def __init__(self, status_code, payload=None):
         """Minimal httpx-like response for engine-probe tests."""
         self.status_code = status_code
-        self._payload = payload or {"data": [{"id": "Qwen/Qwen3-8B"}]}
+        self._payload = payload or {"data": [{"id": DEFAULT_ENGINE_MODEL}]}
 
     def json(self):
         return self._payload
@@ -238,6 +254,72 @@ def test_probe_timeout_modal_uses_boot_budget(monkeypatch, tmp_path):
     assert preflight._probe_timeout_seconds(spec) == 1200.0
     monkeypatch.setenv("SANDBOX_ENGINE_PROBE_TIMEOUT_SECONDS", "42")
     assert preflight._probe_timeout_seconds(spec) == 42.0
+    # Public wrapper used by route probes reads the same budget.
+    assert preflight.probe_timeout_seconds(spec) == 42.0
+
+
+def test_probe_uses_vllm_credential_when_vllm_base_url_wins(monkeypatch, tmp_path):
+    """A profile's key must never travel to the endpoint engine_base_url()
+    resolved: VLLM_BASE_URL wins over an openrouter profile base, so the probe
+    has to send VLLM_API_KEY, not OPENROUTER_API_KEY."""
+    seen: dict[str, str] = {}
+
+    def fake_get(url, headers=None, timeout=None):
+        seen.update(headers or {})
+        return _FakeResp(200)
+
+    monkeypatch.setattr("httpx.get", fake_get)
+    monkeypatch.setenv("VLLM_BASE_URL", "https://vllm.example.test/v1")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "or-secret")
+    monkeypatch.setenv("VLLM_API_KEY", "vllm-secret")
+    spec = _run_spec(tmp_path)
+    spec.profile = "openrouter"
+    spec.engine.kind = "vllm-local"
+
+    result = preflight.probe_engine(spec)
+
+    assert result["ok"] is True
+    assert seen == {"Authorization": "Bearer vllm-secret"}
+
+
+@pytest.mark.parametrize("probe", [
+    {"ok": False, "cold_boot_seconds": 1.0},
+    {"ok": True},
+])
+def test_record_cold_boot_ignores_incomplete_probes(tmp_path, probe, job_data_dir):
+    spec = _run_spec(tmp_path, run_id="pf-record-coldboot")
+    report = preflight.preflight(spec, offline=True)
+    store = _store(report)
+
+    assert preflight.record_cold_boot(store, probe) is None
+    assert store.read_cold_boot() is None
+
+
+def test_record_cold_boot_persists_measurement(tmp_path, job_data_dir):
+    spec = _run_spec(tmp_path, run_id="pf-record-coldboot-ok")
+    report = preflight.preflight(spec, offline=True)
+    store = _store(report)
+    probe = {"ok": True, "cold_boot_seconds": 2.5, "base_url": "https://vllm.example.test/v1",
+             "served_models": ["Qwen/Qwen3-8B"], "probe_timeout_seconds": 10.0}
+
+    measurement = preflight.record_cold_boot(store, probe)
+
+    assert measurement is not None
+    assert measurement["run_id"] == spec.run_id
+    assert store.read_cold_boot()["cold_boot_seconds"] == 2.5
+
+
+def test_model_only_agent_models_are_frozen_in_the_lock(tmp_path, job_data_dir):
+    """agent_models without routes/knobs must still freeze agent_assignments;
+    otherwise runtime.activate() rebuilds the rest from the live profile."""
+    spec = _run_spec(tmp_path, run_id="pf-model-only")
+    spec.agent_models = {"sorter": "frozen-sorter-model"}
+
+    report = preflight.preflight(spec, offline=True)
+
+    assert report["status"] == "prepared", report
+    assignments = _store(report).read_lock()["agent_assignments"]
+    assert assignments["sorter"]["model"] == "frozen-sorter-model"
 
 
 def test_preflight_live_persists_cold_boot_and_record_carries_it(
@@ -326,6 +408,7 @@ def test_force_relock_refuses_a_store_another_fleet_owns(tmp_path, monkeypatch):
 
     spec = _run_spec(tmp_path, run_id="pf-fleet-a")
     spec.engine = EngineSpec(kind="modal-vllm", modal=ModalSpec(app="sandbox-vllm"))
+    spec.job.concurrency = 1
     report = preflight.preflight(spec, offline=True)
     assert report["status"] == "prepared", report
     store = _store(report)
@@ -334,6 +417,7 @@ def test_force_relock_refuses_a_store_another_fleet_owns(tmp_path, monkeypatch):
 
     other = _run_spec(tmp_path, run_id=spec.run_id)
     other.engine = EngineSpec(kind="modal-vllm", modal=ModalSpec(app="sandbox-vllm-b"))
+    other.job.concurrency = 1
     assert other.spec_hash() != spec.spec_hash(), "the app must be inside spec_hash"
 
     # Without --force the drift is refused and the items stay untouched.
@@ -542,3 +626,39 @@ def test_preflight_hub_spec_locks_pinned_revision(tmp_path, monkeypatch):
 
 
 pytestmark = pytest.mark.usefixtures("job_data_dir")
+
+
+def test_preflight_rejects_jev_reviewer_in_modal_mode(tmp_path, monkeypatch):
+    """The Modal worker image has no decision extra, so a jev reviewer there would ImportError."""
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    path = tmp_path / "d.jsonl"
+    path.write_text(json.dumps({"id": "d0", "filename": "0.txt", "doc_text": "t",
+                               "expected": "contract", "expected_subclass": "service"}) + "\n",
+                   encoding="utf-8")
+    spec = RunSpec(
+        run_id="pf-jev-modal",
+        task="sorter",
+        dataset=DatasetSpec(local_path=f"file://{path}", limit=2),
+        engine={"kind": "vllm-local", "modal": None},
+        trace={"sink": "none"},
+        job=JobSpec(mode="modal", mock=False),
+        reviewer=ReviewerSpec(backend="jev", model="jev-1.13.0",
+                             classes={"contract": 0.85}),
+    )
+    report = preflight.preflight(spec, offline=True, live=False)
+    assert report["status"] == "failed"
+    detail = " ".join(c.get("detail", "") for c in report["checks"])
+    assert "Modal worker image" in detail
+
+
+def test_preflight_refuses_langfuse_sink_without_the_sdk(tmp_path, job_data_dir, monkeypatch):
+    """SAND-087: the chat client fails on every call without the SDK, so stop before spend."""
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")
+    monkeypatch.setattr(preflight, "find_spec", lambda name: None)
+    spec = _run_spec(tmp_path, run_id="pf-no-sdk").model_copy(
+        update={"trace": TraceSpec(sink="langfuse")})
+    report = preflight.preflight(spec)
+    assert report["status"] == "failed"
+    check = next(c for c in report["checks"] if c["name"] == "trace_sink")
+    assert check["ok"] is False and "observability" in check["detail"]

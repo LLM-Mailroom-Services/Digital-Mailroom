@@ -27,7 +27,7 @@ SAND-<NNN>-<k>       # optional sub-card of a mission epic
 
 Examples: `SAND-001`, `SAND-014-3`.
 
-Lanes: `todo` → `in_progress` → `needs_attention` → `done` · Owner · UTC date.
+Lanes: `todo` → `in_progress` → `needs_attention` → `review` → `done` · Owner · UTC date.
 
 ## Files
 

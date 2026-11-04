@@ -26,6 +26,17 @@ python reports/dashboard/build_hub.py --check   # fail if the page, data or snap
 Tabs: Overview · Specialists · Serving (Modal L4) · API models · **Modal vs API** (cost vs quality per
 specialist task and for the sorter, both routes on one axis) · Classifier (ModernBERT) · ML diagnostics · Data quality.
 
+## Decision-reviewer reports
+
+`decisions/` holds the reports, figures and dashboard for the Decisions-model reviewer experiments (SAND-085): cost
+against a 1x Qwen call, effectiveness, the question-set lineage and the extraction gate. Start at
+[`decisions/README.md`](decisions/README.md) or open `decisions/decisions-dashboard.html`.
+
+```bash
+python reports/decisions/build_decisions_report.py           # rebuild figures, CSVs, summary and dashboard
+python reports/decisions/build_decisions_report.py --check   # fail if any output is stale
+```
+
 ## Cross-repo reports (mailroom-issues)
 
 `dashboard/export_hub_reports.py` turns the hub data into the cost comparison, the master status report and the

@@ -1,7 +1,8 @@
 """Modal+vLLM model/GPU swap from ``config/models.yaml`` ``modal_models``.
 
 One place to resolve deploy knobs. Default experiment path stays
-``Qwen/Qwen3-8B`` on ``L4`` (specialist 5×30 suite). Alternate rows are
+``Qwen/Qwen3.5-9B`` on ``L4`` (online FP8, SAND-077). The frozen specialist
+5×30 cost-eval suite stays ``Qwen/Qwen3-8B`` on ``L4``. Alternate rows are
 applied by exporting ``MODAL_VLLM_*`` then recreating the Modal app::
 
     eval "$(sandbox modal-matrix env Qwen/Qwen3-8B-AWQ)"
@@ -20,8 +21,8 @@ from mailroom_sandbox.paths import config_dir
 from mailroom_sandbox.overlay import load_yaml
 from mailroom_sandbox.job.spec import KNOWN_GPUS
 
-# Default specialist / cost-eval posture (sandbox runbook show l4-qwen3-8b).
-DEFAULT_MODAL_MODEL = "Qwen/Qwen3-8B"
+# App default (SAND-077). The frozen cost-eval posture is l4-qwen3-8b.
+DEFAULT_MODAL_MODEL = "Qwen/Qwen3.5-9B"
 DEFAULT_MODAL_GPU = "L4"
 
 # Env keys written by ``env_exports`` (deploy/modal_vllm.py reads these).

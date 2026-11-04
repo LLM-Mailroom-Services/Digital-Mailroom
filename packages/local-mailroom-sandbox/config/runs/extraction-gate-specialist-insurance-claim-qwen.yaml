@@ -1,0 +1,41 @@
+# Extraction gate baseline, step 1 of 2: the insurance_claims_specialist's real extractions of 60 train
+# insurance_claim documents (mailroom-dataset ground_truth rows, stratified by subclass, seed 42),
+# with qwen/qwen3.7-flash on the production specialist prompt. Each item keeps the extraction
+# (pred) and its dojo score against expected_fields. The gate run reviews these extractions.
+#
+#   python scripts/extraction_gate.py --split train inputs \
+#       --dataset-run reviewer-calibration-luna-decisions-v3.1.0-train
+#   sandbox run start --config config/runs/extraction-gate-specialist-insurance-claim-qwen.yaml --initials XX
+schema: sandbox.run/v1
+run_id: extraction-gate-specialist-insurance-claim-qwen
+task: insurance_claims_specialist
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file
+  local_path: data/runtime/handoff/gate-train-insurance_claim.jsonl
+  config: ground_truth
+  split: train
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 12
+  cost_cap_usd: 1.00
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.05
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, extraction-gate, specialist-handoff, insurance-claim]

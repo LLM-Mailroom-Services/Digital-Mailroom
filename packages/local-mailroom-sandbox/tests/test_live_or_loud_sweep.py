@@ -125,8 +125,8 @@ def _store_with_remote(tmp_path, fired_at: str) -> RunStore:
     return store
 
 
-from test_generation_protocol import modal_fs
-from test_job_generation_residuals import source_root, spec_file
+from test_generation_protocol import modal_fs  # noqa: F401 - pytest fixture
+from test_job_generation_residuals import source_root, spec_file  # noqa: F401 - pytest fixtures
 
 
 def test_corrupt_fired_at_refuses_refire(tmp_path, source_root, modal_fs, job_data_dir):

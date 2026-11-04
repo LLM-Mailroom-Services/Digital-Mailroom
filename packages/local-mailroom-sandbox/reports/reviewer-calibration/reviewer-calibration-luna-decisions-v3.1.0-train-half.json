@@ -1,0 +1,193 @@
+{
+  "classes": {
+    "contract": {
+      "cutoff": 0.53,
+      "documents": 271,
+      "holdout_accepted": 268,
+      "holdout_accuracy": 0.9888059701492538,
+      "holdout_accuracy_ci": [
+        0.9676106407461019,
+        0.9961859231352174
+      ],
+      "holdout_documents": 271,
+      "holdout_share_accepted": 0.988929889298893,
+      "meets_target": true,
+      "top_confidence": 1.0,
+      "top_confidence_documents": 215,
+      "top_confidence_wrong": 0
+    },
+    "corporate_record": {
+      "cutoff": 0.5,
+      "documents": 202,
+      "holdout_accepted": 189,
+      "holdout_accuracy": 0.9947089947089947,
+      "holdout_accuracy_ci": [
+        0.9706423605812214,
+        0.9990654203125277
+      ],
+      "holdout_documents": 202,
+      "holdout_share_accepted": 0.9356435643564357,
+      "meets_target": true,
+      "top_confidence": 1.0,
+      "top_confidence_documents": 112,
+      "top_confidence_wrong": 0
+    },
+    "correspondence": {
+      "cutoff": 0.48,
+      "documents": 440,
+      "holdout_accepted": 430,
+      "holdout_accuracy": 1.0,
+      "holdout_accuracy_ci": [
+        0.991145155282481,
+        1.0
+      ],
+      "holdout_documents": 440,
+      "holdout_share_accepted": 0.9772727272727273,
+      "meets_target": true,
+      "top_confidence": 1.0,
+      "top_confidence_documents": 189,
+      "top_confidence_wrong": 0
+    },
+    "insurance_claim": {
+      "cutoff": 0.64,
+      "documents": 493,
+      "holdout_accepted": 479,
+      "holdout_accuracy": 1.0,
+      "holdout_accuracy_ci": [
+        0.9920437675626956,
+        1.0
+      ],
+      "holdout_documents": 493,
+      "holdout_share_accepted": 0.9716024340770791,
+      "meets_target": true,
+      "top_confidence": 1.0,
+      "top_confidence_documents": 5,
+      "top_confidence_wrong": 0
+    },
+    "merger_agreement": {
+      "cutoff": 0.94,
+      "documents": 68,
+      "holdout_accepted": 67,
+      "holdout_accuracy": 1.0,
+      "holdout_accuracy_ci": [
+        0.9457719757882374,
+        0.9999999999999999
+      ],
+      "holdout_documents": 68,
+      "holdout_share_accepted": 0.9852941176470589,
+      "meets_target": false,
+      "top_confidence": 1.0,
+      "top_confidence_documents": 21,
+      "top_confidence_wrong": 0
+    }
+  },
+  "routing_at_cutoffs": {
+    "cutoffs": {
+      "contract": 0.53,
+      "corporate_record": 0.5,
+      "correspondence": 0.48,
+      "insurance_claim": 0.64,
+      "merger_agreement": 0.94
+    },
+    "misrouted": 6,
+    "misrouted_rate_among_unattended": 0.004172,
+    "not_scored": 3,
+    "routed_to_human_review": 51,
+    "routed_to_human_review_basis": "reviewer",
+    "routed_to_human_review_by_class": {
+      "contract": {
+        "n": 271,
+        "rate": 0.00738,
+        "routed": 2
+      },
+      "corporate_record": {
+        "n": 202,
+        "rate": 0.059406,
+        "routed": 12
+      },
+      "correspondence": {
+        "n": 442,
+        "rate": 0.020362,
+        "routed": 9
+      },
+      "insurance_claim": {
+        "n": 493,
+        "rate": 0.026369,
+        "routed": 13
+      },
+      "merger_agreement": {
+        "n": 68,
+        "rate": 0.0,
+        "routed": 0
+      },
+      "unknown": {
+        "n": 15,
+        "rate": 1.0,
+        "routed": 15
+      }
+    },
+    "routed_to_human_review_rate": 0.034205,
+    "sent_on_unattended": 1438,
+    "truth": "targets data/handoff/sorter-qwen3.7-flash/train.targets.jsonl sha256 1221d23f2680c01e58865d6e36860c450218838d16d3a18cd32a921ccf86fc9a",
+    "verdicts_by_expected": {
+      "continue_sorter_correct": {
+        "continue_sorter_correct": 1056,
+        "continue_with_subclass_correction": 3,
+        "multiple_documents": 18,
+        "reclassify": 5,
+        "route_to_human_review": 2
+      },
+      "continue_with_subclass_correction": {
+        "continue_sorter_correct": 312,
+        "continue_with_subclass_correction": 13,
+        "multiple_documents": 10,
+        "reclassify": 6,
+        "route_to_human_review": 2
+      },
+      "reclassify": {
+        "continue_sorter_correct": 44,
+        "multiple_documents": 1,
+        "reclassify": 3,
+        "route_to_human_review": 12,
+        "unreadable": 1
+      }
+    }
+  },
+  "run_id": "reviewer-calibration-luna-decisions-v3.1.0-train-half",
+  "seed": 42,
+  "subclass": {
+    "by_class": {
+      "contract": {
+        "accuracy": 0.872659,
+        "correct": 233,
+        "scored": 267
+      },
+      "corporate_record": {
+        "accuracy": 0.92,
+        "correct": 184,
+        "scored": 200
+      },
+      "correspondence": {
+        "accuracy": 0.631818,
+        "correct": 278,
+        "scored": 440
+      },
+      "insurance_claim": {
+        "accuracy": 1.0,
+        "correct": 493,
+        "scored": 493
+      },
+      "merger_agreement": {
+        "accuracy": 0.953488,
+        "correct": 41,
+        "scored": 43
+      }
+    },
+    "subclass_accuracy": 0.851698,
+    "subclass_correct": 1229,
+    "subclass_scored": 1443,
+    "truth": "targets data/handoff/sorter-qwen3.7-flash/train.targets.jsonl sha256 1221d23f2680c01e58865d6e36860c450218838d16d3a18cd32a921ccf86fc9a"
+  },
+  "target_accuracy": 0.95,
+  "truth": "targets data/handoff/sorter-qwen3.7-flash/train.targets.jsonl sha256 1221d23f2680c01e58865d6e36860c450218838d16d3a18cd32a921ccf86fc9a"
+}

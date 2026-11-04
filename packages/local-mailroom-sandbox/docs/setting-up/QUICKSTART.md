@@ -18,7 +18,7 @@ python3 -m venv .venv                # deps live INSIDE the repo — never the m
 # Specialist / Modal live path:
 #   pip install -e ".[pipeline,deploy]"
 #   # or: pip install -r requirements/pipeline.txt -r requirements/deploy.txt
-cp config/.env.example .env          # profiles/tracing knobs (edit if needed)
+cp config/.env.example .env          # profiles/tracing/secrets; loaded at startup, exported vars win
 export PATH="$PWD/.venv/bin:$PATH"   # or call ./.venv/bin/sandbox explicitly
 ```
 
@@ -26,10 +26,10 @@ Optional extras, only when you need them:
 
 | Extra | Adds | Needed for |
 | --- | --- | --- |
-| `[pipeline]` | langchain stack (vendored mailroom's live paths) | `legalbench --suite`, live mailroom agent calls |
+| `[pipeline]` | langchain stack (vendored mailroom's live paths) | live mailroom agent calls |
 | `[hf]` | `huggingface_hub`, `pyarrow` (also in `[dev]`) | `sandbox datasets pull`, `hf-pilot` |
 | `[observability]` | Langfuse SDK + OTEL | live tracing (`trace.sink: langfuse`) |
-| `[deploy]` | Modal SDK 1.5.5 (pinned) | `sandbox run --job-mode modal`, `deploy/modal_vllm.py` |
+| `[deploy]` | Modal SDK 1.6.2 (pinned) | `sandbox run --job-mode modal`, `deploy/modal_vllm.py` |
 | `[notebooks]` | Jupyter + pandas/matplotlib | `sandbox up --compose-profile jupyter` |
 
 The family code is **already vendored and tracked** (`vendor/llm-mailroom`
@@ -40,7 +40,7 @@ and `vendor/llm-dojo-scoring`, at the commits recorded in each `VENDOR.md`) — 
 ```
 sandbox up | down | health | pull-models | fetch-deps | cutover
        | agents list|show | pipeline watcher|api
-       | pilot | hf-pilot | legalbench
+       | pilot | hf-pilot
        | eval <task> | matrix | metrics compare
        | datasets pull|prepare | traces export
        | profiles | tunnel plan|up|status|down
@@ -48,7 +48,7 @@ sandbox up | down | health | pull-models | fetch-deps | cutover
        | prompts list|show
 ```
 
-Global flags (before the subcommand is NOT where they live — see §2):
+Shared flags (accepted before or after subcommands — see §2):
 
 ```
 --profile NAME         # SANDBOX_PROFILE env works too
@@ -57,32 +57,35 @@ Global flags (before the subcommand is NOT where they live — see §2):
 --prompt STEM          # local prompt variant stem, e.g. sorter_local_v0
 ```
 
-## 2. Flag placement rules (the only real gotcha)
+## 2. Flag placement
 
-- `--profile` goes on the **group** command for `tunnel` and `run`:
-
-  ```bash
-  sandbox tunnel --profile vllm-remote plan        # NOT: tunnel plan --profile …
-  sandbox run --profile modal-vllm preflight --config config/runs/x.yaml
-  ```
-
-- Everywhere else `--profile` is accepted on the leaf command
-  (`sandbox cutover --profile ollama`, `sandbox eval sorter --profile ollama`, …).
-- A `--profile` **before** the subcommand is clobbered by the subparser
-  default — always pass it after, or set `SANDBOX_PROFILE`.
-
-## 3. Stack bring-up (Docker/Ollama)
+`--profile`, `--model`, `--prompt`, and `--agent-model` are accepted before or
+after subcommands, including nested commands. A later occurrence wins.
+`SANDBOX_PROFILE` also sets the default profile.
 
 ```bash
-sandbox up                              # compose: langfuse + provider (add --compose-profile jupyter)
-sandbox up -d                           # detach
-sandbox down                            # stop compose stack
-sandbox pull-models                     # ollama pull qwen3:8b (+ profile pull_models)
-sandbox pull-models qwen3:14b qwen3:8b  # explicit list
+sandbox --profile vllm-remote tunnel plan
+sandbox tunnel plan --profile vllm-remote
+sandbox run preflight --profile modal-vllm --config config/runs/x.yaml
+```
+
+## 3. Serving bring-up (Modal vLLM is the default)
+
+```bash
+sandbox runbook show serve              # DEFAULT: prewarm → deploy → point → verify → teardown
+sandbox up -d                           # compose: Langfuse (select langfuse and jupyter explicitly to run both)
 sandbox health                          # provider /v1/models + chat + langfuse + phoenix
 ```
 
-- `health` exits 1 with a JSON report when anything is down (no traceback).
+- The endpoint is Modal (`modal-vllm`); export `VLLM_BASE_URL` (or
+  `MODAL_WORKSPACE`) after `modal deploy`, as the runbook does.
+- Offline / CPU-only: `sandbox up -d --compose-profile ollama && sandbox pull-models --profile ollama`
+  then add `--profile ollama` to later commands (or set `SANDBOX_PROFILE=ollama`,
+  in the shell or `.env`). Without it `pull-models` only prints the Modal prewarm
+  command.
+- `health` exits 1 with a JSON report when the provider endpoint is down (no
+  traceback) and prints a hint when the Modal endpoint URL is unset. Langfuse and
+  Phoenix are reported in the JSON but do not change the exit code.
 - No Docker daemon / no Ollama → clean one-line errors, exit 1.
 
 ## 4. Vendored family (self-containment)
@@ -117,7 +120,7 @@ sandbox prompts show sorter --variant sorter_local_v0   # local variant stem
 ```bash
 sandbox datasets prepare                # offline: load/clean fixtures → data/runtime/prepared/ (no network)
 sandbox datasets pull                   # LIVE pinned FULL Hub pull (NETWORK):
-#   Lucius-Morningstar/mailroom-dataset@ed7576b6 ground_truth train+test
+#   Lucius-Morningstar/mailroom-dataset@bc9eab28 (v9.1; data revision ed7576b6) ground_truth train+test
 #   (3,302 rows) → data/cache/…, sha256-verified. Required for 20/40/100-per-class.
 sandbox datasets sample --per-class 40  # offline draw from that cache (merger cap 152)
 sandbox datasets pull --max-rows 50 --config ground_truth --split test --revision <sha-or-tag>
@@ -133,14 +136,11 @@ sandbox datasets pull --dataset Lucius-Morningstar/mailroom-dataset --max-rows 2
 sandbox pilot --mock                     # full fixture pilot through the connected machinery
 sandbox hf-pilot --check                 # verify fixture/GT schema without running
 sandbox hf-pilot --mock                  # HF docclass mini-pilot, mocked
-sandbox legalbench --task contract_qa --mock             # offline LegalBench fixture
-sandbox legalbench --task contract_qa --n 5 --seed 42    # seeded draw (never first-N)
-sandbox legalbench --task contract_qa --suite --n 3 --seed 7 --mock
-#   vendored real-suite path: needs `pip install -e ".[pipeline]"` + the CUAD
-#   corpus (`python scripts/fetch_full_cuad.py` inside the vendored tree)
-sandbox eval sorter --mock               # isolated agent eval
-sandbox eval judge --mock
-sandbox eval pipeline --mock             # connected graph scoring (full 13-node path)
+sandbox eval specialist --mock           # primary: all five specialists in isolation
+sandbox eval specialist contract --mock  # …or one specialist
+sandbox eval pipeline --mock             # primary: connected graph scoring (full 13-node path)
+sandbox eval pipeline --class merger_agreement --mock   # …over one document class
+sandbox eval sorter --mock               # other tasks stay available (`sandbox eval --all-tasks`)
 sandbox eval pipeline --mock --connected # same (flag is accepted on pipeline)
 sandbox eval sorter --dry-run --name my-exp   # plan only; --name for the experiment log
 sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0 --mock --sample 4
@@ -187,6 +187,30 @@ sandbox pipeline watcher                          # long-running Langfuse watche
 sandbox pipeline api                              # long-running API server
 ```
 
+**Paired experiments and model tiers (SAND-077–079).** The base model is
+`Qwen/Qwen3.5-9B` on Modal and `qwen/qwen3.5-9b` on OpenRouter. Modal pipeline
+experiments put the judge on `Qwen/Qwen3.5-27B` (its own L40S app);
+`--specialist-tier mid|full` moves the five specialists onto
+`Qwen/Qwen3.5-35B-A3B` or the judge's 27B. Launch asks for your initials.
+
+```bash
+sandbox experiment create my-tiers --task pipeline --specialist-tier full --samples 2 --seed 42
+sandbox experiment review   --config config/experiments/my-tiers/experiment.yaml
+sandbox experiment preflight --config config/experiments/my-tiers/experiment.yaml
+sandbox experiment launch    --config config/experiments/my-tiers/experiment.yaml   # initials-gated spend
+```
+
+`create` refuses an existing study directory. The paired base/mid/full
+comparison is already committed as `config/experiments/tiers-{base,mid,full}/`;
+run `review`, `preflight` and `launch` on those directly.
+
+After the runs, `sandbox experiment report --config …` writes `report.md`, `report.json`
+and `cards/<run-id>.card.json` beside the manifest. Mock and API-only runs carry no GPU
+cost. A decision reviewer is frozen with `--decision-reviewer BACKEND:MODEL` and
+`--decision-class CLASS=CUTOFF`, and `scripts/calibrate_reviewer.py` picks its cutoffs.
+See [experiments.md](../experiments.md#decision-reviewer) and
+[experiments.md](../experiments.md#calibrate-the-cutoffs).
+
 ## 10. Mailroom live watch (long Modal jobs)
 
 Full guide: **[mailroom-themed-logging.md](../pretty-logging/mailroom-themed-logging.md)**.
@@ -195,16 +219,17 @@ Full guide: **[mailroom-themed-logging.md](../pretty-logging/mailroom-themed-log
 # Pane A: run the eval
 sandbox run start --config config/runs/my-run.yaml --job-mode endpoint
 
-# Pane B: themed TUI + live `modal app logs -f` tail
-sandbox watch --config config/runs/my-run.yaml
-sandbox watch --web --config config/runs/my-run.yaml    # browser :8765, frees the tab
+# Pane B: themed browser watcher (http://127.0.0.1:8765/) + live `modal app logs -f` tail
+sandbox web                       # newest run, switching by itself when the next starts (a published sand032/current marker wins)
+sandbox web my-run                # one run: run ID, config/runs/<name>, a run YAML path, or an experiment
+sandbox watch my-run              # same panels in the terminal
 
 # SAND-032 warm flows (run_one.sh maintains data/runtime/sand032/current)
 sandbox watch
 scripts/mailroom-tui web
 
 # One-shot frame / post-run scorecard
-sandbox watch --config … --once
+sandbox watch my-run --once
 sandbox scorecard --run <run_id>
 
 # Manual Modal tail (same stream the dispatch log uses)
@@ -220,37 +245,45 @@ pip install -e ".[dev]" && sandbox datasets prepare \
   && sandbox run preflight --config config/runs/examples/example.yaml --mock
 ```
 
-**Local Ollama (default profile):**
-```bash
-sandbox up && sandbox pull-models && sandbox health \
-  && sandbox pilot --mock && sandbox pilot --local
-```
-
-**Modal remote GPU:**
+**Modal remote GPU (default profile):**
 ```bash
 pip install -e ".[deploy]" && modal token new
-export MODAL_VLLM_MODEL=Qwen/Qwen3-8B MODAL_VLLM_GPU=L4 MODAL_VLLM_API_TOKEN=$(openssl rand -hex 24)
+sandbox runbook show serve        # the full lifecycle script (prewarm → deploy → point → verify → teardown)
+# or by hand:
+export MODAL_VLLM_MODEL=Qwen/Qwen3.5-9B MODAL_VLLM_GPU=L4 MODAL_VLLM_API_TOKEN=$(openssl rand -hex 24)
 modal run deploy/modal_vllm.py::download_model && modal deploy deploy/modal_vllm.py
 export VLLM_BASE_URL=https://<ws>--sandbox-vllm-serve.modal.run/v1 VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
-sandbox health --profile modal-vllm && sandbox run --profile modal-vllm start --config … --job-mode modal
+sandbox health && sandbox run start --config … --job-mode modal
 ```
+
+**Local Ollama (offline opt-out):**
+```bash
+SANDBOX_PROFILE=ollama sandbox up -d --compose-profile ollama
+sandbox pull-models --profile ollama && sandbox health --profile ollama \
+  && sandbox pilot --local --profile ollama
+```
+
+**Provider notes:** the default is `modal-vllm`; `ollama`, `vllm-local`,
+`vllm-remote`, `llamacpp`, `lmstudio` and `openrouter` are explicit
+alternatives. `sandbox profiles` marks the active default, and `--profile`
+after the subcommand always wins.
 
 ## 12. Verification
 
 ```bash
-.venv/bin/python -m pytest -q        # 230 passed / 1 skipped (network-free; live tests need SANDBOX_LOCAL_LLM=1)
-sandbox health                       # everything green: exit 0
+.venv/bin/python -m pytest -q        # network-free; live LLM tests need SANDBOX_LOCAL_LLM=1
+sandbox health                       # after the serve runbook: provider reachable, exit 0 (Langfuse/Phoenix are reported, not gated)
 ```
 
 ## 13. Troubleshooting (DMR-058 CLI sweep findings)
 
 | Symptom | Cause / fix |
 | --- | --- |
+| `command not found: sandbox` | the console script lives in `.venv/bin`: `source .venv/bin/activate` (each new shell), or call `.venv/bin/sandbox` |
 | `ModuleNotFoundError: numpy` on first `sandbox` call | stale editable install; `pip uninstall mailroom-sandbox` then `pip install -e ".[dev]"` |
 | `sandbox datasets pull` says `pip install -e "[hf]"` | base install is offline-first; Hub client lives in `[dev]`/`[hf]` |
-| `legalbench --suite` says `[pipeline]` | suite needs the vendored langchain stack → `pip install -e ".[pipeline]"` |
 | `run … --job-mode modal` says `[deploy]` | Modal SDK is an opt-in extra → `pip install -e ".[deploy]"` + `modal token new` |
-| `sandbox tunnel --profile X plan` "unrecognized arguments" | `--profile` belongs on `tunnel`, not on `plan` (see §2) |
+| `sandbox tunnel up --profile X` cannot connect | Check the SSH host, port, and credentials for profile `X` (see §2) |
 | `run status --config …` demands `--run-id` | fixed (DMR-058): `--config` resolves the run_id; still passes an explicit `--run-id` to override |
 | `sandbox up` prints a Python traceback | fixed (DMR-058): compose/ollama/ssh failures are one-line errors, exit 1 |
 | `fetch-deps` wiped part of `vendor/` | fixed (DMR-058): layout-aware + validates before touching the tracked tree |

@@ -1,0 +1,391 @@
+{
+  "breakeven_usd_per_person_review": {
+    "decisions_v2": 0.00218,
+    "decisions_v3_0_0": 0.00207
+  },
+  "decisions_review_vs_qwen_review": {
+    "decisions_v2": 1.143,
+    "decisions_v3_0_0": 0.908
+  },
+  "evidence_held_out_323": {
+    "class_accuracy": {
+      "decisions_v2": {
+        "ci95": [
+          0.9643,
+          0.9934
+        ],
+        "correct": 318,
+        "n": 323
+      },
+      "decisions_v3_0_0": {
+        "ci95": [
+          0.9643,
+          0.9934
+        ],
+        "correct": 318,
+        "n": 323
+      },
+      "qwen_agent": {
+        "ci95": [
+          0.9286,
+          0.974
+        ],
+        "correct": 309,
+        "n": 323
+      },
+      "qwen_reviewer": {
+        "ci95": [
+          0.9063,
+          0.9596
+        ],
+        "correct": 303,
+        "n": 323
+      }
+    },
+    "method": "two-sided Fisher exact test on counts; Wilson 95% intervals; unpaired (per-document pairing is not tracked)",
+    "p_wrong_qwen_agent_vs_decisions_v2": 0.0597,
+    "p_wrong_qwen_reviewer_vs_decisions_v2": 0.0034,
+    "p_wrong_qwen_reviewer_vs_qwen_agent": 0.3786,
+    "silent_errors": {
+      "decisions_v2": {
+        "ci95": [
+          0.0006,
+          0.0176
+        ],
+        "k": 1,
+        "n": 318
+      },
+      "p": 0.0194,
+      "qwen_reviewer": {
+        "ci95": [
+          0.0131,
+          0.0499
+        ],
+        "k": 8,
+        "n": 311
+      }
+    }
+  },
+  "extra_usd_per_1000_docs": {
+    "decisions_v2": 0.743,
+    "decisions_v3_0_0": 0.59
+  },
+  "generated_by": "reports/decisions/build_decisions_report.py",
+  "half_train_v3_1_0": {
+    "accuracy_all": {
+      "class_broke": 4,
+      "class_fixed": 45,
+      "class_p": 8.225455871979648e-10,
+      "class_reviewer": 1468,
+      "class_scored": 1488,
+      "class_sorter": 1427,
+      "documents": 1491,
+      "sub_broke": 96,
+      "sub_fixed": 266,
+      "sub_p": 1.3553018944379652e-19,
+      "sub_reviewer": 1229,
+      "sub_scored": 1463,
+      "sub_sorter": 1059
+    },
+    "accuracy_clean_no_prior_reviewer_evidence": {
+      "class_broke": 4,
+      "class_fixed": 18,
+      "class_p": 0.004343509674072266,
+      "class_reviewer": 1077,
+      "class_scored": 1096,
+      "class_sorter": 1063,
+      "documents": 1096,
+      "sub_broke": 90,
+      "sub_fixed": 181,
+      "sub_p": 3.434081729530426e-08,
+      "sub_reviewer": 908,
+      "sub_scored": 1096,
+      "sub_sorter": 817
+    },
+    "answered": 1491,
+    "cost_usd": 1.0648,
+    "cost_vs_qwen_agent_unit_train": 0.92,
+    "cutoffs_own_crossfit": {
+      "contract": 0.53,
+      "corporate_record": 0.5,
+      "correspondence": 0.48,
+      "insurance_claim": 0.64,
+      "merger_agreement": 0.94
+    },
+    "cutoffs_v2": {
+      "contract": 0.78,
+      "corporate_record": 0.96,
+      "correspondence": 0.64,
+      "insurance_claim": 0.7,
+      "merger_agreement": 0.99
+    },
+    "documents": 1491,
+    "failures": 0,
+    "human_verdict_documents": 47,
+    "input_tokens": 10648056,
+    "latency_s": {
+      "p50": 0.62,
+      "p95": 0.98
+    },
+    "multiple_documents_verdicts": 29,
+    "per_class_all": {
+      "contract": {
+        "class_reviewer": 267,
+        "class_sorter": 269,
+        "n": 269,
+        "sub_n": 269,
+        "sub_reviewer": 233,
+        "sub_sorter": 223
+      },
+      "corporate_record": {
+        "class_reviewer": 200,
+        "class_sorter": 159,
+        "n": 201,
+        "sub_n": 201,
+        "sub_reviewer": 184,
+        "sub_sorter": 107
+      },
+      "correspondence": {
+        "class_reviewer": 440,
+        "class_sorter": 438,
+        "n": 457,
+        "sub_n": 457,
+        "sub_reviewer": 278,
+        "sub_sorter": 248
+      },
+      "insurance_claim": {
+        "class_reviewer": 493,
+        "class_sorter": 493,
+        "n": 493,
+        "sub_n": 493,
+        "sub_reviewer": 493,
+        "sub_sorter": 441
+      },
+      "merger_agreement": {
+        "class_reviewer": 68,
+        "class_sorter": 68,
+        "n": 68,
+        "sub_n": 43,
+        "sub_reviewer": 41,
+        "sub_sorter": 40
+      }
+    },
+    "prior_evidence_documents": 395,
+    "routing": {
+      "own_pipeline_rule": {
+        "misrouted": 4,
+        "parked": 92,
+        "parked_sorter_right": 35,
+        "parked_sorter_wrong": 57,
+        "routed_correct_sorter_right": 1392,
+        "routed_correct_sorter_wrong": 0,
+        "routed_correctly": 1392,
+        "scored": 1488,
+        "sent_unattended": 1396,
+        "sorter_errors": 61
+      },
+      "own_reviewer_alone": {
+        "misrouted": 6,
+        "parked": 50,
+        "parked_sorter_right": 33,
+        "parked_sorter_wrong": 17,
+        "routed_correct_sorter_right": 1392,
+        "routed_correct_sorter_wrong": 40,
+        "routed_correctly": 1432,
+        "scored": 1488,
+        "sent_unattended": 1438,
+        "sorter_errors": 61
+      },
+      "v2_pipeline_rule": {
+        "misrouted": 2,
+        "parked": 119,
+        "parked_sorter_right": 60,
+        "parked_sorter_wrong": 59,
+        "routed_correct_sorter_right": 1367,
+        "routed_correct_sorter_wrong": 0,
+        "routed_correctly": 1367,
+        "scored": 1488,
+        "sent_unattended": 1369,
+        "sorter_errors": 61
+      },
+      "v2_reviewer_alone": {
+        "misrouted": 2,
+        "parked": 88,
+        "parked_sorter_right": 60,
+        "parked_sorter_wrong": 28,
+        "routed_correct_sorter_right": 1367,
+        "routed_correct_sorter_wrong": 31,
+        "routed_correctly": 1398,
+        "scored": 1488,
+        "sent_unattended": 1400,
+        "sorter_errors": 61
+      }
+    },
+    "run_id": "reviewer-calibration-luna-decisions-v3.1.0-train-half",
+    "sorter_alone_wrong": 61,
+    "verdict_by_need": {
+      "class_wrong": {
+        "continue_sorter_correct": 44,
+        "multiple_documents": 1,
+        "reclassify": 3,
+        "route_to_human_review": 12,
+        "unreadable": 1
+      },
+      "sorter_right": {
+        "continue_sorter_correct": 1056,
+        "continue_with_subclass_correction": 3,
+        "multiple_documents": 18,
+        "reclassify": 5,
+        "route_to_human_review": 2
+      },
+      "subclass_wrong": {
+        "continue_sorter_correct": 312,
+        "continue_with_subclass_correction": 13,
+        "multiple_documents": 10,
+        "reclassify": 6,
+        "route_to_human_review": 2
+      }
+    }
+  },
+  "people_avoided_per_1000_vs_qwen_alone": {
+    "decisions_v2": 340.6,
+    "decisions_v3_0_0": 284.8
+  },
+  "people_needed_per_1000": {
+    "Decisions v2": 15.5,
+    "Decisions v3.0.0": 71.2,
+    "Qwen agent alone": 356.0,
+    "Qwen reviewer (default prompt)": 37.2
+  },
+  "pipeline_x_flat": {
+    "agent_plus_decisions_v2": 2.849,
+    "agent_plus_decisions_v3_0_0": 2.467,
+    "traditional_qwen_agent_plus_measured_qwen_reviewer": 1.742
+  },
+  "pipeline_x_tiered": {
+    "agent_plus_decisions_v2": 1.955,
+    "agent_plus_decisions_v3_0_0": 1.758,
+    "traditional_qwen_agent_plus_measured_qwen_reviewer": 1.835
+  },
+  "qwen_agent": {
+    "test": {
+      "class_correct": 309,
+      "docs_ge_32k": 24,
+      "documents": 323,
+      "flat_usd": 0.1298,
+      "human_review_rate": 0.356037,
+      "manifest_flat_usd": 0.1298,
+      "p50_s": 2.52,
+      "p95_s": 7.63,
+      "prompt_tokens": 4132455,
+      "tiered_usd": 0.2513
+    },
+    "test_cost_by_class_tiered_usd": {
+      "contract": 0.0464,
+      "corporate_record": 0.0298,
+      "correspondence": 0.0184,
+      "insurance_claim": 0.0244,
+      "merger_agreement": 0.1323
+    },
+    "train": {
+      "docs_ge_256k": 1,
+      "docs_ge_32k": 207,
+      "documents": 2979,
+      "flat_usd": 1.2007,
+      "manifest_flat_usd": 1.2007,
+      "prompt_tokens": 38237951,
+      "tiered_usd": 2.3119
+    },
+    "unit_usd_per_document_flat": 0.000402,
+    "unit_usd_per_document_tiered": 0.000778
+  },
+  "qwen_price_sheet_usd_per_1m": {
+    "<32k": [
+      0.03,
+      0.13
+    ],
+    ">=256k": [
+      0.2,
+      0.8
+    ],
+    ">=32k": [
+      0.1,
+      0.4
+    ]
+  },
+  "qwen_reviewer_measured": {
+    "class_accuracy": 0.9381,
+    "class_correct": 303,
+    "completion_tokens": 50206,
+    "documents": 323,
+    "list_cost_usd_flat": 0.0964,
+    "list_cost_usd_tiered": 0.2099,
+    "openrouter_billed_usd": 0.2146,
+    "prompt_tokens": 2994203,
+    "run_id": "reviewer-validation-qwen-flash-test",
+    "wrong_answers": 20,
+    "wrong_at_confidence_ge_0_90": 20
+  },
+  "recorded_inputs": [
+    {
+      "correct": 723,
+      "cost_usd": 0.71,
+      "n": 735,
+      "run": "reviewer-calibration-luna-decisions",
+      "source": "reports/reviewer-calibration/reviewer-calibration-luna-decisions.md",
+      "split": "train"
+    },
+    {
+      "correct": 735,
+      "cost_usd": 0.86,
+      "n": 735,
+      "run": "reviewer-calibration-luna-decisions-v2",
+      "source": "reports/reviewer-calibration/reviewer-calibration-luna-decisions.md",
+      "split": "train"
+    },
+    {
+      "correct": 318,
+      "cost_usd": 0.24,
+      "n": 323,
+      "run": "reviewer-validation-luna-decisions-v2-test",
+      "source": "reports/reviewer-calibration/reviewer-calibration-luna-decisions.md",
+      "split": "test"
+    },
+    {
+      "correct": 318,
+      "cost_usd": 0.1905,
+      "n": 323,
+      "run": "reviewer-validation-luna-decisions-v3.0.0-test",
+      "source": "config/decisions/LINEAGE.yaml",
+      "split": "test"
+    }
+  ],
+  "reviewer_cost_in_qwen_calls": {
+    "decisions_v2": {
+      "measured": true,
+      "usd_per_document": 0.000743,
+      "x_flat": 1.849,
+      "x_tiered": 0.955
+    },
+    "decisions_v3_0_0": {
+      "measured": true,
+      "usd_per_document": 0.00059,
+      "x_flat": 1.467,
+      "x_tiered": 0.758
+    },
+    "qwen_reviewer": {
+      "measured": true,
+      "usd_per_document": 0.00065,
+      "x_flat": 0.742,
+      "x_tiered": 0.835
+    }
+  },
+  "saving_vs_traditional_flat": {
+    "decisions_v2": -0.6351,
+    "decisions_v3_0_0": -0.4163
+  },
+  "saving_vs_traditional_tiered": {
+    "decisions_v2": -0.0653,
+    "decisions_v3_0_0": 0.042
+  }
+}

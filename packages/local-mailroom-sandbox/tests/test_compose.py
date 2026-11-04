@@ -29,8 +29,12 @@ def test_compose_file_parses():
     assert services["jupyter"]["build"]["dockerfile"] == "deploy/Dockerfile"
     assert services["jupyter"]["image"] == "mailroom-sandbox:offline"
     assert "langfuse" in services["langfuse-web"]["profiles"]
-    assert services["langfuse-web"]["image"].endswith(":3")
-    assert services["langfuse-worker"]["image"].endswith("langfuse-worker:3")
+    assert services["langfuse-web"]["image"].startswith("langfuse/langfuse:3.")
+    assert services["langfuse-worker"]["image"].startswith("langfuse/langfuse-worker:3.")
+    assert "@sha256:" in services["minio"]["image"] and not services["minio"]["image"].startswith("minio/")
+    published = [p for service in services.values() for p in service.get("ports", [])]
+    assert published and all(str(p).startswith("127.0.0.1:") for p in published)
+    assert "127.0.0.1:8123" in " ".join(services["clickhouse"]["healthcheck"]["test"])
     # hub#55: every engine image is version-pinned — no mutable channel tags.
     assert not services["llamacpp"]["image"].endswith(":server")
     assert services["llamacpp"]["image"].startswith("ghcr.io/ggerganov/llama.cpp:full-")
@@ -45,7 +49,6 @@ def test_compose_file_parses():
 def test_compose_jupyter_build_and_mount_resolve_from_package_root():
     """DMR-043: jupyter build context/volume must resolve against the package
     root, not the compose file's own directory (deploy/)."""
-    from pathlib import Path
 
     data = yaml.safe_load(compose_file().read_text(encoding="utf-8"))
     jupyter = data["services"]["jupyter"]

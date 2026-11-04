@@ -1,0 +1,41 @@
+# Sorter prompt V15 validation (langchain_agents.prompts SORTER_PROMPT_V15, the production
+# "sorter" pin): qwen/qwen3.7-flash, whole document in one call, same settings as the V14 pass
+# in data/handoff/sorter-qwen3.7-flash. Compare with scripts/compare_sorter_prompt.py.
+schema: sandbox.run/v1
+run_id: sorter-v15-qwen-test
+task: isolated
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: test
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
+  sample_seed: 42
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  sorter: {max_input_chars: 600000}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 24
+  cost_cap_usd: 2.00
+  max_wall_seconds: 5400
+  api_cost_cap_usd: 0.40
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, sorter-handoff]

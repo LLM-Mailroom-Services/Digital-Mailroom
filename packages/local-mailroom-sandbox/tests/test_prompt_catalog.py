@@ -6,9 +6,7 @@ import json
 import re
 import subprocess
 import sys
-from pathlib import Path
 
-import pytest
 from llm_dojo_scoring.prompts import list_prompt_versions, prompt_roles
 
 from mailroom_sandbox import prompt_catalog as catalog

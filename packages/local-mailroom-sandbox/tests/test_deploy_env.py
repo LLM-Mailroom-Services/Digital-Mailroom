@@ -75,6 +75,26 @@ def test_cli_deploy_env_prints_exports(capsys):
     assert "export MODAL_VLLM_MAX_CONTAINERS=2" in out
 
 
+def test_named_image_reaches_the_deploy_and_stale_shells_show_as_drift():
+    spec = _spec()
+    assert spec_env(spec)["MODAL_VLLM_USE_NAMED_IMAGE"] == ""
+    assert any("USE_NAMED_IMAGE" in line for line in env_drift(spec, {**spec_env(spec), "MODAL_VLLM_USE_NAMED_IMAGE": "1"}))
+    named = spec.model_copy(deep=True)
+    named.engine.modal.named_image = True
+    assert spec_env(named)["MODAL_VLLM_USE_NAMED_IMAGE"] == "1"
+
+
+def test_an_experiment_deploy_sees_the_named_image_switch():
+    import os
+
+    from mailroom_sandbox.experiments import _environment
+
+    spec = _spec()
+    spec.engine.modal.named_image = True
+    with _environment(spec):
+        assert os.environ["MODAL_VLLM_USE_NAMED_IMAGE"] == "1"
+
+
 def test_spec_env_covers_every_key_the_deploy_reads():
     """Review #1: any MODAL_VLLM_* key the deploy reads but spec_env omits is a
     knob a stale shell can change without benchmark-check noticing."""

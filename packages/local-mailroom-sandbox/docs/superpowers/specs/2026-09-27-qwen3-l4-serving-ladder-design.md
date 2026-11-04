@@ -31,7 +31,7 @@ Serve Qwen3-8B on Modal + vLLM v0.29.0 on L4 GPUs as cheaply as possible, withou
   4. An AWQ-vs-bf16 quality delta from one isolated arm.
 - **Constants:** AWQ weights (`Qwen/Qwen3-8B-AWQ`), vLLM image v0.29.0, `max_model_len` 32768,
   `gpu_memory_utilization` 0.90, prefix caching on, prompts pinned by SHA, dataset revision
-  = the current `FAMILY_HF_REVISION` pin (v9.1, `ed7576b676343e0b402ec5412cded301e629bdee`), seed 42.
+  = the `FAMILY_HF_REVISION` pin as of 2026-09-27 (`ed7576b676343e0b402ec5412cded301e629bdee`; the constant now records Hub tag `v9.1` = `bc9eab28…` and this SHA is `FAMILY_HF_DATA_REVISION`), seed 42.
   Earlier runs used `46a4d3c2`, so comparisons with them are indicative only, not paired.
 - **Fixed by decision:** **`kv_cache_dtype=fp8` on every 2×L4 run** and on the 1-replica
   scale-out baseline.

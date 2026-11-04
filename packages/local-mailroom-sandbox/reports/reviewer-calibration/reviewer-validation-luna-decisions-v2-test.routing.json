@@ -1,0 +1,49 @@
+{
+  "cutoffs": {
+    "contract": 0.78,
+    "corporate_record": 0.96,
+    "correspondence": 0.64,
+    "insurance_claim": 0.7,
+    "merger_agreement": 0.99
+  },
+  "cutoffs_from": "reviewer-calibration-luna-decisions-v2",
+  "misrouted": 1,
+  "misrouted_rate_among_unattended": 0.003145,
+  "routed_to_human_review": 5,
+  "routed_to_human_review_basis": "reviewer",
+  "routed_to_human_review_by_class": {
+    "contract": {
+      "n": 59,
+      "rate": 0.016949,
+      "routed": 1
+    },
+    "corporate_record": {
+      "n": 48,
+      "rate": 0.020833,
+      "routed": 1
+    },
+    "correspondence": {
+      "n": 83,
+      "rate": 0.012048,
+      "routed": 1
+    },
+    "insurance_claim": {
+      "n": 114,
+      "rate": 0.0,
+      "routed": 0
+    },
+    "merger_agreement": {
+      "n": 17,
+      "rate": 0.0,
+      "routed": 0
+    },
+    "unknown": {
+      "n": 2,
+      "rate": 1.0,
+      "routed": 2
+    }
+  },
+  "routed_to_human_review_rate": 0.01548,
+  "run_id": "reviewer-validation-luna-decisions-v2-test",
+  "sent_on_unattended": 318
+}

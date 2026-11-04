@@ -2,21 +2,101 @@
 # Used by overlay rewrite and matrix cells so local vs API runs stay comparable.
 # Hosted-catalog sunset (2026-10-10) inventory: docs/openrouter-sunset-audit.md
 
+# SAND-077: the default Modal+vLLM model is Qwen/Qwen3.5-9B (online FP8 on L4).
+# OpenRouter defaults to the SAME open weights (qwen/qwen3.5-9b, HF id
+# Qwen/Qwen3.5-9B), so an API run compares directly with its Modal counterpart.
+# The offline local families (ollama / llamacpp / lmstudio) keep Qwen3-8B tags.
 defaults:
   ollama: qwen3:8b
-  vllm: Qwen/Qwen3-8B
+  vllm: Qwen/Qwen3.5-9B
   llamacpp: qwen3-8b
   lmstudio: qwen3-8b
-  openrouter: qwen/qwen3.7-flash
+  openrouter: qwen/qwen3.5-9b
   fallback_ollama: qwen3:7b
 
+# OpenRouter models for evaluations, in order of preference. Each is an open-
+# weights Qwen3.5 checkpoint, so the same HF id can be served on Modal+vLLM:
+#   1. qwen/qwen3.5-9b       = Qwen/Qwen3.5-9B, the Modal default (same weights)
+#   2. qwen/qwen3.5-35b-a3b  = Qwen/Qwen3.5-35B-A3B, the Modal L4:2 TP=2 row (MoE)
+#   3. qwen/qwen3.5-27b      = Qwen/Qwen3.5-27B, dense; the Modal judge tier (L40S)
+# OpenRouter routes each id across hosts at different precisions (fp4 to bf16:
+# GET /api/v1/models/<id>/endpoints), so outputs can differ from a Modal run
+# even on the same weights.
+openrouter_preference:
+  - qwen/qwen3.5-9b
+  - qwen/qwen3.5-35b-a3b
+  - qwen/qwen3.5-27b
+
+# Critical tier (SAND-078): the judge gets a larger, more capable sibling of
+# the default model on its own Modal app, deployed beside the 9B base engine.
+# `sandbox experiment create --provider modal-vllm --task pipeline` adds this
+# route unless --agent-route/--agent-model already sets the judge. OpenRouter
+# runs keep the openrouter profile's deepseek judge.
+#
+# Specialist tiers (SAND-079): `experiment create --specialist-tier` moves the
+# five live-class specialists off the base model. `base` keeps the run's model;
+# `mid` is the Qwen3.5-35B-A3B MoE, between the 9B base and the 27B judge;
+# `full` is the judge's own 27B. On Modal, `full` reuses the judge's route, so
+# the judge and the specialists share one app and one GPU. On OpenRouter the
+# tiers follow openrouter_preference (same weights as the Modal tiers).
+critical_tier:
+  judge: &full_tier_route
+    provider: modal-vllm
+    model: Qwen/Qwen3.5-27B
+    modal:
+      app: sandbox-vllm-critical-27b
+      gpu: L40S
+      max_containers: 1
+    vllm:
+      quantization: fp8
+      max_model_len: 16384
+      limit_mm_per_prompt: {image: 0, video: 0, audio: 0}
+  specialists:
+    mid:
+      modal-vllm:
+        provider: modal-vllm
+        model: Qwen/Qwen3.5-35B-A3B
+        modal:
+          app: sandbox-vllm-critical-35b-a3b
+          gpu: L4:2
+          max_containers: 1
+        vllm:
+          quantization: fp8
+          max_model_len: 16384
+          limit_mm_per_prompt: {image: 0, video: 0, audio: 0}
+      openrouter: qwen/qwen3.5-35b-a3b
+    full:
+      modal-vllm: *full_tier_route
+      openrouter: qwen/qwen3.5-27b
+
 map:
+  # The vendored mailroom assigns every agent this champion id; its vllm and
+  # openrouter columns are therefore what the modal-vllm / vllm-* and
+  # openrouter profiles actually run (SAND-077: both on Qwen3.5-9B).
   qwen/qwen3.7-flash:
     ollama: qwen3:8b
-    vllm: Qwen/Qwen3-8B
+    vllm: Qwen/Qwen3.5-9B
     llamacpp: qwen3-8b
     lmstudio: qwen3-8b
-    openrouter: qwen/qwen3.7-flash
+    openrouter: qwen/qwen3.5-9b
+  qwen/qwen3.5-9b:
+    ollama: qwen3:8b
+    vllm: Qwen/Qwen3.5-9B
+    llamacpp: qwen3-8b
+    lmstudio: qwen3-8b
+    openrouter: qwen/qwen3.5-9b
+  qwen/qwen3.5-35b-a3b:
+    ollama: qwen3:14b
+    vllm: Qwen/Qwen3.5-35B-A3B
+    llamacpp: qwen3-14b
+    lmstudio: qwen3-14b
+    openrouter: qwen/qwen3.5-35b-a3b
+  qwen/qwen3.5-27b:
+    ollama: qwen3:14b
+    vllm: Qwen/Qwen3.5-27B
+    llamacpp: qwen3-14b
+    lmstudio: qwen3-14b
+    openrouter: qwen/qwen3.5-27b
   qwen/qwen-3-7b:
     ollama: qwen3:7b
     vllm: Qwen/Qwen3-8B
@@ -68,6 +148,7 @@ local_catalog:
     - deepseek-r1:8b
     - mistral:7b
   vllm:
+    - Qwen/Qwen3.5-9B
     - Qwen/Qwen3-8B
     - Qwen/Qwen3-8B-AWQ
     - Qwen/Qwen3-14B
@@ -79,8 +160,9 @@ local_catalog:
 # One deployment = one model; swap with:
 #   eval "$(sandbox modal-matrix env <HF-id> [--gpu GPU])"
 #   modal deploy deploy/modal_vllm.py --strategy recreate
-# Default specialist cost-eval posture: Qwen/Qwen3-8B @ L4 (do not change
-# run-30 YAMLs for one-off swaps — see sandbox runbook show l4-qwen3-8b).
+# App default (SAND-077): Qwen/Qwen3.5-9B @ L4, online FP8. The frozen
+# specialist cost-eval posture stays Qwen/Qwen3-8B @ L4 (do not change run-30
+# YAMLs for one-off swaps — see sandbox runbook show l4-qwen3-8b).
 # Quantization must be left EMPTY for FP16 (bf16).
 modal_models:
   Qwen/Qwen3-8B:
@@ -88,7 +170,7 @@ modal_models:
     quantization: ""
     max_model_len: 16384
     tp_size: 1
-    notes: Default workhorse (app default). ~16GB bf16 fits L4 but the KV pool
+    notes: Frozen specialist cost-eval posture (app default before SAND-077). ~16GB bf16 fits L4 but the KV pool
       is only ~3.4GB — 32768 RAISES at boot (v0.29.0 admission check); 16384
       is the boot-valid cap. Prefer AWQ for 32768 contexts.
   Qwen/Qwen3-8B-FP8:
@@ -191,11 +273,20 @@ modal_models:
     quantization: fp8
     max_model_len: 16384
     tp_size: 2
-    notes: "SAND-021. MoE (35B total / 3B active). TP=2 across two L4s over
+    notes: "SAND-021; SAND-079 mid specialist tier. MoE (35B total / 3B active). TP=2 across two L4s over
       PCIe — L4 has no NVLink; inter-GPU bandwidth is the bottleneck vs two
       independent 1-GPU replicas (DMR-068 G1 compares that trade). Same online
       FP8 + kernel-deps posture as the 9B row. DoD incomplete until spend
       reopens."
+  Qwen/Qwen3.5-27B:
+    gpu: L40S
+    quantization: fp8
+    max_model_len: 16384
+    tp_size: 1
+    notes: "SAND-078 judge tier. Dense; online FP8 is ~27GB of weights, so it
+      needs a 48GB L40S (not an L4). Text-only serve like the 9B row, and the
+      same causal_conv1d + fla kernel deps. Unverified: /health and the VRAM
+      peak wait for the first spend-gated deploy."
   Qwen/Qwen3-32B:
     gpu: A100-80GB
     quantization: ""

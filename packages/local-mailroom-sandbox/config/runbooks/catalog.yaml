@@ -40,8 +40,9 @@ ops:
     - Edit run-30-*-specialist.yaml for a one-off model swap
 
 serving:
-  # Singular L4, one container, Qwen3-8B — the default cost-eval posture.
-  # Must match deploy/modal_vllm.py defaults + models.yaml + run-30 YAML engine.
+  # Singular L4, one container, Qwen3-8B — the frozen cost-eval posture.
+  # Must match models.yaml + run-30 YAML engine. The app default (serve
+  # runbook) is the qwen35-9b variant below (SAND-077).
   baseline:
     model: Qwen/Qwen3-8B
     gpu: L4
@@ -57,6 +58,13 @@ serving:
     quantization: ""
     tp_size: 1
   variants:
+    # SAND-077 app default = deploy/modal_vllm.py defaults: online fp8, text-only.
+    qwen35-9b:
+      model: Qwen/Qwen3.5-9B
+      quantization: fp8
+      max_model_len: 16384
+      extra_env:
+        MODAL_VLLM_LIMIT_MM_PER_PROMPT: '{"image":0,"video":0,"audio":0}'
     awq-16k:
       model: Qwen/Qwen3-8B-AWQ
       quantization: awq
@@ -147,6 +155,10 @@ serving:
         PHOENIX_TRACING: disabled
 
 aliases:
+  serve: modal-vllm-serving
+  serving: modal-vllm-serving
+  default: modal-vllm-serving
+  modal: modal-vllm-serving
   l4: l4-qwen3-8b
   singular: l4-qwen3-8b
   qwen: l4-qwen3-8b
@@ -169,11 +181,13 @@ aliases:
 generated_docs:
   index: README.md
   families:
+    serving: serving/README.md
     baseline: archived-experiments/qwen/STALE/baseline.md
     improved: specialists/contracts/improved.md
     grid: archived-experiments/qwen/qwen3-8b/grid.md
     sand42: sand42/family.md
   runbooks:
+    modal-vllm-serving: serving/modal-vllm.md
     l4-qwen3-8b: archived-experiments/qwen/STALE/l4-qwen3-8b.md
     l4-qwen3-8b-track-a: archived-experiments/qwen/STALE/l4-qwen3-8b-track-a.md
     l4-qwen3-8b-track-b: archived-experiments/qwen/STALE/l4-qwen3-8b-track-b.md
@@ -201,13 +215,65 @@ generated_docs:
     sand42-noise-floor: sand42/noise-floor.md
 
 runbooks:
+  modal-vllm-serving:
+    family: serving
+    title: Modal vLLM — deploy, point, verify, teardown (default path)
+    summary: >
+      The sandbox default. One Modal L4 serves Qwen/Qwen3.5-9B (online fp8) behind an OpenAI
+      /v1 surface; the host needs no GPU and no Ollama daemon. Pre-warm the
+      weights, deploy once, export VLLM_BASE_URL/VLLM_API_KEY, verify with
+      health, run any eval against the same warm endpoint, then tear it down.
+    serving: qwen35-9b
+    modal_profile: track-a
+    steps:
+      - env
+      - activate_profile
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - teardown
+    notes:
+      - "VLLM_BASE_URL is the FULL base URL: the URL `modal deploy` prints plus /v1. Without /v1 every chat call 404s."
+      - "Export MODAL_WORKSPACE=<workspace slug> instead and the profile derives the same URL; health follows it too."
+      - "VLLM_API_KEY is the same value as MODAL_VLLM_API_TOKEN; the script exports it for you. A right URL with no bearer still returns 401, so export it in any other shell you run evals from."
+      - "One deploy serves every specialist class — do not redeploy between classes. For the 5×30 suite on this endpoint use `sandbox runbook show full`."
+      - "Attended scaledown is 120s. Unattended/overnight: export MODAL_VLLM_SCALEDOWN_SECONDS=600 before deploy."
+      - "Teardown is a runbook step, not an afterthought: ./deploy/teardown_vllm.sh stops the app so scale-to-zero is not the only cost guard. The script leaves it commented: run it by hand after your last eval, so pasting the lifecycle never stops the endpoint before an eval has run."
+      - "Offline or CPU-only work is the explicit opt-out: --profile ollama (or SANDBOX_PROFILE=ollama)."
+    appendix: |
+      ## The default contract
+
+      | Piece | Value |
+      | --- | --- |
+      | Profile | `modal-vllm` (CLI default, `.env.example`) |
+      | Mailroom provider | `vllm` (`DEFAULT_PROVIDER`) |
+      | Endpoint | `https://<workspace>--sandbox-vllm-serve.modal.run/v1` |
+      | Auth | `VLLM_API_KEY` = `MODAL_VLLM_API_TOKEN` (bearer) |
+      | Serving shape | one L4, one container, Qwen/Qwen3.5-9B online fp8 (text-only), 16384 ctx, `max_num_seqs` 6 |
+      | API counterpart | `--profile openrouter` runs `qwen/qwen3.5-9b`, the same weights (`models.yaml` `openrouter_preference`) |
+      | Cost guard | `min_containers` 0, `scaledown_seconds` 120 (600 unattended), teardown at the end |
+
+      `sandbox health` exits 1 with a hint when `VLLM_BASE_URL` is unset — the
+      profile's static `localhost:8000` value is only a parity fallback, never
+      the Modal endpoint.
+
+      ## When to leave this runbook
+
+      - More concurrency / longer context: pick the matching `serving` variant
+        and the catalog runbook that cites it (`improved-awq-c8`, `grid-2l4`, …).
+      - The frozen Qwen3-8B eval campaign: `l4-qwen3-8b` (5×30 specialists, bf16 Qwen3-8B on L4).
+      - Local post-processing only: `--profile ollama` (mock/offline paths do
+        not need any endpoint).
+
   l4-qwen3-8b:
     family: baseline
     title: Singular 1×L4 / 1-container Qwen3-8B (full 5×30)
     summary: >
-      Default cost-eval path. One sandbox-vllm replica on one L4 serving
-      Qwen/Qwen3-8B bf16 (max_model_len 16384, max_containers 1). Warm once,
-      chain all five specialist classes, teardown after the last.
+      Full 5×30 specialist suite on the default serving shape. One
+      sandbox-vllm replica on one L4 serving Qwen/Qwen3-8B bf16
+      (max_model_len 16384, max_containers 1). Warm once, chain all five
+      specialist classes, teardown after the last.
     serving: baseline
     suite: full
     modal_profile: track-a
@@ -365,7 +431,7 @@ runbooks:
       - sandbox scorecard --run run-400-sorter-qwen3-14b-awq-a100
       - modal billing summary
     notes:
-      - "CLI: pass --profile AFTER the subcommand (sandbox health --profile modal-vllm). Never paste unicode ellipsis into commands."
+      - "CLI: shared flags such as --profile work before or after subcommands; the later occurrence wins. Never paste unicode ellipsis into commands."
       - "Pretty logs: open sandbox watch --web --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml in a second pane (http://127.0.0.1:8765/) BEFORE sandbox run start. start --watch is the CLI session layer only and does not tail Modal dispatch logs."
       - "Canonical deploy knobs: set -a; eval \"$(sandbox run deploy-env --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml)\"; set +a. Then download_model and modal deploy --strategy recreate once."
       - "benchmark-check is skipped (L4 specialist gate). Engine pins are still catalog-asserted against the run YAML."

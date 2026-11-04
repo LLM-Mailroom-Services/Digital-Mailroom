@@ -8,7 +8,7 @@ Generated family rollup. Canonical per-id cards live at their catalog paths.
 
 **id:** `l4-qwen3-8b` · **family:** `baseline` · **serving:** `baseline`
 
-Default cost-eval path. One sandbox-vllm replica on one L4 serving Qwen/Qwen3-8B bf16 (max_model_len 16384, max_containers 1). Warm once, chain all five specialist classes, teardown after the last.
+Full 5×30 specialist suite on the default serving shape. One sandbox-vllm replica on one L4 serving Qwen/Qwen3-8B bf16 (max_model_len 16384, max_containers 1). Warm once, chain all five specialist classes, teardown after the last.
 
 Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b`.
 
@@ -115,10 +115,12 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py
 
+# REQUIRED before health (shell or .env): `sandbox health` exits 1 without an endpoint
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
-# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"   # bearer this deploy was started with
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
@@ -245,10 +247,12 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py
 
+# REQUIRED before health (shell or .env): `sandbox health` exits 1 without an endpoint
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
-# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"   # bearer this deploy was started with
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
@@ -372,10 +376,12 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py
 
+# REQUIRED before health (shell or .env): `sandbox health` exits 1 without an endpoint
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
-# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"   # bearer this deploy was started with
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
@@ -480,10 +486,12 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py
 
+# REQUIRED before health (shell or .env): `sandbox health` exits 1 without an endpoint
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
-# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"   # bearer this deploy was started with
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 

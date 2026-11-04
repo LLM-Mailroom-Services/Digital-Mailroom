@@ -1,0 +1,46 @@
+# SUPERSEDED: chat model openai/gpt-6-luna as the decision reviewer; preflight now refuses
+# a paid chat-model reviewer run without an explicit opt-in. Kept as the record of
+# reports/reviewer-calibration/reviewer-calibration-luna.md (the prompt-v1 test arm).
+#
+# Out-of-sample check for sorter_reviewer_decision_v1 (issue #208): every test-split
+# document with task ground truth (317), never seen while writing the prompt or picking
+# cutoffs. Score the reviewer-calibration-luna-prompt-v1 cutoffs against it; do not
+# re-pick cutoffs here.
+schema: sandbox.run/v1
+run_id: reviewer-validation-luna-prompt-v1-test
+task: sorter_reviewer
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    sorter_reviewer: {source: local, file: sorter_reviewer_decision_v1}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: test   # held out: never used to write the prompt or pick cutoffs
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_DATA_REVISION)
+  require_task_gt: true   # every document can be scored
+  sample_seed: 42
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 16
+  cost_cap_usd: 0.30
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.40
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, reviewer-calibration]

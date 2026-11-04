@@ -105,7 +105,6 @@ import re
 import shutil
 import sys
 import threading
-import time
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -1092,9 +1091,9 @@ def print_plan_card(plan: RunPlan, spec: RunSpecView, idx: int, n_plans: int,
     cumulative += est_usd
 
     try:
-        rel_spec = spec_path_display = str(Path(plan.spec_path).resolve().relative_to(REPO_ROOT))
+        rel_spec = str(Path(plan.spec_path).resolve().relative_to(REPO_ROOT))
     except ValueError:
-        rel_spec = spec_path_display = str(plan.spec_path)
+        rel_spec = str(plan.spec_path)
 
     _log(f"  run_id / spec        : {plan.run_id}  <- {rel_spec}")
     _log(f"  derived spec         : <derived spec> (written at run time, gitignored)")

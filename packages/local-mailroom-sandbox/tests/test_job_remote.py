@@ -7,8 +7,8 @@ import shutil
 
 import pytest
 
-from test_generation_protocol import modal_fs
-from test_job_generation_residuals import source_root, spec_file, sdk
+from test_generation_protocol import modal_fs  # noqa: F401 - pytest fixture
+from test_job_generation_residuals import source_root, spec_file, sdk  # noqa: F401 - pytest fixtures
 from mailroom_sandbox.job import preflight, remote
 
 pytestmark = pytest.mark.usefixtures('job_data_dir')
@@ -128,3 +128,16 @@ def test_modal_job_state_dict_put_is_two_arg(tmp_path, source_root, modal_fs, sd
     values=list(modal_fs.state.values())
     assert len(values)==1 and values[0]['state']=='done' and values[0]['cursor']==1
     assert values[0]['generation_id']==store.read_lock()['generation_id']
+
+
+def test_modal_job_refuses_done_while_mailroom_writers_run(tmp_path, source_root, modal_fs, sdk, monkeypatch):
+    from mailroom_sandbox.job import deploy_env
+
+    monkeypatch.setattr(deploy_env, 'settle_mailroom_writers', lambda timeout=60.0: ['relations-scan'])
+    store=prepared(tmp_path,source_root);remote.fire(store)
+    modal_fs.worker(modal_fs.spawned[-1])
+    # A writer outlived the wait: mailroom.db is still changing, so the worker
+    # publishes a failure instead of a durable `done`.
+    values=list(modal_fs.state.values())
+    assert len(values)==1 and values[0]['state']=='failed'
+    assert 'relations-scan' in values[0]['error']

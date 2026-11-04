@@ -1,14 +1,15 @@
-```bash
-cd /Users/morningstar/Desktop/Cold_Storage/local-mailroom-sandbox
-source .venv/bin/activate
-sandbox dev
+# Themed run logs
 
-# Start the sandbox with pretty logs enabled and watch for changes
-sandbox run start --watch --pretty-logs
+Start the synthetic, no-spend demonstration from the repository root:
+
+```bash
+sandbox dev
 ```
 
-# `--pretty-logs` enables colored and formatted output for easier reading
+For a real run, use a separate terminal and specify a run configuration:
 
-# You can turn it off by omitting the flag or running
+```bash
+sandbox run start --config config/runs/<name>.yaml --watch
+```
 
-# sandbox run start --watch
+The watch view formats the run logs; see [the logging guide](../pretty-logging/mailroom-themed-logging.md) for browser and terminal options.

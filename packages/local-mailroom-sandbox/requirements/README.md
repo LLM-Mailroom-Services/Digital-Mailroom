@@ -1,4 +1,4 @@
-# requirements/ 
+# requirements/
 
 > pip-installable mirrors of pyproject.toml extras.
 #
@@ -9,13 +9,18 @@
 
  **Install (from package root):**
 
-
 ```bash
 pip install -r requirements/base.txt
 #   pip install -r requirements/dev.txt          # offline pytest + Hub + pipeline
 #   pip install -r requirements/pipeline.txt     # vendored mailroom live path
 #   pip install -r requirements/deploy.txt       # Modal SDK
+#   pip install -r requirements/decision.txt     # Pydantic AI + TypeSafe (Jev decision backend)
 #   pip install -r requirements/all.txt          # everything
 # Or (preferred editable):
 #   pip install -e ".[dev,pipeline,deploy]"
 ```
+**Exception: `dojo-release.txt`.** This file is not generated from `pyproject.toml`. It pins the
+installed Dojo release, the primary scoring source (`mailroom_sandbox.dojo_source`), and is kept out
+of `pyproject.toml` so the base install stays offline (DMR-057). Update it together with
+`_VENDOR_PINS` in `src/mailroom_sandbox/cli.py` on every Dojo vendor refresh.
+`tests/test_dojo_source.py` fails if its commit differs from the snapshot's pin.

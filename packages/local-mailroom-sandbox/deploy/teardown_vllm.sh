@@ -16,7 +16,7 @@
 # Exit 0 = app stopped and verified; exit 1 = verification failed (loud).
 set -euo pipefail
 
-APP="${1:-${MODAL_VLLM_APP:-sandbox-vllm}}"
+APP="${1:-${MODAL_VLLM_APP_NAME:-${MODAL_VLLM_APP:-sandbox-vllm}}}"
 
 echo "== teardown: $APP =="
 if ! command -v modal >/dev/null 2>&1; then
@@ -39,28 +39,32 @@ elif command -v python3 >/dev/null 2>&1; then _PY="python3"; fi
 
 _deployed_count() {
     if [ -n "$_PY" ]; then
-        modal app list --json 2>/dev/null | "$_PY" -c '
+        modal app list --json | "$_PY" -c '
 import json, sys
-try:
-    data = json.load(sys.stdin)
-except ValueError:
-    data = []
+data = json.load(sys.stdin)
+if not isinstance(data, list) or any(not isinstance(a, dict) or "description" not in a or "state" not in a for a in data):
+    raise SystemExit("ERROR: invalid Modal app listing; cannot verify teardown")
 print(sum(1 for a in data
           if isinstance(a, dict) and a.get("description") == sys.argv[1]
-          and a.get("state") == "deployed"))
-' "$APP" || echo 0
+          and a.get("state", "").lower() != "stopped"))
+' "$APP"
         return
     fi
-    # Fallback (no Python): require the app name to be its own table cell.
-    modal app list 2>/dev/null | grep -cE "│ ${APP} +│ *deployed" || true
+    echo "ERROR: Python is required to verify teardown safely" >&2
+    return 1
 }
 
 # 1) Stop serving NOW (scale-to-zero immediately; no scaledown-window burn).
 # Non-interactive (CI/cron) runs get --yes so teardown never stalls on a prompt.
 FLAGS=""
 if [ ! -t 0 ]; then FLAGS="--yes"; fi
-echo "-> modal app stop $APP $FLAGS"
-modal app stop "$APP" $FLAGS
+running=$(_deployed_count)
+if [ "$running" -gt 0 ]; then
+    echo "-> modal app stop $APP $FLAGS"
+    modal app stop "$APP" $FLAGS
+else
+    echo "-> $APP already stopped"
+fi
 
 # 2) Verify: poll until no deployment of the app is running.
 for i in $(seq 1 30); do

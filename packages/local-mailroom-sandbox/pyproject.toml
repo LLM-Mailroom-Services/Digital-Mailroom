@@ -36,6 +36,7 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-mock>=3.12",
+    "pytest-cov>=5.0",
     # reports/dashboard/pages_site.py renders the mailroom-issues Pages site (SAND-036).
     "markdown-it-py>=3.0",
     # `sandbox datasets pull` / `hf-pilot` / corpus work (DMR-058): the
@@ -57,6 +58,10 @@ pipeline = [
     "langchain-core>=0.3",
     "langchain-openai>=0.2",
     "langgraph>=0.2",
+    # Terminal review uses the API and durable interrupt checkpoints.
+    "fastapi==0.162.0",
+    "python-multipart==0.0.32",
+    "langgraph-checkpoint-sqlite==3.1.2",
     "requests>=2.31",
     "watchdog>=4.0",
     # DMR-067/078: vendored graph live storage (storage.catalog / audit_log)
@@ -83,7 +88,7 @@ observability = [
     # Braintrust = opt-in hosted sink for eval spans. Verified against 0.42.0:
     # no start_root_span / Logger.score / Span.score in that line — see
     # src/mailroom_sandbox/eval/tracing.py for the adapter.
-    "braintrust>=0.42,<0.47",
+    "braintrust>=0.42,<0.49",
     "opentelemetry-sdk>=1.25",
     "opentelemetry-exporter-otlp-proto-http>=1.25",
 ]
@@ -97,13 +102,20 @@ deploy = [
     # notes — 1.5.5 removed `Secret.from_local`.
     "modal==1.6.2",
 ]
+decision = [
+    # Decision-model reviewer backend (src/mailroom_sandbox/decision_backends.py).
+    # Exact pin: a tuned confidence cutoff is tied to one model version, and the
+    # `typesafe:` model names and `provider_details["confidence"]` come from this
+    # release's source. Imported lazily, so the offline install never needs it.
+    "pydantic-ai-slim[typesafe]==2.63.0",
+]
 # DMR-057: the family eval stack (llm-mailroom + llm-dojo-scoring) is
 # vendored under vendor/ and wired onto sys.path at import — the old
 # `[pipeline]`/`[evals]` git-pin extras are gone; refresh the snapshots with
 # `sandbox fetch-deps` instead. Current pins live in `_VENDOR_PINS`; each
 # `vendor/*/VENDOR.md` records the exact provenance.
 all = [
-    "mailroom-sandbox[dev,deploy,hf,observability,notebooks,pipeline]",
+    "mailroom-sandbox[dev,deploy,hf,observability,notebooks,pipeline,decision]",
 ]
 
 [project.scripts]
@@ -121,9 +133,36 @@ mailroom_sandbox = ["py.typed"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 markers = [
+    "service_smoke: opt-in real Modal/HF CLI contract checks (SANDBOX_SERVICE_SMOKE=1)",
     "local_llm: live test against a local OpenAI-compatible server (skipped unless SANDBOX_LOCAL_LLM=1)",
 ]
 
 # DMR-057: no workspace redirects needed — the family code is vendored and
 # tracked in this package (vendor/llm-mailroom + vendor/llm-dojo-scoring).
 # A plain `pip install .` (or `pip install -e ".[dev]"`) is fully self-contained.
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["vendor", "data", "notebooks"]
+
+[tool.ruff.lint]
+# Correctness-first gate: syntax errors, undefined names, mutable defaults,
+# useless expressions, pylint errors. Widen (F401, B, UP, I) as debt is paid.
+select = ["E9", "F401", "F63", "F7", "F82", "F841", "B006", "B018", "PLE"]
+
+[tool.ruff.lint.per-file-ignores]
+# Compatibility adapters: the Dojo-owned names are re-exported on purpose.
+"src/mailroom_sandbox/eval/cuad_scoring.py" = ["F401"]
+"src/mailroom_sandbox/eval/maud_scoring.py" = ["F401"]
+
+[tool.coverage.run]
+source = ["src/mailroom_sandbox"]
+branch = false
+
+[tool.coverage.report]
+# Measured 79% on CircleCI (2026-10-30); floor leaves ~2 points of headroom.
+# Ratchet it up as coverage improves; never lower it to land a change.
+fail_under = 77
+show_missing = false
+skip_empty = true

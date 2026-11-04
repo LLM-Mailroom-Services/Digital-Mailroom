@@ -157,7 +157,7 @@ fluke.
 | Full traces when stored reasoning is truncated | Braintrust LLM spans (`src/braintrust_utils.fetch_experiment_rows`); Langfuse via the `langfuse` skill / `run_langfuse_*_eval.py` records — consult the skill before querying |
 | Ground truth | `src/cuad_ground_truth.py` (type-aware expectations), master labels CSV (`src/master_labels.py`, `../llm-mailroom/data/cuad/master_clauses.csv`) |
 | Per-span diagnostics | `scripts/reporting/confusion_matrix.py`, `score_extraction_manifest.py`, `rescore_manifests.py`; EDA: `data/eda/report.md` |
-| Annotation queue (known-weak rows) | `scripts/eval/run_annotation_queue.py status --task extraction|subtype` |
+| Annotation queue (known-weak rows) | `scripts/eval/run_annotation_queue.py status --task extraction\|subtype` |
 
 ## Phase 0 — GEPA state: read and maintain the candidate frontier
 

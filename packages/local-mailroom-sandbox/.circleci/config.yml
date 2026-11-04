@@ -1,0 +1,72 @@
+version: 2.1
+
+# Free-tier budget: two parallel small jobs, one workflow, pip cache.
+# This is the repo's only CI (there is no .github/workflows/ci.yml). To BLOCK
+# merges, mark the "ci/circleci: lint" and "ci/circleci: test" checks as
+# required in the GitHub branch protection rule for main.
+
+executors:
+  py:
+    docker:
+      - image: cimg/python:3.11-node
+    resource_class: small
+
+jobs:
+  lint:
+    executor: py
+    steps:
+      - checkout
+      - run:
+          name: Install lint tools
+          command: |
+            pip install --quiet ruff yamllint bandit
+            sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+      - run:
+          name: ruff (correctness gate, config in pyproject.toml)
+          command: ruff check src tests scripts deploy reports
+      - run:
+          name: bandit (medium+ severity; LOW findings are not gated)
+          command: bandit -q -ll -r src deploy scripts
+      - run:
+          name: yamllint
+          command: yamllint -c .yamllint.yaml .
+      - run:
+          name: shellcheck (warning level, config in .shellcheckrc)
+          command: git ls-files '*.sh' | grep -v '^vendor/' | xargs shellcheck -S warning
+      - run:
+          name: markdownlint (GFM, config in .markdownlint-cli2.yaml)
+          command: npx --yes markdownlint-cli2@0.18.1
+
+  test:
+    executor: py
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - pip-v1-{{ checksum "pyproject.toml" }}
+      - run:
+          name: Install (dev + pipeline surface for vendored imports)
+          command: pip install -e ".[dev]"
+      - save_cache:
+          key: pip-v1-{{ checksum "pyproject.toml" }}
+          paths:
+            - ~/.cache/pip
+      - run:
+          name: Pytest (network-free)
+          command: pytest -v -m "not local_llm" --junitxml=test-results/junit.xml --cov --cov-report=term --cov-report=xml:coverage/coverage.xml
+      - run:
+          name: Reports hub committed snapshot
+          command: python reports/dashboard/build_hub.py --check
+      - run:
+          name: Requirements mirror pyproject
+          command: python scripts/sync_requirements.py --check
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: coverage
+
+workflows:
+  ci:
+    jobs:
+      - lint
+      - test

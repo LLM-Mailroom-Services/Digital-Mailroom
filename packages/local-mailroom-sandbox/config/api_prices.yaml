@@ -1,0 +1,69 @@
+# API models the sandbox may call, with their full OpenRouter price sheets.
+# A tier applies to a whole call whose prompt reaches min_prompt_tokens.
+# Read by mailroom_sandbox.job.metrics (call_price / call_cost); refresh with
+# scripts/refresh_api_prices.py (run it with --check to see drift; no workflow runs it).
+source: https://openrouter.ai/api/v1/models
+checked: '2026-11-01'
+unit: USD per 1M tokens
+models:
+  qwen/qwen3.5-9b:
+    use: openrouter profile default_model (same weights as the Modal default)
+    context_length: 262144
+    max_completion_tokens: 235929
+    tiers:
+    - min_prompt_tokens: 0
+      prompt: 0.17
+      completion: 0.25
+  qwen/qwen3.7-flash:
+    use: 'specialist extraction + condensed sorter (1M context: whole documents in
+      one call)'
+    context_length: 1000000
+    max_completion_tokens: 65536
+    tiers:
+    - min_prompt_tokens: 0
+      prompt: 0.03
+      completion: 0.13
+      cache_read: 0.006
+      cache_write: 0.038
+    - min_prompt_tokens: 32000
+      prompt: 0.1
+      completion: 0.4
+      cache_read: 0.02
+      cache_write: 0.125
+    - min_prompt_tokens: 256000
+      prompt: 0.2
+      completion: 0.8
+      cache_read: 0.04
+      cache_write: 0.25
+  openai/gpt-6-luna:
+    use: chat model behind the Decisions endpoint
+    context_length: 1050000
+    max_completion_tokens: 128000
+    tiers:
+    - min_prompt_tokens: 0
+      prompt: 0.1
+      completion: 0.5
+      cache_read: 0.01
+      cache_write: 0.125
+    - min_prompt_tokens: 272000
+      prompt: 0.2
+      completion: 0.75
+      cache_read: 0.02
+      cache_write: 0.25
+  deepseek/deepseek-v4-flash:
+    use: openrouter profile judge
+    context_length: 1048576
+    max_completion_tokens: 943717
+    tiers:
+    - min_prompt_tokens: 0
+      prompt: 0.091
+      completion: 0.182
+      cache_read: 0.0182
+  openai/gpt-6-luna-decisions:
+    use: Decisions reviewer / extraction gate
+    endpoint: /api/alpha/decisions
+    billing: input tokens only
+    tiers:
+    - min_prompt_tokens: 0
+      prompt: 0.1
+      completion: 0.0

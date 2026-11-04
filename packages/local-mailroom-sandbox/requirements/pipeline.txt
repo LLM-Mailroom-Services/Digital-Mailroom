@@ -7,6 +7,9 @@
 langchain-core>=0.3
 langchain-openai>=0.2
 langgraph>=0.2
+fastapi==0.162.0
+python-multipart==0.0.32
+langgraph-checkpoint-sqlite==3.1.2
 requests>=2.31
 watchdog>=4.0
 sqlalchemy>=2.0

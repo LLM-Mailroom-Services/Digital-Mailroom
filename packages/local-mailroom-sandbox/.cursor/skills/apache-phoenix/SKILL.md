@@ -24,7 +24,7 @@ PHOENIX_ENDPOINT=http://localhost:6006/v1/traces
 PHOENIX_PROJECT=mailroom-sandbox
 ```
 
-Compose service: `arizephoenix/phoenix:latest`, profile `phoenix`, port `6006`, volume `phoenix_data`.
+Compose service: `arizephoenix/phoenix:version-20.4.0`, profile `phoenix`, port `6006`, volume `phoenix_data`.
 
 `sandbox health` probes Phoenix `/healthz` alongside the LLM provider and Langfuse.
 

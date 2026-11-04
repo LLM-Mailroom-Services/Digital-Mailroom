@@ -1,0 +1,184 @@
+# Extraction quality gate, question set 1.3.0 (Decisions API, openai/gpt-6-luna-decisions).
+# 1.3.0 revises 1.2.0 from its pooled key-field calibration (1,566 documents, reports/extraction-gate/
+# extraction-gate-luna-v1.2.0-pooled.calibration.json) and a field-by-field vetting of every
+# gate/ground-truth disagreement against the document text (docs/EXTRACTION_GATE_VETTING.md):
+#   * Template rules per subclass (subclass_fields). 1.2.0 put every insurance template's rule in one
+#     sentence and the gate did not apply it: it answered "no" on values equal to the ground truth
+#     (date_filed 298, insurer 148, claim_type 131, claimed_amount 43, policy_number 39). The ground
+#     truth takes each value from one fixed printed line per template (measured on all 986 insurance
+#     rows); 1.3.0 asks the gate only the rule of the document's own template. The subclass comes
+#     from the handoff (doc_subclass, the sorter's) or, in calibration runs, the labelled subclass.
+#   * Corrected rules: inpatient date_of_loss is the Claim period start (not the Admission date);
+#     outpatient/carrier date_filed is the Service end date; a property notice's policy number is
+#     the one printed in its attachments when the header says [REDACTED]; a property notice's
+#     insurer is its Product line; coverage of a notice with no decision is "pending" (empty is wrong).
+#   * claim_type is the product line ("health" for Medicare), the CMS source-table token is accepted
+#     for the document's own table only (dojo #93: claim_type and CMS subclass are orthogonal).
+#   * Corporate intent per record kind (1.2.0 accepted 47 intents that contradict the record kind).
+#   * Contracts: parties are judged on the legal names (defined-term annotations are fine, CUAD's
+#     pronoun spans are not required); effective_date may be the agreement date when no separate
+#     effective date is given; cuad_clauses is judged on precision only (every listed category is
+#     present with its evidence): recall over 41 categories cannot be checked by reading.
+#   * Correspondence intent keeps 1.2.0's definitions: its labels are noisy by source (dojo #94),
+#     so the gate is not tuned toward them.
+kind: extraction_gate
+version: 1.3.0
+handoff: extraction
+max_input_chars: 1000000
+verdict:
+  instructions: >-
+    The state holds a document and a structured extraction another model produced from it
+    (extraction_handoff.fields). Judge only the KEY FIELDS named below against the document; may
+    the extraction be passed on as it is? Ignore summaries, keywords, checklists, supporting
+    document lists, confidence and any other field not named: their wording never decides the
+    verdict. A key field the document does not state is right when it is empty.
+  criteria:
+    accept: >-
+      Every key field is supported by the document (or empty because the document does not state
+      it). Formatting differences (date format, currency symbols, letter case, name order) are fine.
+    retry_extraction: >-
+      At least one key field is wrong, invented, attributed to the wrong party, uses a label the
+      field does not allow, or is empty although the document clearly states it.
+    human_review: >-
+      The key fields cannot be checked: the document is unreadable or cut off, it is not the
+      document class the extraction assumes, or the document is too ambiguous to judge them.
+  class_scope:
+    insurance_claim: "Key fields: claim_number, policy_number, insured_party, insurer, date_of_loss, date_filed, claimed_amount, claim_type, coverage_determination."
+    corporate_record: "Key fields: record_type, entity_name, jurisdiction, effective_date, filing_number, signatories, intent."
+    correspondence: "Key fields: intent, communication_type, sender, recipient, communication_date."
+    contract: "Key fields: document_name, parties, effective_date, governing_law, term_length, renewal_terms, cuad_clauses."
+    merger_agreement: "Key fields: document_name, parties, effective_date, effective_time, governing_law, merger_consideration."
+human_verdicts: [human_review]
+field_instructions: >-
+  Look only at the field "{field}" of extraction_handoff.fields. What it must hold: {meaning}
+  Is it right for this document? Yes when its value follows that rule and is supported by the
+  document, or the document does not state it and the field is empty. No when it is wrong,
+  invented, breaks the rule, or is empty although the document states it.
+fields:
+  insurance_claim:
+    claim_number: the claim reference as printed (Claim Reference, Notice ID or Fill Reference).
+    policy_number: the policy number as printed; empty when it is withheld or not provided.
+    insured_party: the insured person or Medicare beneficiary as printed.
+    insurer: >-
+      Medicare notices and Part D statements -> "CMS Medicare"; automobile letters and claim record
+      extracts -> the named insurance company; first notice of loss (property) -> the full Product
+      line as printed (e.g. "<Country> Property Building Insurance").
+    date_of_loss: the Date of loss, or the Admission date / Service start date / Date of service.
+    date_filed: >-
+      automobile letters -> Date filed; claim record extracts and first notices of loss -> Date of
+      report; Medicare notices -> the Discharge date / Service end date; Part D -> the Date of
+      service (fill date). Not a letter or print date.
+    claimed_amount: >-
+      one number: Medicare -> "Claim total paid by Medicare", Part D -> "Total drug cost" (never an
+      allowed, coinsurance, deductible or line amount); automobile -> Claimed amount (never the
+      repair estimate); claim record extract -> Claim amount; first notice of loss -> Estimated
+      Damage (never a contractor quote or invoice total).
+    claim_type: the line of business (health, auto, property; Medicare CMS claim types such as pde, inpatient, outpatient, carrier count as health).
+    coverage_determination: >-
+      one of approved, denied, partial, pending as the document states the outcome; a first notice
+      of loss with no decision stated is pending (empty is wrong).
+  corporate_record:
+    record_type: the record the document's own title names (bylaws, articles_of_incorporation, powers_of_attorney, rights_instrument, other, ...).
+    entity_name: the company the record is for.
+    jurisdiction: the state or country of incorporation or filing; empty when not stated.
+    effective_date: the date the record is adopted, filed or takes effect.
+    filing_number: a filing, file or registration number the document states; empty otherwise.
+    signatories: the people who sign or certify the record, by name.
+    intent: >-
+      exactly one label, fixed by the kind of record: bylaws or officer's/secretary's certificate ->
+      governance_rules; articles/certificate of incorporation or a charter amendment ->
+      entity_formation; board or shareholder resolution or minutes -> corporate_action_approval;
+      power of attorney -> authority_delegation; indenture, rights plan, warrant or stock
+      certificate -> investor_rights; subsidiary list or anything else -> other.
+  correspondence:
+    intent: >-
+      exactly one label for the message's main purpose: payment_demand (demands payment or cure),
+      notice (announces a fact, change, schedule, outage, policy or event to its readers, incl.
+      automated messages), request (asks the reader to do, send, approve or answer something),
+      update (one person's status report without asking for action), analysis (discusses or
+      evaluates an issue), meeting_invite (proposes or schedules a meeting or call),
+      press_communication (a press release, news item or newsletter, also when forwarded), other
+      (personal or social chatter, or none of these).
+    communication_type: the form of the message (email, letter, memo, notice, demand, attorney_demand, press_release, meeting_request).
+    sender: who sent the message.
+    recipient: who the message is addressed to.
+    communication_date: the date the message was sent.
+  contract:
+    document_name: the agreement's title as the document gives it.
+    parties: every contracting party by its legal name as the preamble or signature blocks give it, with no extra or invented party; a defined-term annotation such as ("Seller") is fine, and pronouns or role words need not be listed.
+    effective_date: the date the agreement takes effect as stated (the dated-as-of date when no separate effective date is given); empty when undated.
+    governing_law: the jurisdiction whose law governs the agreement.
+    term_length: the agreement's term or expiration as stated.
+    renewal_terms: how and for how long the agreement renews; empty when it does not renew.
+    cuad_clauses: "CUAD clause categories listed as '<Category>: <evidence>' (CUAD's 41 categories include Document Name, Parties, Agreement Date, Effective Date, Expiration Date, Renewal Term, Governing Law, Exclusivity, Non-Compete, Anti-Assignment, Cap On Liability, Insurance, License Grant and others); right when every listed category really is in the agreement and its evidence is the agreement's own text. A list that leaves categories out is still right; an empty list is wrong when the agreement clearly has clauses."
+  merger_agreement:
+    document_name: the agreement's title (e.g. Agreement and Plan of Merger).
+    parties: Parent, Merger Sub and Target as the document names them, with no invented roles.
+    effective_date: the Effective Date when a calendar date is stated (empty when only an Effective Time is defined).
+    effective_time: the Effective Time as written.
+    governing_law: the governing-law jurisdiction.
+    merger_consideration: "what each share of the target's common stock converts into, from the conversion section: all_cash, all_stock, mixed_cash_stock, mixed_cash_stock_election (holders elect cash or stock), other."
+subclass_fields:
+  # Per-subclass rules. A field named here replaces the class rule above for that subclass only.
+  insurance_claim:
+    auto:
+      insurer: the insurance company printed as Insurer or Insurance company.
+      date_of_loss: the Date of loss (or Date of loss (recorded)).
+      date_filed: the Date filed (decision letter) or the Date of report (recorded) (claim record extract); not a letter or print date.
+      claimed_amount: the Claimed amount (letter) or Claim amount (extract) as one number; never the Repair estimate.
+      claim_type: '"auto".'
+      coverage_determination: the COVERAGE DETERMINATION the document states (approved, denied, partial or pending).
+    property:
+      policy_number: >-
+        the Policy Number; when the notice's header shows it as [REDACTED] or withheld, the policy
+        number printed in its attached documents (e.g. a PZ-... Claim event number or a later
+        "Policy Number:" line) is right. Empty is wrong when such a number appears anywhere.
+      insurer: >-
+        the Product line exactly as printed (e.g. "<Country> Property Household Insurance"). These
+        notices name no insurance company: the Product line is the insurer, and it is right.
+      date_of_loss: the Date of Loss.
+      date_filed: the Date of Report (the day the loss was reported), not an invoice or print date.
+      claimed_amount: >-
+        the Estimated Damage as one number (only when the notice states no Estimated Damage, the
+        attached invoice's Total incl. VAT); never a contractor quote line or a single item.
+      claim_type: '"property".'
+      coverage_determination: '"pending": a first notice of loss states no decision, so pending is right and empty or any other value is wrong.'
+    inpatient:
+      insurer: '"CMS Medicare" (the Insurer line).'
+      date_of_loss: the Claim period start (not the Admission date when the two differ).
+      date_filed: the Claim period end, which is the Discharge date.
+      claimed_amount: the "Claim total paid by Medicare" as one number, also when it is 0.00; never a deductible or coinsurance.
+      claim_type: '"health" (the Line of business) or the CMS table token "inpatient". Any other token is wrong.'
+      coverage_determination: the Stated outcome (verbatim).
+    outpatient:
+      insurer: '"CMS Medicare" (the Insurer line).'
+      date_of_loss: the Service start date.
+      date_filed: the Service end date.
+      claimed_amount: the "Claim total paid by Medicare" as one number, also when it is 0.00; never an allowed, line or coinsurance amount.
+      claim_type: '"health" (the Line of business) or the CMS table token "outpatient". Any other token is wrong.'
+      coverage_determination: the Stated outcome (verbatim).
+    carrier:
+      insurer: '"CMS Medicare" (the Insurer line).'
+      date_of_loss: the Service start date.
+      date_filed: the Service end date.
+      claimed_amount: the "Claim total paid by Medicare" as one number, also when it is 0.00; never an allowed, line or coinsurance amount.
+      claim_type: '"health" (the Line of business) or the CMS table token "carrier" (Part B physician/supplier claims). "outpatient", "inpatient" or "pde" are wrong.'
+      coverage_determination: the Stated outcome (verbatim).
+    pde:
+      insurer: '"CMS Medicare" (the Insurer line); "CMS Medicare Part D" is also right.'
+      date_of_loss: the Date of service (fill date).
+      date_filed: the Date of service (fill date); for Part D the loss and filing date are the same day.
+      claimed_amount: the "Total drug cost" as one number; never the patient pay or a plan-paid amount.
+      claim_type: '"health" (the Line of business) or the CMS table token "pde". Any other token is wrong.'
+      coverage_determination: the Stated outcome (verbatim).
+  corporate_record:
+    articles_of_incorporation: {intent: '"entity_formation" (articles or a certificate of incorporation form the entity).'}
+    charter_amendment: {intent: '"entity_formation" (an amendment to the charter or certificate of incorporation).'}
+    board_resolution: {intent: '"corporate_action_approval" (board or shareholder resolutions and minutes approve an action), whatever the action is.'}
+    bylaws: {intent: '"governance_rules".'}
+    officer_certificate: {intent: "\"governance_rules\" (an officer's or secretary's certificate certifies governance records), whatever it attaches."}
+    indenture: {intent: '"investor_rights".'}
+    rights_instrument: {intent: '"investor_rights" (rights plans, warrants, stock certificates).'}
+    powers_of_attorney: {intent: '"authority_delegation".'}
+    subsidiary_list: {intent: '"other".'}
+    other: {intent: '"other".'}

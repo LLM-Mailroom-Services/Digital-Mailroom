@@ -9,6 +9,34 @@ or the LangChain `PROMPT_VERSIONS` dict (Family B: sorter / contracts_specialist
 for a single experiment cell. Resolution: `src/mailroom_sandbox/prompt_registry.py`
 (`source: local` + `file: <stem>` → `config/prompts/<stem>.txt`).
 
+## Sorter-condensed lineage (`sorter_condensed_v*`) — the sorter mutation surface
+
+`sorter_condensed_v<N>.txt` is the token-budgeted sorter (rendered system prompt <= 4,000 chars,
+against ~25k for the frozen long-form V15). All further sorter improvements are new
+`sorter_condensed_v<N>` files; frontrunner, parents and validation runs are in
+[`sorter_condensed_lineage.yaml`](sorter_condensed_lineage.yaml). Run it with
+`prompt.agents.sorter: {source: local, file: sorter_condensed_v<N>}`.
+
+## Specialist-condensed lineage (`<agent>_condensed_v*`) — the specialist mutation surface
+
+Token-budgeted system prompts for the insurance-claims, correspondence and corporate-records
+specialists. Every further improvement to those three is a new `<agent>_condensed_v<N>.txt`
+(never edit a frozen one); versions, parents, validation runs and verdicts are in
+[`specialist_condensed_lineage.yaml`](specialist_condensed_lineage.yaml). Field definitions stay in
+the JSON schema the agent appends to the user message, so a condensed prompt carries only the class
+boundary, the per-template field map, the vocabulary and the null/[] rules. A version is adopted
+when, on the same documents as its reference run, its mean dojo score is not lower by more than
+0.02 and it adds no parse errors (`scripts/compare_specialist_prompt.py`). Run one with
+`prompt.agents.<agent>: {source: local, file: <agent>_condensed_v<N>}`.
+
+| Agent | Frontrunner | Chars (frozen) | Validation vs frozen prompt |
+| --- | --- | --- | --- |
+| `insurance_claims_specialist` | `insurance_claims_specialist_condensed_v3` | 3,928 (6,277) | mean 0.770 → 0.899, 60/60 docs better; briefs all six corpus templates |
+| `correspondence_specialist` | `correspondence_specialist_condensed_v2` | 2,467 (6,113) | mean 0.327 → 0.328; −28% input tokens |
+| `corporate_records_specialist` | `corporate_records_specialist_condensed_v1` | 2,289 (5,865) | mean 0.352 → 0.427; intent 19 → 27 of 40 |
+
+Contracts and merger agreements are outside this lineage and keep their frozen production prompts.
+
 ## Specialist production pins (DMR-074) — vendor mirrors
 
 Byte-identical exports of vendored `llm-mailroom` code-defaults. **Not** a

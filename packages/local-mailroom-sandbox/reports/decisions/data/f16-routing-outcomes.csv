@@ -1,0 +1,5 @@
+routing,scored,routed correctly,routed correctly (%),"of which sorter wrong, corrected",misrouted,parked,"parked, sorter wrong","parked, sorter right"
+v2 cutoffs · pipeline rule,1488,1367,91.9,0,2,119,59,60
+v2 cutoffs · reviewer alone,1488,1398,94.0,31,2,88,28,60
+3.1.0 cutoffs · pipeline rule,1488,1392,93.5,0,4,92,57,35
+3.1.0 cutoffs · reviewer alone,1488,1432,96.2,40,6,50,17,33

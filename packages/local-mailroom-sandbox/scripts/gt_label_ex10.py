@@ -198,6 +198,8 @@ def _save(out: Path, checkpoint: Path, queue_ids: list[str], record: dict) -> No
 
 
 def _post(url: str, api_key: str, body: dict) -> dict:
+    if not url.lower().startswith(("https://", "http://")):
+        raise ValueError(f"base URL must be http(s), got {url!r}")
     data = json.dumps(body).encode("utf-8")
     request = urllib.request.Request(
         url.rstrip("/") + "/chat/completions",
@@ -208,7 +210,7 @@ def _post(url: str, api_key: str, body: dict) -> dict:
         },
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=_HTTP_TIMEOUT) as response:
+    with urllib.request.urlopen(request, timeout=_HTTP_TIMEOUT) as response:  # nosec B310
         return json.loads(response.read().decode("utf-8"))
 
 

@@ -1,0 +1,56 @@
+# Full 13-node mailroom pipeline over the OpenRouter API (no GPU).
+#
+#   export OPENROUTER_API_KEY=...          # or put it in .env
+#   sandbox --profile openrouter health    # validates the key (/key), catalog and one chat call
+#   sandbox run preflight --config config/runs/examples/pipeline-openrouter.yaml   # validates dataset, prompts, engine
+#   sandbox run start --config config/runs/examples/pipeline-openrouter.yaml --initials XX --watch
+#
+# Billing is per token (docs/RUN-COST-DERIVATION.md); `job.mock: false` makes
+# the run a spend, so `run start` needs your initials. Siblings:
+# pipeline-modal.yaml (all GPU) and pipeline-hybrid.yaml (GPU + API routes).
+schema: sandbox.run/v1
+run_id: pipeline-openrouter-smoke
+task: pipeline
+profile: openrouter
+
+# Prompts. Every agent uses its production default unless a role is pinned here.
+#   Version texts: the dojo lineage (vendor/llm-dojo-scoring/src/llm_dojo_scoring/prompts/).
+#   Local variants: config/prompts/*.txt (`prompt.agents.<role>: {source: local, file: <stem>}`).
+#   sandbox prompts list-versions [--role contracts_specialist]   # archived / frozen / mutation
+#   sandbox prompts show contracts_specialist_v3                  # one version's text
+# The specialists and the sorter have several versions (e.g. correspondence_specialist_v0..v7).
+# The intake, sorter_reviewer, judge, arbiter and boss nodes have only v1.
+# Pin any role below (or pass `--prompt-version KEY` on the command line, which wins per role);
+# preflight rejects an unknown key or a role this task does not run.
+prompt:
+  default: {source: code-default}
+  # versions:
+  #   contracts_specialist: contracts_specialist_v3
+  #   correspondence_specialist: correspondence_specialist_v7
+  #   sorter: sorter_v4
+
+dataset:
+  provider: file
+  local_path: data/fixtures/hf/docclass_mini.jsonl
+  limit: 5
+  sample_seed: 1
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.5-9b
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 2
+  cost_cap_usd: 1.00          # paid runs refuse to start without a finite cap
+  max_wall_seconds: 1800
+  api_cost_cap_usd: 0.25      # OpenRouter token spend; recommended $0.05 for 5 docs (budget_advice), raised for headroom
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, pipeline, openrouter]

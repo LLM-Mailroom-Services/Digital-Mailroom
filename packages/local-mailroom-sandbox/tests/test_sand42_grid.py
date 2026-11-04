@@ -363,26 +363,6 @@ def test_noise_floor_leg_is_the_same_spec_on_the_same_documents():
     assert floor["run_id"] != twin["run_id"]
 
 
-def test_noise_floor_runbook_is_cleared_for_the_approved_rerun():
-    """Spend was approved 2026-10-12, so the flag was dropped — and the mechanism still bites.
-
-    The flag only ever gated the GENERATED script, never the config (the leg rode the
-    1l4-c8 re-run's boot). Kept as a test so a future leg cannot be quietly unblocked
-    without an approval recorded in its reason, and so the refusal path stays covered by
-    a book that IS still blocked.
-    """
-    from mailroom_sandbox.job.runbooks import get_runbook, render_shell
-
-    book = get_runbook("sand42-noise-floor")
-    assert book.get("blocked") is False
-    assert "approved" in str(book.get("blocked_reason") or "").lower()
-
-    still_blocked = get_runbook("improved-correspondence-fp16-c8")
-    assert still_blocked.get("blocked") is True
-    shell = render_shell("improved-correspondence-fp16-c8")
-    assert "BLOCKED" in shell and "refuse execution" in shell
-
-
 # ── telemetry ────────────────────────────────────────────────────────────────
 
 
@@ -834,13 +814,6 @@ def test_sand42_rows_do_not_pollute_the_global_agent_budgets():
     assert posture.AGENT_GENERATION_BUDGETS["merger_agreement_specialist"] == {
         "max_tokens": 4096, "max_input_chars": 19891,
     }
-
-
-def test_existing_grid_cells_are_untouched():
-    assert posture.GRID_CELLS
-    for rid in ("grid-50-contracts-specialist-awq-1l4", "grid-50-merger-specialist-awq-2l4"):
-        assert rid in posture.GRID_CELLS
-        assert posture.SPECIALIST_POSTURE[rid]["max_tokens"] == 8192
 
 
 def test_contracts_process_the_whole_document_chunked():

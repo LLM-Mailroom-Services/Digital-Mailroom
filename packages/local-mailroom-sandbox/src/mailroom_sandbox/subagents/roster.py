@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
 
 from mailroom_sandbox.paths import repo_root
 from mailroom_sandbox.subagents.family import (

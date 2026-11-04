@@ -9,7 +9,6 @@ Every number is read from ``hub_data.json`` (``runs``, ``fleet``) and
 from __future__ import annotations
 
 import json
-import math
 import re
 from pathlib import Path
 

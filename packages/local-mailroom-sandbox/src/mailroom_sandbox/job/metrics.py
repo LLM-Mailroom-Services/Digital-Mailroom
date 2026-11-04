@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from mailroom_sandbox.job.checkpoint import RunStore
 
 from llm_dojo_scoring.scorecard_honesty import COST_BASIS_TOKEN_PRICE
-from llm_dojo_scoring.serving import compare_serving, estimate_cost
+from llm_dojo_scoring.serving import compare_serving, estimate_cost, price_for
 
 from mailroom_sandbox.serving_groups import group_legs, pair_legs, pooled_identity_conflict
 
@@ -56,6 +56,11 @@ API_PROFILES = ("openrouter",)
 # slugs; without this the flagship default model always costed None (DMR-049).
 SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
     "Qwen/Qwen3-8B": (0.03, 0.13),  # qwen/qwen3.7-flash champion
+    # SAND-077: Qwen3.5 rows price at their own OpenRouter twin (same weights),
+    # list price checked 2026-10-30.
+    "Qwen/Qwen3.5-9B": (0.17, 0.25),  # qwen/qwen3.5-9b
+    "Qwen/Qwen3.5-35B-A3B": (0.14, 1.00),  # qwen/qwen3.5-35b-a3b
+    "Qwen/Qwen3.5-27B": (0.26, 2.60),  # qwen/qwen3.5-27b
     "Qwen/Qwen3-8B-AWQ": (0.03, 0.13),
     "Qwen/Qwen3-14B": (0.03, 0.13),
     "Qwen/Qwen3-14B-AWQ": (0.03, 0.13),
@@ -67,7 +72,106 @@ SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B": (0.05, 0.25),  # deepseek-v4-flash
     "deepseek-ai/DeepSeek-R1-Distill-Llama-8B": (0.05, 0.25),
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": (0.435, 0.87),  # deepseek-v4-pro
+    # SAND-089: the OpenRouter ids themselves, so a paid API run can price (and cap)
+    # its token spend. OpenRouter /api/v1/models list price, checked 2026-10-31.
+    "qwen/qwen3.5-9b": (0.17, 0.25),
+    "qwen/qwen3.5-35b-a3b": (0.14, 1.00),
+    "qwen/qwen3.5-27b": (0.26, 2.60),
+    "openai/gpt-4o": (2.50, 10.00),
+    "openai/gpt-6-luna-decisions": (0.10, 0.0),   # Decisions API: input only, no output charge
+    "openai/gpt-6-luna": (0.10, 0.50),
+    "qwen/qwen3.7-flash": (0.03, 0.13),
+    "deepseek/deepseek-v4-flash": (0.091, 0.182),
 }
+
+# Full OpenRouter price sheets (USD per 1M tokens) for the API models the sandbox runs, from
+# GET https://openrouter.ai/api/v1/models, checked 2026-11-01. A tier applies to a whole call
+# whose prompt reaches ``min_prompt_tokens``: Qwen 3.7 Flash is $0.03/$0.13 below 32k prompt
+# tokens, $0.10/$0.40 from 32k and $0.20/$0.80 from 256k, so a flat price under-counts every
+# long document. The live copy is config/api_prices.yaml (refresh it with
+# scripts/refresh_api_prices.py); this table is the fallback when that file is missing.
+API_PRICES_CHECKED = "2026-11-01"
+API_PRICE_SHEETS: dict[str, list[dict[str, float]]] = {
+    "qwen/qwen3.7-flash": [
+        {"min_prompt_tokens": 0, "prompt": 0.03, "completion": 0.13, "cache_read": 0.006, "cache_write": 0.038},
+        {"min_prompt_tokens": 32_000, "prompt": 0.10, "completion": 0.40, "cache_read": 0.02, "cache_write": 0.125},
+        {"min_prompt_tokens": 256_000, "prompt": 0.20, "completion": 0.80, "cache_read": 0.04, "cache_write": 0.25},
+    ],
+    "openai/gpt-6-luna-decisions": [
+        # Decisions API (/api/alpha/decisions): billed on input only.
+        {"min_prompt_tokens": 0, "prompt": 0.10, "completion": 0.0},
+    ],
+    "openai/gpt-6-luna": [
+        {"min_prompt_tokens": 0, "prompt": 0.10, "completion": 0.50, "cache_read": 0.01, "cache_write": 0.125},
+        {"min_prompt_tokens": 272_000, "prompt": 0.20, "completion": 0.75, "cache_read": 0.02, "cache_write": 0.25},
+    ],
+    "deepseek/deepseek-v4-flash": [
+        {"min_prompt_tokens": 0, "prompt": 0.091, "completion": 0.182, "cache_read": 0.0182},
+    ],
+}
+
+
+_FILE_SHEETS: dict[str, list[dict[str, float]]] | None = None
+
+
+def api_price_sheets() -> dict[str, list[dict[str, float]]]:
+    """Tier sheets from ``config/api_prices.yaml`` over the built-in table (the fallback).
+
+    The file is the one the refresh script keeps current; the built-in copy keeps pricing
+    (and the spend gate) working when the file is missing or unreadable.
+    """
+    global _FILE_SHEETS
+    if _FILE_SHEETS is None:
+        loaded: dict[str, list[dict[str, float]]] = {}
+        try:
+            import yaml
+
+            from mailroom_sandbox.paths import repo_root
+
+            doc = yaml.safe_load((repo_root() / "config" / "api_prices.yaml").read_text(encoding="utf-8")) or {}
+            for model_id, row in (doc.get("models") or {}).items():
+                tiers = [dict(t) for t in (row or {}).get("tiers") or [] if "prompt" in t]
+                if tiers:
+                    loaded[str(model_id)] = sorted(tiers, key=lambda t: t.get("min_prompt_tokens", 0))
+        except Exception:  # noqa: BLE001 - fall back to the built-in sheets
+            loaded = {}
+        _FILE_SHEETS = loaded
+    return {**API_PRICE_SHEETS, **_FILE_SHEETS}
+
+
+def price_sheet(model: str | None) -> list[dict[str, float]] | None:
+    """The tiered sheet for ``model`` (exact id, then a dated/suffixed id by prefix)."""
+    if not model:
+        return None
+    base = str(model).split(":", 1)[0]
+    sheets = api_price_sheets()
+    sheet = sheets.get(base)
+    if sheet is None:
+        # Longest matching prefix, so "openai/gpt-6-luna-decisions-2026…" is not priced as gpt-6-luna.
+        sheet = next((sheets[k] for k in sorted(sheets, key=len, reverse=True) if base.startswith(k)), None)
+    return sheet
+
+
+def call_price(model: str | None, prompt_tokens: float = 0) -> tuple[float, float] | None:
+    """USD per 1M (input, output) tokens for ONE call of ``prompt_tokens`` (its tier)."""
+    override = _token_price_override()
+    if override is not None:
+        return override
+    sheet = price_sheet(model)
+    if sheet is None:
+        return token_price(model) if model else None
+    tier = max((t for t in sheet if float(prompt_tokens or 0) >= t.get("min_prompt_tokens", 0)),
+               key=lambda t: t.get("min_prompt_tokens", 0), default=sheet[0])
+    return float(tier["prompt"]), float(tier["completion"])
+
+
+def call_cost(model: str | None, prompt_tokens: float, completion_tokens: float, *, calls: int = 1) -> float | None:
+    """USD for ``calls`` calls totalling these tokens, each priced at its own (average) tier."""
+    calls = max(1, int(calls or 1))
+    price = call_price(model, float(prompt_tokens or 0) / calls)
+    if price is None:
+        return None
+    return (float(prompt_tokens or 0) * price[0] + float(completion_tokens or 0) * price[1]) / 1_000_000
 
 # Modal GPU $/hr (modal.com/pricing, verified 2026-09-09 — see deploy/README.md).
 # Override a single rate with MODAL_GPU_USD_PER_HOUR (applies to whatever GPU
@@ -147,6 +251,82 @@ def estimate_gpu_cost_usd(
     return round(gpu_seconds / 3600.0 * rate, 6)
 
 
+def _billed_gpu(modal: Mapping[str, Any]) -> tuple[str, int]:
+    """(GPU class, GPUs billed) for one Modal app: ``L4:2`` × max_containers."""
+    cls, _, count = str(modal.get("gpu") or "L4").partition(":")
+    per_container = int(count) if count.isdigit() and int(count) > 0 else 1
+    return cls, per_container * max(1, int(modal.get("max_containers") or 1))
+
+
+def _route_gpu_apps(lock: Mapping[str, Any], *, skip: set[str]) -> list[tuple[str, int]]:
+    """Billed GPUs of each distinct ``modal-vllm`` agent-route app not in ``skip``."""
+    apps = set(skip)
+    out: list[tuple[str, int]] = []
+    routes = lock.get("agent_routes") if isinstance(lock.get("agent_routes"), Mapping) else {}
+    for route in routes.values():
+        route_modal = route.get("modal") if isinstance(route, Mapping) else None
+        if route.get("provider") != "modal-vllm" or not isinstance(route_modal, Mapping):
+            continue
+        app = str(route_modal.get("app") or "")
+        if app in apps:
+            continue
+        apps.add(app)
+        out.append(_billed_gpu(route_modal))
+    return out
+
+
+def _lock_base(lock: Mapping[str, Any]) -> tuple[Mapping[str, Any] | None, bool]:
+    """The lock's base ``modal`` block and whether the base engine runs on Modal."""
+    engine = lock.get("engine") if isinstance(lock.get("engine"), Mapping) else {}
+    modal = engine.get("modal") if isinstance(engine.get("modal"), Mapping) else None
+    return modal, engine.get("kind", "modal-vllm") == "modal-vllm"
+
+
+def _routed_apps(lock: Mapping[str, Any]) -> list[tuple[str, int]]:
+    """Route apps beyond the base; only a Modal base's app is already warm."""
+    modal, on_modal = _lock_base(lock)
+    skip = {str(modal.get("app"))} if on_modal and modal and modal.get("app") else set()
+    return _route_gpu_apps(lock, skip=skip)
+
+
+def lock_gpu_fleet(lock: Mapping[str, Any]) -> list[tuple[str, int]]:
+    """Every Modal app a locked run keeps warm: the base engine plus each
+    distinct ``modal-vllm`` agent-route app (shared apps are billed once).
+
+    A non-Modal base (e.g. ``openrouter``) still carries the default ``modal``
+    block in its lock; it is left out when route apps exist, since it never runs.
+    """
+    modal, on_modal = _lock_base(lock)
+    routes = _routed_apps(lock)
+    base = [_billed_gpu(modal) if modal else ("L4", 1)]
+    if routes and not on_modal:
+        base = []
+    return base + routes
+
+
+def fleet_gpu_cost_usd(gpu_seconds: float, fleet: Sequence[tuple[str, int]]) -> float:
+    """USD for ``gpu_seconds`` of wall across every app in ``fleet``."""
+    return round(sum(estimate_gpu_cost_usd(gpu_seconds, gpu=gpu, replicas=n) or 0.0 for gpu, n in fleet), 6)
+
+
+def routed_gpu_fleet(lock: Mapping[str, Any]) -> list[tuple[str, int]] | None:
+    """The locked fleet when agent routes add Modal apps beyond the base engine, else None."""
+    return lock_gpu_fleet(lock) if _routed_apps(lock) else None
+
+
+def _gpu_usd(
+    gpu_seconds: float,
+    *,
+    gpu: str | None,
+    replicas: int,
+    gpu_fleet: Sequence[tuple[str, int]] | None,
+) -> float | None:
+    """Warm-GPU $ priced like the run's cost cap: the routed fleet when given, else the base GPU."""
+    if gpu_fleet:
+        return fleet_gpu_cost_usd(gpu_seconds, gpu_fleet) if gpu_seconds and gpu_seconds > 0 else None
+    return estimate_gpu_cost_usd(gpu_seconds, gpu=gpu, replicas=replicas)
+
+
 def _token_price_override() -> tuple[float, float] | None:
     """Optional global token price override (per-1M in/out)."""
     pin = _env_float("SANDBOX_TOKEN_PRICE_IN_PER_M")
@@ -201,6 +381,59 @@ def _estimate_cost(
         + completion_tokens * per_million_out / 1_000_000,
         6,
     )
+
+
+def token_price_ceiling(model: str) -> tuple[float, float] | None:
+    """Highest USD per 1M (input, output) tokens ``model`` can bill at any prompt size.
+
+    Same lookup order as ``token_price``, but a tiered price sheet gives its dearest tier
+    (Qwen 3.7 Flash: $0.20/$0.80 at 256k+ prompt tokens, not the $0.03/$0.13 base). Spend
+    ceilings and the signed budget bound use this; per-call cost uses ``call_cost``.
+    """
+    if _token_price_override() is None and model:
+        sheet = price_sheet(model)
+        if sheet is not None:
+            return (max(float(t["prompt"]) for t in sheet), max(float(t["completion"]) for t in sheet))
+    return token_price(model)
+
+
+def token_price(model: str) -> tuple[float, float] | None:
+    """USD per 1M (input, output) tokens for ``model``, in ``_estimate_cost``'s order.
+
+    The global override wins, then the checked price sheet (its base tier, ``min_prompt_tokens``
+    0), then the dojo table, then the sandbox table (exact id, then prefix). None when no price
+    is known. For an upper bound over every prompt size use ``token_price_ceiling``.
+    """
+    override = _token_price_override()
+    if override is not None:
+        return override
+    if not model:
+        return None
+    sheet = price_sheet(model)
+    if sheet is not None:
+        # The checked sheet wins over the dojo table (whose deepseek-v4-flash price is stale).
+        return float(sheet[0]["prompt"]), float(sheet[0]["completion"])
+    try:
+        dojo = price_for(model)
+    except Exception:  # noqa: BLE001 — same soft fallback as _estimate_cost
+        dojo = None
+    if dojo is not None:
+        return float(dojo[0]), float(dojo[1])
+    prices = SANDBOX_MODEL_PRICES.get(model)
+    if prices is None:
+        prices = next((price for known, price in SANDBOX_MODEL_PRICES.items() if model.startswith(known)), None)
+    return prices
+
+
+def _has_token_price(model: str) -> bool:
+    """A price is known for ``model`` (override, dojo table, or sandbox table)."""
+    return token_price(model) is not None
+
+
+def _usage_observed(item: Mapping[str, Any]) -> bool:
+    """Dojo 0.24.2 rule: a request counts as observed when it recorded any token
+    component; an explicit 0 is observed zero usage (DMR-113), absent is unknown."""
+    return item.get("prompt_tokens") is not None or item.get("completion_tokens") is not None
 
 
 def bucket_kind(record: Mapping[str, Any]) -> str:
@@ -304,12 +537,14 @@ def record_from_run(
     replicas: int = 1,
     mock: bool = False,
     dataset_provenance: Mapping[str, Any] | None = None,
+    gpu_fleet: Sequence[tuple[str, int]] | None = None,
 ) -> dict[str, Any]:
     """Aggregate per-item captures into one dojo-compatible serving record.
 
     ``dataset_provenance`` (``dataset_revision`` / ``split`` / ``draw_seed``,
     see :func:`lock_dataset_provenance`) is stamped on the record when given so
     the dojo can emit its scorecard; it is never inferred here.
+    ``gpu_fleet`` (see :func:`routed_gpu_fleet`) prices every warm route app.
     """
     kind = bucket_kind({"serving_kind": "", "profile": profile, "provider": _provider_for(profile)})
     # hub#56: TTFT aggregation must treat failures like the latency
@@ -357,9 +592,22 @@ def record_from_run(
         rec["scores"] = dict(scores)
 
     # Token-proxy cost (OpenRouter-like). Absent when tokens or prices missing —
-    # never write estimated_cost_usd=0 as a stand-in for "unknown".
+    # never write estimated_cost_usd=0 as a stand-in for "unknown". Aligned with
+    # the dojo's serving rules, because a cost written here is authoritative there:
+    # an ok item that recorded no usage at all makes the run cost unknown (dojo
+    # 0.24.2), and a run whose every ok item recorded explicit zero usage on a
+    # priced model costs a known 0.0 (DMR-113). Failed items that never got a
+    # response carry no usage and do not block the estimate.
+    unobserved = sum(1 for i in ok_items if not _usage_observed(i))
+    if unobserved:
+        rec["usage_unobserved_items"] = unobserved
     try:
-        cost = _estimate_cost(prompt_tokens, completion_tokens, model)
+        if unobserved and total_tokens > 0:
+            cost = None
+        elif ok_items and not unobserved and total_tokens == 0 and _has_token_price(model):
+            cost = 0.0
+        else:
+            cost = _estimate_cost(prompt_tokens, completion_tokens, model)
         if cost is not None:
             rec["estimated_cost_usd"] = float(cost)
             # tokens x a price table: label it so the dojo can stamp USD rows
@@ -375,6 +623,14 @@ def record_from_run(
                 run_id,
                 kind,
                 profile,
+                n_ok,
+            )
+        elif not mock and unobserved and total_tokens > 0:
+            _log.warning(
+                "run %r: %d of %d ok items recorded no token usage — "
+                "estimated_cost_usd ABSENT (a partial sum would understate it)",
+                run_id,
+                unobserved,
                 n_ok,
             )
         elif not mock and total_tokens > 0 and cost is None:
@@ -394,14 +650,15 @@ def record_from_run(
         )
 
     # Modal GPU-hour cost (orthogonal to token proxy). Local Ollama and API
-    # buckets skip this; Modal / vLLM-remote may attribute busy GPU seconds.
-    if kind == "modal" or (kind == "local" and profile in {"vllm-local", "vllm-remote"}):
+    # buckets skip this; Modal / vLLM-remote may attribute busy GPU seconds. A routed
+    # fleet bills whatever the base profile is (an API base can route to Modal apps).
+    if gpu_fleet or kind == "modal" or (kind == "local" and profile in {"vllm-local", "vllm-remote"}):
         gpu_seconds = _gpu_seconds_from_items(
             items, billed_window_seconds=billed_window_seconds
         )
         if gpu_seconds is not None:
             rec["gpu_seconds"] = round(gpu_seconds, 3)
-            gpu_cost = estimate_gpu_cost_usd(gpu_seconds, gpu=gpu, replicas=replicas)
+            gpu_cost = _gpu_usd(gpu_seconds, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet)
             if gpu_cost is not None:
                 rec["estimated_gpu_cost_usd"] = gpu_cost
                 if n_ok > 0:
@@ -428,6 +685,10 @@ def record_from_run(
 
 TTFT_NEVER_INFERRED_NOTE = (
     "TTFT never inferred (served locally; do not infer from e2e)"
+)
+# The same rule for a hosted API run (OpenRouter): no first-token timestamp is recorded.
+TTFT_NEVER_INFERRED_API_NOTE = (
+    "TTFT never inferred (hosted API; do not infer from e2e)"
 )
 
 
@@ -527,10 +788,13 @@ def enrich_serving_report(
     replicas: int = 1,
     scaledown_seconds: float | None = None,
     billed_window_seconds: float | None = None,
+    gpu_fleet: Sequence[tuple[str, int]] | None = None,
 ) -> dict[str, Any]:
     """Extend a ``record_from_run`` dict with wall/concurrency/latency_sum fields.
 
     Also adds the SAND-028-1 idle-fraction block when wall and latency sums exist.
+    A ``gpu_fleet`` prices the billed window over every warm route app; the idle
+    and boot diagnostics stay on the base engine, whose slots they measure.
     """
     out = dict(record)
     replicas = max(1, int(replicas or 1))
@@ -577,11 +841,15 @@ def enrich_serving_report(
         out["tokens_per_second"] = round(total_tokens / wall_seconds, 2)
     if out.get("ttft_seconds") is None:
         out["ttft_seconds"] = None
-        out["ttft_note"] = TTFT_NEVER_INFERRED_NOTE
+        out["ttft_note"] = (
+            TTFT_NEVER_INFERRED_API_NOTE
+            if str(out.get("provider") or "").lower() == "openrouter"
+            else TTFT_NEVER_INFERRED_NOTE
+        )
 
     kind = bucket_kind(out)
     gpu_class = gpu or out.get("gpu")
-    if kind == "modal" and wall_seconds and wall_seconds > 0:
+    if (gpu_fleet or kind == "modal") and wall_seconds and wall_seconds > 0:
         # Prefer the run's OWN container-telemetry window: it brackets the run, so it
         # is what Modal metered — computed from the run, not scraped from a billing
         # CLI. Falls back to boot + wall, which under-counts because the item-`ts`
@@ -593,16 +861,18 @@ def enrich_serving_report(
             + (float(cold_boot_seconds) if cold_boot_seconds is not None else 0.0)
         )
         out["gpu_seconds"] = round(billed, 3)
-        gpu_cost = estimate_gpu_cost_usd(billed, gpu=gpu_class, replicas=replicas)
+        gpu_cost = _gpu_usd(billed, gpu=gpu_class, replicas=replicas, gpu_fleet=gpu_fleet)
         # SAND-032: on every replica. With the telemetry window this is the metered
         # figure; without it, a LOWER bound (boot + wall), excluding pre-run warm
         # time and the idle gaps between suite configs. Pinned MIN=MAX fleets pass
-        # scaledown_seconds=None.
+        # scaledown_seconds=None. Base engine only: route apps that scale to zero
+        # can bill less than the fleet estimate, so it would not be a lower bound.
         span = billed + float(scaledown_seconds or 0.0)
         out["run_span_seconds_lower_bound"] = round(span, 3)
-        out["run_span_usd_lower_bound"] = estimate_gpu_cost_usd(
-            span, gpu=gpu_class, replicas=replicas
-        )
+        if kind == "modal":
+            out["run_span_usd_lower_bound"] = estimate_gpu_cost_usd(
+                span, gpu=gpu_class, replicas=replicas
+            )
         if gpu_cost is not None:
             out["estimated_gpu_cost_usd"] = gpu_cost
             n_ok = len(ok_items) or int(out.get("n") or 0)
@@ -668,6 +938,10 @@ def serving_record_from_store(
     engine = lock.get("engine") or {}
     modal = (engine.get("modal") or {}) if isinstance(engine, dict) else {}
     gpu = str(modal.get("gpu") or "").split(":")[0] or None
+    # Routed runs (SAND-078 judge, SAND-079 specialist tiers) keep route apps warm
+    # too: price them like the runner and the cost cap do. Unrouted runs keep the
+    # base-GPU formula.
+    gpu_fleet = routed_gpu_fleet(lock)
     job = lock.get("job") or {}
     concurrency = int(job.get("concurrency") or 1)
     if mock is None:
@@ -716,8 +990,9 @@ def serving_record_from_store(
         # 2xL4 cell's GPU-seconds cost twice a 1xL4 cell's at the same wall.
         replicas=max(1, int(modal.get("max_containers") or 1)),
         mock=bool(mock),
+        gpu_fleet=gpu_fleet,
     )
-    return enrich_serving_report(
+    out = enrich_serving_report(
         base,
         items=items,
         wall_seconds=wall,
@@ -734,7 +1009,11 @@ def serving_record_from_store(
             else float(modal["scaledown_seconds"])
         ),
         billed_window_seconds=billed_window if billed_window and billed_window > 0 else None,
+        gpu_fleet=gpu_fleet,
     )
+    if gpu_fleet:
+        out["gpu_fleet"] = [{"gpu": cls, "gpus": n} for cls, n in gpu_fleet]
+    return out
 
 
 def default_serving_json_path(run_id: str, *, store: RunStore | None = None) -> Path:
@@ -1596,7 +1875,6 @@ def estimate_suite(
         }
         # Re-scale wall from likely sec/doc mix: use suite busy (excl overhead)
         # / total_docs as mean busy, then wall = (mean × N) / concurrency.
-        conc = max(1, int(rows[0]["concurrency"]))
         corpus_wall_h = {}
         for band in _BANDS:
             busy_suite = sum(float(r["wall_seconds"][band]) for r in rows)

@@ -153,6 +153,7 @@ Re-derived 2026-09-25 from the three real serving records in `reports/RUN-*-REPO
 
 ### 2.7 Earlier QWEN flash runs (the cost-report subject; data verified)
 3 records in `reports/experiment_log.jsonl` (all `qwen/qwen3.7-flash`, profile openrouter, backend none):
+
 | record | n | prompt_tokens | completion_tokens | **real API $ (tokens × live price $0.03/$0.13)** | logged L4-proxy $ |
 | --- | --- | --- | --- | --- | --- |
 | api-smoke-1 | 1 | 12,158 | 997 | **$0.000494** | 0.001854 |

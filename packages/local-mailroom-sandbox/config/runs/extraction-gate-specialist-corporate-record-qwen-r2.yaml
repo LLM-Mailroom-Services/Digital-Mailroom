@@ -1,0 +1,46 @@
+# Extraction gate round 2: NEW corporate_record documents for the gate's training set. No document (by id or
+# folded text) that any finished specialist run already extracted; each subclass drawn from its
+# shorter half first. qwen/qwen3.7-flash, one call per document, on the adopted condensed prompt
+# corporate_records_specialist_condensed_v1 (config/prompts/specialist_condensed_lineage.yaml).
+#
+#   python scripts/extraction_gate.py --split train expand \
+#       --dataset-run reviewer-calibration-luna-decisions-v3.1.0-train
+#   sandbox run start --config config/runs/extraction-gate-specialist-corporate-record-qwen-r2.yaml --initials XX
+schema: sandbox.run/v1
+run_id: extraction-gate-specialist-corporate-record-qwen-r2
+task: corporate_records_specialist
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    corporate_records_specialist: {source: local, file: corporate_records_specialist_condensed_v1}   # specialist-condensed frontrunner (adopted)
+
+dataset:
+  provider: file
+  local_path: data/runtime/handoff/gate-train-r2-corporate_record.jsonl
+  config: ground_truth
+  split: train
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  corporate_records_specialist: {max_input_chars: 700000}   # whole document in one call (Qwen 3.7 Flash: 1M-token context)
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 12
+  cost_cap_usd: 1.00
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.15
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, extraction-gate, specialist-handoff, round-2, corporate-record]

@@ -1,0 +1,56 @@
+# Extraction gate, question set 1.1.0, over the 220 baseline documents (the same five baseline
+# specialist runs' extractions as extraction-gate-luna-v1.0.0-baseline). 1.1.0 reads every document
+# whole (1.0.0 cut 24 of them at 120k chars, merger 240k), so the gate sees what the specialist saw.
+#
+#   sandbox run start --config config/runs/extraction-gate-luna-v1.1.0-baseline.yaml --initials XX
+#   python scripts/extraction_gate.py calibrate --run extraction-gate-luna-v1.1.0-baseline \
+#       --run extraction-gate-luna-v1.1.0-r2 --name extraction-gate-luna-v1.1.0-pooled
+#
+# Cost: Decisions bills input only ($0.10 per 1M): about 3.0M input tokens, about $0.30; cap $0.50.
+schema: sandbox.run/v1
+run_id: extraction-gate-luna-v1.1.0-baseline
+task: extraction_gate
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file
+  local_path: data/runtime/handoff/gate-train.jsonl
+  config: ground_truth
+  split: train
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna-decisions
+  modal: null
+
+reviewer:
+  backend: decisions
+  model: openai/gpt-6-luna-decisions
+  questions: extraction_gate_v1.1.0
+  handoff_run:
+    - extraction-gate-specialist-insurance-claim-qwen
+    - extraction-gate-specialist-corporate-record-qwen
+    - extraction-gate-specialist-correspondence-qwen
+    - extraction-gate-specialist-contract-qwen
+    - extraction-gate-specialist-merger-agreement-qwen
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 12
+  cost_cap_usd: 1.00
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.50
+
+trace:
+  sink: none
+  environment: pilot
+  # The tag says 1.0.0 but this run used question set 1.1.0. It is kept as run: the trace block is
+  # in the spec hash, so changing it would split this finished run from its lock, and its traces
+  # were already sent with this tag. Filter 1.1.0 traces by run id. New runs tag their own version.
+  tags: [sandbox, job, extraction-gate, decisions-api, extraction-gate-1.0.0]

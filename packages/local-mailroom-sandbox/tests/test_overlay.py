@@ -8,7 +8,6 @@ from mailroom_sandbox.overlay import (
     list_profiles,
     load_profile,
     map_model,
-    rewrite_agents,
     serving_family,
 )
 from mailroom_sandbox.providers import MAILROOM_PROVIDER_KEYS, endpoints_for, load_endpoints
@@ -43,7 +42,9 @@ def test_openrouter_is_opt_in():
 def test_map_qwen_flash_to_ollama():
     assert map_model("qwen/qwen3.7-flash", "ollama") == "qwen3:8b"
     assert map_model("deepseek/deepseek-v4-flash", "ollama") == "deepseek-r1:8b"
-    assert map_model("qwen/qwen3.7-flash", "vllm") == "Qwen/Qwen3-8B"
+    # SAND-077: the champion runs Qwen3.5-9B on vLLM and the same weights on OpenRouter.
+    assert map_model("qwen/qwen3.7-flash", "vllm") == "Qwen/Qwen3.5-9B"
+    assert map_model("qwen/qwen3.7-flash", "openrouter") == "qwen/qwen3.5-9b"
 
 
 def test_rewrite_agents_uses_local_tags():
@@ -69,7 +70,25 @@ def test_awq_override_pins_vllm_agents_and_champion_remap():
     assert taxonomy["agents"]["merger_agreement_specialist"]["model"] == "Qwen/Qwen3-8B-AWQ"
     assert taxonomy["agents"]["sorter"]["model"] == "Qwen/Qwen3-8B-AWQ"
     assert taxonomy["vllm_model_map"]["Qwen/Qwen3-8B"] == "Qwen/Qwen3-8B-AWQ"
+    assert taxonomy["vllm_model_map"]["Qwen/Qwen3.5-9B"] == "Qwen/Qwen3-8B-AWQ"
     assert taxonomy["vllm_model_map"]["qwen/qwen3.7-flash"] == "Qwen/Qwen3-8B-AWQ"
+
+
+def test_frozen_qwen3_8b_serve_remaps_the_new_default_back():
+    """SAND-077: a frozen run that serves Qwen/Qwen3-8B must not leave the
+    champion (now mapped to Qwen3.5-9B) pointing at a model nobody serves."""
+    taxonomy = build_merged_taxonomy(load_profile("modal-vllm"), model_override="Qwen/Qwen3-8B")
+    mapping = taxonomy["vllm_model_map"]
+    assert mapping["qwen/qwen3.7-flash"] == mapping["openrouter/free"] == "Qwen/Qwen3-8B"
+    assert mapping["Qwen/Qwen3.5-9B"] == "Qwen/Qwen3-8B"
+    assert "Qwen/Qwen3-8B" not in mapping  # never a self-loop
+    assert taxonomy["agents"]["sorter"]["model"] == "Qwen/Qwen3-8B"
+
+
+def test_default_serve_keeps_the_champion_on_qwen35_9b():
+    mapping = build_merged_taxonomy(load_profile("modal-vllm"))["vllm_model_map"]
+    assert mapping["qwen/qwen3.7-flash"] == mapping["openrouter/free"] == "Qwen/Qwen3.5-9B"
+    assert mapping["deepseek/deepseek-v4-flash"] == "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"  # vendored row kept
 
 
 def test_agent_model_surgical_override():
@@ -178,7 +197,7 @@ def test_modal_profile_merge_sorter_vllm_and_timeout_600():
 
     t = build_merged_taxonomy(load_profile("modal-vllm"))
     assert t["agents"]["sorter"]["provider"] == "vllm"
-    assert t["agents"]["sorter"]["model"] == "Qwen/Qwen3-8B"
+    assert t["agents"]["sorter"]["model"] == "Qwen/Qwen3.5-9B"
     assert t["run_limits"]["llm_call_timeout_seconds"] == 600
     # DMR-078 / SAND-018: specialist budgets fit Qwen L4 16k; contracts keeps a
     # 4096 decode and a real-chars/token input cap so it cannot 400 the window.
@@ -201,3 +220,23 @@ def test_run_scoped_agent_knobs_override_global_overlay():
     d = build_merged_taxonomy(load_profile("modal-vllm"))
     assert d["agents"]["contracts_specialist"]["max_tokens"] == 4096
     assert d["agents"]["contracts_specialist"]["max_input_chars"] == 18000
+
+
+def test_patched_config_path_does_not_become_the_next_base(tmp_path):
+    """Once mailroom's CONFIG_PATH points at a runtime taxonomy, the next merge
+    must still start from the shipped one, not the last run's pinned output."""
+    import pipeline.config as cfg
+
+    from mailroom_sandbox.overlay import mailroom_taxonomy_path, patch_mailroom_config, write_runtime_taxonomy
+
+    shipped = mailroom_taxonomy_path()
+    original = cfg.CONFIG_PATH
+    stale = build_merged_taxonomy(load_profile("modal-vllm"), model_override="Qwen/Qwen3-8B-AWQ")
+    try:
+        patch_mailroom_config(write_runtime_taxonomy(stale, tmp_path / "taxonomy.yaml"))
+        assert mailroom_taxonomy_path() == shipped
+        mapping = build_merged_taxonomy(load_profile("modal-vllm"))["vllm_model_map"]
+        assert mapping["qwen/qwen3.7-flash"] == "Qwen/Qwen3.5-9B"
+        assert "Qwen/Qwen3-8B-AWQ" not in mapping.values()
+    finally:
+        cfg.CONFIG_PATH = original

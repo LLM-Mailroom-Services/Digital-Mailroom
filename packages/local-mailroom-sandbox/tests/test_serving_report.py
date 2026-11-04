@@ -211,3 +211,11 @@ def test_billed_window_falls_back_to_journal_wall_plus_cold_boot(tmp_path):
     rec = metrics.serving_record_from_store(store, mock=False)
     assert rec["wall_seconds"] == pytest.approx(30.0)          # journal, not the 60 s item span
     assert rec["gpu_seconds"] == pytest.approx(42.5)           # 30 + 12.5 cold boot
+
+
+def test_ttft_note_names_a_hosted_api_run():
+    """An OpenRouter run is not "served locally"; its TTFT note says hosted API."""
+    rec = metrics.enrich_serving_report({"provider": "openrouter", "ttft_seconds": None}, items=[])
+    assert rec["ttft_note"] == metrics.TTFT_NEVER_INFERRED_API_NOTE
+    rec = metrics.enrich_serving_report({"provider": "vllm", "ttft_seconds": None}, items=[])
+    assert rec["ttft_note"] == metrics.TTFT_NEVER_INFERRED_NOTE

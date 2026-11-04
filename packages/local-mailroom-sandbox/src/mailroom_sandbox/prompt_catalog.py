@@ -125,6 +125,10 @@ def _version_section(
     if latest_key == v.key:
         badges.append("**latest**")
     out += [" · ".join(badges), ""]
+    anchor_head_cell = "—"
+    if v.anchor_head:
+        escaped_head = json.dumps(v.anchor_head, ensure_ascii=False).replace("|", "\\|")
+        anchor_head_cell = "`" + escaped_head + "`"
     out += [
         "| field | value |",
         "| --- | --- |",
@@ -134,7 +138,7 @@ def _version_section(
         f"| parent | {('`' + v.parent + '`') if v.parent else '—'} |",
         f"| supersedes | {('`' + v.supersedes + '`') if v.supersedes else '—'} |",
         f"| created_at | {v.created_at} |",
-        f"| anchor_head | {('`' + json.dumps(v.anchor_head, ensure_ascii=False).replace('|', '\\|') + '`') if v.anchor_head else '—'} |",
+        f"| anchor_head | {anchor_head_cell} |",
         f"| source | `{v.source}` |",
         f"| chars | {v.chars} |",
         f"| sha256 | `{v.sha256}` |",

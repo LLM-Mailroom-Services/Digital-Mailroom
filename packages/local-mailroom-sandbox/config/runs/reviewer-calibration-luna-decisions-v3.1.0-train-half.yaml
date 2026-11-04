@@ -1,0 +1,58 @@
+# SAND-085: question set 3.1.0 (the lineage frontrunner) with the sorter handoff, on HALF of the train
+# split: 1,491 of 2,979 documents, drawn per class in proportion to the corpus (contract 270 of 540,
+# corporate_record 202 of 403, correspondence 458 of 915, insurance_claim 493 of 986,
+# merger_agreement 68 of 135), seed 42. The full-split run (reviewer-calibration-luna-decisions-
+# v3.1.0-train.yaml) stays unrun. Model: openai/gpt-6-luna-decisions (OpenRouter Decisions API).
+# The request state is {document, sorter_handoff}: the sorter's saved answer for the same document
+# (data/handoff/sorter-qwen3.7-flash/train.jsonl, qwen/qwen3.7-flash, whole document in one call).
+# Cost, from the measured token fit of the full run (about 20.5M input tokens, $2.05): about 10.3M
+# input tokens at $0.10 per 1M input and $0 output = about $1.03. Afterwards:
+#   python scripts/calibrate_reviewer.py --run reviewer-calibration-luna-decisions-v3.1.0-train-half
+schema: sandbox.run/v1
+run_id: reviewer-calibration-luna-decisions-v3.1.0-train-half
+task: sorter_reviewer
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: train
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
+  sample_seed: 42
+  strata:
+    buckets:
+      - {doc_class: contract, count: 270}
+      - {doc_class: corporate_record, count: 202}
+      - {doc_class: correspondence, count: 458}
+      - {doc_class: insurance_claim, count: 493}
+      - {doc_class: merger_agreement, count: 68}
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna-decisions
+  modal: null
+
+reviewer:
+  backend: decisions
+  model: openai/gpt-6-luna-decisions
+  questions: reviewer_decisions_v3.1.0
+  handoff_run: data/handoff/sorter-qwen3.7-flash/train.jsonl   # saved Qwen pass, 2,979 documents
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 24
+  cost_cap_usd: 2.00
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 1.50
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, reviewer-calibration, decisions-api, question-set-3.1.0, half-train]

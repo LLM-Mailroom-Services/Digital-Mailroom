@@ -64,3 +64,17 @@ old `[hf_transfer]` extra / `HF_HUB_ENABLE_HF_TRANSFER` are dead (DMR-056).
 - Router: [sandbox-tool-router](../sandbox-tool-router/SKILL.md)  
 - Evals: `docs/evals.md`  
 - Attribution: `data/fixtures/ATTRIBUTION.md`
+
+## `sandbox hf` (guarded `hf` CLI passthrough)
+
+```bash
+sandbox hf whoami                      # hf auth whoami (HF_TOKEN or `hf auth login`)
+sandbox hf download --dry-run          # the sandbox dataset at the pinned FAMILY_HF_REVISION
+sandbox hf download --sandbox-cache    # cache in data/cache/hf, where `sandbox datasets pull` reads
+sandbox hf cache --revisions           # hf cache ls
+sandbox hf raw -- <hf args>            # anything else, unchanged
+```
+
+Uses the maintained `hf` binary, never `huggingface-cli`. `HF_HOME` is your own unless
+`--sandbox-cache` is given, and the cache in use is always printed. Only the sandbox dataset
+is pinned to `FAMILY_HF_REVISION`; other repos are not.

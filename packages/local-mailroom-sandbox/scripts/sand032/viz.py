@@ -290,7 +290,7 @@ def small_multiples(title: str, panels: list[str], cols: int = 2) -> str:
 
     sizes = [tuple(int(x) for x in re.search(r'viewBox="0 0 (\d+) (\d+)"', p).groups()) for p in panels]
     pw = max(w for w, _ in sizes)
-    rows_h, y, out = [], 36, []
+    y, out = 36, []
     for i in range(0, len(panels), cols):
         chunk = panels[i:i + cols]
         rh = max(sizes[i + j][1] for j in range(len(chunk)))

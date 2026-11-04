@@ -60,6 +60,7 @@ def test_health_follows_base_url_env(monkeypatch):
 
     class _Resp:
         status_code = 200
+        is_success = True
 
         def json(self):
             return {"data": [{"id": "Qwen/Qwen3-8B"}]}
@@ -207,7 +208,7 @@ def test_prompts_show_sorter_surfaces_version_key(capsys):
     args = _args(name="sorter", variant=None, offline=True)
     assert cli._cmd_prompts_show(args) == 0
     out = capsys.readouterr().out
-    assert "sorter_v14" in out  # the registry's pinned family-B key (DMR-056)
+    assert "sorter_v15" in out  # the registry's pinned family-B key (DMR-056; frozen V15)
 
 
 def test_prompts_show_variant_has_no_version_key(capsys):
@@ -236,6 +237,17 @@ def test_matrix_rejects_family_names():
     assert cells and cells[0]["provider"] == "vllm-local"
 
 
+@pytest.mark.parametrize(("provider", "model", "planned"), [
+    ("openrouter", "qwen/qwen3.5-9b", "qwen/qwen3.5-9b"),  # unmapped: kept, not the family default
+    ("modal-vllm", "Qwen/Qwen3.5-9B", "Qwen/Qwen3.5-9B"),
+    ("modal-vllm", "qwen/qwen3.7-flash", "Qwen/Qwen3.5-9B"),  # a champion row still maps per family
+    ("ollama", "qwen/qwen3.7-flash", "qwen3:8b"),
+])
+def test_matrix_plans_the_requested_model(provider, model, planned):
+    [cell] = plan_matrix(task="sorter", providers=[provider], models=[model], prompts=["sorter_v1"])
+    assert cell["model"] == planned
+
+
 # ── DMR-058: docker/ollama/ssh failures degrade cleanly, not as tracebacks ───
 
 
@@ -254,7 +266,9 @@ def test_pull_models_missing_ollama_degrades_cleanly(mocker, capsys):
     from mailroom_sandbox.cli import main as cli_main
 
     mocker.patch("mailroom_sandbox.compose.pull_ollama_models", side_effect=FileNotFoundError("no ollama"))
-    assert cli_main(["pull-models"]) == 1
+    # The Ollama pull path is opt-in now; a bare `pull-models` on the default
+    # modal-vllm profile only prints the prewarm command (and exits 0).
+    assert cli_main(["pull-models", "--profile", "ollama"]) == 1
     assert "command unavailable" in capsys.readouterr().err
 
 # ── hub#56: -d/--detach default, phoenix health URL derivation ──────────────
@@ -263,7 +277,6 @@ def test_pull_models_missing_ollama_degrades_cleanly(mocker, capsys):
 def test_up_detach_defaults_to_foreground():
     """hub#56: `sandbox up` runs in the FOREGROUND by default (the old
     action='store_true', default=True made -d a permanent no-op)."""
-    import argparse
 
     parser = cli.build_parser()
     args = parser.parse_args(["up"])

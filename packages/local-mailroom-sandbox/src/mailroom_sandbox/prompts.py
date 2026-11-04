@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 
 from mailroom_sandbox.eval_environment_lineage import agents_for_variant
+from mailroom_sandbox.overlay import UnknownNameError
 from mailroom_sandbox.paths import prompts_dir
 
 _log = logging.getLogger("mailroom_sandbox.prompts")
@@ -18,7 +19,7 @@ def list_variants() -> list[str]:
 def load_variant(name: str) -> str:
     path = prompts_dir() / f"{name}.txt"
     if not path.is_file():
-        raise FileNotFoundError(f"Unknown prompt variant {name!r}. Have: {list_variants()}")
+        raise UnknownNameError(f"Unknown prompt variant {name!r}. Have: {list_variants()}")
     return path.read_text(encoding="utf-8")
 
 

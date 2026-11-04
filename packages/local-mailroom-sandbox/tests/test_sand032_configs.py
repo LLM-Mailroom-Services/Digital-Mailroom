@@ -1,7 +1,5 @@
 """SAND-032: ladder / scale-out / sweep / bf16 configs, posture rows, benchmark gate."""
 
-import pytest
-
 from mailroom_sandbox.job.spec import load_run_spec
 from mailroom_sandbox.job.specialist_posture import (
     SAND032_RUNS,
@@ -22,8 +20,22 @@ def test_sixteen_configs_exist():
     assert {p.stem for p in RUNS} == set(SAND032_RUNS)
 
 
-@pytest.mark.parametrize("path", RUNS, ids=lambda p: p.stem)
-def test_config_parses_and_pins(path):
+def _each_run(paths, check):
+    """Run ``check(path)`` over every config; fail once naming every offender."""
+    failures = []
+    for path in paths:
+        try:
+            check(path)
+        except AssertionError as exc:
+            failures.append(f"{path.stem}: {exc}")
+    assert not failures, "\n".join(failures)
+
+
+def test_config_parses_and_pins():
+    _each_run(RUNS, _check_config_pins)
+
+
+def _check_config_pins(path):
     spec = load_run_spec(path)
     assert spec.run_id == path.stem
     assert spec.dataset.split == "all"
@@ -39,8 +51,11 @@ def test_config_parses_and_pins(path):
     assert spec.engine.vllm.enable_prefix_caching is True
 
 
-@pytest.mark.parametrize("path", STAGE23, ids=lambda p: p.stem)
-def test_stage23_pins_fp8_kv_awq(path):
+def test_stage23_pins_fp8_kv_awq():
+    _each_run(STAGE23, _check_stage23_pins)
+
+
+def _check_stage23_pins(path):
     spec = load_run_spec(path)
     assert spec.engine.vllm.kv_cache_dtype == "fp8"
     assert spec.engine.model == "Qwen/Qwen3-8B-AWQ"
@@ -105,13 +120,15 @@ def _gate(monkeypatch, spec, env):
     )
 
 
-@pytest.mark.parametrize("path", RUNS, ids=lambda p: p.stem)
-def test_benchmark_gate_passes_with_rendered_env(monkeypatch, path):
+def test_benchmark_gate_passes_with_rendered_env(monkeypatch):
     from mailroom_sandbox.job.deploy_env import spec_env
 
-    spec = load_run_spec(path)
-    rep = _gate(monkeypatch, spec, spec_env(spec))
-    assert rep["ok"], rep["errors"]
+    def check(path):
+        spec = load_run_spec(path)
+        rep = _gate(monkeypatch, spec, spec_env(spec))
+        assert rep["ok"], rep["errors"]
+
+    _each_run(RUNS, check)
 
 
 def test_benchmark_check_flags_env_drift(monkeypatch):
@@ -177,8 +194,11 @@ def test_cli_benchmark_check_passes_modal_profile(monkeypatch, capsys):
     assert rc == 0 and seen["profile"] == "exios66"
 
 
-@pytest.mark.parametrize("path", RUNS, ids=lambda p: p.stem)
-def test_sand032_runs_on_dedicated_modal_app(path):
+def test_sand032_runs_on_dedicated_modal_app():
+    _each_run(RUNS, lambda p: _app(p))
+
+
+def _app(path):
     assert load_run_spec(path).engine.modal.app == "sandbox-vllm-sand032"
 
 

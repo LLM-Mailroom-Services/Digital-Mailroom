@@ -9,20 +9,20 @@
     },
     "llm-dojo-scoring": {
       "branch": "main",
-      "synced_at": "2026-10-25T19:13:51Z",
-      "synced_sha": "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4",
+      "synced_at": "2026-11-04T17:15:24Z",
+      "synced_sha": "1cd4aba76d82eea20c6e8dfcc0d760881bf84924",
       "url": "https://github.com/Exios66/llm-dojo-scoring.git"
     },
     "llm-mailroom": {
       "branch": "main",
-      "synced_at": "2026-10-25T19:35:49Z",
-      "synced_sha": "175e6711077f92cee16e6bf2488844f92d9cb36d",
+      "synced_at": "2026-11-04T15:41:50Z",
+      "synced_sha": "bb56b71ee107a3d7aac7eadd505b761da10c020d",
       "url": "https://github.com/Exios66/llm-mailroom.git"
     },
     "local-mailroom-sandbox": {
       "branch": "main",
-      "synced_at": "2026-10-25T19:35:54Z",
-      "synced_sha": "3a7894252c858d8552e226c53d103cf29be3309e",
+      "synced_at": "2026-11-04T17:50:23Z",
+      "synced_sha": "43aa0160f5245486ca104e50dbab49d7782b303d",
       "url": "https://github.com/Exios66/local-mailroom-sandbox.git"
     },
     "mailroom-corpus-eda": {

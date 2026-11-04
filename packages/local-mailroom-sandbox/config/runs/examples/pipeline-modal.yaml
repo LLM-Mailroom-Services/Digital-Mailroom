@@ -1,0 +1,59 @@
+# Full 13-node mailroom pipeline on the default Modal vLLM endpoint (all GPU).
+#
+#   sandbox runbook show serve             # deploy → point → verify → teardown
+#   sandbox run preflight --config config/runs/examples/pipeline-modal.yaml   # validates dataset, prompts, engine
+#   sandbox run start --config config/runs/examples/pipeline-modal.yaml --initials XX --watch
+#
+# Modal bills container time while the app is warm; stop it afterwards
+# (`sandbox modal stop`). See pipeline-hybrid.yaml to send some agents to the API.
+schema: sandbox.run/v1
+run_id: pipeline-modal-smoke
+task: pipeline
+profile: modal-vllm
+
+# Prompts. Every agent uses its production default unless a role is pinned here.
+#   Version texts: the dojo lineage (vendor/llm-dojo-scoring/src/llm_dojo_scoring/prompts/).
+#   Local variants: config/prompts/*.txt (`prompt.agents.<role>: {source: local, file: <stem>}`).
+#   sandbox prompts list-versions [--role contracts_specialist]   # archived / frozen / mutation
+#   sandbox prompts show contracts_specialist_v3                  # one version's text
+# The specialists and the sorter have several versions (e.g. correspondence_specialist_v0..v7).
+# The intake, sorter_reviewer, judge, arbiter and boss nodes have only v1.
+# Pin any role below (or pass `--prompt-version KEY` on the command line, which wins per role);
+# preflight rejects an unknown key or a role this task does not run.
+prompt:
+  default: {source: code-default}
+  # versions:
+  #   contracts_specialist: contracts_specialist_v3
+  #   correspondence_specialist: correspondence_specialist_v7
+  #   sorter: sorter_v4
+
+dataset:
+  provider: file
+  local_path: data/fixtures/hf/docclass_mini.jsonl
+  limit: 5
+  sample_seed: 1
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3.5-9B
+  vllm:
+    max_model_len: 16384
+    max_inputs: 4              # match job.concurrency (preflight refuses 0)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6
+    enable_prefix_caching: true
+    enforce_eager: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 4
+  cost_cap_usd: 1.00          # paid runs refuse to start without a finite cap
+  max_wall_seconds: 1800
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, pipeline, modal]

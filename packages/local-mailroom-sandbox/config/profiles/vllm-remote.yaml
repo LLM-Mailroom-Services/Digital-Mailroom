@@ -5,8 +5,8 @@ description: >-
   CHTC machine, any Linux host). `sandbox tunnel plan/up` builds the forward
   from the tunnel block; the app itself just sees localhost:18000.
 provider: vllm
-default_model: Qwen/Qwen3-8B
-judge_model: Qwen/Qwen3-8B
+default_model: Qwen/Qwen3.5-9B
+judge_model: Qwen/Qwen3.5-9B
 base_url: http://localhost:18000/v1
 base_url_env: VLLM_BASE_URL
 api_key_env: VLLM_API_KEY

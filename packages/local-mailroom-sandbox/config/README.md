@@ -30,9 +30,11 @@
 
 ## Profile selection
 
-Profiles are selected with the **`SANDBOX_PROFILE`** env var
-(`ollama`, `vllm-local`, `modal-vllm`, `vllm-remote`, `llamacpp`,
-`lmstudio`, `openrouter`) — see [`profiles/README.md`](profiles/README.md).
+The default profile is **`modal-vllm`** (one Modal L4 behind OpenAI `/v1`;
+`sandbox runbook show serve`). Profiles are selected with `--profile` or the
+**`SANDBOX_PROFILE`** env var (`modal-vllm`, `ollama` for offline, `vllm-local`,
+`vllm-remote`, `llamacpp`, `lmstudio`, `openrouter`) — see
+[`profiles/README.md`](profiles/README.md).
 
 ## Environment
 

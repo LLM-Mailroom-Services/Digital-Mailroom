@@ -1,0 +1,93 @@
+# Full pipeline over OpenRouter: Qwen3.7 Flash on every node, with the Decisions-API model
+# openai/gpt-6-luna-decisions as the decision reviewer on all five primary classes. Question
+# set config/decisions/reviewer_decisions_v2.yaml; cutoffs from reviewer-calibration-luna-decisions-v2
+# (735 train documents, all five classes meet 95% with a 97%+ lower bound; on the 323-document
+# test split 98.5% route unattended with one misroute, a likely label error).
+# Every decision class is reviewed at any sorter confidence (#215).
+# The sorter and intake read the whole document in ONE call (max_input_chars 600,000; Qwen3.7
+# Flash has a 1M-token context). Only the extraction specialists chunk. 10 documents at a time.
+# Earlier runs used the chat model openai/gpt-6-luna as reviewer by mistake; see
+# reports/reviewer-calibration/reviewer-calibration-luna.md.
+schema: sandbox.run/v1
+run_id: pipeline-luna-decisions-qwen-smoke
+task: pipeline
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: train
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
+  strata:
+    buckets:
+      - doc_class: contract
+        count: 2
+        sub_buckets:
+          - {subclass: "License_Agreements", count: 1}
+          - {subclass: "Maintenance", count: 1}
+      - doc_class: merger_agreement
+        count: 2
+        sub_buckets:
+          - {subclass: "all_cash", count: 1}
+          - {subclass: "other", count: 1}
+      - doc_class: corporate_record
+        count: 2
+        sub_buckets:
+          - {subclass: "articles_of_incorporation", count: 1}
+          - {subclass: "charter_amendment", count: 1}
+      - doc_class: correspondence
+        count: 2
+        sub_buckets:
+          - {subclass: "email", count: 1}
+          - {subclass: "notice", count: 1}
+      - doc_class: insurance_claim
+        count: 2
+        sub_buckets:
+          - {subclass: "auto", count: 1}
+          - {subclass: "property", count: 1}
+  limit: 10
+  sample_seed: 42
+  require_task_gt: true   # every document can be scored
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_routes:
+  judge: {provider: openrouter, model: qwen/qwen3.7-flash}
+  boss: {provider: openrouter, model: qwen/qwen3.7-flash}
+
+agent_knobs:
+  sorter: {max_input_chars: 600000}
+  intake: {max_input_chars: 600000}
+
+reviewer:
+  backend: decisions
+  model: openai/gpt-6-luna-decisions
+  questions: reviewer_decisions_v2
+  classes:
+    contract: 0.78
+    merger_agreement: 0.99
+    corporate_record: 0.96
+    correspondence: 0.64
+    insurance_claim: 0.70
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 10
+  cost_cap_usd: 0.50
+  max_wall_seconds: 4800
+  api_cost_cap_usd: 0.50   # the ceiling prices every token at Luna; Qwen bills about a third
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, pipeline, openrouter, decision-reviewer]

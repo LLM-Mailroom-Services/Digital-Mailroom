@@ -1,12 +1,12 @@
 ---
 name: ollama
-description: Default local Ollama provider for local-mailroom-sandbox (compose sandbox-ollama, pull-models, health, cutover). Use for offline/local inference, qwen3:8b / llama3.2:3b smoke, and any SANDBOX_PROFILE=ollama work — prefer over OpenRouter and Modal unless GPU/remote is requested.
+description: Offline/CPU fallback Ollama provider for local-mailroom-sandbox (compose sandbox-ollama, pull-models, health, cutover). Use for offline/local inference, qwen3:8b / llama3.2:3b smoke, and any SANDBOX_PROFILE=ollama work — not the default (modal-vllm is); prefer it over OpenRouter and Modal only when offline, CPU-only or without a Modal account.
 ---
 
-# Ollama (default local provider)
+# Ollama (offline/CPU fallback provider)
 
-**When:** Local inference, `sandbox up`, CPU smoke, mock→local pilots, default profile work.  
-**Prefer over:** OpenRouter (opt-in API) and Modal/vLLM unless the user needs GPU or remote serve.
+**When:** Offline or CPU-only inference, `--profile ollama`, CPU smoke, mock→local pilots without a Modal endpoint.  
+**Prefer over:** OpenRouter (opt-in API) and Modal/vLLM when offline or CPU-only; the default profile is `modal-vllm`.
 
 ## Profile
 
@@ -22,14 +22,14 @@ description: Default local Ollama provider for local-mailroom-sandbox (compose s
 ## Commands
 
 ```bash
-sandbox up                              # starts langfuse + ollama
-sandbox pull-models                     # ollama pull qwen3:8b (container or host)
-sandbox pull-models llama3.2:3b         # CPU smoke
+sandbox up -d --compose-profile langfuse --compose-profile ollama   # the default modal-vllm profile starts langfuse only
+sandbox pull-models --profile ollama                     # ollama pull qwen3:8b (container or host)
+sandbox pull-models llama3.2:3b --profile ollama         # CPU smoke
 sandbox cutover --profile ollama --model llama3.2:3b
-sandbox cutover --agent-model judge=qwen3:14b
-sandbox health
+sandbox cutover --profile ollama --agent-model judge=qwen3:14b
+sandbox health --profile ollama
 sandbox pilot --mock
-sandbox pilot --local
+sandbox pilot --local --profile ollama
 ```
 
 Pull prefers `docker exec sandbox-ollama ollama pull …`, else host `ollama`.

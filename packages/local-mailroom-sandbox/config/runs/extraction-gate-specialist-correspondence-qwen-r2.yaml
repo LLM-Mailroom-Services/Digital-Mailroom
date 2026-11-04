@@ -1,0 +1,43 @@
+# Extraction gate round 2: NEW correspondence documents for the gate's training set. No document (by id or
+# folded text) that any finished specialist run already extracted; each subclass drawn from its
+# shorter half first. qwen/qwen3.7-flash, one call per document, on the adopted condensed prompt
+# correspondence_specialist_condensed_v2 (config/prompts/specialist_condensed_lineage.yaml).
+#
+#   python scripts/extraction_gate.py --split train expand \
+#       --dataset-run reviewer-calibration-luna-decisions-v3.1.0-train
+#   sandbox run start --config config/runs/extraction-gate-specialist-correspondence-qwen-r2.yaml --initials XX
+schema: sandbox.run/v1
+run_id: extraction-gate-specialist-correspondence-qwen-r2
+task: correspondence_specialist
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    correspondence_specialist: {source: local, file: correspondence_specialist_condensed_v2}   # specialist-condensed frontrunner (adopted)
+
+dataset:
+  provider: file
+  local_path: data/runtime/handoff/gate-train-r2-correspondence.jsonl
+  config: ground_truth
+  split: train
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 12
+  cost_cap_usd: 1.00
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.10
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, extraction-gate, specialist-handoff, round-2, correspondence]

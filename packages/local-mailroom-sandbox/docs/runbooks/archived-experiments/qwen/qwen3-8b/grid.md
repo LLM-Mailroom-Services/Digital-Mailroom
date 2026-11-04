@@ -113,10 +113,12 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py --strategy recreate
 
+# REQUIRED before health (shell or .env): `sandbox health` exits 1 without an endpoint
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
-# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"   # bearer this deploy was started with
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
@@ -257,10 +259,12 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py --strategy recreate
 
+# REQUIRED before health (shell or .env): `sandbox health` exits 1 without an endpoint
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
-# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"   # bearer this deploy was started with
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
@@ -390,10 +394,12 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py --strategy recreate
 
+# REQUIRED before health (shell or .env): `sandbox health` exits 1 without an endpoint
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
-# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"   # bearer this deploy was started with
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
@@ -513,10 +519,12 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py --strategy recreate
 
+# REQUIRED before health (shell or .env): `sandbox health` exits 1 without an endpoint
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
-# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"   # bearer this deploy was started with
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
@@ -640,10 +648,12 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py --strategy recreate
 
+# REQUIRED before health (shell or .env): `sandbox health` exits 1 without an endpoint
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
-# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"   # bearer this deploy was started with
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 

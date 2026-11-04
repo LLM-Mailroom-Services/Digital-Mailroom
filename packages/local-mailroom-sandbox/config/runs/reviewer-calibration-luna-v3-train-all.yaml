@@ -1,0 +1,55 @@
+# SUPERSEDED: chat model openai/gpt-6-luna as the decision reviewer; preflight now refuses
+# a paid chat-model reviewer run without an explicit opt-in. Kept as the record of
+# reports/reviewer-calibration/reviewer-calibration-luna-v3-train-all.json.
+#
+# SAND-085 / issue #208: full-corpus decision-reviewer calibration.
+#
+# Every train document (2,979), all five classes and every subclass, through
+# openai/gpt-6-luna on the sorter_reviewer_decision_v3 prompt (v2 plus the fixes from the v2 full-corpus run: correspondence subclass by content markers, MAUD consideration rules, SEC-exhibit contract conventions, Certificate of Designation amendments, mailbox fragments; decision framing,
+# class definitions, corpus conventions, situational rules and subclass rules for
+# every primary class, anchored confidence). The whole split, not a balanced draw,
+# so the rules meet every edge case in the corpus; per-class and per-subclass
+# results are reported alongside the cutoffs. No require_task_gt: classification
+# needs only the class label, so documents without extraction ground truth count too.
+# The test split (323) stays held out for reviewer-validation-luna-v3-test.
+#
+# Afterwards:
+#   python scripts/calibrate_reviewer.py --run reviewer-calibration-luna-v3-train-all
+# Its cutoffs are candidates for issue #208 and are not applied automatically.
+schema: sandbox.run/v1
+run_id: reviewer-calibration-luna-v3-train-all
+task: sorter_reviewer
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    sorter_reviewer: {source: local, file: sorter_reviewer_decision_v3}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: train
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_DATA_REVISION)
+  sample_seed: 42
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 32
+  cost_cap_usd: 1.00
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 3.00
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, reviewer-calibration]

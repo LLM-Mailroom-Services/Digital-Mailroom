@@ -1,6 +1,8 @@
 # yaml-language-server: $schema=./profile.schema.json
 name: ollama
-description: Local Ollama OpenAI-compatible server (sandbox default).
+description: >-
+  Local Ollama OpenAI-compatible server — the offline/CPU fallback profile
+  (`--profile ollama`). The sandbox default is modal-vllm.
 provider: ollama
 default_model: qwen3:8b
 judge_model: qwen3:8b

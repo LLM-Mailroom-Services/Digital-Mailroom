@@ -68,8 +68,9 @@ def usage_from_openai_response(resp: Any) -> dict[str, int]:
     if usage is None:
         return {}
     if isinstance(usage, Mapping):
-        prompt = usage.get("prompt_tokens") or usage.get("input_tokens")
-        completion = usage.get("completion_tokens") or usage.get("output_tokens")
+        # First present key wins: an explicit 0 is observed usage, not a fallthrough.
+        prompt = next((usage[k] for k in ("prompt_tokens", "input_tokens") if usage.get(k) is not None), None)
+        completion = next((usage[k] for k in ("completion_tokens", "output_tokens") if usage.get(k) is not None), None)
     else:
         prompt = getattr(usage, "prompt_tokens", None)
         completion = getattr(usage, "completion_tokens", None)

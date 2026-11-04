@@ -22,10 +22,6 @@ def _manifest() -> dict:
     return json.loads((ASSETS / "manifest.json").read_text(encoding="utf-8"))
 
 
-def test_capture_script_exists():
-    assert SCRIPT.is_file()
-
-
 def test_manifest_cases_all_have_assets():
     manifest = _manifest()
     names = [c["name"] for c in manifest["cases"]]

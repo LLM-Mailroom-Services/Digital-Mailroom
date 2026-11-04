@@ -1,0 +1,231 @@
+# Decision reviewer question set 4.0.0 (lineage: config/decisions/LINEAGE.yaml).
+# Model: openai/gpt-6-luna-decisions (OpenRouter Decisions API; $0.10 per 1M input, $0 output).
+#
+# Changes from 3.1.0 (MAJOR: the request shape and the routing contract change):
+#
+# - NO VERDICT QUESTION. Asking the model to grade its own cross-check produced a
+#   near-constant answer and no protection: on the 3.0.0 held-out run it answered
+#   continue_sorter_correct on 125 of 135 documents whose sorter subclass was wrong, and on
+#   10 of 14 whose sorter class was wrong. The four outcomes it alone could express
+#   (continue, correct the subclass, reclassify, route to a person) are now derived in code
+#   from the class answer, the subclass answer and the probability vector. What a person
+#   actually needs is which of those happened, and the code knows that more reliably than a
+#   second categorical guess does.
+#
+# - NO SORTER HANDOFF IN THE STATE. 3.0.0 put the sorter's class, subclass and confidence
+#   next to the document and told the model it was "a claim to check". Measured cost of that
+#   wording: subclass went from 265 to 263 correct on the same 323 test documents, and 6 of
+#   the 14 subclass answers that flipped from 2.0.0 copied the sorter's wrong subclass. A
+#   reviewer whose value is independence must not read the answer it is reviewing. The
+#   backend still receives the handoff and uses it in code (see subclass_gate below), but
+#   the model never sees it.
+#
+# - DOCUMENT FORM. A new pick-one question about the state of the document as an extraction
+#   input (complete instrument, fragment, several documents, unreadable, not English). The
+#   human-only outcomes that used to be verdict options live here. Any answer other than
+#   complete_instrument parks the document, so a signature page or an OCR mush cannot be
+#   accepted as a contract and then extracted into an empty record.
+#
+# - SUBCLASS ABSTENTION AND A PER-CLASS SUBCLASS GATE. Every subclass question gains an
+#   `undetermined` option, and `not_this_class` winning no longer falls back to the
+#   runner-up. What happens when the subclass is low is a per-class policy, because the
+#   subclass is not equally load-bearing: it is a scored field for merger_agreement
+#   (merger_consideration) and it changes the corporate_record scoring schema, while for
+#   correspondence and insurance_claim it is a label. The pipeline never silently overwrites
+#   a subclass with a guess.
+#
+# - ROUTING USES THE DISTRIBUTION. The API returns a probability for every option; 3.1.0
+#   used only the winner's probability and deleted the `not_this_class` mass before routing
+#   saw it. New `abstain` rules park a document when the top two classes are too close, when
+#   the subclass question says the document is not the chosen class, or when too much
+#   probability sits on `unknown`.
+#
+# - THE WHOLE DOCUMENT. `max_input_chars` covers the largest corpus document (~1.0M chars,
+#   ~250k tokens, inside Luna's 1.05M-token context). 3.1.0 cut at 120k, fitted to where the
+#   train mergers' conversion sections happen to start, and told the model nothing about the
+#   cut. That made the gate the only node that never saw the whole document: the sorter sees
+#   600k head-and-tail, the specialists chunk the lot.
+#
+# Thresholds marked `provisional` are starting points, not calibrations. calibrate_reviewer
+# tunes the class cutoffs; the abstain thresholds and the subclass gate need the same
+# treatment on the next run (see LINEAGE open_for_4.1.0).
+schema: sandbox.decisions/v1
+name: reviewer_decisions
+version: 4.0.0
+max_input_chars: 1000000
+truncation_notice: true   # say so when the window still cuts a document; never truncate silently
+
+# Any of these document-form answers sends the document to a person whatever the class says.
+human_forms: [fragment_or_excerpt, multiple_documents, unreadable, non_english]
+
+doc_type:
+  instructions: >-
+    Classify state.document from its own text. Classify the instrument the title names, not an
+    exhibit stamp or filing wrapper. Amendments, restatements, joinders, forms and drafts take
+    the class of the instrument they change or copy.
+  criteria:
+    contract: >-
+      Commercial agreement between parties (license, supply, distribution, services, hosting,
+      maintenance, development, manufacturing, marketing, sponsorship, franchise, agency,
+      consulting or employment, collaboration or cooperation, joint venture, note purchase,
+      IP assignment). Insurance policies. Rule 13d-1(k) Joint Filing Agreements. NOT
+      registration/investor/stockholder rights or subscription agreements, warrants or
+      indentures (corporate_record). A power of attorney is corporate_record even when it is
+      titled "Limited Power of Attorney" and appoints an agent under an agreement.
+    merger_agreement: >-
+      Agreement and Plan of Merger, its amendments or restatements; also a Transaction or
+      Business Combination Agreement that merges through a Merger Sub.
+    corporate_record: >-
+      A company's own organisation, governance or securities instrument: charter, certificate
+      of incorporation or formation, charter amendment, bylaws, board or stockholder
+      resolution or consent, officer certificate or Certificate of Designation, power of
+      attorney, list or table of subsidiaries, indenture, securities rights instrument.
+    correspondence: >-
+      A communication: letter, email, memo, notice, demand, press release, meeting request.
+      All mailbox text, including forwards, newsletters, automated notices and bare message
+      fragments. NOT a First Notice of Loss or claim file (insurance_claim).
+    insurance_claim: >-
+      Claim paperwork: First Notice of Loss form (Claim Reference, Policy Number, Date of
+      Loss), with its call notes, emails or letters; adjuster reports; claim demand packages;
+      coverage or denial letters; CMS / DE-SynPUF claim tables.
+    unknown: >-
+      Plainly not a communication and fits no class (court opinion, accounting standard,
+      due-diligence checklist), or too garbled to identify.
+
+document_form:
+  instructions: >-
+    Judge the state of state.document as an input to extraction. Choose the one description
+    that is true of the text you can see.
+  criteria:
+    complete_instrument: >-
+      One document, from its own beginning to its own end: it opens with a title or a salutation
+      and closes with a signature block, a formal closing or a final paragraph. A one-page
+      agreement, a one-page letter or a single table is a complete instrument.
+    fragment_or_excerpt: >-
+      Part of a longer document: starts or stops mid-sentence or mid-section, is marked
+      "continued", is a signature page, cover page, table of contents, exhibit index or
+      schedule without the instrument it belongs to, or ends with no signature block or
+      closing although the form requires one.
+    multiple_documents: >-
+      Two or more separate documents of different classes in one text (a contract followed by
+      an unrelated letter). An email carrying a forwarded or quoted message is ONE document.
+    unreadable: >-
+      Empty, garbled, mostly OCR noise, or too fragmentary to identify any form.
+    non_english: >-
+      The substantive text is not in English.
+
+abstain:
+  # Provisional (see the header). Each rule that fires parks the document.
+  margin: 0.10            # p(best) - p(second) below this: two classes still stand
+  subclass_not_this_class_max: 0.50   # the subclass question itself rejects the chosen class
+  unknown_max: 0.34       # this much probability on a non-class
+
+subclass_gate:
+  # What to do when the subclass answer is unusable: the model abstained, or it chose
+  # not_this_class (which in 3.1.0 fell back to the runner-up). `park` folds the gated
+  # confidence to zero so the routing parks the document; `keep_sorter` passes the sorter's
+  # subclass through, so a guess never replaces a guess. A calibrated per-class subclass
+  # cutoff is the next step (LINEAGE open_for_4.1.0), not part of this set.
+  default: {on_low: keep_sorter}
+  merger_agreement: {on_low: park}     # merger_consideration is a scored extraction field
+  corporate_record: {on_low: park}     # the subclass selects the scoring schema
+
+subclass:
+  contract:
+    instructions: >-
+      Agreement family. A title naming one family decides it ("Supply Agreement" is supply
+      even when the supplier manufactures; "Cooperation" or "Collaboration Agreement" is
+      collaboration). Hybrid titles: the family the operating obligations mostly concern.
+    abstain: No agreement family fits the operative text well enough to name one.
+    criteria:
+      affiliate: Affiliate or referral programme.
+      agency: Agency or sales agency.
+      collaboration: Collaboration or Cooperation Agreement, incl. shareholder standstill settlements.
+      co_branding: Co-branding.
+      consulting: Consulting, employment agreement or executive offer letter.
+      development: Development work, milestones, steering committee.
+      distributor: Distribution.
+      endorsement: Endorsement, incl. insurance or annuity endorsement riders.
+      franchise: Franchise.
+      hosting: Hosting, platform or SaaS provision.
+      ip: IP assignment, transfer or separation.
+      joint_venture: Joint venture; Rule 13d-1(k) Joint Filing Agreement.
+      license: Licence of IP, software, content or technology.
+      maintenance: Maintenance or support; licence plus support; capital or net-worth maintenance.
+      manufacturing: Manufacturing.
+      marketing: Marketing or remarketing.
+      non_compete_no_solicit: Stand-alone non-compete or non-solicit.
+      outsourcing: Outsourcing.
+      promotion: Promotion.
+      reseller: Reseller.
+      service: Services, master services, statement of work.
+      sponsorship: Sponsorship.
+      strategic_alliance: Strategic alliance.
+      supply: Supply or purchase; note purchase agreements.
+      transportation: Transportation, shipping or logistics.
+      other: No family fits.
+  merger_agreement:
+    instructions: >-
+      What each share of the target's COMMON stock converts into, from the conversion or
+      Effect on Capital Stock section (not the table of contents). Options, appraisal,
+      financing and escrow do not change it.
+    abstain: The conversion terms are not in the text, and the recitals do not state them.
+    criteria:
+      all_cash: Cash only, incl. a cash tender offer then merger.
+      all_stock: Acquirer shares only; cash in lieu of fractional shares is still all_stock.
+      mixed_cash_stock: A fixed mix of cash and stock for every share.
+      mixed_cash_stock_election: Holders elect cash or stock, usually prorated.
+      other: Cash or stock plus a CVR, units, partnership interests, or other consideration.
+  corporate_record:
+    instructions: >-
+      Which record, by the document's own title first; an exhibit stamp never decides. A
+      resolution that adopts or approves an amendment is board_resolution; the amendment
+      instrument itself is charter_amendment.
+    abstain: The title names no record and the operative text does not settle one.
+    criteria:
+      articles_of_incorporation: Charter or restated charter; certificate of formation; articles of organization.
+      charter_amendment: Certificate or Articles of Amendment, Certificate of Correction.
+      bylaws: Bylaws or restated bylaws.
+      board_resolution: Board or stockholder resolution or written consent; short board-adopted bylaw amendment.
+      officer_certificate: Officer certificate; Certificate of Designation and amendments to it.
+      powers_of_attorney: Power of attorney.
+      subsidiary_list: List or table of subsidiaries.
+      indenture: Indenture or supplemental indenture.
+      rights_instrument: Registration/investor/stockholder/preemptive rights or subscription agreement; warrant; specimen stock certificate.
+      other: None fits.
+  correspondence:
+    instructions: Which form the content takes, by markers anywhere in the text, including forwards.
+    order: [attorney_demand, letter, press_release, memo, demand, notice, meeting_request]
+    default: email
+    markers:
+      attorney_demand: Does it contain a demand made by or for an attorney or law firm (Esq., Law Offices, counsel for)?
+      letter: Does it contain a letter, a salutation ("Dear ...") with a formal closing (Sincerely, Very truly yours, Regards)?
+      press_release: Does it contain or discuss a press or news release (For Immediate Release, PR Newswire, Business Wire, media contact)?
+      memo: Does it contain a memorandum (TO / FROM / DATE / RE header lines in the body, or the word memo or memorandum naming it)?
+      demand: Does it contain or discuss a demand (demand letter, demand for payment, past due, final notice)? Mentions in an ordinary email count.
+      notice: Does it contain or discuss a notice (Notice of ..., Notice No., give notice, please be notified)?
+      meeting_request: Does it invite or ask someone to meet or confer (meeting, call, appointment, event invitation)?
+    criteria:
+      attorney_demand: Attorney demand.
+      letter: Letter.
+      press_release: Press release.
+      memo: Memo.
+      demand: Demand.
+      notice: Notice.
+      meeting_request: Meeting request.
+      email: Ordinary message.
+  insurance_claim:
+    instructions: CMS tables by file type; claim paperwork by line of insurance.
+    abstain: Claim paperwork is present but the line of insurance is not stated and not inferable.
+    criteria:
+      inpatient: CMS inpatient claims table.
+      outpatient: CMS outpatient claims table.
+      carrier: CMS carrier (professional) claims table.
+      pde: CMS Part D prescription drug events.
+      auto: Auto or motor-vehicle claim.
+      property: Property, homeowner, household or building claim.
+      liability: General, professional or product liability claim (injury or damage to a third party).
+      health: Health or medical claim paperwork (not a CMS table).
+      life: Life insurance or death-benefit claim.
+      workers_comp: Workers' compensation claim (an employee's work injury).
+      other: Claim paperwork of another line (marine, travel, crop, pet) or no line stated.

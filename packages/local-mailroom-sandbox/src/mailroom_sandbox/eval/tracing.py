@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from mailroom_sandbox.paths import data_dir
+from mailroom_sandbox.providers import default_profile
 
 _log = logging.getLogger("mailroom_sandbox.tracing")
 
@@ -125,12 +126,16 @@ def observability_environment() -> str:
 
 
 def default_tags(*extra: str) -> list[str]:
+    """Build the trace tags: ``mailroom``, the observability environment, ``sandbox``, the active profile, the run mode, then any ``extra`` tags, without duplicates.
+
+    The profile is ``SANDBOX_PROFILE`` when set, else the sandbox default profile.
+    """
     env = observability_environment()
     tags = [
         "mailroom",
         env,
         "sandbox",
-        os.environ.get("SANDBOX_PROFILE") or "ollama",
+        os.environ.get("SANDBOX_PROFILE") or default_profile(),
     ]
     mode = os.environ.get("SANDBOX_RUN_MODE") or "local"
     if mode not in tags:

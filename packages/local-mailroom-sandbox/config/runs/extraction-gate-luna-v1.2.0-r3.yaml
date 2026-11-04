@@ -1,0 +1,49 @@
+# Extraction gate question set 1.2.0 over the 686 NEW round-3 insurance_claim extractions
+# (extraction-gate-specialist-insurance-claim-qwen-r3, condensed v3 prompt).
+#
+#   sandbox run start --config config/runs/extraction-gate-luna-v1.2.0-r3.yaml --initials XX
+#   python scripts/extraction_gate.py calibrate --run extraction-gate-luna-v1.2.0-r3
+#   python scripts/extraction_gate.py calibrate --run extraction-gate-luna-v1.2.0-rereview \
+#       --run extraction-gate-luna-v1.2.0-r3 --name extraction-gate-luna-v1.2.0-pooled
+#
+# Cost: insurance read ~2.8k tokens a document under 1.1.0: about 1.9M input tokens, about $0.19; cap $0.35.
+schema: sandbox.run/v1
+run_id: extraction-gate-luna-v1.2.0-r3
+task: extraction_gate
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file
+  local_path: data/runtime/handoff/gate-train-r3.jsonl
+  config: ground_truth
+  split: train
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna-decisions
+  modal: null
+
+reviewer:
+  backend: decisions
+  model: openai/gpt-6-luna-decisions
+  questions: extraction_gate_v1.2.0
+  handoff_run:
+    - extraction-gate-specialist-insurance-claim-qwen-r3
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 12
+  cost_cap_usd: 1.00
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.35
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, extraction-gate, decisions-api, extraction-gate-1.2.0]

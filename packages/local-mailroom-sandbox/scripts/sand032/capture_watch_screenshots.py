@@ -98,6 +98,10 @@ _FG_DEFAULT = "#fbfcfe"
 
 
 def ansi_to_svg(ansi_text: str, *, title: str) -> str:
+    """Render ANSI text as a terminal-window SVG.
+
+    Foreground color, bold and dim are kept; background colors are not painted because a <rect> cannot be a child of <text>.
+    """
     lines = ansi_text.splitlines() or [""]
     cols = max((visible_len(ln) for ln in lines), default=10)
     cols = max(cols, 10)
@@ -132,12 +136,7 @@ def ansi_to_svg(ansi_text: str, *, title: str) -> str:
                 attrs += ' font-weight="bold"'
             if style["dim"]:
                 attrs += ' opacity="0.62"'
-            if style["bg"]:
-                w = len(chunk) * _CHAR_W
-                parts.append(
-                    f'<rect x="{x:.1f}" y="{y - 12}" width="{w:.1f}" height="16" '
-                    f'fill="{style["bg"]}"/>' if False else ""
-                )
+            # Background SGR stays unpainted: a <rect> cannot be a child of <text>.
             parts.append(f'<tspan {attrs}>{sax.escape(chunk)}</tspan>')
             x += len(chunk) * _CHAR_W
         parts.append("</text>")

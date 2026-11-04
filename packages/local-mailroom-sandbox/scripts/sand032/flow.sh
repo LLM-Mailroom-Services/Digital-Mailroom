@@ -2,7 +2,7 @@
 # SAND-032 warm flow: ONE cold boot of the frozen production config, then every
 # run back-to-back on the warm fleet; scale 1→2 replicas IN PLACE; stop once.
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"; cd "$ROOT"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"; cd "$ROOT" || exit 1
 PY="${SANDBOX_PY:-$ROOT/../local-mailroom-sandbox/.venv/bin/python}"
 RT="$ROOT/data/runtime/sand032"; LOG="$RT/logs"
 spent() { python3 -c 'import json;print(json.load(open("data/runtime/sand032/spend.json"))["spent_usd"])'; }

@@ -1,0 +1,57 @@
+# Condensed sorter prompt v1 (config/prompts/sorter_condensed_v1.txt) against V15 on the same 1,003
+# train documents as sorter-v15-qwen-train-errors.yaml: every document V14 got wrong against the
+# verified targets (122 class, 681 subclass) plus 200 seeded controls (40 per class).
+#
+# Token budget: the condensed system prompt renders to 3,681 chars against V15's 25,074 (about
+# 5.3k fewer prompt tokens per call); both send the same 5,490-char subclass catalog in the user
+# message. tests/test_sorter_condensed_prompt.py holds the budget. Adopt the condensed lineage when it
+# matches or beats V15 on fixed - broken; mutations go into sorter_condensed_v<N>.
+#
+#   sandbox run start --config config/runs/sorter-condensed-v1-qwen-train-errors.yaml --initials XX
+#   python scripts/compare_sorter_prompt.py --split train score --run sorter-condensed-v1-qwen-train-errors
+#   python scripts/compare_sorter_prompt.py --split train score --run sorter-v15-qwen-train-errors
+# `score` measures each run against the saved V14 pass on these same 1,003 documents, so the
+# two reports compare condensed with V15 directly: adopt when the condensed run's fixed - broken
+# (class and subclass) is at least V15's.
+#
+# Cost: about 10.8M prompt + 0.15M completion tokens. Qwen 3.7 Flash bills a call at $0.03/$0.13
+# per 1M below 32k prompt tokens and $0.10/$0.40 from 32k (scripts/estimate_spend.py prices each
+# call at its tier): about $0.78, so the cap is $1.10.
+schema: sandbox.run/v1
+run_id: sorter-condensed-v1-qwen-train-errors
+task: isolated
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    sorter: {source: local, file: sorter_condensed_v1}
+
+dataset:
+  provider: file
+  local_path: data/runtime/handoff/train-sorter-errors.jsonl
+  config: ground_truth
+  split: train
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  sorter: {max_input_chars: 600000}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 24
+  cost_cap_usd: 2.00
+  max_wall_seconds: 5400
+  api_cost_cap_usd: 1.10
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, sorter-handoff, sorter-condensed-v1]

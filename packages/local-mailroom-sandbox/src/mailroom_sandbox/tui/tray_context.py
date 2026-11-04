@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from mailroom_sandbox.job.checkpoint import RunStore, TERMINAL_STATES
-from mailroom_sandbox.watch import PROGRAM, lifecycle, read_times
+from mailroom_sandbox.watch import PROGRAM, lifecycle
 
 TRAY_PRODUCT = "Tray TUI"
 BRAND = "DIGITAL MAILROOM"
@@ -36,18 +36,33 @@ def _engine_bits(lock: dict[str, Any]) -> tuple[str, str, str, str]:
     quant = str(vllm.get("quantization") or "").strip()
     kv = str(vllm.get("kv_cache_dtype") or "").strip()
     bits = [model]
-    if quant:
+    kind = str(engine.get("kind") or lock.get("profile") or ("modal-vllm" if modal else "unknown"))
+    if quant and kind != "openrouter":
         bits.append(quant)
-    if kv:
+    if kv and kind != "openrouter":
         bits.append(f"kv {kv}")
-    bits.append(f"vLLM {gpu}")
+    bits.append(f"vLLM {gpu}" if modal else kind)
+    if (lock.get("job") or {}).get("mock"):
+        bits.append("MOCK · no inference")
+    trace = lock.get("trace") or {}
+    if "experiment" in (trace.get("tags") or []) and trace.get("environment"):
+        bits.append(f"study {trace['environment']}")
     subtitle = " · ".join(bits)
     app = str(modal.get("app") or "")
     return subtitle, gpu, app, model
 
 
-def route_for_task(task: str | None) -> str:
+def route_for_task(task: str | None, target: str | None = None) -> str:
+    """The run's route line; a primary task's level-2 target names the lane it narrows to."""
     t = (task or "").strip().lower()
+    if t == "pipeline" and target:
+        return f"INBOX → SORTER → {target.upper()} → REPORT  (full pipeline · {target} only)"
+    if t == "specialist":
+        if target:
+            from mailroom_sandbox.eval.primary import SPECIALISTS
+
+            return f"INBOX → {SPECIALISTS.get(target, target).upper()} → REPORT"
+        return "INBOX → ALL FIVE SPECIALISTS → REPORT"
     if t in {"pipeline", "extract", "chained"}:
         return "INBOX → SORTER → SPECIALISTS → REPORT"
     if t == "sorter":
@@ -60,8 +75,6 @@ def route_for_task(task: str | None) -> str:
         "insurance_claims_specialist",
     }:
         return "INBOX → SPECIALIST → REPORT"
-    if t == "legalbench":
-        return "INBOX → LEGALBENCH → SCORE"
     if t:
         return f"INBOX → {t.upper()} → REPORT"
     return DEFAULT_ROUTE
@@ -171,10 +184,14 @@ def lifecycle_from_store(
         job = lock.get("job") or {}
         conc = job.get("concurrency")
         conc_s = f" · concurrency {conc}" if conc else ""
+        # The checkpoint is rewritten per document, so time the stage from the
+        # latest start/resume instead (runs from before that event keep the old clock).
+        started = [t for e in events if e.get("event") in ("start", "resume")
+                   and (t := _parse_ts(e.get("ts"))) is not None]
         return {
             "phase": "SORTING",
             "detail": f"{task} in flight{conc_s}",
-            "elapsed_s": elapsed_s,
+            "elapsed_s": int(max(0.0, now - started[-1])) if started else elapsed_s,
         }
     if state == "prepared":
         return {"phase": "QUEUED", "detail": "prepared · waiting for start", "elapsed_s": elapsed_s}
@@ -209,9 +226,10 @@ WORKER_APP = "sandbox-job"
 def dispatch_source(store: RunStore, cli_app: str | None = None) -> dict[str, Any]:
     """Per-job dispatch source: serve app + optional Modal worker app.
 
-    ``cli_app`` (--app) always wins for the serve stream. When
-    ``job.mode == "modal"`` the ``sandbox-job`` worker container is a second
-    stream; otherwise only the serve app is tailed.
+    ``cli_app`` (--app) overrides the serve app name. The serve app is tailed
+    only when the lock has an ``engine.modal`` block; when ``job.mode ==
+    "modal"`` the ``sandbox-job`` worker is tailed too (alone, when there is no
+    Modal serve block). No streams means the job is local.
     """
     lock = store.read_lock() or {}
     job = lock.get("job") or {}
@@ -219,7 +237,7 @@ def dispatch_source(store: RunStore, cli_app: str | None = None) -> dict[str, An
     modal = engine.get("modal") or {}
     serve_app = cli_app or str(modal.get("app") or "sandbox-vllm")
     job_mode = str(job.get("mode") or "endpoint")
-    streams = [serve_app]
+    streams = [serve_app] if modal else []
     worker_app: str | None = None
     if job_mode == "modal":
         worker_app = WORKER_APP
@@ -276,15 +294,97 @@ def job_context_lines(store: RunStore, *, app: str) -> list[str]:
     conc = job.get("concurrency")
     lines = [
         f"▶ {store.run_id} · {task} · profile {profile} · job {mode}",
-        f"  engine {model} · ×{replicas} {gpu} · modal app {app}",
+        (f"  engine {model} · capacity ×{replicas} {gpu} · modal app {app}" if modal
+         else f"  engine {model} · {engine.get('kind') or profile} · no Modal fleet"),
     ]
     if conc is not None:
         lines.append(f"  concurrency {conc}")
+    if not lock:
+        lines.append(f"  watch source {app} · configuration not locked yet")
     trace = lock.get("trace") or {}
     sink = trace.get("sink")
     if sink:
         lines.append(f"  trace {sink}")
     return lines
+
+
+def _config_value(value: Any) -> str:
+    """Manifest values as an operator reads them, not as Python reprs (True, ['a'])."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (list, tuple)):
+        return ", ".join(_config_value(v) for v in value) or "none"
+    if isinstance(value, dict):
+        return ", ".join(f"{k}={_config_value(v)}" for k, v in value.items()) or "none"
+    return str(value)
+
+
+def prompt_identity(prompt: Any) -> str:
+    """A locked prompt's identity fields; the resolved ``text`` body is never shown."""
+    if not isinstance(prompt, dict):
+        return _config_value(prompt)
+    bits = [f"{key}={prompt[key]}" for key in ("source", "name", "file", "version", "label") if prompt.get(key)]
+    if prompt.get("sha256"):
+        bits.append(f"sha256={str(prompt['sha256'])[:12]}")
+    return " · ".join(bits) or "—"
+
+
+def configuration_lines(lock: dict[str, Any]) -> list[str]:
+    """Display only reviewed configuration fields; never dump keys or endpoint URLs."""
+    lines = []
+    for group, keys in {
+        "engine": ("kind", "model"),
+        "dataset": ("repo", "config", "split", "revision", "limit", "sample_seed", "sha256"),
+        "job": ("mode", "mock", "concurrency", "cost_cap_usd", "max_wall_seconds"),
+        "trace": ("sink", "environment", "tags"),
+    }.items():
+        data = lock.get(group) or {}
+        lines += [f"{group}.{key}: {_config_value(data[key])}" for key in keys if data.get(key) is not None]
+    engine = lock.get("engine") or {}
+    for group, keys in {
+        "vllm": ("quantization", "kv_cache_dtype", "max_model_len", "max_num_seqs", "enable_prefix_caching", "enforce_eager"),
+        "modal": ("app", "gpu", "min_containers", "max_containers"),
+    }.items():
+        data = engine.get(group) or {}
+        if engine.get("kind") != "openrouter":
+            lines += [f"{group}.{key}: {_config_value(data[key])}" for key in keys if data.get(key) is not None]
+    for name, route in (lock.get("agent_routes") or {}).items():
+        lines.append(f"agent {name}: {route.get('provider', '—')} · {route.get('model', '—')}")
+    for name, knobs in (lock.get("agent_knobs") or {}).items():
+        lines += [f"{name}.{key}: {_config_value(knobs[key])}" for key in ("temperature", "max_tokens", "enable_thinking") if key in knobs]
+    for name, prompt in ((lock.get("prompt") or {}).get("agents") or {}).items():
+        lines.append(f"prompt {name}: {prompt_identity(prompt)}")
+    for name, model in (lock.get("agent_assignments") or {}).items():
+        lines.append(f"resolved {name}: {model}")
+    return lines
+
+
+def campaign_context(path: Path, current: str, runs_dir: Path | None = None) -> dict[str, Any]:
+    """Read campaign membership and fresh checkpoints without probes or inference.
+
+    ``runs_dir`` is where the watched run lives; sibling runs are looked up
+    there first, then under the default runs root.
+    """
+    from mailroom_sandbox.experiments import _load
+    from mailroom_sandbox.job.spec import run_dir
+    from mailroom_sandbox.services._exec import ServiceError
+
+    try:
+        _, plan, runs = _load(path)
+    except ServiceError as exc:
+        return {"study": path.parent.name, "design": "unreadable", "current": current,
+                "runs": [], "completed": 0, "total": 0, "error": str(exc)}
+    rows = []
+    for _, spec in runs:
+        directory = run_dir(spec.run_id)
+        if runs_dir is not None and (runs_dir / spec.run_id).is_dir():
+            directory = runs_dir / spec.run_id
+        cp = (RunStore(directory).read_checkpoint() or {}) if directory.is_dir() else {}
+        rows.append({"run_id": spec.run_id, "state": cp.get("state", "waiting"),
+                     "done": cp.get("cursor", 0), "total": cp.get("total", 0)})
+    return {"study": plan.study, "design": plan.design, "current": current,
+            "runs": rows, "completed": sum(r["state"] == "done" for r in rows),
+            "total": len(rows)}
 
 
 def build_tray_layout(
@@ -295,6 +395,7 @@ def build_tray_layout(
     cap_usd: float,
     gate_usd: float,
     width: int = 100,
+    campaign: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     lock = store.read_lock() or {}
     task = str(lock.get("task") or "?")
@@ -302,11 +403,10 @@ def build_tray_layout(
     job = lock.get("job") or {}
     job_mode = str(job.get("mode") or "endpoint")
     subtitle, gpu, _modal_app, _model = _engine_bits(lock)
-    route_label = route_for_task(task)
+    route_label = route_for_task(task, lock.get("target"))
     stage = stage_tag(store.run_id, task=task, profile=profile)
 
     times_file = resolve_times_file(store, times_dir)
-    times = read_times(times_file) if times_file else {}
 
     program: list[str] | None = None
     program_title: str | None = None
@@ -318,11 +418,20 @@ def build_tray_layout(
     job_route: list[str] | None = None
     if not program:
         job_route = job_context_lines(store, app=app)
+    if campaign:
+        job_route = (job_route or job_context_lines(store, app=app)) + [
+            f"campaign {campaign['study']} · {campaign['design']} · {campaign['completed']}/{campaign['total']} runs done",
+            *[f"  {r['run_id']} · {r['state']} · {r['done']}/{r['total']}" for r in campaign['runs']],
+        ]
+        program = None  # Explicit campaign membership supersedes the historical SAND-032 route.
+        program_title = None
+        subtitle += f" · study {campaign['study']}" if f"study {campaign['study']}" not in subtitle else ""
 
     cost_cap = job.get("cost_cap_usd")
     if cost_cap is not None:
         try:
             cap_usd = float(cost_cap)
+            gate_usd = cap_usd
         except (TypeError, ValueError):
             pass
 
@@ -330,8 +439,10 @@ def build_tray_layout(
     streams = src["streams"]
     if len(streams) > 1:
         dispatch_title = f"Dispatch log · {' + '.join(f'modal app logs {a}' for a in streams)}"
+    elif streams:
+        dispatch_title = f"Dispatch log · modal app logs {streams[0]}"
     else:
-        dispatch_title = f"Dispatch log · modal app logs {app}"
+        dispatch_title = "Dispatch log · local job events"
     tray_title = f"{TRAY_PRODUCT} · In-tray"
     postage_title = "Postage ($)"
     scorecard_title = f"Scorecard · {store.run_id}"
@@ -365,6 +476,8 @@ def build_tray_layout(
         "times_path": str(times_file) if times_file else None,
         "watcher_label": watcher_label,
         "dispatch": src,
+        "configuration": configuration_lines(lock),
+        "campaign": campaign,
     }
 
 

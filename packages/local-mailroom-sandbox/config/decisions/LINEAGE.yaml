@@ -1,0 +1,62 @@
+# Lineage of the decision reviewer question sets (family: reviewer_decisions).
+# Model for every version: openai/gpt-6-luna-decisions (OpenRouter Decisions API).
+# Versions are semantic: MAJOR changes the request shape or the routing contract, MINOR adds
+# or rewrites rules without changing the shape, PATCH fixes wording. A run locks the file's
+# content and sha256, so a published version's file is never edited; a change is a new version.
+family: reviewer_decisions
+model: openai/gpt-6-luna-decisions
+frontrunner: 3.1.0
+versions:
+  - version: 1.0.0
+    file: reviewer_decisions_v1.yaml
+    parent: null
+    status: superseded
+    summary: doc_type plus one pick-one subclass question per class; state is the document.
+    runs:
+      - {run: reviewer-calibration-luna-decisions, split: train, documents: 735, class_accuracy: 0.9837, subclass_accuracy: 0.7801}
+  - version: 2.0.0
+    file: reviewer_decisions_v2.yaml
+    parent: 1.0.0
+    status: superseded
+    summary: >-
+      FNOL forms, subsidiary tables and merger transaction agreements fixed; contract title
+      rule; correspondence subclasses as yes/no marker questions with the corpus precedence
+      applied in code.
+    runs:
+      - {run: reviewer-calibration-luna-decisions-v2, split: train, documents: 735, class_accuracy: 1.0, subclass_accuracy: 0.8259}
+      - {run: reviewer-validation-luna-decisions-v2-test, split: test, documents: 323, class_accuracy: 0.9845, routed_unattended: 0.9845, misrouted: 1}
+      - {run: pipeline-luna-decisions-qwen-smoke, split: train, documents: 10, class_accuracy: 1.0}
+  - version: 3.0.0
+    file: reviewer_decisions_v3.0.0.yaml
+    parent: 2.0.0
+    status: superseded
+    summary: >-
+      Sorter handoff in the state and a verdict question (continue, correct subclass,
+      reclassify, and human-review edge cases); compact criteria to cut per-document tokens.
+    runs:
+      - {run: reviewer-validation-luna-decisions-v3.0.0-test, split: test, documents: 323, class_accuracy: 0.9845, subclass_accuracy: 0.8142, routed_to_human_review_at_v2_cutoffs: 23, misrouted: 1, measured_cost_usd: 0.1905}
+    findings: >-
+      Class accuracy as v2 on test; subclass 263/323 vs v2 265. The verdict question does not
+      follow the model's own doc_type answer: with the sorter's class wrong (14 documents) it
+      answered continue_sorter_correct 10 times, and with only the subclass wrong (135) it
+      answered continue 125 times. 4 of 9 human verdicts were email forwards called
+      multiple_documents. 6 of the 14 subclass flips from v2 copy the sorter's wrong subclass.
+  - version: 3.1.0
+    file: reviewer_decisions_v3.1.0.yaml
+    parent: 3.0.0
+    status: frontrunner
+    summary: >-
+      insurance_claim subclasses cover the whole taxonomy (liability, health, life,
+      workers_comp, other); a forward inside an email is not multiple_documents.
+    runs:
+      - {run: reviewer-verify-sorter-handoff-train, split: train, documents: 46, purpose: settle disputed handoff targets, input_tokens: 535592}
+    scoring: >-
+      Scored against the verified targets of the saved Qwen pass
+      (data/handoff/sorter-qwen3.7-flash/<split>.targets.jsonl). The 32 label corrections and
+      the unannotated merger subclass are the conventions this set already states (charter
+      amendments, Certificates of Designation as officer_certificate, bylaws vs charter).
+      Next: reviewer-calibration-luna-decisions-v3.1.0-train, all 2,979 train documents with the
+      sorter handoff (preflight prepared; about 20.5M input tokens, about $2.05; cap $2.60).
+    open_for_4.0.0: >-
+      Derive continue / correct subclass / reclassify in code from the doc_type and subclass
+      answers against the handoff, and keep only the human edge cases as a model question.

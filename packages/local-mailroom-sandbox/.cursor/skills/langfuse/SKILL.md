@@ -32,7 +32,7 @@ LANGFUSE_SECRET_KEY=sk-lf-sandbox
 ## Start / verify
 
 ```bash
-sandbox up                         # ollama profile → langfuse + ollama
+sandbox up -d                      # default modal-vllm profile → langfuse only; select both profiles explicitly for Ollama
 sandbox health                     # probes provider + Langfuse health
 sandbox traces export              # data/traces/export.json
 ```

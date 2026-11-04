@@ -27,7 +27,7 @@
 #
 #   bash ~/sand42-rerun-chain.sh 2>&1 | tee ~/sand42-rerun-chain.log
 set -uo pipefail
-cd /Users/luciusjmorningstar/Downloads/local-mailroom-sandbox
+cd /Users/luciusjmorningstar/Downloads/local-mailroom-sandbox || exit 1
 SENT="$HOME/.sand42-c32-published"
 
 echo "[chain] $(date '+%F %H:%M:%S') waiting for the C32 publish sentinel ($SENT)"

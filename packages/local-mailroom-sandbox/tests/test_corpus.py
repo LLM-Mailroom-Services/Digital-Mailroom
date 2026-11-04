@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 
 import pytest
@@ -84,7 +83,7 @@ def test_jsonl_roundtrip_preserves_unicode_line_separators(tmp_path):
 def test_strata_filter(tmp_path):
     src = _rows_fixture(tmp_path, _rows(10))
     dest = tmp_path / "d.jsonl"
-    prov = prepare_subset(
+    prepare_subset(
         DatasetSpec(local_path=src, strata={"expected": ["insurance_claim"]}), dest
     )
     rows = [json.loads(l) for l in dest.read_text().splitlines() if l]
@@ -355,7 +354,7 @@ def test_values_strata_draws_normalized_subclass_buckets(tmp_path):
 
 
 def test_values_strata_is_deterministic(tmp_path):
-    src = _rows_fixture(tmp_path, _subclass_rows())
+    _rows_fixture(tmp_path, _subclass_rows())
     strata = {"field": "expected_subclass", "values": ["service", "supply"], "counts": [1, 1]}
     a = select_rows(normalize_rows(_subclass_rows()), strata=strata, sample_seed=7, limit=None)
     b = select_rows(normalize_rows(_subclass_rows()), strata=strata, sample_seed=7, limit=None)

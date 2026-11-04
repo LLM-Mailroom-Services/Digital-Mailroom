@@ -125,7 +125,6 @@ def test_web_handler_serves_index_and_state(tmp_path):
 
 # ── theming parity, hero art, transport, CLI wiring ────────────────────────
 import re
-import sys
 import time
 
 from mailroom_sandbox.tui import pretty_log as pl
@@ -251,11 +250,12 @@ def test_client_renders_errors_logs_scorecard_and_gate():
     assert 'metric("docs"' in page and 'metric("tokens"' in page
 
 
-def test_cli_watch_web_wires_host_port_and_no_browser(monkeypatch, tmp_path):
+def test_cli_watch_web_wires_host_port_and_no_browser(monkeypatch, tmp_path, job_data_dir):
     from mailroom_sandbox import cli
 
     cfg = tmp_path / "run.yaml"
-    cfg.write_text("x")
+    cfg.write_text("schema: sandbox.run/v1\nrun_id: web-wiring\ntask: sorter\nprofile: ollama\n"
+                   "engine: {kind: vllm-local, model: qwen3:8b, modal: null}\n")
     seen = {}
     monkeypatch.setattr(web_mod, "serve_watch_web", lambda **kw: seen.update(kw) or 0)
     rc = cli.main(["watch", "--config", str(cfg), "--web", "--port", "0", "--no-browser",
@@ -320,3 +320,136 @@ def test_state_tokens_and_log_source_rendering():
     assert 'class="src"' in page or 'class="src"' in page.replace("'", '"')
     assert "Tray TUI watcher" in page or "watcher_label" in page
     assert "lifecycle-pulse" in page
+
+
+def test_watch_reads_published_services_without_probing(tmp_path, monkeypatch):
+    from mailroom_sandbox.tui.services_snapshot import publish_services
+    import httpx
+
+    def no_network(*args, **kwargs):
+        raise AssertionError('watch rendering must not probe services')
+
+    monkeypatch.setattr(httpx, 'get', no_network)
+    publish_services([{'name': 'provider', 'state': 'fail', 'detail': 'missing endpoint', 'hint': 'sandbox modal deploy'}], profile='modal-vllm', live=False)
+    store = _store(tmp_path)
+    session = web_mod.WatchWebSession(resolve=lambda: (store, 'sandbox-vllm'), ledger=None,
+        cap_usd=5, times_dir=None, serving_dir=tmp_path / 'serving', interval=0.1, follow_logs=False)
+    try:
+        state = session.refresh()
+        assert state['services']['services'][0]['state'] == 'fail'
+        page = web_mod._html_page().decode()
+        assert 'services(state && state.services)' in page and 'id="svc"' in page
+        assert '.replace(/"/g,"&quot;")' in page
+    finally:
+        session.stop()
+
+
+def test_follow_switch_replaces_log_streams_and_header(tmp_path, monkeypatch):
+    from mailroom_sandbox import watch
+    from mailroom_sandbox.tui.demo import DemoRun
+
+    first = _store(tmp_path)
+    second, _ = DemoRun(tmp_path / "second").resolve()
+    lock = second.read_lock()
+    lock["engine"]["model"] = "provider/second-model"
+    lock["task"] = "sorter"
+    second.lock_path.write_text(json.dumps(lock))
+    current = [first, "first-app"]
+    streams = []
+    monkeypatch.setattr(watch, "start_log_streams", lambda store, app, sink, stop: streams.append((app, stop)))
+    session = web_mod.WatchWebSession(resolve=lambda: tuple(current), ledger=None, cap_usd=5,
+        times_dir=None, serving_dir=tmp_path / "serving", interval=1, follow_logs=True)
+    try:
+        a = session.refresh()
+        session.sink.append("old app line")
+        current[:] = [second, "second-app"]
+        b = session.refresh()
+        assert "second-model" in b["hero_html"] and "second-model" not in a["hero_html"]
+        assert b["route_label"] == "INBOX → SORTER → TRAY"
+        assert "old app line" not in str(b["logs"])
+        assert streams[0][1].is_set() and not streams[1][1].is_set()
+    finally:
+        session.stop()
+    assert streams[-1][1].is_set()
+
+
+def test_web_bind_failure_stops_session(tmp_path, monkeypatch):
+    session = _session(tmp_path)
+    monkeypatch.setattr(web_mod, "WatchWebSession", lambda **kw: session)
+    def busy(*a, **k):
+        raise OSError("busy")
+    monkeypatch.setattr(web_mod, "ThreadingHTTPServer", busy)
+    import pytest
+    with pytest.raises(OSError, match="busy"):
+        web_mod.serve_watch_web(resolve=session.resolve, ledger=None, logs=False)
+    assert session._stop.is_set() and session._log_stop.is_set()
+
+
+def test_watch_state_carries_capped_document_timeline(tmp_path):
+    from mailroom_sandbox.tui.demo import DemoRun
+    from mailroom_sandbox.tui import web
+    from mailroom_sandbox import watch
+
+    demo = DemoRun(tmp_path)
+    session = web.WatchWebSession(resolve=demo.resolve, ledger=demo.ledger, cap_usd=5,
+        times_dir=demo.times_dir, serving_dir=demo.serving_dir, interval=0.1, follow_logs=False,
+        tick=demo.step)
+    for _ in range(12):
+        state = session.refresh()
+    store, _ = demo.resolve()
+    items = store.load_items()
+    assert state["timeline"] == [i.get("ok", True) is not False for i in items][-watch.TIMELINE_MAX:]
+    assert False in state["timeline"]  # the demo returns one document
+    page = web._html_page().decode()
+    assert 'role="tablist"' in page and 'aria-controls="view-terminal"' in page
+    assert 'id="keymap"' in page and "rel=\"icon\"" in page
+    session.stop()
+
+
+def test_closing_a_log_buffer_hands_its_writer_lock_to_the_next(tmp_path):
+    from mailroom_sandbox.watch import LogBuffer
+
+    log = tmp_path / "modal-app.log"
+    old = LogBuffer(log)
+    old.append("first")
+    blocked = LogBuffer(log)  # a second buffer on the same file cannot write …
+    blocked.append("dropped")
+    old.close()
+    blocked.close()
+    new = LogBuffer(log)  # … until the holder closes
+    new.append("second")
+    old.append("late line from a stopped stream")
+    assert log.read_text().splitlines() == ["first", "second"]
+
+
+def _no_logs_session(store, *, follow):
+    return web_mod.WatchWebSession(resolve=lambda: (store, "app"), ledger=None, cap_usd=5.0, times_dir=None,
+                                   serving_dir=store.dir, interval=1.0, follow_logs=follow)
+
+
+def test_no_logs_still_loads_the_saved_dispatch_log(tmp_path):
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "run-a")
+    (store.dir / "modal-app.log").write_text("saved line\n")
+    session = _no_logs_session(store, follow=False)
+    session.refresh()
+    assert session.sink.tail(5) == ["saved line"]
+
+
+def test_switching_runs_keeps_the_log_file_writable(tmp_path, monkeypatch):
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    shared = tmp_path / "logs" / "modal-app.log"  # SAND-032: both runs resolve to one file
+    stores = [RunStore(tmp_path / "run-a"), RunStore(tmp_path / "run-b")]
+    current = {"store": stores[0]}
+    monkeypatch.setattr("mailroom_sandbox.watch.start_log_streams", lambda *a, **k: [])
+    session = web_mod.WatchWebSession(resolve=lambda: (current["store"], "app"), ledger=None, cap_usd=5.0,
+                                      times_dir=None, log_path=shared, serving_dir=tmp_path, interval=1.0,
+                                      follow_logs=True)
+    session.refresh()
+    session.sink.append("run a")
+    current["store"] = stores[1]
+    session.refresh()
+    session.sink.append("run b")
+    assert shared.read_text().splitlines() == ["run a", "run b"]

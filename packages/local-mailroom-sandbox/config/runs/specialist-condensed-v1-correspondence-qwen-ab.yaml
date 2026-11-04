@@ -1,0 +1,41 @@
+# Specialist-condensed lineage, validation: correspondence_specialist_condensed_v1 on the SAME correspondence documents the
+# baseline run extraction-gate-specialist-correspondence-qwen extracted with the frozen prompt, so the two
+# are compared document by document (scripts/compare_specialist_prompt.py). VALIDATION ONLY: these
+# outputs repeat baseline documents and are never handed to the extraction gate.
+#
+#   sandbox run start --config config/runs/specialist-condensed-v1-correspondence-qwen-ab.yaml --initials XX
+schema: sandbox.run/v1
+run_id: specialist-condensed-v1-correspondence-qwen-ab
+task: correspondence_specialist
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    correspondence_specialist: {source: local, file: correspondence_specialist_condensed_v1}
+
+dataset:
+  provider: file
+  local_path: data/runtime/handoff/gate-train-correspondence.jsonl
+  config: ground_truth
+  split: train
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 12
+  cost_cap_usd: 1.00
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.05
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, specialist-condensed-v1, ab-validation, correspondence]

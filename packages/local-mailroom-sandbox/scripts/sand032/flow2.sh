@@ -3,7 +3,7 @@
 # corr100 / insurance50 / corporate50 / sorter1000 → stop. Hard account limit $2.80:
 # every step is gated on ledger delta since start ≤ $LIMIT (ledger under-counts billing).
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"; cd "$ROOT"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"; cd "$ROOT" || exit 1
 LOG="$ROOT/data/runtime/sand032/logs"; LIMIT="${SAND032_DELTA_LIMIT:-1.20}"
 spent() { python3 scripts/sand032/spend.py write >/dev/null 2>&1; python3 -c 'import json;print(json.load(open("data/runtime/sand032/spend.json"))["spent_usd"])'; }
 BASE=$(spent); echo "baseline ledger \$$BASE; delta limit \$$LIMIT"

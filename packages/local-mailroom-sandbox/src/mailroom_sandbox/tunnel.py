@@ -9,18 +9,22 @@ block — nothing secret is stored in config.
 from __future__ import annotations
 
 import os
+import signal
 import socket
 import subprocess
+import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from mailroom_sandbox.paths import repo_root
+from mailroom_sandbox.services._exec import ServiceError, ToolMissing, require_tool
 
 TUNNEL_ENV_PREFIX = "SANDBOX_TUNNEL"
 
 
-class TunnelError(Exception):
-    """Profile tunnel block is missing or incomplete."""
+class TunnelError(ServiceError):
+    """The tunnel block is incomplete, or the ssh forward could not be started or stopped."""
 
 
 @dataclass(frozen=True)
@@ -77,9 +81,22 @@ def tunnel_spec(profile: dict) -> TunnelSpec:
         remote_port=remote_port,
         host=_env("host_env", required=True),
         user=_env("user_env", required=True),
-        ssh_port=int(_env("ssh_port_env", required=False) or 22),
+        ssh_port=_ssh_port(block, _env("ssh_port_env", required=False)),
         key=_env("key_env", required=False) or None,
     )
+
+
+def _ssh_port(block: dict, raw: str) -> int:
+    """The ssh port from its env var (default 22); a non-numeric value is a clear error."""
+    if not raw:
+        return 22
+    try:
+        port = int(raw)
+    except ValueError:
+        port = 0
+    if not 0 < port < 65536:
+        raise TunnelError(f"{block.get('ssh_port_env')} must be a TCP port (1-65535), got {raw!r}")
+    return port
 
 
 def build_ssh_argv(spec: TunnelSpec) -> list[str]:
@@ -128,38 +145,157 @@ def read_pid(profile: str) -> int | None:
         return None
 
 
-def spawn(spec: TunnelSpec) -> int:
-    """Start the detached forward and record its pid (CLI handler only)."""
+def is_alive(pid: int) -> bool:
+    """True when ``pid`` is a running (non-zombie) process."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+        return stat.rsplit(")", 1)[1].split()[0] != "Z"
+    except (OSError, IndexError):
+        # macOS has no /proc; kill(pid, 0) also succeeds for an unreaped zombie.
+        try:
+            result = subprocess.run(
+                ["/bin/ps" if Path("/bin/ps").is_file() else "ps", "-p", str(pid), "-o", "stat="],
+                capture_output=True, text=True, timeout=5, check=False,
+            )
+            state = result.stdout.strip()
+            return bool(state) and not state.startswith("Z")
+        except (OSError, subprocess.SubprocessError):
+            return True
+
+
+def _command_tokens(pid: int) -> list[str]:
+    try:
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+        return [t for t in raw.decode(errors="replace").split("\0") if t]
+    except OSError:
+        pass
+    try:
+        out = subprocess.run(
+            ["/bin/ps" if Path("/bin/ps").is_file() else "ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True, timeout=5, check=False
+        ).stdout
+        return out.split()
+    except (OSError, subprocess.SubprocessError):
+        return []
+
+
+def is_ssh_process(pid: int) -> bool:
+    """True when ``pid`` is an ssh client (guards against killing a process that reused the pid)."""
+    return any(os.path.basename(token) == "ssh" for token in _command_tokens(pid)[:2])
+
+
+def _stderr_tail(path: str) -> str:
+    try:
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    return " ".join(text.split())[-300:]
+
+
+def spawn(spec: TunnelSpec, *, wait: float = 10.0) -> int:
+    """Start the detached forward and record its pid once the local port answers (CLI handler only).
+
+    ssh's stderr is captured so a refused key or unreachable host is reported, not discarded;
+    a forward that exits early or never opens the port within ``wait`` seconds is cleaned up
+    and raised as a :class:`TunnelError` — no pidfile is left for a dead process.
+    """
     if is_up(spec.local_port):
         raise TunnelError(
             f"localhost:{spec.local_port} already answers — is the tunnel (or the "
             "service itself) already up? Refusing to double-forward."
         )
+    try:
+        require_tool("ssh", "install an OpenSSH client")
+    except ToolMissing as exc:
+        raise TunnelError(str(exc)) from exc
     argv = build_ssh_argv(spec)
-    proc = subprocess.Popen(
-        argv,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
-    path = pidfile(spec.profile)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f"{proc.pid}\n", encoding="utf-8")
+    errfile = tempfile.NamedTemporaryFile(prefix="sandbox-tunnel-", suffix=".err", delete=False)
+    proc = None
+    try:
+        proc = subprocess.Popen(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=errfile,
+            start_new_session=True,
+        )
+        errfile.close()
+        deadline = time.monotonic() + wait
+        while True:
+            returncode = proc.poll()
+            if returncode is not None:
+                detail = _stderr_tail(errfile.name)
+                raise TunnelError(
+                    f"ssh exited (rc={returncode}) before the forward opened"
+                    + (f": {detail}" if detail else "")
+                )
+            if is_up(spec.local_port):
+                break
+            if time.monotonic() >= deadline:
+                _kill_group(proc)
+                detail = _stderr_tail(errfile.name)
+                raise TunnelError(
+                    f"forward did not open localhost:{spec.local_port} within {wait:g}s"
+                    + (f": {detail}" if detail else "")
+                )
+            time.sleep(0.1)
+        path = pidfile(spec.profile)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"{proc.pid}\n", encoding="utf-8")
+    except BaseException:
+        if proc is not None and proc.poll() is None:
+            _kill_group(proc)
+        raise
+    finally:
+        errfile.close()
+        Path(errfile.name).unlink(missing_ok=True)
     return proc.pid
 
 
+def _kill_group(proc: subprocess.Popen) -> None:
+    """Terminate the ssh child (it leads its own session) and reap it."""
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=5)
+
+
 def terminate(spec: TunnelSpec) -> int | None:
-    """Stop the recorded forward, if any (CLI handler only)."""
+    """Stop the recorded forward and return its pid; ``None`` when nothing was running.
+
+    A pidfile whose process is gone — or that now belongs to something that is not ssh
+    (pid reuse) — is cleared without signalling anything.
+    """
     pid = read_pid(spec.profile)
     if pid is None:
         return None
-    proc = subprocess.run(["kill", str(pid)], check=False, capture_output=True)
-    if proc.returncode != 0:
+    path = pidfile(spec.profile)
+    if not is_alive(pid) or not is_ssh_process(pid):
+        path.unlink(missing_ok=True)
+        return None
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        path.unlink(missing_ok=True)
+        return None
+    except PermissionError as exc:
+        raise TunnelError(f"not allowed to stop pid {pid}: {exc}") from exc
+    deadline = time.monotonic() + 5
+    while is_alive(pid) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    if is_alive(pid):
         raise TunnelError(
-            f"kill {pid} failed (rc={proc.returncode}): "
-            f"{(proc.stderr.strip() or proc.stdout.strip())[:300]} — the tunnel "
-            "process may still be alive; pidfile kept so `tunnel status` can see it"
+            f"pid {pid} did not exit after SIGTERM — pidfile kept so `tunnel status` can see it"
         )
-    pidfile(spec.profile).unlink(missing_ok=True)
+    path.unlink(missing_ok=True)
     return pid

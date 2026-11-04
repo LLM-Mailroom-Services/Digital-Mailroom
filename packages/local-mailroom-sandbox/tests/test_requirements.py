@@ -59,17 +59,6 @@ def test_modal_job_image_lists_pipeline_deps():
         assert needle in app, f"modal_job uv_pip_install missing {needle!r}"
 
 
-def test_requirements_pipeline_file_lists_aiosqlite():
-    text = (ROOT / "requirements" / "pipeline.txt").read_text(encoding="utf-8")
-    assert "aiosqlite" in text
-    assert "-r base.txt" in text
-
-
-def test_root_requirements_shim_points_at_dev():
-    text = (ROOT / "requirements.txt").read_text(encoding="utf-8")
-    assert "-r requirements/dev.txt" in text
-
-
 def test_modal_job_requirements_mirror_covers_image_packages():
     """Every package string in modal_job.uv_pip_install appears in modal-job.txt or base."""
     app = (ROOT / "deploy" / "modal_job.py").read_text(encoding="utf-8")

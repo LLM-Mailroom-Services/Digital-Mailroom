@@ -77,6 +77,18 @@ contained. `snapshot` refuses cursor advancement past missing source blobs
 After imports, preserve documented hub-only heavy-asset exclusions without
 changing authoritative package behavior.
 
+**Feeder CI stays in the feeder (DMR-118).** Each standalone repository's
+`.github/workflows/` and `.github/dependabot.yml` gate that repository only.
+GitHub never runs them from `packages/<name>/.github/`, and Digital-Mailroom
+has no hub-specific checks, so imports never bring them in. Every import path
+strips them: the squash import leaves them out of the merge, and a
+history-merge import removes them in one follow-up `sync: drop feeder CI`
+commit. The parity guard, cursor-gap and `snapshot` checks do not count them
+as missing. Other `.github/` content (PR and release templates) is ordinary
+package content. A plain `push` is refused while the feeder carries CI, because
+the split would delete it; use `push --patch`, which builds on the feeder tip
+and keeps it. `scripts/tests` fails if any `packages/*/` feeder CI is tracked.
+
 A conflicted pull aborts to its pre-pull state by default. Recovery options
 `--keep-conflicts`/`--allow-dirty` are explicit; interrupted MERGE_HEAD state
 gets remediation. `pull --open-pr` produces a reviewable import branch/PR;

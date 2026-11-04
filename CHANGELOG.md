@@ -23,6 +23,14 @@ and is recorded there, not here.
 
 ### Fixed
 
+- DMR-118: keep feeder CI out of hub imports. Feeder `.github/workflows/` and
+  `.github/dependabot.yml` gate their standalone repositories only and never ran
+  from `packages/*/.github/`. `scripts/sync_packages.py` now strips them on every
+  import path (squash, history merge, `--open-pr` branch flow), does not count
+  them as cursor gaps or parity violations, and refuses a plain `subtree push`
+  that would delete a feeder's own CI (`push --patch` keeps it). The seven copies
+  already under `packages/` are removed, and a `scripts/tests` tree guard keeps
+  them out.
 - DMR-117: stop the hub PR #223 import failure from recurring in
   `scripts/sync_packages.py`. `pull --squash` and the `--open-pr` branch flow
   now merge each package with the recorded sync cursor as an explicit base

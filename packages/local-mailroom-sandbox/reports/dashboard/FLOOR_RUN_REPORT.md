@@ -31,9 +31,10 @@ not hand-entered.
    vendor `handoff_context` hotfix): every merger shipped through the full
    fan (extract → judge_verify → arbiter → compile_report → catalog → archive).
    So the failure was capacity/pacing at concurrency 4, not doc class.
-3. **Node traffic overall (shuf2):** intake 106 → classify 106 → extract ~88
-   (11 gate-parked at class), judge_verify 40, arbiter 24 (partly re-ingestion
-   inflation across attempts — see caveats), boss_escalation 34, tray 30.
+3. **Node traffic overall (shuf2, docs fired — `node_fires`):** intake 110 →
+   classify 108 → extract 81, judge_verify 23, arbiter 13 (partly re-ingestion
+   inflation across attempts — see caveats), boss_escalation 17 docs (34 agent
+   calls), human_review (tray) 22.
    Eight of fourteen graph nodes call the LLM; a merger doc costs 20+ calls vs
    ~4–5 for correspondence.
 
@@ -43,13 +44,14 @@ not hand-entered.
 - Same 500 docs were reprocessed across three locked attempts without wiping
   `mailroom.db`, so arbiter/boss counts include same-doc re-ingestion conflict
   traffic, not only fresh-mail arbitration.
-- attempt-1 (disk-I/O era) has no archived `dataset.jsonl`; its per-class counts
-  are `n/?` in the viewer — honest gap, not a zero.
+- `even100-shuf-attempt2-killed-by-costcap` has no archived `dataset.jsonl`; its
+  total shows `?` and its class badges show `?` (class isolation is disabled for
+  that run) — honest gap, not a zero.
 
 ## Reproduce
 
 ```
-python reports/dashboard/selftest_floor_digest.py           # 20/20 gate
+python reports/dashboard/selftest_floor_digest.py           # 22/22 gate
 MAILROOM_BASE_DIR=/path/to/sandbox-data python reports/dashboard/build_floor_digest.py
 # open floor.template.html beside floor_digest.js (rebuild emits both)
 ```

@@ -26,12 +26,14 @@ import argparse
 import ast
 import hashlib
 import json
+import math
 import os
 import re
 import statistics
 import sys
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -251,11 +253,19 @@ def read_json(path: Path) -> dict:
 
 
 def _num(value) -> float | None:
-    """Convert numeric values to float, excluding booleans; otherwise return None."""
+    """Convert finite numeric values to float; booleans, NaN, ±Infinity and others give None.
+
+    ``json.loads`` accepts ``NaN``/``Infinity``, and passing them through would crash
+    ``int()`` in the token sum and the p50 rounding.
+    """
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
-        return float(value)
+        try:
+            f = float(value)
+        except OverflowError:  # an int too large for a float
+            return None
+        return f if math.isfinite(f) else None
     return None
 
 
@@ -384,7 +394,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
     def doc_edges(doc: str) -> Counter:
         """Count consecutive allowed transitions for one document, excluding self-loops."""
         seq = visit_seq(per_doc_records.get(doc, []))
-        return Counter(f"{a}>{b}" for a, b in zip(seq, seq[1:]) if a != b and (a, b) in edge_set)
+        return Counter(f"{a}>{b}" for a, b in pairwise(seq) if a != b and (a, b) in edge_set)
 
     edge_fires: Counter = Counter()
     for doc in per_doc_records:
@@ -448,7 +458,9 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
     total = None
     if ds_present:
         cp_total = checkpoint.get("total")
-        total = cp_total if isinstance(cp_total, int) and not isinstance(cp_total, bool) else len(ds_rows)
+        # a non-positive checkpoint total is not a dataset size (seen as 0 beside a full dataset): count rows
+        cp_ok = isinstance(cp_total, int) and not isinstance(cp_total, bool) and cp_total > 0
+        total = cp_total if cp_ok else len(ds_rows)
 
     cursor = checkpoint.get("cursor")
     run = {
@@ -511,7 +523,7 @@ def build_digest(base: Path, graph_path: Path) -> dict:
         runs.append(run)
         classes |= run_classes
     return {
-        "generated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_utc": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "classes": sorted(classes),
         "graph_reference": graph,
         "runs": runs,

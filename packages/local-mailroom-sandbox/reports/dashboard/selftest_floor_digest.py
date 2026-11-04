@@ -24,7 +24,7 @@ TEMPLATE = HERE / "floor.template.html"
 REFERENCE = HERE / "reference_digest_scratch.json"
 
 sys.path.insert(0, str(HERE))
-import build_floor_digest as bfd  # noqa: E402
+import build_floor_digest as bfd
 
 STUB_GRAPH = '''
 from langgraph.graph import StateGraph, START, END
@@ -171,7 +171,7 @@ def run_cli(base: Path, out: Path, graph: Path | None, *extra: str, env_extra: d
         env["FLOOR_DIGEST_GRAPH"] = str(graph)
     env.update(env_extra or {})
     return subprocess.run([sys.executable, str(BUILDER), "--base", str(base), "--out", str(out), *extra],
-                          capture_output=True, text=True, env=env, timeout=120)
+                          capture_output=True, text=True, env=env, timeout=120, check=False)
 
 
 # ── tests ───────────────────────────────────────────────────────────────────────
@@ -263,6 +263,48 @@ def per_class_computed_only_when_dataset_present():
 
 
 @test
+def non_finite_numbers_are_ignored_not_crashing():
+    for bad in (float("nan"), float("inf"), float("-inf"), 10 ** 400):
+        assert bfd._num(bad) is None, bad
+    assert bfd._num(3) == 3.0 and bfd._num(True) is None
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        run = t / "data" / "runtime" / "runs" / "run-nan"
+        # raw lines: json.dumps(float("nan")) writes the bare NaN / Infinity tokens json.loads accepts
+        _jsonl(run / "items.jsonl", [
+            '{"item_id": "n1", "ok": true, "stage": "archived", "prompt_tokens": NaN}',
+            '{"item_id": "n2", "ok": true, "stage": "archived", "completion_tokens": Infinity}',
+        ])
+        _jsonl(run / "nodes.jsonl", [
+            '{"doc": "n1", "node": "intake", "status": "done", "ms": NaN, "prompt_tokens": NaN}',
+            '{"doc": "n1", "node": "classify", "status": "done", "ms": 50, "prompt_tokens": 9}',
+            '{"doc": "n2", "node": "intake", "status": "done", "ms": Infinity, "completion_tokens": -Infinity}',
+        ])
+        r = run_cli(t / "data", t / "out", CTX["graph"])
+        assert r.returncode == 0, r.stderr
+        text = (t / "out" / "floor_digest.json").read_text(encoding="utf-8")
+        assert "NaN" not in text and "Infinity" not in text, "non-finite value leaked into the digest"
+        rr = json.loads(text)["runs"][0]
+        assert rr["tokens"] == {"prompt": 9, "completion": 0}, rr["tokens"]
+        assert rr["node_ms_p50"] == {"classify": 50, "intake": 0}, rr["node_ms_p50"]
+
+
+@test
+def zero_checkpoint_total_falls_back_to_dataset_rows():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        run = t / "data" / "runtime" / "runs" / "run-zero"
+        _jsonl(run / "dataset.jsonl", [{"id": f"z{i}", "expected_doc_class": "letter"} for i in range(3)])
+        _jsonl(run / "items.jsonl", [{"item_id": "z0", "ok": True, "stage": "archived"}])
+        (run / "checkpoint.json").write_text(json.dumps({"state": "running", "cursor": 1, "total": 0}),
+                                             encoding="utf-8")
+        r = run_cli(t / "data", t / "out", CTX["graph"])
+        assert r.returncode == 0, r.stderr
+        rr = json.loads((t / "out" / "floor_digest.json").read_text(encoding="utf-8"))["runs"][0]
+        assert rr["total"] == 3, rr["total"]
+
+
+@test
 def classes_sorted_and_run_labels_from_spec_lock():
     d, a, b = CTX["d"], CTX["runs"]["run-a"], CTX["runs"]["run-b"]
     assert d["classes"] == ["contract", "letter"]
@@ -341,7 +383,7 @@ def unparseable_graph_and_empty_base_fail_loudly():
 def base_dir_resolves_from_env_var():
     with tempfile.TemporaryDirectory() as t:
         env = {**os.environ, "MAILROOM_BASE_DIR": str(CTX["base"]), "FLOOR_DIGEST_GRAPH": str(CTX["graph"])}
-        r = subprocess.run([sys.executable, str(BUILDER), "--out", t], capture_output=True, text=True, env=env, cwd=t)
+        r = subprocess.run([sys.executable, str(BUILDER), "--out", t], capture_output=True, text=True, env=env, cwd=t, check=False)
         assert r.returncode == 0, r.stderr
         assert len(json.loads((Path(t) / "floor_digest.json").read_text(encoding="utf-8"))["runs"]) == 2
 
@@ -381,12 +423,13 @@ def real_runs_cross_consistency_when_present():
         return
     if not bfd.discover_runs(base):
         return
+    # No before/after snapshot here: a live run may be appending to its artifacts while the
+    # builder reads them. The read-only contract is proven on the fixture by
+    # builder_never_writes_into_the_data_base.
     with tempfile.TemporaryDirectory() as t:
-        before = snapshot(base)
         r = run_cli(base, Path(t), None, env_extra={"MAILROOM_BASE_DIR": str(base)})
         assert r.returncode == 0, r.stderr
         d = json.loads((Path(t) / "floor_digest.json").read_text(encoding="utf-8"))
-        assert snapshot(base) == before, "builder modified the real data dir"
     edges = {f"{a}>{b}" for a, b in d["graph_reference"]["edges"]}
     for run in d["runs"]:
         assert sum(o["n"] for o in run["outcomes"].values()) == run["items_attempted"], run["name"]

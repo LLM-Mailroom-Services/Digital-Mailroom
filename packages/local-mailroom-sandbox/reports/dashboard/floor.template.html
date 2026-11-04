@@ -16,6 +16,7 @@ h3{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:9px 0 6px}
 .run small{display:block;color:#4d5c6e;font-size:9px;margin-top:2px}
 .cls{display:flex;justify-content:space-between;padding:5px 8px;border-radius:4px;margin-bottom:3px;font-size:10.5px;cursor:pointer;border:1px solid transparent}
 .cls.sel{background:#0f1d15;border-color:#7fd0a2;color:#d5f2e0}
+.cls.na{cursor:not-allowed;color:#4d5c6e}
 #viewport{position:relative;overflow:hidden;background:radial-gradient(1200px 700px at 45% 45%,#081019,#05070a);cursor:grab}
 #world{position:absolute;left:0;top:0;transform-origin:0 0}
 #edges{position:absolute;left:0;top:0;pointer-events:none}
@@ -97,6 +98,10 @@ function startTargets(){return D.graph_reference.edges.filter(e=>e[0]==="START")
 function endSources(){return D.graph_reference.edges.filter(e=>e[1]==="END").map(e=>e[0])}
 /** Sum counts of nodes feeding END; a document may contribute more than once. */
 function endCount(){return endSources().reduce((t,n)=>t+nodeVal(n),0)}
+/** Escape a digest string for HTML text or a quoted attribute (run names, classes, labels are data). */
+const esc=s=>String(s).replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+/** True when the run has per-class data (dataset.jsonl was present); otherwise class counts are unknown. */
+function hasClasses(r){return !!r.per_class&&Object.keys(r.per_class).length>0}
  function mk(html,c){const d=document.createElement("div");if(c)d.className=c;d.innerHTML=html;world.appendChild(d);return d}
 const NONLLM=["(code)","(tray)","(abort terminal)"];
 function isLLM(id){const a=D.graph_reference.node_agents[id];return !!a&&!NONLLM.includes(a)}
@@ -128,7 +133,7 @@ function render(){
  while(svg.childNodes.length>1)svg.lastChild.remove();
  const r=run(),GR=D.graph_reference;
  // pre-compute edge traffic in current view context
- const ev=GR.edges.map(([a,b])=>({a,b,v:(a==="START"||b==="END")?edgeVal(a==="START"?b:a,b)||0:edgeVal(a,b)}));
+ const ev=GR.edges.map(([a,b])=>({a,b,v:a==="START"?nodeVal(b):b==="END"?nodeVal(a):edgeVal(a,b)}));
  const zeroSet=new Set(ev.filter(e=>e.v===0).map(e=>e.a+">"+e.b));
  // neighbors of selected node over NON-ZERO edges
  const neighbors=new Set();
@@ -153,7 +158,7 @@ function render(){
   }
   else if(CLASS){ ncls += (v>0)? " route":" dim"; }
   else { ncls += (v===0 && id!=="START" && id!=="END")? " dim":""; }   // base mode: a node with zero fires greys too
-  mk(`<span class="tag ${!isllm?(id==="human_review"||id==="failed"?"tray":"code"):""}">${GR.node_agents[id]||id}</span><div class="nm">${id}</div><div class="v ${v===0?"zero":id==="human_review"?"warn":id==="failed"?"bad":""}">${v}</div><div class="s">p50 ${((r.node_ms_p50[id]||0)/1000)}s</div>`, ncls)
+  mk(`<span class="tag ${!isllm?(id==="human_review"||id==="failed"?"tray":"code"):""}">${esc(GR.node_agents[id]||id)}</span><div class="nm">${esc(id)}</div><div class="v ${v===0?"zero":id==="human_review"?"warn":id==="failed"?"bad":""}">${v}</div><div class="s">p50 ${((r.node_ms_p50[id]||0)/1000).toFixed(1)}s</div>`, ncls)
    .style.cssText=`left:${xy[0]}px;top:${xy[1]}px`;world.lastChild.dataset.k=id;
  }
  function anc(a,b){const ac={x:a[0]+NB.w/2,y:a[1]+NB.h/2},bc={x:b[0]+NB.w/2,y:b[1]+NB.h/2};const dx=bc.x-ac.x,dy=bc.y-ac.y;
@@ -203,12 +208,13 @@ function render(){
 }
 /** Rebuild run and class menus and their selection handlers. */
 function menus(){
- document.getElementById("runs").innerHTML=D.runs.map((r,i)=>`<div class="run${i===runIdx?" sel":""}" data-i="${i}">${r.name}<small>${r.state} · ${r.items_attempted}/${r.total==null?"?":r.total} · ok ${r.items_ok}</small></div>`).join("");
+ document.getElementById("runs").innerHTML=D.runs.map((r,i)=>`<div class="run${i===runIdx?" sel":""}" data-i="${i}">${esc(r.name)}<small>${esc(r.state)} · ${r.items_attempted}/${r.total==null?"?":r.total} · ok ${r.items_ok}</small></div>`).join("");
  document.querySelectorAll(".run").forEach(el=>el.onclick=()=>{runIdx=+el.dataset.i;CLASS=null;selNode=null;menus();render()});
- const agg={};for(const c of D.classes)agg[c]=0;
- {const rr=run();for(const c of D.classes){const o=(rr.per_class[c]||{}).outcomes||{};agg[c]=o.n||0}}
- document.getElementById("cl").innerHTML=D.classes.map(c=>`<div class="cls${CLASS===c?" sel":""}" data-c="${c}">${c}<b>${agg[c]}</b></div>`).join("");
- document.querySelectorAll(".cls").forEach(el=>el.onclick=()=>{CLASS=CLASS===el.dataset.c?null:el.dataset.c;
+ // no dataset.jsonl -> per_class is {}: show "?" (unknown), never a fake 0, and disable isolation
+ const rr=run(),known=hasClasses(rr),agg={};
+ for(const c of D.classes){const o=(rr.per_class[c]||{}).outcomes||{};agg[c]=known?(o.n||0):"?"}
+ document.getElementById("cl").innerHTML=D.classes.map(c=>`<div class="cls${CLASS===c?" sel":""}${known?"":" na"}" data-c="${esc(c)}"${known?"":' title="no dataset.jsonl for this run: per-class counts unknown"'}>${esc(c)}<b>${agg[c]}</b></div>`).join("");
+ document.querySelectorAll(".cls").forEach(el=>el.onclick=()=>{if(!known)return;CLASS=CLASS===el.dataset.c?null:el.dataset.c;
   document.getElementById("mode").textContent=CLASS?"ISOLATED — counts & chips re-computed":"ALL CLASSES (run totals)";
   const bt=document.getElementById("bigTitle");bt.textContent=CLASS?CLASS.toUpperCase():"";bt.classList.toggle("on",!!CLASS);
   menus();render()});

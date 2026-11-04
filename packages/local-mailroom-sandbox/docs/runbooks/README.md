@@ -10,6 +10,7 @@
 
 ```bash
 sandbox runbook list
+sandbox runbook show serve                 # DEFAULT: Modal vLLM deploy → point → verify → teardown
 sandbox runbook show l4-qwen3-8b          # singular 1×L4 / 1-container Qwen3-8B
 sandbox runbook show l4-qwen3-8b-track-a  # Operator A
 sandbox runbook show improved-awq-c8      # improved config
@@ -21,6 +22,10 @@ sandbox runbook write                     # regenerate this directory
 ```
 
 Source of truth: [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml).
+
+## Modal + vLLM serving (default path)
+
+- [`modal-vllm-serving`](serving/modal-vllm.md) — Modal vLLM — deploy, point, verify, teardown (default path)
 
 ## Singular L4 / 1-container Qwen3-8B
 

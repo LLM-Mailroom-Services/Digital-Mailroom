@@ -1,0 +1,7 @@
+# Warning-level gate. The disables below are deliberate, not oversights:
+# the sand032/sand42 scripts drive spend-gated Modal campaigns, so these
+# style findings are left unfixed rather than editing live operator tooling.
+#   SC2034 unused vars (LOG/REPO/i are read by sourced or generated shells)
+#   SC2155 declare-and-assign (exit status of the substitution is not used)
+#   SC2206 intentional word-splitting when building argument arrays
+disable=SC2034,SC2155,SC2206

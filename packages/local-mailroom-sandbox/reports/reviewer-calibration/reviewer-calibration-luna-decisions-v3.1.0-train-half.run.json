@@ -1,0 +1,31 @@
+{
+  "answered": 1491,
+  "cost_usd_from_usage": 1.0648,
+  "cutoffs_own_crossfit": {
+    "contract": 0.53,
+    "corporate_record": 0.5,
+    "correspondence": 0.48,
+    "insurance_claim": 0.64,
+    "merger_agreement": 0.94
+  },
+  "cutoffs_v2": {
+    "contract": 0.78,
+    "corporate_record": 0.96,
+    "correspondence": 0.64,
+    "insurance_claim": 0.7,
+    "merger_agreement": 0.99
+  },
+  "dataset": "Lucius-Morningstar/mailroom-dataset ground_truth train, revision ed7576b676343e0b402ec5412cded301e629bdee, 1,491 of 2,979 drawn per class in proportion, seed 42",
+  "date": "2026-11-02",
+  "documents": 1491,
+  "failures": 0,
+  "input_tokens": 10648056,
+  "model": "openai/gpt-6-luna-decisions",
+  "note": "Per-document file has no document text. parked_at_*_cutoffs uses mailroom_sandbox.eval.human_review.reviewer_routes_to_human. prior_reviewer_evidence marks documents whose verified target already used a Decisions answer or that were in the question-set-v2 tuning draw.",
+  "question_set": "reviewer_decisions_v3.1.0",
+  "run_id": "reviewer-calibration-luna-decisions-v3.1.0-train-half",
+  "served_model": "openai/gpt-6-luna-decisions-20261006",
+  "signed": "JB",
+  "sorter_handoff": "data/handoff/sorter-qwen3.7-flash/train.jsonl (qwen/qwen3.7-flash saved pass), present in all 1,491 requests",
+  "spec_hash": "e8c4238bca961a22b6f8a5de6f35ecf5c8b6b7926e3ac6288d53255eeb24a6f2"
+}

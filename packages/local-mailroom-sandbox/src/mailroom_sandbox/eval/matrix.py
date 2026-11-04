@@ -5,7 +5,13 @@ from __future__ import annotations
 from typing import Any
 
 from mailroom_sandbox.eval import experiment_log, runners
-from mailroom_sandbox.overlay import load_profile, map_model, serving_family
+from mailroom_sandbox.overlay import load_model_map, load_profile, map_model, serving_family
+
+
+def matrix_tasks() -> tuple[str, ...]:
+    from mailroom_sandbox.eval.agents import SPECS
+
+    return tuple(dict.fromkeys((*SPECS, "extract", "chained", "pipeline", "local_vs_api")))
 
 
 def cell_name(task: str, provider: str, model: str, prompt: str) -> str:
@@ -25,6 +31,12 @@ def plan_matrix(
 ) -> list[dict[str, Any]]:
     from mailroom_sandbox.overlay import list_profiles
 
+    if task not in matrix_tasks():
+        raise ValueError(f"unknown matrix task {task!r}; have {matrix_tasks()}")
+    if not providers or not models or not prompts or any(not str(x).strip() for x in [*providers, *models, *prompts]):
+        raise ValueError("matrix providers, models and prompts must each contain a nonempty value")
+    if sample <= 0:
+        raise ValueError("matrix sample must be positive")
     # --providers takes PROFILE names, not serving families (DMR-048 G34):
     # 'vllm' is a family, 'vllm-local'/'modal-vllm' are profiles. A silent
     # family name used to plan cells that crashed at activate().
@@ -35,12 +47,16 @@ def plan_matrix(
             f"unknown provider profile(s) {unknown}; have {sorted(known)} — "
             "--providers takes profile names (e.g. vllm-local, modal-vllm), not families"
         )
+    mapped_ids = load_model_map().get("map") or {}
     cells = []
     for provider in providers:
         profile = load_profile(provider)
         family = serving_family(profile)
         for model in models:
-            mapped = map_model(model, family) if "/" in model else model
+            # Only a models.yaml champion row is translated per family. Any other
+            # id is the model the operator asked for, so it is never swapped for
+            # the family default (Qwen/Qwen3.5-9B used to plan as Qwen3-8B).
+            mapped = map_model(model, family) if model in mapped_ids else model
             for prompt in prompts:
                 cells.append(
                     {
@@ -67,6 +83,7 @@ def run_matrix(
     mock: bool = True,
     dry_run: bool = False,
     console: Any = None,
+    agent_models: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     cells = plan_matrix(
         task=task,
@@ -84,7 +101,6 @@ def run_matrix(
         "extract": runners.run_extract_eval,
         "chained": runners.run_chained_eval,
         "pipeline": runners.run_pipeline_eval,
-        "legalbench": runners.run_legalbench_eval,
         "local_vs_api": runners.run_local_vs_api_eval,
     }.get(task)
     if runner is None:
@@ -107,9 +123,11 @@ def run_matrix(
             "experiment_name": cell["experiment_name"],
             "profile": cell["provider"],
             "model": cell["model"],
+            "agent_models": agent_models,
         }
-        if task != "legalbench":
-            kwargs["prompt_version"] = cell["prompt"]
+        kwargs["prompt_version"] = cell["prompt"]
+        if task != "local_vs_api":
+            kwargs["sample_seed"] = seed
         results.append(runner(**kwargs))
         if console is not None and not dry_run:
             rec = results[-1].get("record") if isinstance(results[-1], dict) else None

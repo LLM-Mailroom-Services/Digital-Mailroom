@@ -1,0 +1,4 @@
+pipeline,tiered total (x),tiered saving vs Qwen reviewer (%),flat total (x),flat saving vs Qwen reviewer (%)
+Agent + Qwen reviewer (measured),1.84,base,1.74,base
+Agent + Decisions v3.0.0,1.76,+4.2,2.47,-41.6
+Agent + Decisions v2,1.95,-6.5,2.85,-63.5

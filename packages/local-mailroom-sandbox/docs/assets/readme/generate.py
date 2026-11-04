@@ -6,9 +6,10 @@
 
 `_art.py` is the shared kit (identical in every constellation repo); this file
 owns only this repository's labels, scene and facts. Facts come from the README,
-`config/profiles/` (seven provider profiles; Ollama `qwen3:8b` default with a
-`qwen3:7b` fallback), `vendor/` (two tracked snapshots: llm-mailroom and
-llm-dojo-scoring) and the `sandbox` CLI in `src/mailroom_sandbox/cli.py`.
+`config/profiles/` (seven provider profiles; Modal vLLM `modal-vllm` is the
+default with Ollama `qwen3:8b` as the offline fallback), `vendor/` (two tracked
+snapshots: llm-mailroom and llm-dojo-scoring) and the `sandbox` CLI in
+`src/mailroom_sandbox/cli.py`.
 Standard library only, deterministic output.
 """
 from __future__ import annotations
@@ -25,14 +26,14 @@ HERO = {
     'kicker': 'THE MAILROOM CONSTELLATION · THE SANDBOX',
     'tagline': 'Run the whole mailroom on your own machine — or on a rented GPU — and score every run.',
     'eyebrow': 'SEVEN PROVIDER PROFILES · VENDORED PIPELINE + DOJO · MOCK FIRST · LIVE OR LOUD',
-    'caption': 'Ollama qwen3:8b by default · vLLM, Modal, llama.cpp, LM Studio or OpenRouter by profile · Langfuse traces',
+    'caption': 'Modal vLLM is the default · Ollama qwen3:8b offline · vLLM, llama.cpp, LM Studio or OpenRouter by profile · Langfuse traces',
     'alt': 'Animated banner: seven provider profiles (Ollama, vLLM local, vLLM remote, Modal vLLM, llama.cpp, '
            'LM Studio, OpenRouter) feed the vendored 13-node llm-mailroom graph, whose runs are scored by the '
            'vendored llm-dojo-scoring and traced to Langfuse.',
     'tagline_lines': ['Run the whole mailroom on your', 'own machine, and score every run.'],
     'mobile_cards': [('Serve', 'seven provider profiles'), ('Run', 'vendored 13-node graph'),
                      ('Score', 'vendored llm-dojo-scoring'), ('Trace', 'Langfuse · The-Mailroom')],
-    'mobile_note': 'Ollama qwen3:8b default · mock first, then local',
+    'mobile_note': 'Modal vLLM default · mock first, then live',
     'mobile_title_size': 38,
 }
 PROFILES = [('ollama', art.GREEN), ('vllm-local', art.SKY), ('vllm-remote', art.SKY), ('modal-vllm', art.VIOLET),
@@ -40,9 +41,9 @@ PROFILES = [('ollama', art.GREEN), ('vllm-local', art.SKY), ('vllm-remote', art.
 STATS = [('7', 'provider profiles', art.SKY), ('2', 'vendored snapshots', art.VIOLET), ('13', 'graph nodes', art.LIME),
          ('5', 'document classes', art.YELLOW), ('3,302', 'rows · pinned pull', art.PINK),
          ('--mock', 'no LLM needed', art.GREEN)]
-STAGES = [('Install', 'pip install -e', '".[dev]"'), ('Up', 'sandbox up', 'Langfuse + Ollama'),
-          ('Models', 'pull-models', 'qwen3:8b'), ('Health', 'sandbox health', 'provider + sinks'),
-          ('Mock', 'pilot --mock', 'machinery only'), ('Local', 'pilot --local', 'real local model'),
+STAGES = [('Install', 'pip install -e', '".[dev]"'), ('Up', 'sandbox up', 'Langfuse'),
+          ('Deploy', 'runbook show serve', 'Modal vLLM L4'), ('Health', 'sandbox health', 'provider + sinks'),
+          ('Mock', 'pilot --mock', 'machinery only'), ('Live', 'pilot --local', 'deployed endpoint'),
           ('Score', 'sandbox eval', 'vendored dojo')]
 SIDE = [('Matrix', 'sandbox matrix', 'providers × models'), ('Runs', 'sandbox run start', 'config/runs/*.yaml'),
         ('Modal', '--job-mode modal', 'GPU worker'), ('Compare', 'metrics compare', 'local · modal · api'),
@@ -50,23 +51,24 @@ SIDE = [('Matrix', 'sandbox matrix', 'providers × models'), ('Runs', 'sandbox r
 TERMINAL = [('cmd', 'pip install -e ".[dev]"'),
             ('cmd', 'cp config/.env.example .env'),
             ('cmd', 'sandbox up'),
-            ('note', '# compose profiles: langfuse + ollama'),
-            ('cmd', 'sandbox pull-models'),
-            ('note', '# ollama pull qwen3:8b'),
+            ('note', '# langfuse only; the GPU endpoint is external'),
+            ('cmd', 'sandbox runbook show serve'),
+            ('note', '# deploy → point → verify → teardown'),
             ('cmd', 'sandbox health'),
             ('cmd', 'sandbox pilot --mock'),
             ('note', '# machinery only, no LLM'),
             ('cmd', 'sandbox pilot --local'),
-            ('note', '# the same pipeline on your local model')]
-TUI_GAUGES = [('ollama', 'qwen3:8b', 1.0, art.GREEN), ('vllm-local', 'local GPU', 0.8, art.SKY),
-              ('vllm-remote', 'tunnel', 0.8, art.SKY), ('modal-vllm', 'Modal', 0.8, art.VIOLET),
+            ('note', '# the same pipeline on the deployed endpoint')]
+TUI_GAUGES = [('modal-vllm', 'Qwen3-8B · L4', 1.0, art.VIOLET), ('ollama', 'qwen3:8b offline', 0.8, art.GREEN),
+              ('vllm-local', 'local GPU', 0.8, art.SKY),
+              ('vllm-remote', 'tunnel', 0.8, art.SKY),
               ('llamacpp', 'port 8080', 0.6, art.YELLOW), ('lmstudio', 'desktop', 0.6, art.ORANGE),
               ('openrouter', 'API', 0.5, art.PINK)]
 TUI_LOG = [('ok', 'vendor/llm-mailroom snapshot loaded'), ('ok', 'vendor/llm-dojo-scoring snapshot loaded'),
-           ('info', 'profile ollama · qwen3:8b'), ('ok', 'pilot --mock: machinery green'),
+           ('info', 'profile modal-vllm · Qwen/Qwen3-8B'), ('ok', 'modal deploy: endpoint exported'),
            ('info', 'traces → Langfuse document-pipeline'),
-           ('warn', 'vllm-local without --local: warns, no mock')]
-TUI_STATUS = 'sandbox profiles · seven profiles · bar length is illustrative, not a benchmark'
+           ('warn', 'no VLLM_BASE_URL: health prints the deploy hint')]
+TUI_STATUS = 'sandbox profiles · seven profiles · modal-vllm is the default · bars illustrative, not a benchmark'
 
 
 def scene() -> str:
@@ -100,9 +102,10 @@ def scene() -> str:
 
 def build() -> dict[str, str]:
     """Return every generated asset keyed by file name."""
-    flow_desc = ('The local path from install to a scored run: install, bring up Langfuse and Ollama, pull the model, '
-                 'probe the provider and trace sinks, run the pilot with the mock and then a local model, and score with the vendored dojo; '
-                 'matrix, run specs, Modal workers, comparisons and the watch TUI branch off it.')
+    flow_desc = ('The default path from install to a scored run: install, bring up Langfuse, deploy the Modal vLLM '
+                 'endpoint with the serve runbook, probe the provider and trace sinks, run the pilot with the mock and '
+                 'then against the deployed endpoint, and score with the vendored dojo; matrix, run specs, Modal workers, '
+                 'comparisons and the watch TUI branch off it.')
     return {
         'hero.svg': art.hero(HERO, scene),
         'hero-mobile.svg': art.hero(HERO, mobile=True),
@@ -116,10 +119,11 @@ def build() -> dict[str, str]:
         'constellation-mobile.svg': art.constellation('local-mailroom-sandbox', mobile=True),
         'tui.svg': art.tui('~/local-mailroom-sandbox — sandbox profiles', TUI_GAUGES, TUI_LOG, TUI_STATUS,
                            'Dashboard: the seven provider profiles with what each targets, and a log of a mock '
-                           'pilot run on the default Ollama profile.', left='PROVIDER PROFILES', right='RUN LOG'),
+                           'pilot run on the default Modal vLLM profile.', left='PROVIDER PROFILES', right='RUN LOG'),
         'terminal.svg': art.terminal('~/local-mailroom-sandbox — zsh', TERMINAL,
-                                     'Animated terminal: install, copy the env file, bring up Langfuse and Ollama, '
-                                     'pull the model, check health, then run the pilot with the mock and with a local model.'),
+                                     'Animated terminal: install, copy the env file, bring up Langfuse, deploy the '
+                                     'Modal vLLM endpoint with the serve runbook, check health, then run the pilot with '
+                                     'the mock and against the deployed endpoint.'),
     }
 
 

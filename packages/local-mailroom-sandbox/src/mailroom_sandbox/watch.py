@@ -22,9 +22,9 @@ import threading
 import time
 from collections import deque
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping
+from typing import Any, Callable, Mapping
 
-from mailroom_sandbox.job.checkpoint import RunStore
+from mailroom_sandbox.job.checkpoint import NodeLogCursor, RunStore
 from mailroom_sandbox.tui import pretty_log as pl
 
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]")
@@ -85,6 +85,8 @@ _LIFECYCLE_ROLE = {
 
 # phases with a pulsing lifecycle animation (terminal blink + browser pulse)
 ANIMATED_PHASES = ("DEPLOYING", "COLD BOOT", "PREFLIGHT", "REMOTE", "SORTING")
+TIMELINE_MAX = 400
+PIPELINE_DOCS = 3  # recent documents carried in the frame's node view
 
 
 # log class -> mailroom-ml palette role
@@ -118,7 +120,7 @@ def run_snapshot(store: RunStore) -> dict[str, Any]:
         "ok": len(ok),
         "errors": len(errs),
         "replicas": max(1, int(modal.get("max_containers") or 1)),
-        "gpu": str(modal.get("gpu") or "L4"),
+        "gpu": str(modal.get("gpu") or "—"),
         "p50_s": round(statistics.median(lat), 3) if lat else None,
         "p95_s": round(p95, 3) if p95 is not None else None,
         "mean_score": round(statistics.mean(scores), 4) if scores else None,
@@ -250,6 +252,7 @@ class LogBuffer:
         self._lock = threading.Lock()
         self._path = path
         self._writer = False
+        self._lockfh = None
         if path is not None:
             # One writer per log file: the first TUI instance takes an exclusive
             # lock; later instances display the stream but never append.
@@ -264,6 +267,28 @@ class LogBuffer:
                 self._writer = False
         if path is not None and path.is_file():
             for line in path.read_text(encoding="utf-8", errors="ignore").splitlines()[-maxlen:]:
+                self._lines.append(line)
+                self._count += 1
+
+    @property
+    def path(self) -> Path | None:
+        return self._path
+
+    def close(self) -> None:
+        """Release the writer lock so a replacement buffer on the same file can write.
+
+        A stream thread still holding this buffer keeps appending in memory only.
+        """
+        with self._lock:
+            self._writer = False
+            if self._lockfh is not None:
+                self._lockfh.close()  # closing the descriptor drops its flock
+                self._lockfh = None
+
+    def adopt(self, lines: list[str]) -> None:
+        """Carry in-memory lines over from a replaced buffer without writing them."""
+        with self._lock:
+            for line in lines:
                 self._lines.append(line)
                 self._count += 1
 
@@ -423,6 +448,7 @@ def render_frame(
     layout: dict[str, Any] | None = None,
     watchdog: Mapping[str, Any] | None = None,
     log_rows: int = 14,
+    pipeline: Mapping[str, Any] | None = None,
 ) -> str:
     width = max(60, min(int(width), pl.MAX_W))
     p = pl.palette(on)
@@ -469,6 +495,10 @@ def render_frame(
     elif job_route:
         out.append(pl._box("JOB · run manifest", job_route, width=width, on=on))
 
+    if pipeline:
+        out.append(pl._box("PIPELINE FLOOR",
+                           pipeline_lines(pipeline, width=width - 4, on=on), width=width, on=on))
+
     wide = width >= 100
     box_w = (width - 2) // 2 if wide else width
     mw = box_w - 4
@@ -476,7 +506,7 @@ def render_frame(
     tray = [
         pl._metric("run", s["run_id"], total_w=mw, on=on),
         pl._metric("specialist", s["task"], total_w=mw, on=on),
-        pl._metric("fleet", f"×{s['replicas']} {s['gpu']} · {s['state']}", total_w=mw, on=on),
+        pl._metric("capacity", f"×{s['replicas']} {s['gpu']} · {s['state']}", total_w=mw, on=on),
         (p["cyan"](bar) if on else bar) + f"  {s['done']}/{s['total']}",
         pl._metric("sorted", f"delivered {s['ok']} · returned {s['errors']}", total_w=mw, on=on),
         pl._metric("postmark", f"p50 {_fmt(s['p50_s'], 's')} · p95 {_fmt(s['p95_s'], 's')}", total_w=mw, on=on),
@@ -491,6 +521,7 @@ def render_frame(
     spent = float(spend.get("spent_usd") or 0.0)
     live = float(spend.get("live_usd") or 0.0)
     cap = float(spend.get("cap_usd") or 5.0)
+    gate = float(spend.get("gate_usd") or GATE_USD)
     # compose_watch_state binds ledger and live to the same run when there is no ledger; its
     # total_usd is authoritative (spent + live would count the open run twice).
     total = float(spend["total_usd"]) if spend.get("total_usd") is not None else spent + live
@@ -508,10 +539,10 @@ def render_frame(
         pl._metric("live run", f"${live:.4f}", total_w=mw, on=on),
         pl._metric("total", f"${total:.4f} / ${cap:.2f}", total_w=mw, on=on),
         (p["gold"](pbar) if on else pbar) + f"  {100 * total / cap:.0f}%",
-        pl._metric("gate", f"${GATE_USD:.2f} projected-total stop", total_w=mw, on=on),
+        pl._metric("gate", f"${gate:.2f} configured estimate gate", total_w=mw, on=on),
     ]
-    if total > GATE_USD:
-        warn = f"⚠ OVER ${GATE_USD:.2f} GATE — stop and reconcile"
+    if total > gate:
+        warn = f"⚠ OVER ${gate:.2f} GATE — stop and reconcile"
         postage.append(p["warn"](warn) if on else warn)
     postage_title = panels.get("postage") or "POSTAGE ($)"
     postage_box = pl._box(postage_title, postage, width=box_w, on=on)
@@ -536,6 +567,46 @@ def render_frame(
     dispatch_title = panels.get("dispatch") or f"DISPATCH LOG · modal app logs {app}"
     out.append(pl._box(dispatch_title, log, width=width, on=on))
     return "\n".join(out)
+
+
+_HOP_ROLE = {"done": "teal", "error": "warn", "running": "gold", "paused": "cyan"}
+
+
+def _node_total(t: Mapping[str, Any]) -> str:
+    text = f"{t['node']} {t['visits']}×"
+    if t.get("errors"):
+        text += f" {t['errors']}✗"
+    if t.get("mean_ms") is not None:
+        text += f" {t['mean_ms']:.0f}ms"
+    return text
+
+
+def pipeline_lines(pipeline: Mapping[str, Any], *, width: int = 96, on: bool = False) -> list[str]:
+    """The current document's node route, its decisions, and per-node totals."""
+    from mailroom_sandbox.job import node_trace
+
+    p = pl.palette(on)
+    lines: list[str] = []
+    # Newest document first; the one before it shows its whole route and decisions.
+    recent = pipeline.get("recent") or ([pipeline["current"]] if pipeline.get("current") else [])
+    for label, doc in zip(("now", "previous"), reversed(recent[-2:])):
+        route = doc["route"]
+        lines.append(f"{label} · {doc['doc']}: {node_trace.route_text(route)}"[:width])
+        for hop in route:
+            who = " · ".join(str(b) for b in (hop.get("agent"), hop.get("model")) if b)
+            for d in hop.get("decisions") or []:
+                text = f"  {hop['node']}: {node_trace.decision_text(d)}" + (f"  ({who})" if who else "")
+                lines.append(text[:width])
+            if hop.get("status") in ("running", "error"):
+                role = _HOP_ROLE[hop["status"]]
+                text = f"  {hop['node']}: {'in flight' if hop['status'] == 'running' else hop.get('error') or 'failed'}"
+                text += f"  ({who})" if who else ""
+                lines.append(p[role](text[:width]) if on else text[:width])
+    totals = " · ".join(_node_total(t) for t in pipeline.get("nodes") or [])
+    if totals:
+        lines.append((p["dim"](f"{pipeline['docs_seen']} docs · {totals}"[:width]) if on
+                      else f"{pipeline['docs_seen']} docs · {totals}"[:width]))
+    return lines
 
 
 RECONNECT_NOTE = "… waiting for app (stopped between runs or booting) — will attach when it is live"
@@ -567,13 +638,25 @@ def _stream_logs(app: str, sink: Any, stop: threading.Event, *, prefix: str = ""
             sink.append("ERROR modal CLI not found on PATH — logs unavailable")
             return
         assert proc.stdout is not None
+        # A quiet stream blocks the read below, so `stop` must also be able to end the child.
+        stream_over = threading.Event()
+
+        def _end_child_on_stop(proc=proc, stream_over=stream_over) -> None:
+            while not stream_over.is_set():
+                if stop.wait(0.2):
+                    proc.terminate()
+                    return
+
+        threading.Thread(target=_end_child_on_stop, daemon=True).start()
         for raw in proc.stdout:
             if stop.is_set():
                 break
             line = raw.rstrip()
             if line:
                 sink.append(f"{prefix}{line}" if prefix else line)
+        stream_over.set()
         proc.terminate()
+        proc.wait()
         if not stop.is_set():
             note_reconnect(sink)
             stop.wait(10)
@@ -585,17 +668,19 @@ def start_log_streams(store: RunStore, app: str, sink: Any, stop: threading.Even
 
     src = tc.dispatch_source(store, cli_app=app)
     threads: list[threading.Thread] = []
-    serve = src["serve_app"]
-    t = threading.Thread(target=_stream_logs, args=(serve, sink, stop), daemon=True)
-    t.start()
-    threads.append(t)
+    lock = (store.read_lock() if store.lock_path.is_file() else None) or {}
+    if (lock.get("job") or {}).get("mock"):
+        # A mock run deploys nothing, so there is no Modal app to stream.
+        sink.append("mock run · no Modal app to stream")
+        return threads
     worker = src.get("worker_app")
-    if worker and worker != serve:
-        tw = threading.Thread(
-            target=_stream_logs, args=(worker, sink, stop), kwargs={"prefix": "[worker] "}, daemon=True
+    for app_name in src["streams"]:
+        thread = threading.Thread(
+            target=_stream_logs, args=(app_name, sink, stop),
+            kwargs={"prefix": "[worker] "} if app_name == worker else {}, daemon=True
         )
-        tw.start()
-        threads.append(tw)
+        thread.start()
+        threads.append(thread)
     return threads
 
 
@@ -615,6 +700,9 @@ def _live_run_usd(store: RunStore, snap: Mapping[str, Any], started: float) -> f
     """GPU $ for the open job. Running cells extend first-item ts → now so $ ticks."""
     from mailroom_sandbox.job.metrics import _parse_item_ts, estimate_gpu_cost_usd
 
+    lock = store.read_lock() or {}
+    if not (lock.get("engine") or {}).get("modal") or (lock.get("job") or {}).get("mock"):
+        return 0.0  # No evidence of a billed GPU; API spend must not be invented from L4 time.
     now = time.time()
     watch_wall = max(0.0, now - started)
     stamps: list[float] = []
@@ -639,6 +727,35 @@ def _live_run_usd(store: RunStore, snap: Mapping[str, Any], started: float) -> f
     )
 
 
+class PipelineTotals:
+    """One watcher's run-wide node totals, fed only the lines appended since its last frame.
+
+    A full re-read of ``nodes.jsonl`` costs time linear in the run (about 26
+    records a document); this keeps the totals and a byte offset instead. The
+    frame it returns equals ``node_trace.summarize`` over the whole file.
+    """
+
+    def __init__(self) -> None:
+        from mailroom_sandbox.job import node_trace
+
+        self._lock = threading.Lock()
+        self._cursor: NodeLogCursor | None = None
+        self._totals = node_trace.NodeTotals()
+
+    def summarize(self, store: RunStore, *, docs: int) -> dict[str, Any] | None:
+        from mailroom_sandbox.job import node_trace
+
+        with self._lock:
+            if self._cursor is None or self._cursor.path != store.nodes_path:
+                self._cursor = NodeLogCursor(store.nodes_path)
+                self._totals = node_trace.NodeTotals()
+            reset, rows = self._cursor.read_new()
+            if reset:
+                self._totals = node_trace.NodeTotals()
+            self._totals.update(rows)
+            return node_trace.summarize_totals(self._totals, docs=docs, recent_records=store.nodes())
+
+
 def compose_watch_state(
     *,
     store: RunStore,
@@ -653,15 +770,24 @@ def compose_watch_state(
     width: int = 100,
     blink: bool = False,
     log_rows: int = 14,
+    campaign_path: Path | None = None,
+    pipeline_totals: PipelineTotals | None = None,
 ) -> dict[str, Any]:
-    """JSON-serializable Tray TUI snapshot (terminal + browser)."""
+    """JSON-serializable Tray TUI snapshot (terminal + browser).
+
+    Pass the watcher's ``pipeline_totals`` so each refresh reads only new node
+    records; without it the run-wide totals are recomputed from the whole file.
+    """
+    from mailroom_sandbox.job import node_trace
     from mailroom_sandbox.tui import tray_context as tc
 
     snap = run_snapshot(store)
+    campaign = tc.campaign_context(campaign_path, store.run_id) if campaign_path else None
     layout = tc.build_tray_layout(
-        store, app=app, times_dir=times_dir, cap_usd=cap_usd, gate_usd=GATE_USD, width=width
+        store, app=app, times_dir=times_dir, cap_usd=cap_usd, gate_usd=GATE_USD, width=width, campaign=campaign
     )
     cap_usd = float(layout.get("cap_usd") or cap_usd)
+    gate_usd = float(layout.get("gate_usd") or GATE_USD)
     times_file = tc.resolve_times_file(store, times_dir)
     times = read_times(times_file) if times_file else {}
     key = f"{snap['run_id']}@{times.get('deploy_done', times.get('ready', 0))}"
@@ -697,10 +823,14 @@ def compose_watch_state(
         live = run_usd
         total = spent + live
     spend = {
+        "basis": "published ledger" if ledger and ledger.is_file() else (
+            "MOCK · no inference" if ((store.read_lock() or {}).get("job") or {}).get("mock") else (
+                "GPU capacity estimate · not invoice" if ((store.read_lock() or {}).get("engine") or {}).get("modal")
+                else "cost not measured · no GPU estimate")),
         "spent_usd": spent,
         "live_usd": live,
         "cap_usd": cap_usd,
-        "gate_usd": GATE_USD,
+        "gate_usd": gate_usd,
         "ok": snap["ok"],
         "errors": snap["errors"],
         "done": snap["done"],
@@ -711,7 +841,7 @@ def compose_watch_state(
     }
     spend["total_usd"] = total
     spend["pct_of_cap"] = round(100 * total / cap_usd, 1) if cap_usd else 0.0
-    spend["over_gate"] = total > GATE_USD
+    spend["over_gate"] = total > gate_usd
     spend["bar"] = progress_bar(int(total * 100), int(cap_usd * 100), width=30)
     from mailroom_sandbox.tui import watchdog as wd
 
@@ -765,6 +895,7 @@ def compose_watch_state(
         "route": route,
         "job_route": job_route,
         "layout": layout,
+        "campaign": campaign,
         "logs": logs,
         "subtitle": layout.get("subtitle") or SUBTITLE_PATH,
         "route_label": layout.get("route_label") or ROUTE,
@@ -781,6 +912,13 @@ def compose_watch_state(
         "animate_lifecycle": phase in ANIMATED_PHASES,
         "lifecycle_role": _LIFECYCLE_ROLE.get(phase, "gold"),
         "watchdog": dog,
+        # Per-document outcome in store order (True delivered, False returned) for
+        # the browser's document timeline; capped so a 1000-doc run stays a small frame.
+        "timeline": [item.get("ok", True) is not False for item in items][-TIMELINE_MAX:],
+        # SAND-076: live graph-node route of the newest pipeline documents.
+        "pipeline": (pipeline_totals.summarize(store, docs=PIPELINE_DOCS) if pipeline_totals is not None
+                     else node_trace.summarize(store.iter_nodes(), docs=PIPELINE_DOCS,
+                                               recent_records=store.nodes())),
     }
 
 
@@ -826,7 +964,7 @@ def log_rows_for(rows: int) -> int:
 
 def _store_sig(store: RunStore) -> tuple:
     sig = []
-    for path in (store.checkpoint_path, store.dir / "items.jsonl", store.dir / "events.jsonl"):
+    for path in (store.checkpoint_path, store.dir / "items.jsonl", store.dir / "events.jsonl", store.nodes_path):
         try:
             st = path.stat()
             sig.append((st.st_mtime_ns, st.st_size))
@@ -856,6 +994,7 @@ def watch(
     log_path: Path | None = None,
     serving_dir: Path | None = None,
     bell: bool = True,
+    campaign_path: Path | None = None,
 ) -> int:
     """Live Tray TUI. Redraws when a log line lands or the run store changes, and at
     least every ``interval`` seconds (clocks, spend), painting in place without clearing."""
@@ -868,13 +1007,16 @@ def watch(
     )
     sink = LogBuffer(resolved_log)
     stop = threading.Event()
+    log_stop = threading.Event()
     store, app = resolve()
     if not once:
         sys.stdout.write(pl.ALT_ENTER + pl.HIDE_CURSOR + pl.CLEAR_SCREEN)
     if logs and not once:
-        start_log_streams(store, app, sink, stop)
+        start_log_streams(store, app, sink, log_stop)
+    log_identity = (store.dir, app)
     started = time.time()
     boot_mark: dict[str, int] = {}
+    pipeline_totals = PipelineTotals()
     announced: set[str] = set()
     last_frame = ""
     last_sig: tuple | None = None
@@ -884,6 +1026,19 @@ def watch(
     try:
         while True:
             store, app = resolve()  # --follow: the current run can change between frames
+            if (store.dir, app) != log_identity:
+                log_stop.set()
+                log_stop = threading.Event()
+                _, resolved_log = _watch_paths(store, times_dir=times_dir,
+                    sand032_root=sand032_root, log_path=log_path)
+                sink.close()  # hand the log file's writer lock to the new buffer
+                sink = LogBuffer(resolved_log)
+                started = time.time()
+                boot_mark.clear()
+                announced.clear()
+                if logs and not once:
+                    start_log_streams(store, app, sink, log_stop)
+                log_identity = (store.dir, app)
             size = shutil.get_terminal_size((100, 40))
             sig = (store.dir, _store_sig(store))
             due = (
@@ -917,6 +1072,8 @@ def watch(
                 width=width,
                 blink=blink,
                 log_rows=rows,
+                campaign_path=campaign_path,
+                pipeline_totals=pipeline_totals,
             )
             frame = render_frame(
                 snapshot=state["snapshot"],
@@ -933,6 +1090,7 @@ def watch(
                 layout=state.get("layout"),
                 watchdog=state.get("watchdog"),
                 log_rows=rows,
+                pipeline=state.get("pipeline"),
             )
             if once:
                 sys.stdout.write(frame + "\n")
@@ -947,6 +1105,7 @@ def watch(
         return 0
     finally:
         stop.set()
+        log_stop.set()
         if not once:
             sys.stdout.write(pl.SHOW_CURSOR + pl.ALT_LEAVE)
             sys.stdout.flush()

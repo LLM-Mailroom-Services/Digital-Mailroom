@@ -29,7 +29,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 
 ## Notes
 
-- CLI: pass --profile AFTER the subcommand (sandbox health --profile modal-vllm). Never paste unicode ellipsis into commands.
+- CLI: shared flags such as --profile work before or after subcommands; the later occurrence wins. Never paste unicode ellipsis into commands.
 - Pretty logs: open sandbox watch --web --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml in a second pane (http://127.0.0.1:8765/) BEFORE sandbox run start. start --watch is the CLI session layer only and does not tail Modal dispatch logs.
 - Canonical deploy knobs: set -a; eval "$(sandbox run deploy-env --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml)"; set +a. Then download_model and modal deploy --strategy recreate once.
 - benchmark-check is skipped (L4 specialist gate). Engine pins are still catalog-asserted against the run YAML.
@@ -175,10 +175,12 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py --strategy recreate
 
+# REQUIRED before health (shell or .env): `sandbox health` exits 1 without an endpoint
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
-# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"   # bearer this deploy was started with
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 

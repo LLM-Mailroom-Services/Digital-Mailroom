@@ -14,9 +14,9 @@ Layout under ``data/runtime/runs/<run_id>/``:
 from __future__ import annotations
 
 import fcntl
+import io
 import json
 import os
-import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -121,6 +121,7 @@ class RunStore:
         self.items_path = self.dir / "items.jsonl"
         self.checkpoint_path = self.dir / "checkpoint.json"
         self.events_path = self.dir / "events.jsonl"
+        self.nodes_path = self.dir / "nodes.jsonl"
         self.cold_boot_path = self.dir / "cold_boot.json"
         self.flock_path = self.dir / "run.lock"
         self.cancel_path = self.dir / "cancel.request.json"
@@ -226,6 +227,7 @@ class RunStore:
             self.items_path,
             self.checkpoint_path,
             self.events_path,
+            self.nodes_path,
             self.dataset_path,
             self.cold_boot_path,
             self.cancel_path,
@@ -429,6 +431,10 @@ class RunStore:
         if generation:
             cp["generation_id"] = generation
         _atomic_write(self.checkpoint_path, json.dumps(cp, indent=2, sort_keys=True, default=str))
+        if state in TERMINAL_STATES:
+            from mailroom_sandbox.job import ledger
+
+            ledger.close_run(self)
         if reconcile:
             self.append_event("checkpoint_reconciled", "warn", stored=reconcile[0], recomputed=reconcile[1])
         return self.checkpoint_path
@@ -451,6 +457,49 @@ class RunStore:
                 rows.append(json.loads(line))
         return rows
 
+    # ── pipeline nodes (SAND-076) ───────────────────────────────────────────
+    def append_node(self, record: dict[str, Any]) -> None:
+        """Append one graph-node start/end record (``job.node_trace``)."""
+        with open(self.nodes_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, default=str) + "\n")
+            fh.flush()
+
+    def nodes(self, *, tail_bytes: int = 256_000) -> list[dict[str, Any]]:
+        """The latest node records; a torn or corrupt line is skipped."""
+        try:
+            with open(self.nodes_path, "rb") as fh:
+                size = fh.seek(0, 2)
+                fh.seek(max(0, size - tail_bytes))
+                chunk = fh.read().decode("utf-8", errors="replace")
+        except OSError:
+            return []
+        lines = chunk.splitlines()
+        if size > tail_bytes and lines:
+            lines = lines[1:]  # the first line of a tail read is partial
+        rows = []
+        for line in lines:
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
+        return rows
+
+    def iter_nodes(self) -> Iterator[dict[str, Any]]:
+        """Stream all node records for run-wide statistics, skipping corrupt lines."""
+        try:
+            with open(self.nodes_path, encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    try:
+                        row = json.loads(line)
+                    except ValueError:
+                        continue
+                    if isinstance(row, dict):
+                        yield row
+        except OSError:
+            return
+
     # ── resume / drift ──────────────────────────────────────────────────────
     def verify_spec(self, expected_hash: str, *, store_dir: Path | None = None) -> tuple[bool, str | None]:
         cp = self.read_checkpoint()
@@ -466,6 +515,63 @@ class RunStore:
     def state(self) -> str | None:
         cp = self.read_checkpoint()
         return cp.get("state") if cp else None
+
+
+class NodeLogCursor:
+    """Read only the node records appended to ``nodes.jsonl`` since the last call.
+
+    The cursor remembers how many bytes it has consumed. It stops before an
+    incomplete last line, so a record the writer is still appending is read on
+    a later call. When the file is gone, shrinks below the offset, is replaced
+    by another file, or no longer starts with the bytes already read, the cursor
+    starts again from byte 0 and reports a reset. Lines are split and decoded as
+    :meth:`RunStore.iter_nodes` does, and corrupt lines are skipped.
+    """
+
+    HEAD_BYTES = 64  # leading bytes kept to notice a rewrite in place
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.offset = 0
+        self._ident: tuple[int, int] | None = None
+        self._head = b""
+
+    def read_new(self) -> tuple[bool, list[dict[str, Any]]]:
+        """Return ``(reset, rows)``; on a reset ``rows`` restarts from the top."""
+        try:
+            fh = open(self.path, "rb")
+        except OSError:
+            reset = self.offset > 0 or self._ident is not None
+            self.offset, self._ident, self._head = 0, None, b""
+            return reset, []
+        with fh:
+            st = os.fstat(fh.fileno())
+            ident = (st.st_dev, st.st_ino)
+            reset = False
+            if self._ident is not None and (ident != self._ident or st.st_size < self.offset
+                                            or fh.read(len(self._head)) != self._head):
+                reset = True
+                self.offset, self._head = 0, b""
+            self._ident = ident
+            fh.seek(self.offset)
+            chunk = fh.read()
+            end = chunk.rfind(b"\n") + 1
+            if end == 0:
+                return reset, []
+            chunk = chunk[:end]
+            if len(self._head) < self.HEAD_BYTES:
+                fh.seek(0)
+                self._head = fh.read(min(self.HEAD_BYTES, self.offset + end))
+            self.offset += end
+        rows = []
+        for line in io.TextIOWrapper(io.BytesIO(chunk), encoding="utf-8", errors="replace"):
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
+        return reset, rows
 
 
 def list_runs(root: Path) -> list[dict[str, Any]]:

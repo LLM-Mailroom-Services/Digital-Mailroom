@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from mailroom_sandbox.job.checkpoint import RunStore, truncate_torn_tail
+from mailroom_sandbox.job.checkpoint import RunStore
 
 
 @pytest.fixture

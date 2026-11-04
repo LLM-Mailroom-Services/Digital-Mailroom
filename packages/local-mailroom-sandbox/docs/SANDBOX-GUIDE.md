@@ -32,10 +32,10 @@ full verified command list, start with
 | Requirement | Version | Notes |
 | --- | --- | --- |
 | Python | 3.11+ | `pyproject.toml` `requires-python` |
-| Docker + Compose | latest | For compose profiles and the Jupyter image |
-| NVIDIA GPU (optional) | Any CUDA GPU | Required only for `vllm` compose profile or local vLLM |
-| Modal CLI (optional) | SDK 1.5.5 | For remote GPU deployment |
-| Ollama (optional) | latest | Default local LLM; CPU-capable for small models |
+| Modal CLI | SDK 1.6.2 | **Default path**: GPU serving via `modal-vllm` (the `deploy` extra) |
+| Docker + Compose | latest | Langfuse tracing + the Jupyter image (optional providers) |
+| NVIDIA GPU (optional) | Any CUDA GPU | Only for the `vllm` compose profile / `vllm-local` |
+| Ollama (optional) | latest | Offline/CPU fallback (`--profile ollama`) |
 
 ---
 
@@ -59,7 +59,7 @@ cp config/.env.example .env          # edit as needed
 | `dev` | pytest, ruff, mypy |
 | `notebooks` | jupyter, ipykernel |
 | `hf` | huggingface_hub, pyarrow |
-| `deploy` | modal (SDK 1.5.5 pinned) |
+| `deploy` | modal (SDK 1.6.2 pinned) |
 | `pipeline` | llm-mailroom + llm-dojo-scoring |
 | `observability` | opentelemetry-sdk, opentelemetry-exporter-otlp-proto-http |
 
@@ -73,8 +73,9 @@ The sandbox reads `.env` from the repo root. Key groups:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `SANDBOX_PROFILE` | `ollama` | Active provider profile |
-| `DEFAULT_PROVIDER` | `ollama` | Mailroom LLM provider |
+| `SANDBOX_PROFILE` | `modal-vllm` | Active provider profile (`ollama` is the offline opt-out) |
+| `DEFAULT_PROVIDER` | `vllm` | Mailroom LLM provider (matches `modal-vllm`) |
+| `VLLM_BASE_URL` | unset | Deployed Modal endpoint + `/v1` (or export `MODAL_WORKSPACE`) |
 | `OBSERVABILITY_PROVIDER` | `langfuse` | Tracing backend (`langfuse` / `phoenix` / `braintrust` / `none`) |
 | `OBSERVABILITY_ENVIRONMENT` | `pilot` | Trace environment tag |
 | `MAILROOM_BASE_DIR` | `./data` | Data root |
@@ -94,7 +95,7 @@ The sandbox reads `.env` from the repo root. Key groups:
 
 ```bash
 # Permanent (edit .env):
-SANDBOX_PROFILE=modal-vllm
+SANDBOX_PROFILE=ollama          # offline opt-out; the default is modal-vllm
 
 # Per-command:
 sandbox eval sorter --local --profile modal-vllm
@@ -103,8 +104,8 @@ sandbox eval sorter --local --profile modal-vllm
 SANDBOX_PROFILE=vllm-local sandbox eval sorter --local
 ```
 
-**Important:** pass `--profile` AFTER the subcommand, not before. A
-`--profile` before the subcommand is clobbered by the subparser default.
+Shared flags `--profile`, `--model`, `--prompt`, and `--agent-model` work
+before or after the subcommand; a later occurrence wins.
 
 ---
 
@@ -112,13 +113,13 @@ SANDBOX_PROFILE=vllm-local sandbox eval sorter --local
 
 | Profile | Provider | Base URL | Default Model | When to use |
 | --- | --- | --- | --- | --- |
-| `ollama` | Ollama | `localhost:11434/v1` | `qwen3:8b` | Default; CPU-capable |
-| `vllm-local` | vLLM | `localhost:8000/v1` | `Qwen/Qwen3-8B` | Local GPU host |
-| `vllm-remote` | vLLM | `localhost:18000/v1` (SSH forward) | `Qwen/Qwen3-8B` | Lab/remote GPU |
-| `modal-vllm` | vLLM | `*.modal.run/v1` | `Qwen/Qwen3-8B` | Zero-infra remote GPU |
+| `modal-vllm` | vLLM | `*.modal.run/v1` | `Qwen/Qwen3.5-9B` | **Default**: zero-infra remote GPU (`sandbox runbook show serve`) |
+| `ollama` | Ollama | `localhost:11434/v1` | `qwen3:8b` | Offline/CPU fallback (`--profile ollama`) |
+| `vllm-local` | vLLM | `localhost:8000/v1` | `Qwen/Qwen3.5-9B` | Local GPU host |
+| `vllm-remote` | vLLM | `localhost:18000/v1` (SSH forward) | `Qwen/Qwen3.5-9B` | Lab/remote GPU |
 | `llamacpp` | generic | `localhost:8080/v1` | `qwen3-8b` | llama.cpp server |
 | `lmstudio` | generic | `localhost:1234/v1` | `qwen3-8b` | LM Studio |
-| `openrouter` | openrouter | `openrouter.ai/api/v1` | `qwen/qwen3.7-flash` | Opt-in cloud only |
+| `openrouter` | openrouter | `openrouter.ai/api/v1` | `qwen/qwen3.5-9b` | Opt-in cloud only |
 
 ### Health check
 
@@ -142,6 +143,11 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 
 ## 5. CLI reference
 
+This section is a curated map of the common paths. The complete, generated
+reference — every command, subcommand, argument and parser-required marker — is
+[`docs/cli-reference.md`](cli-reference.md); regenerate it with
+`python scripts/check_cli_surface.py` after changing the parser.
+
 ### Core commands
 
 | Command | Description |
@@ -149,12 +155,27 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 | `sandbox profiles` | List available profiles |
 | `sandbox agents list` | Show all pipeline agents and their current models |
 | `sandbox cutover --profile X --agent-model NAME=tag` | Override one agent's model |
-| `sandbox up` | Start compose services (default: langfuse + ollama) |
+| `sandbox runbook show serve` | Default Modal vLLM path: deploy → point → verify → teardown |
+| `sandbox up` | Start compose services (default `modal-vllm`: Langfuse only) |
 | `sandbox down` | Stop compose services |
-| `sandbox pull-models` | Pull required Ollama models |
+| `sandbox pull-models --profile ollama` | Pull required Ollama models (on the default `modal-vllm` it only prints the Modal prewarm command) |
 | `sandbox health` | Probe the active provider |
+| `sandbox doctor [--service modal] [--live] [--publish] [--json]` | Offline status of 14 tools/config surfaces; `--live` probes endpoints, `--publish` feeds the board strip |
 | `sandbox fetch-deps` | Optional: refresh the TRACKED vendor snapshots (workspace mirror in the monorepo; reviewed refs in `_VENDOR_PINS` otherwise) |
 | `sandbox fetch-deps --visualizer` | Also clone The-Mailroom |
+
+### Service commands
+
+| Command | Description |
+| --- | --- |
+| `sandbox modal deploy\|prewarm\|status\|stop\|logs\|url\|raw` | Guarded Modal passthrough; `stop` is idempotent and verified |
+| `sandbox vllm probe\|command\|serve\|metrics` | Endpoint probe, the exact `vllm serve` line, local serving, and serving metrics |
+| `sandbox hf whoami\|download\|cache\|raw` | Hugging Face access; `download` defaults to the pinned dataset revision |
+
+Commands that would deploy, start, stop, serve, or download accept `--dry-run`;
+read-only commands such as `status`, `probe`, and `url` do not. Pass extra
+flags through `sandbox modal raw -- <args>`, `sandbox hf raw -- <args>`, or
+`sandbox vllm serve -- <vllm args>`.
 
 ### Eval commands
 
@@ -177,6 +198,8 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 | `sandbox run resume --config <run.yaml> --run-id <id>` | Resume a paused/failed run |
 | `sandbox run cancel --run-id <id>` | Cancel a running job |
 | `sandbox run list` | List all runs |
+| `sandbox experiment create\|review\|preflight\|launch\|report` | Paired experiments: design, review, initials-gated launch, report ([experiments.md](experiments.md)) |
+| `sandbox review list\|show\|resolve` | Human review of parked documents |
 
 ### Prompt & metric commands
 
@@ -197,10 +220,8 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 
 ### Tunnel commands
 
-> **Flag placement (hub#56):** `--profile` goes BEFORE the sub-subcommand
-> (`sandbox tunnel --profile vllm-remote plan`) — the leaf parsers omit
-> `parents=[shared]` deliberately, so `sandbox tunnel plan --profile …`
-> rejects the flag.
+> Shared flags such as `--profile` are accepted before or after the command,
+> including on tunnel leaf commands. A later occurrence wins.
 
 | Command | Description |
 | --- | --- |
@@ -235,12 +256,12 @@ SANDBOX_LOCAL_LLM=1 pytest -v            # include live LLM tests
 ### Quick start
 
 ```bash
-# Full stack: Langfuse + Ollama + Jupyter
-sandbox up --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
+# Offline stack (Ollama fallback): Langfuse + Ollama + Jupyter
+sandbox up -d --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
 # → Lab: http://127.0.0.1:8888/lab
 # → Langfuse: http://127.0.0.1:3000 (pk-lf-sandbox / sk-lf-sandbox)
 
-sandbox pull-models                      # pull Ollama models
+SANDBOX_PROFILE=ollama sandbox pull-models   # pull Ollama models
 ```
 
 ### Standalone Docker image
@@ -347,7 +368,7 @@ sandbox run list
 ```yaml
 schema: sandbox.run/v1
 run_id: <auto if omitted>
-task: sorter                  # sorter | legalbench (per-item) | pipeline | extract |
+task: sorter                  # sorter (per-item) | pipeline | extract |
                               # chained | local_vs_api | isolated | ANY agent name
                               # (DMR-056: every AgentSpec is a whole-run task)
 profile: vllm-local           # provider profile
@@ -363,7 +384,7 @@ dataset:
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
   split: test
-  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (v9.1 mailroom-dataset Hub tip (pin SHA))
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_DATA_REVISION, parquet rows of Hub tag v9.1)
   strata: {expected: [insurance_claim, contract]}
   limit: 50
   sample_seed: 42
@@ -393,6 +414,14 @@ data/runtime/runs/<run_id>/
 └── run.lock             # advisory single-writer flock
 ```
 
+### Budget ceilings
+
+`job.cost_cap_usd` (Modal GPU time), `job.max_wall_seconds` and `job.api_cost_cap_usd`
+(OpenRouter token spend) are checked before each document. A paid run must set the ceilings
+that apply to it. See [jobs.md](jobs.md#spec) for the keys and
+[RUN-COST-DERIVATION.md](RUN-COST-DERIVATION.md) section 2b for how the recommendations are
+derived.
+
 ### Modal remote mode
 
 ```bash
@@ -407,6 +436,11 @@ logs and track spend — see [pretty-logging/mailroom-themed-logging.md](pretty-
 ---
 
 ## 9. Modal deployment
+
+This is the **default serving path**. The canonical, always-current script is
+[`sandbox runbook show serve`](runbooks/serving/modal-vllm.md) — generated from
+`config/runbooks/catalog.yaml`, so the pins below and the deploy code cannot
+drift apart.
 
 ### One-time setup
 
@@ -436,16 +470,24 @@ modal deploy deploy/modal_vllm.py
 ### Connect the sandbox
 
 ```bash
+# Option A: export the URL `modal deploy` printed, with /v1 appended
 export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
 export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+
+# Option B: let the profile derive that URL from the workspace slug
+export MODAL_WORKSPACE=<workspace>
+
 sandbox health --profile modal-vllm
 ```
+
+`modal-vllm` is the default profile, so the `--profile` flag is optional; it is
+spelled out here to make the endpoint being probed explicit.
 
 ### Key knobs
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `MODAL_VLLM_MODEL` | `Qwen/Qwen3-8B` | HF model id |
+| `MODAL_VLLM_MODEL` | `Qwen/Qwen3.5-9B` | HF model id |
 | `MODAL_VLLM_GPU` | `L4` | GPU type |
 | `MODAL_VLLM_MAX_MODEL_LEN` | `16384` | Context cap — DMR-056: boot-valid default (v0.29.0 raises when the KV pool can't hold one request); AWQ/FP8 rows use 32768 |
 | `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | GPU memory fraction |
@@ -455,17 +497,19 @@ sandbox health --profile modal-vllm
 | `MODAL_VLLM_TP_SIZE` | GPU `:N` suffix (1 single-GPU) | Tensor-parallel size — must match `MODAL_VLLM_GPU="A100-80GB:2"` for 70B-class |
 | `MODAL_VLLM_IMAGE_TAG` | `v0.29.0` | vLLM version pin |
 | `MODAL_VLLM_REVISION` | empty | HF revision pin |
-| `MODAL_VLLM_SCALEDOWN_SECONDS` | `600` | Idle warm window |
+| `MODAL_VLLM_SCALEDOWN_SECONDS` | `120` | Idle warm window (600 unattended/overnight) |
 | `MODAL_VLLM_MAX_CONTAINERS` | `1` | Cost guard |
 
 ### Teardown
 
 ```bash
-modal app stop sandbox-vllm              # stop serving (volumes persist)
+./deploy/teardown_vllm.sh                # runbook step: stop the app after the last eval
+modal app stop sandbox-vllm              # equivalent stop (volumes persist)
 modal volume ls sandbox-hf-cache         # weights survive
 ```
 
-Cost: L4 ≈ $0.80/hr warm, scale-to-zero after 900s idle.
+Cost: L4 ≈ $0.80/hr warm, scale-to-zero after the 120s idle window; the runbook
+tears the app down instead of leaving it to idle.
 
 ---
 
@@ -585,8 +629,8 @@ python scripts/reporting/render_experiment_log.py
 # Setup
 pip install -e ".[dev]" && cp config/.env.example .env
 
-# Default offline workflow
-sandbox up && sandbox pull-models
+# Offline (Ollama) workflow
+sandbox up -d --compose-profile ollama && sandbox pull-models --profile ollama
 sandbox eval sorter --mock
 sandbox eval pipeline --mock
 

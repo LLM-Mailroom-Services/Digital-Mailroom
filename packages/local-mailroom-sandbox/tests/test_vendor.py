@@ -99,16 +99,6 @@ def test_modal_worker_bundles_vendor_and_skips_git_pins():
     assert 'vendor" / "llm-dojo-scoring"' in app
 
 
-def test_legalbench_suite_bridge_still_loud_without_cuad_corpus():
-    # The vendored legalbench suite must raise the corpus fetch command, never
-    # silently fall back to the toy fixture (data/cuad stays pruned).
-    from mailroom_sandbox.datasets import load_legalbench_suite_rows
-
-    with pytest.raises(Exception) as excinfo:
-        load_legalbench_suite_rows("contract_qa", sample=2, seed=1)
-    assert "fetch_full_cuad" in str(excinfo.value)
-
-
 def test_refresh_locates_package_src_for_each_vendored_layout(tmp_path):
     # DMR-058 regression: fetch-deps must map BOTH upstream layouts — llm-
     # mailroom's src/ AND llm-dojo-scoring's root-level llm_dojo_scoring/ —

@@ -34,9 +34,10 @@ _BOOT_LOGS = {
 class DemoRun:
     """A deterministic, looping fake run rooted at ``root`` (a temp dir)."""
 
-    def __init__(self, root: Path, *, n_docs: int = 12) -> None:
+    def __init__(self, root: Path, *, n_docs: int = 12, pipeline: bool = False) -> None:
         self.root = Path(root)
         self.n_docs = n_docs
+        self.pipeline = pipeline  # SAND-076: full-graph run with live node records
         self.times_dir = self.root / "logs"
         self.serving_dir = self.root / "serving"
         self.ledger = self.root / "spend.json"
@@ -73,6 +74,8 @@ class DemoRun:
         if 7 <= c < start:
             i = c - 7
             ok = i != 1  # one returned doc so the in-tray error path is visible
+            if self.pipeline:
+                self._write_nodes(store, i, ok, last=i == self.n_docs - 1)
             store.append_item(self._item(i, ok))
             store.write_checkpoint(state="running", cursor=i + 1, total=self.n_docs)
             sink.append(
@@ -97,16 +100,49 @@ class DemoRun:
         store.write_lock(
             {
                 "run_id": RUN_ID,
-                "task": "correspondence_specialist",
+                "profile": "demo · synthetic",
+                "task": "pipeline" if self.pipeline else "correspondence_specialist",
                 "engine": {
                     "model": "Qwen/Qwen3-8B-AWQ",
                     "vllm": {"kv_cache_dtype": "fp8", "quantization": "awq_marlin", "max_num_seqs": 16},
                     "modal": {"gpu": "L4", "max_containers": 2, "min_containers": 2, "app": APP},
                 },
-                "job": {"concurrency": 32},
+                "job": {"concurrency": 32, "mock": True},
             }
         )
         store.write_checkpoint(state="prepared", cursor=0, total=self.n_docs)
+
+    def _write_nodes(self, store: RunStore, i: int, ok: bool, *, last: bool) -> None:
+        """One document's graph route, then the next document entering intake."""
+        doc = f"DOC-demo-{self.cycle:02d}-{i:03d}"
+        cls = ("correspondence", "contract", "insurance_claim")[i % 3]
+        sorter = {"question": "doc_type", "type": "choice", "answer": cls, "p": 0.97 - 0.04 * (i % 4)}
+        route: list[tuple[str, str | None, list[dict[str, Any]]]] = [
+            ("intake", None, []), ("classify", "sorter", [sorter]), ("extract", "specialist", []),
+            ("judge_verify", "judge", [{"question": "extraction_verdict", "type": "score",
+                                        "answer": "pass" if i % 4 else "fail", "expected": 0.82 if i % 4 else 0.41}]),
+        ]
+        if i % 4 == 0:
+            route.append(("arbiter", "arbiter", [{"question": "arbiter_route", "type": "choice", "answer": "retry_extract"}]))
+            route.append(("retry_extract", "specialist", []))
+        route += [("compile_report", None, []), ("catalog_write", None, []), ("archive", None, [])]
+        now = time.time()
+        for step, (node, agent, decisions) in enumerate(route, 1):
+            failed = not ok and node == "extract"
+            if agent == "specialist":
+                agent = {"correspondence": "correspondence_specialist", "contract": "contracts_specialist",
+                         "insurance_claim": "insurance_claims_specialist"}[cls]
+            model = "Qwen/Qwen3-8B-AWQ" if agent else None
+            store.append_node({"doc": doc, "node": node, "status": "running", "agent": agent, "model": model,
+                               "step": step, "ts": now})
+            store.append_node({"doc": doc, "node": node, "status": "error" if failed else "done", "agent": agent,
+                               "model": model, "ms": 40.0 + 310.0 * bool(agent), "decisions": decisions, "ts": now,
+                               **({"error": "LengthFinishReasonError: completion hit max_tokens=4096"} if failed else {})})
+            if failed:
+                break
+        if not last:
+            store.append_node({"doc": f"DOC-demo-{self.cycle:02d}-{i + 1:03d}", "node": "intake", "status": "running",
+                               "agent": None, "model": None, "step": 1, "ts": now})
 
     def _stamp(self, key: str) -> None:
         with (self.times_dir / f"{RUN_ID}.times").open("a", encoding="utf-8") as fh:

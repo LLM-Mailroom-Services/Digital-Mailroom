@@ -48,3 +48,24 @@ def test_otlp_disabled_no_exporter():
 
 def test_configure_tracing_none_is_noop():
     assert otel.configure_tracing(otel.resolve_sink(sink="none")) is None
+
+def test_pipeline_provider_maps_locked_sink():
+    """SAND-087: otlp exports through the sandbox, so the pipeline SDKs stay off."""
+    assert otel.pipeline_provider("langfuse") == "langfuse"
+    assert otel.pipeline_provider("phoenix") == "phoenix"
+    assert otel.pipeline_provider("none") == "none"
+    assert otel.pipeline_provider("otlp") == "none"
+    assert otel.pipeline_provider(None) == "none"
+
+
+def test_locked_pipeline_provider_overrides_and_restores(monkeypatch):
+    monkeypatch.setenv("OBSERVABILITY_PROVIDER", "langfuse")
+    with otel.locked_pipeline_provider({"trace": {"sink": "none"}}) as provider:
+        assert provider == "none"
+        assert otel.os.environ["OBSERVABILITY_PROVIDER"] == "none"
+    assert otel.os.environ["OBSERVABILITY_PROVIDER"] == "langfuse"
+
+    monkeypatch.delenv("OBSERVABILITY_PROVIDER")
+    with otel.locked_pipeline_provider({}):
+        assert otel.os.environ["OBSERVABILITY_PROVIDER"] == "none"
+    assert "OBSERVABILITY_PROVIDER" not in otel.os.environ

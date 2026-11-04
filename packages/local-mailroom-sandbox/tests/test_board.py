@@ -216,3 +216,64 @@ def test_board_default_port_does_not_collide_with_watch_web(tmp_path, monkeypatc
     monkeypatch.setattr(bd, "serve_board", lambda **kw: seen.update(kw) or 0)
     cli.main(["board", "--root", str(tmp_path), "--no-browser"])
     assert seen["port"] == bd.DEFAULT_PORT == 8767 != web_mod.DEFAULT_PORT
+
+
+def test_tui_loop_clamps_a_zero_or_negative_interval(tmp_path, monkeypatch):
+    """`--interval 0` must not spin a core re-reading the board (nor crash on a negative sleep)."""
+    for requested in (0, -3):
+        slept: list[float] = []
+
+        def _sleep(seconds, slept=slept):
+            slept.append(seconds)
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(bd.time, "sleep", _sleep)
+        assert bd.run_board_tui(root=tmp_path, stale_s=120, interval=requested, once=False) == 0
+        assert slept == [bd.MIN_INTERVAL_S]
+
+
+def test_stream_loop_is_throttled_when_interval_is_zero(tmp_path, monkeypatch):
+    """`--interval 0` must not make the SSE loop re-read the board in a hot loop."""
+    calls = []
+    real = bd.board_payload
+    monkeypatch.setattr(bd, "board_payload", lambda *a, **k: calls.append(1) or real(*a, **k))
+    httpd = bd.make_board_server("127.0.0.1", 0, root=tmp_path, interval=0)
+    Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        s = HTTPConnection("127.0.0.1", httpd.server_address[1], timeout=3)
+        s.request("GET", "/api/jobs/stream")
+        r = s.getresponse()  # keep a reference: a collected response closes its fp
+        r.fp.readline()  # first frame is always sent
+        time.sleep(0.5)
+        # Floored at 0.1 s: a handful of reads, not thousands.
+        assert 1 <= len(calls) <= 12
+    finally:
+        httpd.board_stop.set()
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_serve_board_floors_the_interval_and_shuts_down_cleanly(tmp_path, monkeypatch):
+    seen = {}
+
+    class _Httpd:
+        server_address = ("127.0.0.1", 8767)
+
+        def __init__(self):
+            self.board_stop = __import__("threading").Event()
+            self.closed = False
+
+        def serve_forever(self):
+            raise KeyboardInterrupt
+
+        def shutdown(self):
+            seen["shutdown"] = True
+
+        def server_close(self):
+            self.closed = True
+
+    httpd = _Httpd()
+    monkeypatch.setattr(bd, "make_board_server", lambda *a, **kw: seen.update(kw) or httpd)
+    assert bd.serve_board(root=tmp_path, open_browser=False, interval=-5) == 0
+    assert seen["interval"] == bd.MIN_INTERVAL_S
+    assert httpd.board_stop.is_set() and httpd.closed and seen["shutdown"]

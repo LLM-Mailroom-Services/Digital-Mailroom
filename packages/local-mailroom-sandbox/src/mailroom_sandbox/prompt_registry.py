@@ -57,7 +57,7 @@ STATIC_AGENTS = (
 # contracts also has a production alias ("contracts_specialist") — runtime
 # apply patches BOTH so either lookup sees the locked local text.
 FAMILY_B_KEYS = {
-    "sorter": "sorter_v14",
+    "sorter": "sorter_v15",
     "contracts_specialist": "contracts_specialist_v33",
 }
 

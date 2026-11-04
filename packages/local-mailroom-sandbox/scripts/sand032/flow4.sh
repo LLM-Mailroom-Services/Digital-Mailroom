@@ -4,7 +4,7 @@
 # the budget gate drops the least valuable last. Gate: ledger delta from BASE ≤ LIMIT
 # (hard account limit $2.80; ledger under-counts real billing).
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"; cd "$ROOT"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"; cd "$ROOT" || exit 1
 LOG="$ROOT/data/runtime/sand032/logs"; BASE="${SAND032_BASE:-1.2119}"; LIMIT="${SAND032_DELTA_LIMIT:-1.50}"
 spent() { python3 scripts/sand032/spend.py write >/dev/null 2>&1; python3 -c 'import json;print(json.load(open("data/runtime/sand032/spend.json"))["spent_usd"])'; }
 gate() { local d; d=$(python3 -c "print(round($(spent) - $BASE + $1, 4))")

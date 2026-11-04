@@ -272,6 +272,7 @@ Persistent view of **all** `mailroom.beacon/v1` jobs under `~/.mailroom/jobs` (o
 sandbox board                    # browser http://127.0.0.1:8767/
 sandbox board --tui              # terminal alt-screen
 sandbox board --demo             # synthetic jobs for UI dev
+sandbox board --interval 2       # refresh every 2 s (default 1; values below 0.1 are raised to 0.1)
 sandbox beacon update --job ID --package P --done N --total M
 scripts/mailroom-tui board [--tui|--demo]
 ```

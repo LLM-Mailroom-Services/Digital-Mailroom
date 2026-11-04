@@ -14,6 +14,13 @@ vision:
     - "gemini"
     - "claude"
 
+# SAND-077: keep the vendored champion → served-id remap in sync with
+# config/models.yaml (the default vLLM model is Qwen/Qwen3.5-9B). The other
+# vendored rows (deepseek → R1 distills) are unchanged.
+vllm_model_map:
+  qwen/qwen3.7-flash: Qwen/Qwen3.5-9B
+  openrouter/free: Qwen/Qwen3.5-9B
+
 cost_models:
   qwen3:8b:
     input_per_million: 0.0
@@ -22,6 +29,9 @@ cost_models:
     input_per_million: 0.0
     output_per_million: 0.0
   Qwen/Qwen3-8B:
+    input_per_million: 0.0
+    output_per_million: 0.0
+  Qwen/Qwen3.5-9B:
     input_per_million: 0.0
     output_per_million: 0.0
   llama3.1:8b:
@@ -37,6 +47,8 @@ cost_models:
 # (overlay), not in the drift-guarded vendored file.
 run_limits:
   llm_call_timeout_seconds: 600
+  # Per document. A 233k-character contract passed 22k at retry_classify, so 20000 aborted it.
+  max_total_output_tokens: 200000
 
 # Surgical knobs — overlay wins after profile rewrite. Omit `model` to keep
 # the mapped local tag from the active profile.

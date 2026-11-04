@@ -3,8 +3,7 @@
 These pin the silent-mock root causes found by the 2026-09-10 specialist
 sweep: an undefined ``_doc_text`` (NameError swallowed into a mock), prepared
 corpus rows hitting the fixture-only ``subdir`` path, live errors degrading to
-mock predictions, and the legalbench model defaulting to an Ollama tag on a
-vLLM serve.
+and mock predictions.
 """
 
 from __future__ import annotations
@@ -70,23 +69,6 @@ def test_materialize_row_copies_fixture(tmp_path, monkeypatch):
     queued = runners._materialize_row({"id": "f", "subdir": "s", "filename": "src.pdf"}, inbox)
     assert queued.name == "src.pdf"
     assert queued.read_bytes() == b"%PDF-1.4"
-
-
-def test_live_serve_target_follows_provider(monkeypatch):
-    monkeypatch.setenv("DEFAULT_PROVIDER", "vllm")
-    monkeypatch.setenv("VLLM_BASE_URL", "http://vllm:8000/v1")
-    monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
-    # A prior activate(profile="modal-vllm") writes the dense profile default
-    # into VLLM_MODEL. This test pins the unset-env fallback.
-    monkeypatch.delenv("VLLM_MODEL", raising=False)
-    monkeypatch.delenv("MODAL_VLLM_MODEL", raising=False)
-    base, model = runners._live_serve_target()
-    assert base == "http://vllm:8000/v1"
-    assert model == "Qwen/Qwen3-8B-AWQ"
-
-    monkeypatch.setenv("DEFAULT_PROVIDER", "ollama")
-    _, model = runners._live_serve_target()
-    assert model == "qwen3:8b"
 
 
 def test_normalize_rows_carries_question_answer_stage_and_json_fields():

@@ -499,7 +499,7 @@ def _png_output(code: str, env: dict[str, Any]) -> list[dict[str, Any]]:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    exec(code, env)  # noqa: S102 - our own chart code, rendered once so the notebook opens with figures
+    exec(code, env)  # nosec B102  # noqa: S102
     buf = io.BytesIO()
     plt.gcf().savefig(buf, format="png", bbox_inches="tight")
     plt.close("all")
@@ -522,7 +522,7 @@ def render_reader_ipynb(data: Mapping[str, Any]) -> str:
             rows = _chart_rows(data)
             setup = _CHART_SETUP.format(colors=json.dumps(CHART_COLORS), rows=json.dumps(rows, indent=1))
             env: dict[str, Any] = {}
-            exec(setup.rsplit("\n", 1)[0], env)  # noqa: S102 - builds df for the chart cells below
+            exec(setup.rsplit("\n", 1)[0], env)  # nosec B102  # noqa: S102
             cells.append(md("The charts below are drawn from this data table (re-run the cells to edit them)."))
             cells.append(code(setup, []))
             cells.append(code(_CHART_SPEED, _png_output(_CHART_SPEED, env)))

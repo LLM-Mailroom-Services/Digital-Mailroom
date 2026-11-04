@@ -4,7 +4,9 @@ Same env-knob contract as llm-mailroom ``deploy/modal_vllm.py``, plus
 sandbox-local cost/scale knobs. App name and cache Volumes are
 sandbox-scoped.
 
-Default experiment posture (specialist 5×30 cost eval)
+App default (SAND-077): ``Qwen/Qwen3.5-9B`` on ``L4``, online fp8, text-only.
+
+Frozen experiment posture (specialist 5×30 cost eval)
 ------------------------------------------------------
 ``MODAL_VLLM_MODEL=Qwen/Qwen3-8B`` on ``MODAL_VLLM_GPU=L4``,
 ``max_containers=1``, ``scaledown=120`` (attended; restore **600** for
@@ -85,6 +87,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import modal
 
@@ -111,9 +114,30 @@ HF_CACHE_MOUNT = "/root/.cache/huggingface"
 VLLM_CACHE_MOUNT = "/root/.cache/vllm"
 
 # ── Deploy-time knobs ────────────────────────────────────────────────────────
-MODEL = os.environ.get("MODAL_VLLM_MODEL", "Qwen/Qwen3-8B")
+# SAND-077: the app default is Qwen/Qwen3.5-9B on L4. It has no published FP8
+# checkpoint, so it serves online fp8 and text-only. Each value below applies
+# only when the shell sets no MODAL_VLLM_* override, and must match the model's
+# config/models.yaml row (tests/test_deploy_env.py checks this).
+DEFAULT_MODEL = "Qwen/Qwen3.5-9B"
+TEXT_ONLY_MM_LIMITS = '{"image":0,"video":0,"audio":0}'
+MODEL_SERVE_DEFAULTS = {
+    "Qwen/Qwen3.5-9B": {"quantization": "fp8", "limit_mm_per_prompt": TEXT_ONLY_MM_LIMITS},
+    "Qwen/Qwen3.5-35B-A3B": {"quantization": "fp8", "limit_mm_per_prompt": TEXT_ONLY_MM_LIMITS},
+    "Qwen/Qwen3.5-27B": {"quantization": "fp8", "limit_mm_per_prompt": TEXT_ONLY_MM_LIMITS},
+}
+MODEL = os.environ.get("MODAL_VLLM_MODEL", DEFAULT_MODEL)
+_SERVE_DEFAULTS = MODEL_SERVE_DEFAULTS.get(MODEL, {})
 GPU = os.environ.get("MODAL_VLLM_GPU", "L4")
-QUANTIZATION = os.environ.get("MODAL_VLLM_QUANTIZATION", "")
+QUANTIZATION = os.environ.get("MODAL_VLLM_QUANTIZATION", _SERVE_DEFAULTS.get("quantization", ""))
+# "bf16" is an explicit unquantized serve for a row whose default is quantized;
+# an empty value is unset by the exports, so it cannot override the row default.
+if QUANTIZATION.lower() == "bf16":
+    QUANTIZATION = ""
+# JSON per-modality item caps; {"image":0,...} skips the vision encoder's
+# memory reservation for a text-only multimodal checkpoint (Qwen3.5).
+LIMIT_MM_PER_PROMPT = os.environ.get(
+    "MODAL_VLLM_LIMIT_MM_PER_PROMPT", _SERVE_DEFAULTS.get("limit_mm_per_prompt", "")
+)
 MAX_MODEL_LEN = os.environ.get("MODAL_VLLM_MAX_MODEL_LEN", "16384")
 REVISION = os.environ.get("MODAL_VLLM_REVISION", "")
 GPU_MEMORY_UTILIZATION = os.environ.get("MODAL_VLLM_GPU_MEMORY_UTILIZATION", "0.90")
@@ -154,6 +178,9 @@ TP_SIZE = os.environ.get("MODAL_VLLM_TP_SIZE", "") or str(
     else 1
 )
 VLLM_IMAGE_TAG = os.environ.get("MODAL_VLLM_IMAGE_TAG", "v0.29.0")
+# `sandbox modal publish-image` publishes this name to one workspace. A tag, not
+# :latest, so a run's locked image_tag still names the image it ran on.
+NAMED_IMAGE = f"sandbox-vllm:{VLLM_IMAGE_TAG}"
 
 # Attended specialist suite default: 120s idle warm (DMR-076 cost-saver).
 # Unattended / overnight: export MODAL_VLLM_SCALEDOWN_SECONDS=600 before deploy.
@@ -167,6 +194,7 @@ STARTUP_TIMEOUT_SECONDS = int(
 CONFIG_ENV_KEYS = (
     "MODAL_VLLM_MODEL",
     "MODAL_VLLM_QUANTIZATION",
+    "MODAL_VLLM_LIMIT_MM_PER_PROMPT",
     "MODAL_VLLM_MAX_MODEL_LEN",
     "MODAL_VLLM_GPU_MEMORY_UTILIZATION",
     "MODAL_VLLM_MAX_NUM_SEQS",
@@ -225,7 +253,7 @@ def _config_secrets() -> list[modal.Secret]:
 hf_cache = modal.Volume.from_name(HF_CACHE_VOLUME_NAME, create_if_missing=True)
 vllm_cache = modal.Volume.from_name(VLLM_CACHE_VOLUME_NAME, create_if_missing=True)
 
-image = (
+serving_image = (
     modal.Image.from_registry(f"vllm/vllm-openai:{VLLM_IMAGE_TAG}", add_python="3.12")
     .entrypoint([])
     .run_commands("pip install --no-cache-dir huggingface_hub httpx")
@@ -235,6 +263,12 @@ image = (
             "NETWORKX_AUTOMATIC_BACKEND_SELECTION": "0",
         }
     )
+)
+# A named image never rebuilds on deploy; a missing name fails the deploy.
+image = (
+    modal.Image.from_name(NAMED_IMAGE)
+    if os.environ.get("MODAL_VLLM_USE_NAMED_IMAGE")
+    else serving_image
 )
 
 download_image = (
@@ -325,6 +359,11 @@ def _telemetry_replica_key() -> str:
 
 
 # SAND-032: fail at import (deploy time), not at vLLM boot on a billed GPU.
+if LIMIT_MM_PER_PROMPT:
+    try:
+        json.loads(LIMIT_MM_PER_PROMPT)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"MODAL_VLLM_LIMIT_MM_PER_PROMPT is not valid JSON: {exc}") from exc
 if DEFAULT_CHAT_TEMPLATE_KWARGS:
     try:
         json.loads(DEFAULT_CHAT_TEMPLATE_KWARGS)
@@ -425,26 +464,29 @@ def _commit_telemetry_volume() -> str | None:
         )
 
 
-def _start_telemetry_sampler() -> None:
+def _start_telemetry_sampler(stop: Any = None) -> Any:
     """Daemon thread: append nvidia-smi samples to the telemetry volume.
 
     One file per container (``<label>/<process_start_time_seconds>.jsonl``) so the
-    scraper can tell replicas apart the way the /metrics scrape does.
+    scraper can tell replicas apart the way the /metrics scrape does. Setting the
+    optional ``stop`` event ends the loop; the container never sets it.
     """
     import threading
     from pathlib import Path
+
+    stop = stop if stop is not None else threading.Event()
 
     label_dir = Path(TELEMETRY_MOUNT) / TELEMETRY_LABEL
     try:
         label_dir.mkdir(parents=True, exist_ok=True)
     except Exception as exc:  # noqa: BLE001
         print(f"telemetry: cannot create {label_dir}: {exc}")
-        return
+        return None
     target = label_dir / f"{_telemetry_replica_key()}.jsonl"
 
     def _loop() -> None:
         written = 0
-        while True:
+        while not stop.is_set():
             sample = _nvidia_smi_sample()
             try:
                 with target.open("a", encoding="utf-8") as fh:
@@ -456,14 +498,16 @@ def _start_telemetry_sampler() -> None:
                         print(message)
             except Exception as exc:  # noqa: BLE001
                 print(f"telemetry: write failed ({type(exc).__name__}: {exc})")
-            time.sleep(max(1.0, TELEMETRY_INTERVAL))
+            stop.wait(max(1.0, TELEMETRY_INTERVAL))
 
-    threading.Thread(target=_loop, name="gpu-telemetry", daemon=True).start()
+    thread = threading.Thread(target=_loop, name="gpu-telemetry", daemon=True)
+    thread.start()
     print(
         f"telemetry: sampling every {TELEMETRY_INTERVAL}s → "
         f"{target} (volume {TELEMETRY_VOLUME_NAME})"
     )
     sys.stdout.flush()
+    return thread
 
 
 def _server_env() -> dict[str, str]:
@@ -482,7 +526,7 @@ def build_vllm_command(model: str) -> list[str]:
     """Assemble the `vllm serve` argv for the subprocess."""
     cmd = [
         "vllm", "serve", model,
-        "--host", "0.0.0.0",
+        "--host", "0.0.0.0",  # nosec B104
         "--port", str(SERVER_PORT),
         "--max-model-len", MAX_MODEL_LEN,
         "--gpu-memory-utilization", GPU_MEMORY_UTILIZATION,
@@ -494,6 +538,8 @@ def build_vllm_command(model: str) -> list[str]:
         cmd += ["--revision", REVISION]
     if QUANTIZATION:
         cmd += ["--quantization", QUANTIZATION]
+    if LIMIT_MM_PER_PROMPT:
+        cmd += ["--limit-mm-per-prompt", LIMIT_MM_PER_PROMPT]
     if ATTENTION_BACKEND:
         cmd += ["--attention-backend", ATTENTION_BACKEND]
     if _truthy(ASYNC_SCHEDULING):
@@ -548,6 +594,7 @@ def _masked_config() -> dict[str, str]:
         "tensor_parallel_size": TP_SIZE,
         "max_containers": str(MAX_CONTAINERS),
         "quantization": QUANTIZATION or "unset(bf16)",
+        "limit_mm_per_prompt": LIMIT_MM_PER_PROMPT or "unset",
         "revision": REVISION or "unset(tip)",
         "attention_backend": ATTENTION_BACKEND or "unset(engine-default)",
         "async_scheduling": "on" if _truthy(ASYNC_SCHEDULING) else "off",
@@ -562,10 +609,12 @@ def _masked_config() -> dict[str, str]:
     }
 
 
-def _wait_for_port(port: int, timeout: int = 600) -> bool:
-    """Block until localhost:*port* accepts connections."""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
+def _wait_for_port(port: int, timeout: int = 600, *, process=None) -> bool:
+    """Wait for the server socket, stopping early if its subprocess has exited."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if process is not None and process.poll() is not None:
+            return False
         try:
             with socket.create_connection(("127.0.0.1", port), timeout=2.0):
                 return True
@@ -633,14 +682,19 @@ def serve() -> None:
                 vllm_proc.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 vllm_proc.kill()
+                vllm_proc.wait(timeout=10)
 
     atexit.register(_cleanup)
 
-    if not _wait_for_port(SERVER_PORT, timeout=STARTUP_TIMEOUT_SECONDS):
-        print(f"ERROR: vLLM did not start on port {SERVER_PORT} within "
-              f"{STARTUP_TIMEOUT_SECONDS}s")
-        vllm_proc.terminate()
-        raise RuntimeError("vLLM startup timeout")
+    try:
+        if not _wait_for_port(SERVER_PORT, timeout=STARTUP_TIMEOUT_SECONDS, process=vllm_proc):
+            code = vllm_proc.poll()
+            detail = f"vLLM exited during startup (rc={code})" if code is not None else "vLLM startup timeout"
+            raise RuntimeError(detail)
+    except BaseException:
+        _cleanup()
+        atexit.unregister(_cleanup)
+        raise
 
     print(f"vLLM ready on port {SERVER_PORT} (pid={vllm_proc.pid})")
     sys.stdout.flush()
@@ -774,7 +828,7 @@ def main(check: bool = False, debug: bool = False) -> None:
     _deploy_operator_line(
         "SWAP",
         'eval "$(sandbox modal-matrix env <HF-id> [--gpu GPU])" '
-        "then redeploy --strategy recreate (default catalog row: Qwen/Qwen3-8B @ L4)",
+        "then redeploy --strategy recreate (default catalog row: Qwen/Qwen3.5-9B @ L4 fp8)",
     )
     if debug:
         for key, value in _masked_config().items():

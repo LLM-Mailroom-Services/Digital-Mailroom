@@ -10,10 +10,28 @@ from pathlib import Path
 import pytest
 
 from mailroom_sandbox.cli import main
-from mailroom_sandbox.datasets import dataset_fingerprint, load_hf_fixtures, load_legalbench_fixtures, load_manifest
+from mailroom_sandbox.datasets import dataset_fingerprint, load_hf_fixtures, load_manifest
 from mailroom_sandbox.eval import experiment_log, matrix, runners, scoring
 from mailroom_sandbox.mock_llm import fake_client, fake_structured_payload
 from mailroom_sandbox.runtime import activate
+
+
+def test_pipeline_cost_cap_includes_route_apps(monkeypatch):
+    from mailroom_sandbox.job import metrics
+
+    calls = []
+    def estimate(_elapsed, *, gpu, replicas):
+        calls.append((gpu, replicas))
+        return {"L4": 0.1, "L40S": 0.3}[gpu] * replicas
+
+    monkeypatch.setattr(metrics, "estimate_gpu_cost_usd", estimate)
+    monkeypatch.setattr(runners, "activate", lambda *args, **kwargs: None)
+    monkeypatch.setattr(runners.tracing, "session_id_for", lambda *_: "test")
+    rows = [{"id": "one", "expected_doc_class": "contract"}]
+    with pytest.raises(RuntimeError, match="estimated GPU cost cap"):
+        runners.run_pipeline_eval(mock=False, rows=rows, cost_cap_usd=0.5, gpu="L4", replicas=2,
+                                  gpu_fleet=[("L4", 2), ("L40S", 1)])
+    assert calls == [("L4", 2), ("L40S", 1)]
 
 
 def test_activate_writes_taxonomy(tmp_path, monkeypatch):
@@ -55,8 +73,6 @@ def test_manifest_and_hf_fixtures():
     assert dataset_fingerprint(rows)
     hf = load_hf_fixtures()
     assert {r["doc_type"] for r in hf} >= {"contract", "correspondence", "insurance_claim"}
-    lb = load_legalbench_fixtures()
-    assert all(r["answer"] in {"Yes", "No"} for r in lb)
 
 
 def test_sorter_eval_mock(tmp_path, monkeypatch):
@@ -84,19 +100,6 @@ def test_extract_eval_mock(tmp_path, monkeypatch):
     assert result["scores"]["overall_extraction_score"] >= 0.0
 
 
-def test_legalbench_eval_mock(tmp_path, monkeypatch):
-    log = tmp_path / "experiment_log.jsonl"
-    monkeypatch.setenv("EXPERIMENT_LOG_PATH", str(log))
-    monkeypatch.setattr(experiment_log, "jsonl_path", lambda: log)
-    monkeypatch.setattr(experiment_log, "md_path", lambda: tmp_path / "experiment_log.md")
-    result = runners.run_legalbench_eval(mock=True)
-    # The mock is deterministic md5 parity, never a self-fulfilling 1.0 —
-    # a perfect mock would mask scoring defects (DMR-049 F8).
-    assert 0.0 <= result["scores"]["exact_match"] < 1.0
-    assert result["seed"] == 42
-    assert result["legalbench_task"] == "contract_qa"
-
-
 def test_matrix_dry_run():
     plan = matrix.run_matrix(
         task="sorter",
@@ -108,12 +111,6 @@ def test_matrix_dry_run():
     assert plan["n"] == 4
     names = {c["experiment_name"] for c in plan["cells"]}
     assert any("sorter_local_v0" in n for n in names)
-
-
-def test_cli_help():
-    with pytest.raises(SystemExit) as exc:
-        main(["--help"])
-    assert exc.value.code == 0
 
 
 def test_cli_profiles():
@@ -299,7 +296,7 @@ def test_dojo_pin_matches_current_vendored_snapshot():
 
     import llm_dojo_scoring as dojo
     from llm_dojo_scoring import get_suite, headline_metrics
-    from mailroom_sandbox.paths import repo_root, vendored_dojo_src
+    from mailroom_sandbox.paths import vendored_dojo_src
 
     # DMR-057: the scoring engine is the TRACKED vendored snapshot — resolved
     # from the vendored tree's VENDOR.md, not a pyproject git pin.
@@ -310,18 +307,28 @@ def test_dojo_pin_matches_current_vendored_snapshot():
 
     pins = {name: (ref, sha) for name, ref, _url, sha in cli_mod._VENDOR_PINS}
     assert pins["llm-dojo-scoring"] == (
-        "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4",
-        "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4",
-    ), "dojo must consume the reviewed current commit"
+        "v0.26.0",
+        "2fea5ea7cff79d9e4c8f3513dd4a179089a8e8ff",
+    ), "dojo must consume the v0.26.0 release"
     assert pins["llm-dojo-scoring"][1] in vendor_md
-    assert dojo.__version__ == "0.24.2"
+    assert dojo.__version__ == "0.26.0"
     # the new per-subclass machinery is actually IN the snapshot
     import llm_dojo_scoring.corporate_record_schema as crs
 
     assert crs.SUBCLASS_SCHEMAS and callable(crs.align_unlabeled)
     assert "v0.22.0" in vendor_md  # the superseded tag stays documented
-    assert str(vendor.resolve()) in sys.path, "vendored dojo must be on sys.path"
-    assert str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
+    # The Dojo comes from the selected source: the vendored snapshot, or an installed release
+    # matching the pin (requirements/dojo-release.txt). Its module must come from that source.
+    from mailroom_sandbox import dojo_source
+
+    choice = dojo_source.current()
+    assert choice is not None and choice.source in {"vendored", "installed", "env"}
+    if choice.source == "vendored":
+        assert str(vendor.resolve()) in sys.path, "vendored dojo must be on sys.path"
+        assert str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
+    elif choice.source == "installed":
+        assert choice.version == "0.26.0" and dojo_source._origin_mismatch() is None
+        assert not str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
     version = re.match(r"(\d+)\.(\d+)", dojo.__version__)
     assert version is not None
     assert tuple(map(int, version.groups())) >= (0, 12)

@@ -368,6 +368,50 @@ def token_split(docs: list[Mapping[str, Any]], *, chunked: bool = False) -> dict
     }
 
 
+def _pipeline_block(store: RunStore, items: list[dict[str, Any]]) -> dict[str, Any]:
+    """Routing outcomes of a connected run, whole-run and per expected class."""
+    expected = {str(row.get("id")): str(row.get("expected_doc_class") or "unknown")
+                for row in store.dataset_rows()}
+
+    def outcomes(rows: list[dict[str, Any]]) -> dict[str, Any]:
+        preds = [_d(row.get("pred")) for row in rows]
+        scores = [_d(row.get("score")) for row in rows]
+        stages = Counter(str(pred.get("stage") or "unknown") for pred in preds)
+
+        def mean(key: str) -> float | None:
+            values = [float(s[key]) for s in scores if isinstance(s.get(key), (int, float))]
+            return statistics.fmean(values) if values else None
+
+        latency = [float(row["latency_ms"]) / 1000.0 for row in rows if row.get("latency_ms") is not None]
+        return {
+            "documents": len(rows),
+            "stages": dict(stages),
+            "review_rate": stages["review"] / len(rows) if rows else None,
+            "class_correct": mean("class_correct"),
+            "stage_correct": mean("stage_correct"),
+            "extraction_mean": mean("overall_extraction_score"),
+            "latency_p95": _p95(latency),
+        }
+
+    block = outcomes(items)
+    causes: Counter[str] = Counter()
+    for pred in (_d(item.get("pred")) for item in items):
+        if pred.get("stage") == "review":
+            causes.update(pred.get("review_causes") or ["no_cause_recorded"])
+    block["review_causes"] = dict(causes.most_common())
+    by_class: dict[str, list[dict[str, Any]]] = {}
+    for item in items:
+        by_class.setdefault(expected.get(str(item.get("item_id")), "unknown"), []).append(item)
+    block["by_class"] = {name: outcomes(rows) for name, rows in sorted(by_class.items())}
+    # A class without a decision reviewer gets the LLM band, which a confident sorter skips.
+    reviewer = _d((store.read_lock() or {}).get("reviewer"))
+    cutoffs = _d(reviewer.get("classes"))
+    for name, row in block["by_class"].items():
+        row["reviewer"] = f"{reviewer.get('backend')}:{reviewer.get('model')}" if name in cutoffs else None
+        row["reviewer_cutoff"] = cutoffs.get(name)
+    return block
+
+
 def collect_card(
     store: RunStore,
     *,
@@ -427,7 +471,9 @@ def collect_card(
                if isinstance(s.get("overall_extraction_score"), (int, float))]
     suite_overall = [float(s["suite_overall_extraction_score"]) for s in item_scores
                      if isinstance(s.get("suite_overall_extraction_score"), (int, float))]
-    schema = [bool(s["schema_valid"]) for s in item_scores if "schema_valid" in s]
+    # Pipeline items carry the adherence fraction: valid means every key conformed.
+    schema = [bool(s["schema_valid"]) if "schema_valid" in s else s["schema_adherence"] >= 1.0
+              for s in item_scores if "schema_valid" in s or "schema_adherence" in s]
     method = next((s.get("scoring_method") for s in item_scores if s.get("scoring_method")), None)
 
     clause: dict[str, Any] = {}
@@ -443,6 +489,8 @@ def collect_card(
 
     agents = _d(prompt.get("agents"))
     prompt_file = next((str(_d(v).get("file")) for v in agents.values() if _d(v).get("file")), None)
+    if task == "pipeline":
+        prompt_file = f"{len(agents)} agent prompts"
 
     card = {
         "schema": SCHEMA,
@@ -567,6 +615,8 @@ def collect_card(
             for i in items
         ],
     }
+    if task == "pipeline":
+        card["pipeline"] = _pipeline_block(store, items)
     card["tokens"]["split"] = token_split(card["documents"], chunked=bool(posture.get("chunk_chars")))
     return card
 

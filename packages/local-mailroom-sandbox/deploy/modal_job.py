@@ -199,6 +199,7 @@ def run_job(payload: dict) -> dict:
     import traceback
 
     from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.deploy_env import durable_mailroom_env, settle_mailroom_writers
     from mailroom_sandbox.job.remote import generation_fields
     from mailroom_sandbox.job.otel import configure_tracing, flush_tracer, resolve_sink
     from mailroom_sandbox.job.runner import run_job as run_local_job
@@ -222,6 +223,7 @@ def run_job(payload: dict) -> dict:
         raise RuntimeError("invalid worker run ID")
     store = RunStore(Path(RUNS_MOUNT) / run_path)
     lock = store.verify_generation()
+    os.environ.update(durable_mailroom_env(store.dir))
     identity = generation_fields(lock)
     if expected is not None and any(payload.get(k) != v for k, v in identity.items()):
         raise RuntimeError("worker generation differs from dispatch expectation")
@@ -263,6 +265,18 @@ def run_job(payload: dict) -> dict:
             except Exception as exc:  # noqa: BLE001 — hub#41: loud, never silent
                 logger.warning("runs_volume.commit failed: %s", exc, exc_info=True)
 
+    def settle_writers() -> str | None:
+        """Let the pipeline's background mailroom.db writers finish before a commit.
+
+        Returns an error when a writer outlives the wait: mailroom.db is still
+        changing, so the run must not be published as durably done.
+        """
+        pending = settle_mailroom_writers()
+        if not pending:
+            return None
+        logger.error("mailroom.db writers still running at commit: %s", pending)
+        return f"mailroom.db writers still running at commit: {', '.join(pending)}"
+
     payload_mock = payload.get("mock")
     try:
         # Local filesystem protection only. Modal Volume flock does not
@@ -288,6 +302,7 @@ def run_job(payload: dict) -> dict:
             "diagnostics": _diagnostics(),
             "heartbeat_at": _now(),
         }
+        settle_writers()
         try:
             cp = store.read_checkpoint() or {}
             store.write_checkpoint(state="failed", cursor=cp.get("cursor", 0), total=cp.get("total", 0),
@@ -313,6 +328,13 @@ def run_job(payload: dict) -> dict:
     if generation_fields(store.verify_generation()) != identity:
         raise RuntimeError("worker generation changed; refusing stale terminal publication")
 
+    unsettled = settle_writers()
+    if unsettled and result.get("state") == "done":
+        # Never claim durable completion while mailroom.db is still being written.
+        cp = store.read_checkpoint() or {}
+        store.write_checkpoint(state="failed", cursor=cp.get("cursor", 0), total=cp.get("total", 0),
+                               remote=cp.get("remote"), last_error=unsettled)
+        result = {**result, "state": "failed", "error": unsettled}
     # The reports dir is container-local; copy the run's experiment records
     # into the volume-committed run dir so the CLI can pull them back (DMR-047).
     reports_log = Path(SANDBOX_ROOT) / "reports" / "experiment_log.jsonl"

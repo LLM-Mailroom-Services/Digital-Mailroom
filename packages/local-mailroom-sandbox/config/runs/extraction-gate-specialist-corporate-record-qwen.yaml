@@ -1,0 +1,44 @@
+# Extraction gate baseline, step 1 of 2: the corporate_records_specialist's real extractions of 40 train
+# corporate_record documents (mailroom-dataset ground_truth rows, stratified by subclass, seed 42),
+# with qwen/qwen3.7-flash on the production specialist prompt. Each item keeps the extraction
+# (pred) and its dojo score against expected_fields. The gate run reviews these extractions.
+#
+#   python scripts/extraction_gate.py --split train inputs \
+#       --dataset-run reviewer-calibration-luna-decisions-v3.1.0-train
+#   sandbox run start --config config/runs/extraction-gate-specialist-corporate-record-qwen.yaml --initials XX
+schema: sandbox.run/v1
+run_id: extraction-gate-specialist-corporate-record-qwen
+task: corporate_records_specialist
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file
+  local_path: data/runtime/handoff/gate-train-corporate_record.jsonl
+  config: ground_truth
+  split: train
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  corporate_records_specialist: {max_input_chars: 700000}   # whole document in one call (Qwen 3.7 Flash: 1M-token context)
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 12
+  cost_cap_usd: 1.00
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.10
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, extraction-gate, specialist-handoff, corporate-record]

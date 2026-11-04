@@ -1,0 +1,55 @@
+# SAND-085: calibrate the decision reviewer, openai/gpt-6-luna-decisions (OpenRouter Decisions
+# API), with question set 3.1.0 (config/decisions/reviewer_decisions_v3.1.0.yaml, the lineage
+# frontrunner) on the WHOLE train split: 2,979 documents, every class and subclass as the corpus
+# has them (the earlier runs used a 735-document balanced draw).
+#
+# The request state is {document, sorter_handoff}: the sorter's answer for the same document
+# from sorter-handoff-qwen-train (+ -rest), qwen/qwen3.7-flash, whole document in one call.
+# The verdict question decides continue / correct the subclass / reclassify / human review.
+#
+# Cost, from the measured token fit (0.2073 tokens per character up to the 120,000-character
+# cap, plus 3,095 tokens of questions per request): about 20.5M input tokens at $0.10 per 1M
+# input and $0 output = about $2.05. A signed `sandbox run start --initials XX` is the spend
+# approval. Afterwards:
+#   python scripts/calibrate_reviewer.py --run reviewer-calibration-luna-decisions-v3.1.0-train
+schema: sandbox.run/v1
+run_id: reviewer-calibration-luna-decisions-v3.1.0-train
+task: sorter_reviewer
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: train
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
+  sample_seed: 42
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna-decisions
+  modal: null
+
+reviewer:
+  backend: decisions
+  model: openai/gpt-6-luna-decisions
+  questions: reviewer_decisions_v3.1.0
+  handoff_run: data/handoff/sorter-qwen3.7-flash/train.jsonl   # saved Qwen pass, 2,979 documents
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 24
+  cost_cap_usd: 3.00
+  max_wall_seconds: 5400
+  api_cost_cap_usd: 2.60
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, reviewer-calibration, decisions-api, question-set-3.1.0]

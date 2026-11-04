@@ -125,6 +125,36 @@ def _langfuse_headers() -> dict[str, str]:
     return headers
 
 
+def pipeline_provider(sink: str | None) -> str:
+    """``OBSERVABILITY_PROVIDER`` value for the vendored pipeline under a locked ``trace.sink``.
+
+    ``otlp`` exports through this module, not the pipeline SDKs, so the pipeline
+    gets ``none``; an unknown or missing sink also maps to ``none``.
+    """
+    return sink if sink in {"langfuse", "phoenix", "none"} else "none"
+
+
+@contextmanager
+def locked_pipeline_provider(lock: dict[str, Any]) -> Iterator[str]:
+    """Point the vendored pipeline's tracing at the locked sink; restore the env on exit (SAND-087).
+
+    Without this, an ambient ``OBSERVABILITY_PROVIDER=langfuse`` (the ``.env``
+    default) beats ``trace.sink: none``: the pipeline then passes Langfuse-only
+    ``name=`` kwargs to a plain OpenAI client whenever the langfuse SDK is not
+    installed, and every chat call fails.
+    """
+    provider = pipeline_provider((lock.get("trace") or {}).get("sink"))
+    saved = os.environ.get("OBSERVABILITY_PROVIDER")
+    os.environ["OBSERVABILITY_PROVIDER"] = provider
+    try:
+        yield provider
+    finally:
+        if saved is None:
+            os.environ.pop("OBSERVABILITY_PROVIDER", None)
+        else:
+            os.environ["OBSERVABILITY_PROVIDER"] = saved
+
+
 def resolve_sink(
     *,
     sink: str = "langfuse",

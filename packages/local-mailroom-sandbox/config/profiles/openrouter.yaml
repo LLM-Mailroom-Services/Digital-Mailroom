@@ -2,8 +2,16 @@
 name: openrouter
 description: Opt-in cloud API. Never the sandbox default.
 provider: openrouter
-default_model: qwen/qwen3.7-flash
+default_model: qwen/qwen3.5-9b
 judge_model: deepseek/deepseek-v4-flash
+# Models runs may call through this profile (engine.model / agent routes). Full price
+# sheets, tiers included, live in config/api_prices.yaml; every id here must have one.
+api_models:
+  - qwen/qwen3.5-9b
+  - qwen/qwen3.7-flash
+  - deepseek/deepseek-v4-flash
+  - openai/gpt-6-luna
+  - openai/gpt-6-luna-decisions
 base_url: https://openrouter.ai/api/v1
 base_url_env: OPENROUTER_BASE_URL
 api_key_env: OPENROUTER_API_KEY
@@ -12,7 +20,7 @@ compose_profiles:
   - langfuse
 pull_models: []
 health:
-  models_url: https://openrouter.ai/api/v1/models
-  chat_url: https://openrouter.ai/api/v1/chat/completions
+  models_url: "{base_url}/models"
+  chat_url: "{base_url}/chat/completions"
 json_object: true
 requires_api_key: true

@@ -1,0 +1,17 @@
+{
+  "reference": "extraction-gate-specialist-correspondence-qwen",
+  "candidate": "specialist-condensed-v2-correspondence-qwen-ab",
+  "documents": 60,
+  "reference_mean": 0.3265,
+  "candidate_mean": 0.328,
+  "mean_delta": 0.0015,
+  "wins": 11,
+  "ties": 33,
+  "losses": 16,
+  "reference_parse_errors": 0,
+  "candidate_parse_errors": 0,
+  "reference_prompt_tokens_per_doc": 2775,
+  "candidate_prompt_tokens_per_doc": 2004,
+  "max_mean_drop": 0.02,
+  "verdict": "adopt"
+}

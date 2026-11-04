@@ -1,0 +1,130 @@
+# SUPERSEDED: chat model openai/gpt-6-luna as the decision reviewer; preflight now refuses
+# a paid chat-model reviewer run without an explicit opt-in. Kept as the record of
+# reports/reviewer-calibration/reviewer-calibration-luna.md (never run; the full calibration ran as reviewer-calibration-luna-v3-train-all).
+#
+# SAND-085 (expanded): calibrate the OpenRouter decision reviewer's per-class cutoffs
+# on the largest balanced draw the train split allows.
+#
+# Up to 450 documents per class from the 2,894 train documents with task ground
+# truth: every merger (135) and every corporate record (403); contracts,
+# correspondence and insurance claims capped at 450, filled evenly across
+# subclasses (every small subclass is taken whole) so a common subclass cannot
+# set the cutoff alone. 1,888 documents in all, 2.6x the 735-document draw.
+# Reviewer only; the labels come from the corpus. At gpt-6-luna's $0.10/$0.50
+# per 1M tokens this measures at about $0.80 with the decision_v1 prompt (output ~12%). A signed
+# `sandbox run start --initials XX` is the spend approval. Afterwards:
+#   python scripts/calibrate_reviewer.py --run reviewer-calibration-luna-full
+# Its cutoffs are candidates for issue #208 and are not applied automatically.
+# Uses the decision_v1 reviewer prompt, which the 735 pilot and the test-split
+# check selected (reports/reviewer-calibration/reviewer-calibration-luna.md).
+schema: sandbox.run/v1
+run_id: reviewer-calibration-luna-full
+task: sorter_reviewer
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    sorter_reviewer: {source: local, file: sorter_reviewer_decision_v1}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: train   # test stays untouched for final evaluation; it has only 17 mergers
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_DATA_REVISION)
+  strata:
+    buckets:
+      - doc_class: contract
+        count: 450
+        sub_buckets:
+          - {subclass: "Affiliate_Agreements", count: 8}
+          - {subclass: "Agency Agreements", count: 13}
+          - {subclass: "Co_Branding", count: 17}
+          - {subclass: "Collaboration", count: 24}
+          - {subclass: "Consulting Agreements", count: 11}
+          - {subclass: "Development", count: 24}
+          - {subclass: "Distributor", count: 27}
+          - {subclass: "Endorsement", count: 24}
+          - {subclass: "Franchise", count: 14}
+          - {subclass: "Hosting", count: 18}
+          - {subclass: "IP", count: 15}
+          - {subclass: "Joint Venture", count: 7}
+          - {subclass: "Joint Venture _ Filing", count: 14}
+          - {subclass: "License_Agreements", count: 28}
+          - {subclass: "Maintenance", count: 28}
+          - {subclass: "Manufacturing", count: 15}
+          - {subclass: "Marketing", count: 15}
+          - {subclass: "Non_Compete_Non_Solicit", count: 3}
+          - {subclass: "Outsourcing", count: 18}
+          - {subclass: "Promotion", count: 12}
+          - {subclass: "Reseller", count: 12}
+          - {subclass: "Service", count: 21}
+          - {subclass: "Sponsorship", count: 28}
+          - {subclass: "Strategic Alliance", count: 28}
+          - {subclass: "Supply", count: 15}
+          - {subclass: "Transportation", count: 11}
+      - doc_class: merger_agreement
+        count: 135
+        sub_buckets:
+          - {subclass: "all_cash", count: 51}
+          - {subclass: "all_stock", count: 22}
+          - {subclass: "mixed_cash_stock", count: 12}
+          - {subclass: "mixed_cash_stock_election", count: 1}
+          - {subclass: "other", count: 49}
+      - doc_class: corporate_record
+        count: 403
+        sub_buckets:
+          - {subclass: "articles_of_incorporation", count: 57}
+          - {subclass: "board_resolution", count: 27}
+          - {subclass: "bylaws", count: 27}
+          - {subclass: "charter_amendment", count: 71}
+          - {subclass: "indenture", count: 53}
+          - {subclass: "officer_certificate", count: 54}
+          - {subclass: "other", count: 3}
+          - {subclass: "powers_of_attorney", count: 25}
+          - {subclass: "rights_instrument", count: 43}
+          - {subclass: "subsidiary_list", count: 43}
+      - doc_class: correspondence
+        count: 450
+        sub_buckets:
+          - {subclass: "attorney_demand", count: 3}
+          - {subclass: "demand", count: 60}
+          - {subclass: "email", count: 68}
+          - {subclass: "letter", count: 65}
+          - {subclass: "meeting_request", count: 48}
+          - {subclass: "memo", count: 69}
+          - {subclass: "notice", count: 68}
+          - {subclass: "press_release", count: 69}
+      - doc_class: insurance_claim
+        count: 450
+        sub_buckets:
+          - {subclass: "auto", count: 75}
+          - {subclass: "carrier", count: 75}
+          - {subclass: "inpatient", count: 75}
+          - {subclass: "outpatient", count: 75}
+          - {subclass: "pde", count: 75}
+          - {subclass: "property", count: 75}
+  limit: 1888
+  require_task_gt: true   # every document can be scored
+  sample_seed: 42
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 32
+  cost_cap_usd: 1.00
+  max_wall_seconds: 5400
+  api_cost_cap_usd: 1.50
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, reviewer-calibration]

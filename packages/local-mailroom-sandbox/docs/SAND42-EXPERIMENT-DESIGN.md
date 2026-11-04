@@ -298,8 +298,12 @@ floor came from a different draw.**
 ## 5. Metric contract
 
 A number is only meaningful with its definition, denominator, sample size and population. The
-card carries the field set below; the machine-readable card is the contract
-(`reports/SAND42/<shape>/<specialist>/<run_id>.card.json`).
+card carries the field set below; the machine-readable card is the contract. Two commands write
+it. The runbook cells write `reports/SAND42/<shape>/<specialist>/<run_id>.card.json` through
+`sandbox run card --config`. `sandbox experiment report` writes `cards/<run-id>.card.json` beside
+its `report.json` for each run with completed documents, and adds the summary under
+`runs[].sand42` (see [experiments.md](experiments.md#observe-and-analyze)). The experiment report
+prints a subset of these fields as its `## Sand42 metrics` table.
 
 ### 5.1 What the AmFam A100 cards carried (the requested baseline)
 
@@ -435,7 +439,7 @@ specialist — two warm replicas bill two GPUs.
 | **Small-n class (merger)** | Merger is reported per class with an interval, never pooled; its 17-agreement test split is explicitly out of scope. | §4.3 |
 | **Pooling across classes** | No pooled column on the cell card; the comparison card is per class. | §5.4, `sand42_cards.render_cell_md` |
 | **Replica imbalance / KV pressure** | Per-replica engine telemetry is scraped before/after and now includes GPU util and KV use per replica; preemptions and length finishes are reported per replica, so a C16/C8 imbalance is visible rather than averaged away. | §5.2, `grid_cards._engine_block` |
-| **Silent serial cell** (`MAX_INPUTS=0`) | `env_drift` fails benchmark-check on any `MODAL_VLLM_*` shell value that disagrees with the run YAML. | `deploy_env.py` |
+| **Silent serial cell** (`MAX_INPUTS=0`) | `env_drift` fails benchmark-check on any `MODAL_VLLM_*` shell value that disagrees with the run YAML. Preflight also refuses a live modal-vllm run whose `job.concurrency` is above 1 while `engine.vllm.max_inputs` is 0. | `deploy_env.py`, `job/preflight.py` (`_engine_errors`) |
 | **Wrong key to the endpoint** (SAND-038) | `mailroom_sandbox.provider_credentials` wraps `BaseAgent.__init__` at `runtime.activate()`. | SAND-038 |
 | **A delta inside the noise floor** | Every cell-to-cell delta carries a bootstrap CI and better/worse counts; a CI containing 0 is reported as inside the floor. | `sand42_cards.paired_delta` |
 | **Underpowered claim** | Each delta reports the paired n that Δ = 0.05 would need; contracts at n = 50 is flagged marginal. | §4.3 |

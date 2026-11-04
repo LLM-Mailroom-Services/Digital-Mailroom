@@ -22,6 +22,12 @@ def repo_root() -> Path:
     return Path.cwd()
 
 
+def dotenv_files() -> list[Path]:
+    """Existing sandbox ``.env`` files, highest precedence first."""
+    root = repo_root()
+    return [p for p in (root / ".env", root / "config" / ".env") if p.is_file()]
+
+
 def config_dir() -> Path:
     return repo_root() / "config"
 

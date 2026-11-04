@@ -46,7 +46,7 @@ def _canonical_group(value: Any) -> str | None:
 def _report_groups() -> dict[str, Any]:
     """Load the report-group catalog, rejecting duplicates and invalid shapes."""
     path = config_dir() / "report-groups.yaml"
-    data = yaml.load(path.read_text(encoding="utf-8"), Loader=_UniqueKeySafeLoader) or {}
+    data = yaml.load(path.read_text(encoding="utf-8"), Loader=_UniqueKeySafeLoader) or {}  # nosec B506
     if not isinstance(data, Mapping) or data.get("schema") != "sandbox.report-groups/v1":
         raise ValueError(f"{path}: unsupported or invalid report-group catalog")
     if "runbooks" in data and not isinstance(data["runbooks"], Mapping):

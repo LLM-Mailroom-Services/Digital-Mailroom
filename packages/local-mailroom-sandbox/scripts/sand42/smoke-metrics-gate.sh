@@ -20,7 +20,7 @@
 #   card               the mid-run rows carry a VALUE, not "—"
 #   isolation          master report/card + cell cards byte-identical
 set -uo pipefail
-cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
 REPO="$PWD"
 # shellcheck disable=SC1091
 source .venv/bin/activate

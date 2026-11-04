@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import importlib
 import re
-from pathlib import Path
 
 import pytest
 import yaml
@@ -19,7 +18,7 @@ from mailroom_sandbox.eval import agents, runners
 from mailroom_sandbox.paths import repo_root
 
 ROOT = repo_root()
-CI_WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
+CI_CONFIG = ROOT / ".circleci" / "config.yml"
 
 # Files that must exist — deleting them should fail CI, not silently drop coverage.
 REGRESSION_TEST_MODULES = (
@@ -49,15 +48,17 @@ def test_regression_guard_module_exists(rel):
 
 def test_ci_workflow_runs_network_free_pytest():
     """The sandbox CI must not be a no-op stub (regression of DMR-057 guardrails)."""
-    assert CI_WORKFLOW.is_file()
-    workflow = yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))
-    steps = workflow["jobs"]["network-free"]["steps"]
+    assert CI_CONFIG.is_file()
+    config = yaml.safe_load(CI_CONFIG.read_text(encoding="utf-8"))
+    steps = config["jobs"]["test"]["steps"]
     joined = "\n".join(
-        step.get("run", "") for step in steps if isinstance(step.get("run"), str)
+        step["run"]["command"] for step in steps
+        if isinstance(step, dict) and isinstance(step.get("run"), dict)
     )
     assert "pytest" in joined
     assert "local_llm" in joined
     assert "echo ok" not in joined
+    assert "test" in config["workflows"]["ci"]["jobs"]
 
 
 def test_reduced_profile_reporter_retired_in_components():

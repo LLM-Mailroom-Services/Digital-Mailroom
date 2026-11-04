@@ -27,17 +27,69 @@ def _user_text(messages: list) -> str:
     return str(content)
 
 
+def oracle_extraction(fields: dict[str, Any], doc_type: str, subclass: str | None = None) -> dict[str, Any]:
+    """The ground truth rewritten as a specialist would answer it.
+
+    The ground truth stores CUAD/MAUD labels as span objects and list fields as
+    JSON strings, while the scorers read the model's ``cuad_clauses`` /
+    ``maud_clauses`` entries and the live schemas want lists. Echoing the raw
+    labels scored contracts and mergers 0 by construction. This answer scores
+    1.0 on every scoreable corpus row, so a mock run drops below 1.0 only when
+    the ground truth stops reaching the scorer.
+    """
+    from llm_dojo_scoring.sandbox_scoring import FIELD_CATEGORY, gt_categories, gt_labels
+
+    from mailroom_sandbox.eval.schema_adherence import schema_keys_for
+
+    pred = dict(fields)
+    cuad = gt_categories(pred.pop("cuad_clause_labels", None))
+    if cuad:
+        pred["cuad_clauses"] = [f"{cat}: {spans[0]}" for cat, spans in cuad.items() if spans]
+        for field, cat in FIELD_CATEGORY.items():
+            if cuad.get(cat) and pred.get(field) in (None, "", []):
+                pred[field] = cuad[cat] if field == "parties" else cuad[cat][0]
+    maud = gt_labels(pred.pop("maud_clause_labels", None))
+    if maud:
+        pred["maud_clauses"] = [f"{question}: {answer}" for question, answer in maud.items()]
+    keys = schema_keys_for(doc_type, subclass)
+    if keys:
+        pred = {k: v for k, v in pred.items() if k in keys}
+    for key, value in pred.items():
+        if isinstance(value, str) and value.strip().startswith("["):
+            try:
+                decoded = json.loads(value)
+            except ValueError:
+                continue
+            if isinstance(decoded, list):
+                pred[key] = decoded
+    try:
+        from schemas.documents import get_extraction_schema
+
+        model = get_extraction_schema(doc_type)
+    except Exception:  # noqa: BLE001 — no live schema: keep the decoded payload
+        model = None
+    for name, field in (getattr(model, "model_fields", None) or {}).items():
+        if pred.get(name) == "" and "list" in str(field.annotation).lower():
+            pred[name] = []
+    return pred
+
+
 def fake_structured_payload(user_content: str, expect: dict[str, Any]) -> dict[str, Any]:
     doc_type = expect.get("doc_type") or expect.get("expected_doc_class") or "contract"
     conf = expect.get("conf")
     if conf is None:
-        conf = 0.40 if expect.get("id") == "ambiguous_01" else 0.97
+        # Above every class's "high" threshold (0.98 for contracts, mergers, claims),
+        # so a mock document runs the whole graph instead of stopping for review.
+        conf = 0.40 if expect.get("id") == "ambiguous_01" else 0.99
     fields = expect.get("expected_fields") or {}
     text = user_content or ""
-    if "Classify this legal document" in text or "RE-EVALUATION REQUESTED" in text:
+    if ("Classify this legal document" in text or "RE-EVALUATION REQUESTED" in text
+            or "CLASSIFY THIS DOCUMENT" in text):  # the last is the sorter reviewer's prompt
         return {
             "doc_type": doc_type,
             "contract_subtype": "other" if doc_type == "contract" else None,
+            # Without a subclass the sorter guardrail sends every document to review.
+            "doc_subclass": expect.get("expected_subclass"),
             "confidence": conf,
             "reasoning": "mock",
         }
@@ -62,8 +114,8 @@ def fake_structured_payload(user_content: str, expect: dict[str, Any]) -> dict[s
         }
     if "matter-record summary" in text or "compile this into" in text.lower():
         return {"summary": "mock report", "confidence": 0.9}
-    if "Yes" in text and "No" in text and expect.get("legalbench_answer"):
-        return {"answer": expect["legalbench_answer"]}
+    if "Extract this document's fields" in text:  # the in-graph specialist
+        return {"confidence": conf, **oracle_extraction(fields, doc_type, expect.get("expected_subclass"))}
     payload = {"confidence": conf, "mock_extraction": True}
     payload.update(fields)
     return payload

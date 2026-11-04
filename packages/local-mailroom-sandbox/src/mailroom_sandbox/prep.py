@@ -19,7 +19,6 @@ from mailroom_sandbox.datasets import (
     fixture_file,
     load_agent_fixtures,
     load_hf_fixtures,
-    load_legalbench_fixtures,
     load_manifest,
     parse_expected_fields,
 )
@@ -150,38 +149,6 @@ def clean_hf_rows(rows: list[dict[str, Any]] | None = None) -> tuple[list[dict[s
     return prepared, report
 
 
-def clean_legalbench_rows(
-    rows: list[dict[str, Any]] | None = None,
-) -> tuple[list[dict[str, Any]], CleanReport]:
-    rows = rows if rows is not None else load_legalbench_fixtures()
-    report = CleanReport(source="legalbench", input_rows=len(rows), kept_rows=0)
-    prepared: list[dict[str, Any]] = []
-    for row in rows:
-        row_id = str(row.get("id") or "").strip()
-        question = normalize_text(str(row.get("question") or row.get("text") or ""))
-        answer = str(row.get("answer") or row.get("label") or "").strip().lower()
-        if not row_id or not question:
-            report.dropped_missing_fields += 1
-            report.issues.append(f"{row_id or '?'}: missing id/question")
-            continue
-        if answer not in {"yes", "no"}:
-            report.dropped_missing_fields += 1
-            report.issues.append(f"{row_id}: answer must be yes/no, got {answer!r}")
-            continue
-        prepared.append(
-            {
-                "id": row_id,
-                "question": question,
-                "text": normalize_text(str(row.get("text") or row.get("document_text") or "")),
-                "answer": answer,
-                "task": row.get("task") or "contract_qa",
-                "char_count": len(question),
-            }
-        )
-    report.kept_rows = len(prepared)
-    return prepared, report
-
-
 def clean_agent_rows(agent: str) -> tuple[list[dict[str, Any]], CleanReport]:
     rows = load_agent_fixtures(agent)
     report = CleanReport(source=f"agents/{agent}", input_rows=len(rows), kept_rows=0)
@@ -245,11 +212,6 @@ def prepare_offline_datasets(*, agents: list[str] | None = None) -> dict[str, An
     artifacts["hf"] = _display_path(path)
     reports.append(report.as_dict())
 
-    lb_rows, report = clean_legalbench_rows()
-    path = write_jsonl(out_dir / "legalbench_prepared.jsonl", lb_rows)
-    artifacts["legalbench"] = _display_path(path)
-    reports.append(report.as_dict())
-
     agent_artifacts: dict[str, str] = {}
     for agent in agents:
         rows, report = clean_agent_rows(agent)
@@ -294,7 +256,6 @@ def prepare_offline_datasets(*, agents: list[str] | None = None) -> dict[str, An
         "counts": {
             "fixtures": len(manifest_rows),
             "hf": len(hf_rows),
-            "legalbench": len(lb_rows),
             "agents": agent_counts,
             "sorter_pilot_balanced": len(balanced),
         },
@@ -309,7 +270,11 @@ def prepare_offline_datasets(*, agents: list[str] | None = None) -> dict[str, An
 
 
 def environment_checklist(profile: str = "ollama") -> dict[str, Any]:
-    """Inspect whether the offline sandbox can activate without guessing."""
+    """Inspect whether the offline sandbox can activate without guessing.
+
+    ``profile`` defaults to ``ollama`` on purpose: the prep notebooks run offline,
+    without a deployed Modal endpoint, whatever the sandbox default profile is.
+    """
     root = repo_root()
     env_candidates = [root / ".env", root / "config" / ".env", root / "config" / ".env.example"]
     env_found = next((p for p in env_candidates if p.is_file()), None)

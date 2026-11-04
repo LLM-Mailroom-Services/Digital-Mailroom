@@ -9,14 +9,14 @@
     },
     "llm-dojo-scoring": {
       "branch": "main",
-      "synced_at": "2026-10-25T19:13:51Z",
-      "synced_sha": "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4",
+      "synced_at": "2026-11-04T15:41:50Z",
+      "synced_sha": "a82843e808336e0078c7d5b27dcdb3ff8b698170",
       "url": "https://github.com/Exios66/llm-dojo-scoring.git"
     },
     "llm-mailroom": {
       "branch": "main",
-      "synced_at": "2026-10-25T19:35:49Z",
-      "synced_sha": "175e6711077f92cee16e6bf2488844f92d9cb36d",
+      "synced_at": "2026-11-04T15:41:50Z",
+      "synced_sha": "bb56b71ee107a3d7aac7eadd505b761da10c020d",
       "url": "https://github.com/Exios66/llm-mailroom.git"
     },
     "local-mailroom-sandbox": {

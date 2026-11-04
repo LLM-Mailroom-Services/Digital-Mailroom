@@ -1,0 +1,232 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:Consolas,"Cascadia Mono",monospace;background:#05070a;color:#b8c6d4;font-size:12px}
+.app{display:grid;grid-template-columns:222px 1fr 312px;grid-template-rows:30px 1fr;height:100vh}
+.ribbon{grid-column:1/4;background:#0d141d;border-bottom:1px solid #1c2530;display:flex;align-items:center;gap:12px;padding:0 12px;font-size:9.5px;letter-spacing:1px;color:#5d6c80;white-space:nowrap;overflow:hidden}
+.ribbon b{color:#7fd0a2}
+#bigTitle{font-size:20px;font-weight:bold;letter-spacing:3px;color:#7fd0a2;text-shadow:0 0 12px #7fd0a260;padding:0 14px;display:none}
+#bigTitle.on{display:inline-block}.ribbon em{color:#e8b93f;font-style:normal}.ribbon .z{margin-left:auto;color:#9fc6e8}
+.rail{background:#0a0e13;border-right:1px solid #1c2530;padding:11px;overflow:auto}
+.railR{background:#0a0e13;border-left:1px solid #1c2530;padding:11px;overflow:auto}
+h3{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:9px 0 6px}
+.run{padding:6px 8px;border:1px solid #1c2530;border-radius:4px;margin-bottom:5px;font-size:10.5px;cursor:pointer;color:#7e8ca0}
+.run.sel{border-color:#41d98f;color:#e6f0e9;background:#0d1a13}
+.run small{display:block;color:#4d5c6e;font-size:9px;margin-top:2px}
+.cls{display:flex;justify-content:space-between;padding:5px 8px;border-radius:4px;margin-bottom:3px;font-size:10.5px;cursor:pointer;border:1px solid transparent}
+.cls.sel{background:#0f1d15;border-color:#7fd0a2;color:#d5f2e0}
+#viewport{position:relative;overflow:hidden;background:radial-gradient(1200px 700px at 45% 45%,#081019,#05070a);cursor:grab}
+#world{position:absolute;left:0;top:0;transform-origin:0 0}
+#edges{position:absolute;left:0;top:0;pointer-events:none}
+.node{position:absolute;width:186px;background:#0d141d;border:1.5px solid #2e4256;border-radius:7px;padding:7px 9px;font-size:10px;cursor:pointer;transition:opacity .15s}
+.node .tag{display:inline-block;font-size:8px;padding:1px 5px;border-radius:7px;background:#2c2438;color:#c39ae8;margin-bottom:2px}
+.node .tag.code{background:#17231d;color:#7fd0a2}.node .tag.tray{background:#2a2130;color:#e8b93f}
+.node .nm{font-weight:bold;color:#e6f0e9;font-size:10.5px}
+.node .v{font-size:18px;font-weight:bold;color:#7fd0a2}
+.node .v.warn{color:#e8b93f}.node .v.bad{color:#e8543f}.node .v.zero{color:#4d5c6e}
+.node .s{color:#5d6c80;font-size:9px}
+.node.hold{border-color:#7a5c1d}.node.fail{border-color:#7a2620}
+.node.dim{opacity:.14}
+.node.route{border-color:#7fd0a2;box-shadow:0 0 0 1.5px #7fd0a2,0 0 12px #7fd0a230}
+.node.neighbor{border-color:#419bd9;opacity:.95;box-shadow:0 0 0 1px #419bd980,0 0 10px #419bd920}
+.node.selnode{border-color:#7fd0a2;box-shadow:0 0 0 2px #7fd0a2,0 0 16px #7fd0a260}
+.chip{position:absolute;transform:translate(-50%,-50%);background:#111c27;border:1px solid #33465c;color:#9fc6e8;font-size:9px;padding:1px 5px;border-radius:4px}
+.chip.dim{opacity:.12}
+.chip.chipSel{background:#1b3a57;border-color:#7cc4ff;color:#e6f6ff}
+.edge{stroke:#28394d;stroke-width:1.1}
+.edge.hot{stroke:#419bd9;stroke-width:1.7}
+.edge.sel{stroke:#7cc4ff;stroke-width:2.4;filter:drop-shadow(0 0 4px #419bd9a0)}
+.edge.dim{opacity:.22}
+#hud{position:absolute;left:10px;bottom:10px;background:#0d141dcc;border:1px solid #1c2530;border-radius:5px;padding:5px 8px;font-size:9px;color:#5d6c80;line-height:1.7;pointer-events:none;z-index:5}
+#hud b{color:#9fc6e8}
+#zoomctl{position:absolute;right:10px;bottom:10px;display:flex;flex-direction:column;gap:4px;z-index:5}
+#zoomctl div{width:24px;height:24px;background:#0d141d;border:1px solid #2e4256;border-radius:5px;color:#9fc6e8;display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer}
+.kv{display:grid;grid-template-columns:62px 1fr;gap:2px 8px;font-size:10px;margin-bottom:8px}
+.kv span:first-child{color:#4d5c6e}
+.state{display:flex;justify-content:space-between;padding:4px 6px;border:1px solid #1c2530;border-radius:4px;margin-bottom:3px;font-size:10px}
+.state .n{color:#5d6c80;margin-left:6px;font-size:9px}
+.note2{font-size:9px;color:#5d6c80;margin:5px 2px 8px;line-height:1.5}
+</style></head><body>
+<div class="app">
+<div class="ribbon"><span id="bigTitle"></span><b>PIPELINE FLOOR · DIGEST-DRIVEN v10</b> — topology: build_graph.py wiring · numbers: floor_digest.json · <em><span id="mode">ALL CLASSES</span></em><span class="z" id="gen"></span></div>
+<div class="rail"><h3 style="margin-top:0">RUNS</h3><div id="runs"></div><h3>CLASSES — click = isolate</h3><div id="cl"></div>
+<div style="font-size:8.5px;color:#4d5c6e;margin-top:8px;line-height:1.6">green outline = class route · dim = untouched<br>node = docs that fired it · chip = docs crossed that edge</div></div>
+<div id="viewport"><div id="hud">arrows/drag <b>pan</b> · wheel <b>zoom</b> · click node → <b>its in/out edges light</b> · click empty canvas → <b>clear</b> · click class → <b>isolate</b></div><div id="zoomctl"><div id="zin">+</div><div id="zout">−</div><div id="zfit" style="font-size:9px">fit</div></div><div id="world"><svg id="edges" width="2200" height="1400"><defs>
+<marker id="arr" markerWidth="13" markerHeight="13" refX="11" refY="6.5" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L13,6.5 L0,13 z" fill="#7e93a8"/></marker>
+<marker id="arrHot" markerWidth="13" markerHeight="13" refX="11" refY="6.5" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L13,6.5 L0,13 z" fill="#7cc4ff"/></marker>
+<marker id="arrSel" markerWidth="15" markerHeight="15" refX="12" refY="7.5" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L15,7.5 L0,15 z" fill="#cdeaff"/></marker>
+<marker id="arrDim" markerWidth="13" markerHeight="13" refX="11" refY="6.5" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L13,6.5 L0,13 z" fill="#4a5a6e" opacity=".45"/></marker></defs></svg></div></div>
+<div class="railR"><h3 style="margin-top:0" id="outHead"></h3><div id="outRows"></div><div class="note2" id="outNote"></div>
+<h3>Node — <span id="selName">(click a node)</span></h3>
+<div class="kv"><span>agent</span><b id="kA">—</b><span>agents seen</span><b id="kAgt">—</b><span>model</span><b id="kM">—</b><span>prompt</span><b id="kP">—</b><span>fire p50</span><b id="kMs">—</b><span>docs fired</span><b id="kF">—</b><span>aborts here</span><b id="kAb">—</b></div>
+<div class="note2" id="selExtra" style="color:#8fa3b8"></div>
+<div class="kv" style="margin-top:8px"><span>run tokens</span><b id="kTok"></b><span>digest</span><b id="kGen"></b></div></div>
+</div>
+<script src="floor_digest.js"></script>
+<script>
+const D=window.DIGEST;
+if(!D||!D.runs||!D.runs.length){document.body.textContent="floor_digest.js missing or empty - run: python reports/dashboard/build_floor_digest.py";throw new Error("no digest")}
+document.getElementById("gen").textContent="generated "+D.generated_utc.slice(0,16)+"Z";
+document.getElementById("kGen").textContent=D.generated_utc.slice(0,16)+"Z";
+const POS={START:[20,430],intake:[200,430],classify:[450,430],retry_classify:[450,140],review_classify:[730,140],classification_arbiter:[1010,140],
+ extract:[730,430],judge_verify:[730,980],arbiter:[1010,980],retry_extract:[450,980],boss_escalation:[1290,980],
+ compile_report:[1010,430],catalog_write:[1290,430],archive:[1560,430],human_review:[1560,720],failed:[1830,720],END:[1830,430]};
+const NB={w:186,h:62};
+{const known=new Set(["START","END"]);for(const [a,b] of D.graph_reference.edges){known.add(a);known.add(b)}for(const n of Object.keys(D.graph_reference.node_agents))known.add(n);
+ for(const k of Object.keys(POS))if(!known.has(k))delete POS[k];
+ let col=0;for(const k of known)if(!POS[k]){POS[k]=[20+(col%8)*270,1230+Math.floor(col/8)*90];col++}}
+const W=2200,H=1400, world=document.getElementById("world"), svg=document.getElementById("edges"), vp=document.getElementById("viewport");
+// default run: the last one still running, else the last run in the digest
+let runIdx=(()=>{let i=-1;D.runs.forEach((r,k)=>{if(r.state==="running")i=k});return i>=0?i:D.runs.length-1})(), CLASS=null, selNode=null, moved=0;
+function run(){return D.runs[runIdx]}
+function nodeVal(id){
+const r=run();
+if(id==="failed"){const a=r.aborts_by_last_node||{};if(CLASS){const oc=(r.per_class[CLASS]||{}).outcomes||{};return oc.failed||0}return Object.values(a).reduce((x,y)=>x+y,0)}
+if(CLASS){const pc=r.per_class[CLASS];return (pc&&pc.nodes[id])||0}
+return r.node_fires[id]||0;
+}
+function edgeVal(a,b){
+ const r=run(),k=a+">"+b;
+ if(CLASS){const pc=r.per_class[CLASS];return (pc&&pc.edges[k])||0}
+ return r.edge_fires[k]||0;
+}
+function startTargets(){return D.graph_reference.edges.filter(e=>e[0]==="START").map(e=>e[1])}
+function endSources(){return D.graph_reference.edges.filter(e=>e[1]==="END").map(e=>e[0])}
+function endCount(){return endSources().reduce((t,n)=>t+nodeVal(n),0)}
+ function mk(html,c){const d=document.createElement("div");if(c)d.className=c;d.innerHTML=html;world.appendChild(d);return d}
+const NONLLM=["(code)","(tray)","(abort terminal)"];
+function isLLM(id){const a=D.graph_reference.node_agents[id];return !!a&&!NONLLM.includes(a)}
+// curve midpoint: prefer an explicit override, else pick the bowed candidate that crosses no other node box
+const MIDOVR={"arbiter>retry_extract":[880,1150],"retry_classify>human_review":[400,600]};
+const PAD=22;
+function inBox(x,y,k,boxes){const xy=boxes[k];return x>xy[0]-PAD&&x<xy[0]+NB.w+PAD&&y>xy[1]-PAD&&y<xy[1]+NB.h+PAD}
+function clear(c,p1,p2,skip,boxes){
+ for(let t=0.15;t<0.85;t+=0.05){
+  const x=(1-t)*(1-t)*p1.x+2*(1-t)*t*c.x+t*t*p2.x, y=(1-t)*(1-t)*p1.y+2*(1-t)*t*c.y+t*t*p2.y;
+  for(const k in boxes)if(!skip.includes(k)&&inBox(x,y,k,boxes))return false}
+ return true}
+function midFor(a,b,p1,p2,boxes){
+ if(MIDOVR[a+">"+b])return {x:MIDOVR[a+">"+b][0],y:MIDOVR[a+">"+b][1]};
+ const dx=p2.x-p1.x,dy=p2.y-p1.y,dist=Math.hypot(dx,dy)||1,nx=-dy/dist,ny=dx/dist,skip=[a,b];
+ const cands=[[0,0],[55,0],[-55,0],[110,0],[-110,0],[170,0],[-170,0],[240,0],[-240,0],[320,0],[-320,0],[420,0],[-420,0]].map(c=>({x:(p1.x+p2.x)/2+c[0]*nx,y:(p1.y+p2.y)/2+c[0]*ny,k:a}));
+ cands.push({x:Math.min(p1.x,p2.x)-160,y:Math.max(p1.y,p2.y)+160,k:a});   // under-left loop
+ cands.push({x:Math.max(p1.x,p2.x)+160,y:Math.max(p1.y,p2.y)+160,k:a});   // under-right loop
+ cands.push({x:(p1.x+p2.x)/2,y:Math.max(p1.y,p2.y)+230,k:a});             // deep sag
+ cands.push({x:(p1.x+p2.x)/2,y:Math.min(p1.y,p2.y)-230,k:a});             // high arc
+ for(const c of cands)if(clear(c,p1,p2,skip,boxes))return c;
+ return cands[0]}
+const BOX=Object.fromEntries(Object.entries(POS).map(([k,xy])=>[k,[xy[0],xy[1]]]));
+function render(){
+ world.querySelectorAll(".node,.chip").forEach(e=>e.remove());
+ while(svg.childNodes.length>1)svg.lastChild.remove();
+ const r=run(),GR=D.graph_reference;
+ // pre-compute edge traffic in current view context
+ const ev=GR.edges.map(([a,b])=>({a,b,v:(a==="START"||b==="END")?edgeVal(a==="START"?b:a,b)||0:edgeVal(a,b)}));
+ const zeroSet=new Set(ev.filter(e=>e.v===0).map(e=>e.a+">"+e.b));
+ // neighbors of selected node over NON-ZERO edges
+ const neighbors=new Set();
+ if(selNode)for(const e of ev){ if(e.v>0){ if(e.a===selNode)neighbors.add(e.b); if(e.b===selNode)neighbors.add(e.a);} }
+ for(const [id,xy] of Object.entries(POS)){
+  if(id==="START"||id==="END"){
+   const lit = !selNode ? (!CLASS || (id==="START"?(r.items_attempted>0):(endCount()>0))) :
+     (neighbors.has(id) || (id==="START"?startTargets().some(t=>t===selNode||neighbors.has(t)):endSources().some(t=>t===selNode||neighbors.has(t))));
+   const el=mk(`<div class="nm" style="color:#4d5c6e">${id==="START"?"▶ START":"■ END"}</div><div class="v zero">${id==="START"?r.items_attempted:endCount()}</div>`,"node"+(lit?"":" dim"));
+   el.style.cssText=`left:${xy[0]}px;top:${xy[1]}px;width:110px;background:none;border:none;box-shadow:none`;
+   el.dataset.k=id;continue;
+  }
+  const v=nodeVal(id);
+  const isllm=isLLM(id);
+  let ncls="node";
+  if(id==="human_review")ncls+=" hold";
+  if(id==="failed")ncls+=" fail";
+  if(selNode){
+    // selected + any node connected by a NON-ZERO edge stay lit; others grey
+    const linked = id===selNode || neighbors.has(id);
+    ncls += linked ? (id===selNode?" selnode":" neighbor") : " dim";
+  }
+  else if(CLASS){ ncls += (v>0)? " route":" dim"; }
+  else { ncls += (v===0 && id!=="START" && id!=="END")? " dim":""; }   // base mode: a node with zero fires greys too
+  mk(`<span class="tag ${!isllm?(id==="human_review"||id==="failed"?"tray":"code"):""}">${GR.node_agents[id]||id}</span><div class="nm">${id}</div><div class="v ${v===0?"zero":id==="human_review"?"warn":id==="failed"?"bad":""}">${v}</div><div class="s">p50 ${((r.node_ms_p50[id]||0)/1000)}s</div>`, ncls)
+   .style.cssText=`left:${xy[0]}px;top:${xy[1]}px`;world.lastChild.dataset.k=id;
+ }
+ function anc(a,b){const ac={x:a[0]+NB.w/2,y:a[1]+NB.h/2},bc={x:b[0]+NB.w/2,y:b[1]+NB.h/2};const dx=bc.x-ac.x,dy=bc.y-ac.y;
+  const t=Math.min(Math.abs(dx)>1?(NB.w/2+15)/Math.abs(dx):1e9,Math.abs(dy)>1?(NB.h/2+13)/Math.abs(dy):1e9);
+  return {x:ac.x+dx*Math.min(t,1),y:ac.y+dy*Math.min(t,1)}}
+ for(const [a,b] of GR.edges){
+  if(a==="START"||b==="END")continue;
+  const p1=anc(POS[a],POS[b]),p2=anc(POS[b],POS[a]);const dx=p2.x-p1.x,dy=p2.y-p1.y,dist=Math.hypot(dx,dy)||1;
+  const m=midFor(a,b,p1,p2,BOX);
+  const cxm=m.x,cym=m.y;
+  const v=edgeVal(a,b), active=v>0;
+  const selHit=!!selNode&&(a===selNode||b===selNode);
+  let cls="edge", marker="url(#arr)";
+  if(!active){ cls="edge dim"; marker="url(#arrDim)"; }                     // zero-document line: grey in ANY mode
+  else if(selNode){
+    if(selHit){cls="edge sel";marker="url(#arrSel)"}                        // selected node's in/out edges light
+    else {cls="edge dim";marker="url(#arrDim)"}                             // everything else greys when a node is toggled
+  } else if(CLASS){ cls="edge hot"; marker="url(#arrHot)"; }                // class view: live route edges blue
+  const ln=document.createElementNS("http://www.w3.org/2000/svg","path");
+  ln.setAttribute("d",`M ${p1.x} ${p1.y} Q ${cxm} ${cym} ${p2.x} ${p2.y}`);ln.setAttribute("fill","none");
+  ln.setAttribute("class",cls);ln.setAttribute("marker-end",marker);
+  svg.appendChild(ln);
+  const c=mk(v?v:"","chip");c.style.left=(p1.x+2*cxm+p2.x)/4+"px";c.style.top=(p1.y+2*cym+p2.y)/4+"px";
+  if(!active)c.classList.add("dim");
+  if(selNode&&!selHit)c.classList.add("dim");   // node toggled: grey chips not on the selected node's edges
+  
+  if(selHit)c.classList.add("chipSel");
+ }
+ const rows=document.getElementById("outRows"),head=document.getElementById("outHead");
+ head.textContent="Outcomes — "+r.name+(CLASS?" · "+CLASS:"");
+ const oc=CLASS?((r.per_class[CLASS]||{}).outcomes||{}):(Object.values(r.outcomes).reduce((a,v)=>{a.ship+=v.ship||0;a.held+=v.held||0;a.failed+=v.failed||0;a.open+=v.open||0;a.n+=v.n||0;return a},{ship:0,held:0,failed:0,open:0,n:0}));
+ rows.innerHTML=["ship|#7fd0a2|Fully archived","held|#e8b93f|Human-in-the-loop","failed|#e8543f|Failed","open|#5d6c80|Open mid-graph"]
+  .map(x=>x.split("|")).map(([k,c,l])=>`<div class="state"><span><b style="color:${c}">●</b> ${l}</span><span>${Math.round((oc[k]||0)/Math.max(oc.n||1,1)*100)}%<span class="n">${oc[k]||0}/${oc.n||0}</span></span></div>`).join("");
+ document.getElementById("outNote").textContent="attempted "+r.items_attempted+" · ok "+r.items_ok+" · state "+r.state+" · cursor "+r.cursor+"/"+(r.total==null?"?":r.total)+(CLASS?" · class n "+(((r.per_class[CLASS]||{}).outcomes||{}).n||0):"");
+ const sel=selNode||"",agN=sel?(r.node_agents[sel]||{}):{};
+ document.getElementById("selName").textContent=sel?sel+(CLASS?" · "+CLASS:""):"(click a node)";
+ document.getElementById("kA").textContent=sel?(D.graph_reference.node_agents[sel]||"—"):"—";
+ document.getElementById("kAgt").textContent=Object.keys(agN).length?JSON.stringify(agN):"—";
+ document.getElementById("kM").textContent=sel&&isLLM(sel)?r.engine.model+" · "+r.profile:(sel?"— (deterministic code)":"—");
+ document.getElementById("kP").textContent=sel?(r.prompt_default||"—")+" · spec "+(r.spec_hash||"").slice(0,8):"—";
+ document.getElementById("kMs").textContent=sel?((r.node_ms_p50[sel]||0)/1000).toFixed(1)+" s":"—";
+ document.getElementById("kF").textContent=sel?nodeVal(sel)+(CLASS?" (class)":" (run)"):"—";
+ document.getElementById("kAb").textContent=sel?(r.aborts_by_last_node[sel]||0):"—";
+ document.getElementById("kTok").textContent=(r.tokens.prompt+r.tokens.completion).toLocaleString()+" tokens";
+ document.getElementById("selExtra").textContent=!sel?"":
+  (D.graph_reference.node_agents[sel]||"")+" · "+nodeVal(sel)+" docs fired this node"+(CLASS?" (class)":" (run)")+(Object.keys(agN).length?" · agents observed: "+Object.entries(agN).map(([a,c])=>a+" "+c).join(" · "):"");
+}
+function menus(){
+ document.getElementById("runs").innerHTML=D.runs.map((r,i)=>`<div class="run${i===runIdx?" sel":""}" data-i="${i}">${r.name}<small>${r.state} · ${r.items_attempted}/${r.total==null?"?":r.total} · ok ${r.items_ok}</small></div>`).join("");
+ document.querySelectorAll(".run").forEach(el=>el.onclick=()=>{runIdx=+el.dataset.i;CLASS=null;selNode=null;menus();render()});
+ const agg={};for(const c of D.classes)agg[c]=0;
+ {const rr=run();for(const c of D.classes){const o=(rr.per_class[c]||{}).outcomes||{};agg[c]=o.n||0}}
+ document.getElementById("cl").innerHTML=D.classes.map(c=>`<div class="cls${CLASS===c?" sel":""}" data-c="${c}">${c}<b>${agg[c]}</b></div>`).join("");
+ document.querySelectorAll(".cls").forEach(el=>el.onclick=()=>{CLASS=CLASS===el.dataset.c?null:el.dataset.c;
+  document.getElementById("mode").textContent=CLASS?"ISOLATED — counts & chips re-computed":"ALL CLASSES (run totals)";
+  const bt=document.getElementById("bigTitle");bt.textContent=CLASS?CLASS.toUpperCase():"";bt.classList.toggle("on",!!CLASS);
+  menus();render()});
+}
+window.onerror=(m)=>{document.getElementById("mode").textContent="JS ERROR: "+m};
+menus();render();
+vp.addEventListener("click",e=>{
+ if(moved>4)return;
+ const nd=e.target.closest(".node");
+ if(nd&&nd.dataset.k&&nd.dataset.k!=="START"&&nd.dataset.k!=="END"){selNode=(selNode===nd.dataset.k)?null:nd.dataset.k;render();return}
+ if(e.target.closest(".chip,#hud,#zoomctl"))return;
+ if(selNode){selNode=null;render()}  // click empty space: clear edge highlight only; class route stays lit
+});
+let tx=10,ty=40,z=.55,drag=null; // placeholder-anchor
+function apply(){world.style.transform=`translate(${tx}px,${ty}px) scale(${z})`}
+function zoom(nz,cx,cy){nz=Math.max(.2,Math.min(2.5,nz));cx=cx??vp.clientWidth/2;cy=cy??vp.clientHeight/2;const wx=(cx-tx)/z,wy=(cy-ty)/z;tx=cx-wx*nz;ty=cy-wy*nz;z=nz;apply()}
+apply();
+addEventListener("keydown",e=>{const st=150;if(e.key=="ArrowLeft")tx+=st;if(e.key=="ArrowRight")tx-=st;if(e.key=="ArrowUp")ty+=st;if(e.key=="ArrowDown")ty-=st;
+ if(e.key=="+")zoom(z*1.25);if(e.key=="-"||e.key=="_")zoom(z/1.25);
+ if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","+","-","_"].includes(e.key)){e.preventDefault();apply()}});
+vp.addEventListener("wheel",e=>{e.preventDefault();const r=vp.getBoundingClientRect();zoom(z*(e.deltaY<0?1.12:.89),e.clientX-r.left,e.clientY-r.top)},{passive:false});
+vp.addEventListener("mousedown",e=>{drag={x:e.clientX,y:e.clientY,tx,ty};moved=0});
+addEventListener("mousemove",ev=>{if(!drag)return;const dx=ev.clientX-drag.x,dy=ev.clientY-drag.y;moved=Math.max(moved,Math.abs(dx)+Math.abs(dy));if(moved>4){tx=drag.tx+dx;ty=drag.ty+dy;apply()}});
+addEventListener("mouseup",()=>{drag=null;setTimeout(()=>moved=0,0)});
+addEventListener("blur",()=>{drag=null;moved=0});
+document.getElementById("zin").onclick=()=>zoom(z*1.25);document.getElementById("zout").onclick=()=>zoom(z/1.25);
+document.getElementById("zfit").onclick=()=>{z=Math.min(vp.clientWidth/W,vp.clientHeight/H)*0.99;tx=6;ty=6;apply()};
+</script></body></html>

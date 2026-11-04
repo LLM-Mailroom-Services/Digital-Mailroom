@@ -4,7 +4,7 @@ composite score_extraction (ported behavior)."""
 import pytest
 
 from llm_dojo_scoring import field_scoring as fs
-from llm_dojo_scoring.gt_metadata import ANNOTATION_KEYS
+from llm_dojo_scoring.schemas.gt_metadata import ANNOTATION_KEYS
 
 
 @pytest.mark.parametrize("key", sorted(ANNOTATION_KEYS))
@@ -458,15 +458,13 @@ def test_heuristic_field_type():
     assert fs._heuristic_field_type("note", ["x"]) == "entity_list"
 
 
-def test_cms_claim_type_token_matches_health_gt():
-    """Treat CMS source-table tokens as compatible with health GT but not unrelated claims."""
-    from llm_dojo_scoring import get_suite
+def test_cms_table_token_on_claim_type_no_longer_matches_health_gt():
+    """#93 retired the SAND-042 fold: a table token is not a product line."""
+    from llm_dojo_scoring.scoring.field_scoring import score_extraction
 
-    suite = get_suite("insurance_claims_specialist")
+    exp = {"claim_type": "health", "cms_source_table": "pde"}
     for token in ("pde", "inpatient", "outpatient", "carrier"):
-        out = suite.score_document({"claim_type": "health"}, {"claim_type": token})
-        assert out["overall_score"] == 1.0
-    wrong = suite.score_document({"claim_type": "health"}, {"claim_type": "auto"})
-    assert wrong["overall_score"] < 1.0
-    reverse = suite.score_document({"claim_type": "pde"}, {"claim_type": "health"})
-    assert reverse["overall_score"] < 1.0
+        out = score_extraction("insurance_claim", {}, {"claim_type": token}, exp)
+        assert out.field_scores["claim_type"] == 0.0, token
+    right = score_extraction("insurance_claim", {}, {"claim_type": "health"}, exp)
+    assert right.field_scores["claim_type"] == 1.0

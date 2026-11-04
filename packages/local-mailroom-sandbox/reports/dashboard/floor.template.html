@@ -210,11 +210,18 @@ function render(){
 function menus(){
  document.getElementById("runs").innerHTML=D.runs.map((r,i)=>`<div class="run${i===runIdx?" sel":""}" data-i="${i}">${esc(r.name)}<small>${esc(r.state)} · ${r.items_attempted}/${r.total==null?"?":r.total} · ok ${r.items_ok}</small></div>`).join("");
  document.querySelectorAll(".run").forEach(el=>el.onclick=()=>{runIdx=+el.dataset.i;CLASS=null;selNode=null;menus();render()});
- // no dataset.jsonl -> per_class is {}: show "?" (unknown), never a fake 0, and disable isolation
- const rr=run(),known=hasClasses(rr),agg={};
- for(const c of D.classes){const o=(rr.per_class[c]||{}).outcomes||{};agg[c]=known?(o.n||0):"?"}
- document.getElementById("cl").innerHTML=D.classes.map(c=>`<div class="cls${CLASS===c?" sel":""}${known?"":" na"}" data-c="${esc(c)}"${known?"":' title="no dataset.jsonl for this run: per-class counts unknown"'}>${esc(c)}<b>${agg[c]}</b></div>`).join("");
- document.querySelectorAll(".cls").forEach(el=>el.onclick=()=>{if(!known)return;CLASS=CLASS===el.dataset.c?null:el.dataset.c;
+ // no dataset.jsonl -> per_class is {}: show "?" (unknown), never a fake 0, and disable isolation.
+ // per_class counts dataset-labeled items only; when a class also has unlabeled items (its run
+ // total is larger), its per-class view is partial: show "?" and disable isolation for it too.
+ // A class with no items in the run keeps its real 0 and stays selectable.
+ const rr=run(),known=hasClasses(rr),agg={},why={};
+ for(const c of D.classes){
+  const n=((rr.per_class[c]||{}).outcomes||{}).n||0,all=((rr.outcomes||{})[c]||{}).n||0;
+  if(!known){agg[c]="?";why[c]="no dataset.jsonl for this run: per-class counts unknown"}
+  else if(all>n){agg[c]="?";why[c]=`${all-n} of ${all} items have no dataset label: per-class counts incomplete`}
+  else agg[c]=n}
+ document.getElementById("cl").innerHTML=D.classes.map(c=>`<div class="cls${CLASS===c?" sel":""}${why[c]?" na":""}" data-c="${esc(c)}"${why[c]?` title="${esc(why[c])}"`:""}>${esc(c)}<b>${agg[c]}</b></div>`).join("");
+ document.querySelectorAll(".cls").forEach(el=>el.onclick=()=>{if(why[el.dataset.c])return;CLASS=CLASS===el.dataset.c?null:el.dataset.c;
   document.getElementById("mode").textContent=CLASS?"ISOLATED — counts & chips re-computed":"ALL CLASSES (run totals)";
   const bt=document.getElementById("bigTitle");bt.textContent=CLASS?CLASS.toUpperCase():"";bt.classList.toggle("on",!!CLASS);
   menus();render()});

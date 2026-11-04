@@ -82,11 +82,13 @@ def _sym(node: ast.AST | None) -> str | None:
 
 
 def _snake(class_name: str) -> str:
+    """Convert a class name to lowercase snake case, dropping a trailing _agent."""
     snake = re.sub(r"(?<!^)(?=[A-Z])", "_", class_name).lower()
     return re.sub(r"_agent$", "", snake)
 
 
 def _call_name(call: ast.Call) -> str | None:
+    """Return the called name or final attribute, if the call has either shape."""
     f = call.func
     if isinstance(f, ast.Attribute):
         return f.attr
@@ -131,7 +133,13 @@ def _attribute(func: ast.AST | None) -> str:
 
 
 def parse_graph(path: Path) -> dict:
-    """Derive ``graph_reference`` from build_graph.py; fail loudly on an unknown shape."""
+    """Derive graph edges and node labels from a Python graph definition.
+
+    Self-loops are excluded, and conditional routes to END may become named
+    terminal lanes. Raises DigestError for read or syntax errors, or if no
+    registered nodes or usable edges can be derived. Other unsupported shapes
+    may be ignored; decoding errors propagate.
+    """
     try:
         source = Path(path).read_text(encoding="utf-8")
     except OSError as exc:
@@ -210,6 +218,11 @@ def parse_graph(path: Path) -> dict:
 
 
 def read_jsonl(path: Path) -> list[dict]:
+    """Read object rows, skipping blank, malformed, and non-object lines.
+
+    Missing or unreadable files yield the rows read so far; invalid UTF-8 is
+    replaced before parsing.
+    """
     rows: list[dict] = []
     try:
         with open(path, encoding="utf-8", errors="replace") as fh:
@@ -229,6 +242,7 @@ def read_jsonl(path: Path) -> list[dict]:
 
 
 def read_json(path: Path) -> dict:
+    """Read a JSON object, returning an empty dict for invalid or unreadable data."""
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -237,6 +251,7 @@ def read_json(path: Path) -> dict:
 
 
 def _num(value) -> float | None:
+    """Convert numeric values to float, excluding booleans; otherwise return None."""
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
@@ -245,6 +260,7 @@ def _num(value) -> float | None:
 
 
 def _int_if_whole(x: float):
+    """Round to one decimal place and return an integer when the result is whole."""
     x = round(x, 1)
     return int(x) if x == int(x) else x
 
@@ -265,6 +281,7 @@ def discover_runs(base: Path) -> list[tuple[str, Path]]:
 
 
 def _stage_bucket(stage, ok) -> str:
+    """Map a stage to an outcome; unknown stages fail only when ok is False."""
     s = str(stage or "").strip().lower()
     if s in SHIP_STAGES:
         return "ship"
@@ -277,6 +294,7 @@ def _stage_bucket(stage, ok) -> str:
 
 
 def _item_stage(item: dict):
+    """Return the first truthy stage from the item, pred, or prediction, or None."""
     for holder in (item, item.get("pred"), item.get("prediction")):
         if isinstance(holder, dict) and holder.get("stage"):
             return holder["stage"]
@@ -288,6 +306,11 @@ def _empty_outcome() -> dict:
 
 
 def _tokens(nodes: list[dict], items: list[dict]) -> dict:
+    """Sum prompt and completion tokens from node records.
+
+    Use item-level token fields only when no node record has numeric usage.
+    Missing counts contribute zero.
+    """
     prompt = completion = 0
     seen = False
     for r in nodes:
@@ -307,6 +330,14 @@ def _tokens(nodes: list[dict], items: list[dict]) -> dict:
 
 
 def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[dict, set[str]]:
+    """Summarize a run's artifacts and return the summary and observed classes.
+
+    The last item record for an ID wins. Node counts are distinct documents;
+    edge counts are traversals limited to edge_set. Per-class traffic requires
+    dataset class labels, and node duration medians are in milliseconds. Missing
+    or invalid artifact data uses the reader fallbacks; errors reading dataset
+    bytes for an absent hash propagate.
+    """
     items_raw = read_jsonl(path / "items.jsonl")
     nodes = [r for r in read_jsonl(path / "nodes.jsonl") if r.get("node") and r.get("doc") is not None]
     checkpoint = read_json(path / "checkpoint.json")
@@ -334,6 +365,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
         per_doc_records.setdefault(str(r["doc"]), []).append(r)
 
     def visit_seq(records: list[dict]) -> list[str]:
+        """Use running records as visits, or all records when none are running."""
         started = [r["node"] for r in records if r.get("status") == "running"]
         return started if started else [r["node"] for r in records]
 
@@ -350,6 +382,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
                 agents_by_node.setdefault(r["node"], Counter())[str(r["agent"])] += 1
 
     def doc_edges(doc: str) -> Counter:
+        """Count consecutive allowed transitions for one document, excluding self-loops."""
         seq = visit_seq(per_doc_records.get(doc, []))
         return Counter(f"{a}>{b}" for a, b in zip(seq, seq[1:]) if a != b and (a, b) in edge_set)
 
@@ -448,10 +481,17 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
 
 
 def resolve_base(arg: str | None) -> Path:
+    """Choose a data directory from arg, MAILROOM_BASE_DIR, or ./data, in order."""
     return Path(arg or os.environ.get("MAILROOM_BASE_DIR") or "./data")
 
 
 def build_digest(base: Path, graph_path: Path) -> dict:
+    """Build a timestamped digest of discovered runs and their graph.
+
+    Raises DigestError for graph read or syntax errors, an unusable topology,
+    or no runs found. Decoding, directory traversal, and aggregation errors can
+    also propagate.
+    """
     graph = parse_graph(graph_path)
     runs_found = discover_runs(base)
     if not runs_found:
@@ -479,6 +519,11 @@ def build_digest(base: Path, graph_path: Path) -> dict:
 
 
 def write_outputs(digest: dict, out: Path) -> tuple[Path, Path]:
+    """Write JSON and a window.DIGEST JavaScript twin, returning both paths.
+
+    Each destination is replaced separately, so a write failure may leave one
+    updated. Filesystem errors become DigestError; serialization errors propagate.
+    """
     payload = json.dumps(digest, ensure_ascii=False, indent=1)
     json_path, js_path = out / "floor_digest.json", out / "floor_digest.js"
     try:
@@ -493,6 +538,7 @@ def write_outputs(digest: dict, out: Path) -> tuple[Path, Path]:
 
 
 def summary_lines(digest: dict) -> list[str]:
+    """Return one line per run with its three most frequently fired nodes."""
     lines = []
     for r in digest["runs"]:
         top = sorted(r["node_fires"].items(), key=lambda kv: (-kv[1], kv[0]))[:3]
@@ -504,6 +550,11 @@ def summary_lines(digest: dict) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Build and write the digest, optionally printing per-run summaries.
+
+    DigestError is printed to stderr and its code returned; other errors
+    propagate. Argument parsing may exit via SystemExit.
+    """
     ap = argparse.ArgumentParser(description="Build floor_digest.json/.js from on-disk run artifacts.")
     ap.add_argument("--base", help="data base dir (default: $MAILROOM_BASE_DIR or ./data)")
     ap.add_argument("--out", help="output dir (default: this script's directory)")

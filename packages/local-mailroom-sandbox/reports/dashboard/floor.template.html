@@ -80,12 +80,14 @@ const W=2200,H=1400, world=document.getElementById("world"), svg=document.getEle
 // default run: the last one still running, else the last run in the digest
 let runIdx=(()=>{let i=-1;D.runs.forEach((r,k)=>{if(r.state==="running")i=k});return i>=0?i:D.runs.length-1})(), CLASS=null, selNode=null, moved=0;
 function run(){return D.runs[runIdx]}
+/** Return the selected run or class count; failed uses outcome or abort totals. */
 function nodeVal(id){
 const r=run();
 if(id==="failed"){const a=r.aborts_by_last_node||{};if(CLASS){const oc=(r.per_class[CLASS]||{}).outcomes||{};return oc.failed||0}return Object.values(a).reduce((x,y)=>x+y,0)}
 if(CLASS){const pc=r.per_class[CLASS];return (pc&&pc.nodes[id])||0}
 return r.node_fires[id]||0;
 }
+/** Return traversals for the selected run or class, defaulting to zero. */
 function edgeVal(a,b){
  const r=run(),k=a+">"+b;
  if(CLASS){const pc=r.per_class[CLASS];return (pc&&pc.edges[k])||0}
@@ -93,6 +95,7 @@ function edgeVal(a,b){
 }
 function startTargets(){return D.graph_reference.edges.filter(e=>e[0]==="START").map(e=>e[1])}
 function endSources(){return D.graph_reference.edges.filter(e=>e[1]==="END").map(e=>e[0])}
+/** Sum counts of nodes feeding END; a document may contribute more than once. */
 function endCount(){return endSources().reduce((t,n)=>t+nodeVal(n),0)}
  function mk(html,c){const d=document.createElement("div");if(c)d.className=c;d.innerHTML=html;world.appendChild(d);return d}
 const NONLLM=["(code)","(tray)","(abort terminal)"];
@@ -101,11 +104,13 @@ function isLLM(id){const a=D.graph_reference.node_agents[id];return !!a&&!NONLLM
 const MIDOVR={"arbiter>retry_extract":[880,1150],"retry_classify>human_review":[400,600]};
 const PAD=22;
 function inBox(x,y,k,boxes){const xy=boxes[k];return x>xy[0]-PAD&&x<xy[0]+NB.w+PAD&&y>xy[1]-PAD&&y<xy[1]+NB.h+PAD}
+/** Test sampled points on a quadratic curve against padded boxes, excluding skip. */
 function clear(c,p1,p2,skip,boxes){
  for(let t=0.15;t<0.85;t+=0.05){
   const x=(1-t)*(1-t)*p1.x+2*(1-t)*t*c.x+t*t*p2.x, y=(1-t)*(1-t)*p1.y+2*(1-t)*t*c.y+t*t*p2.y;
   for(const k in boxes)if(!skip.includes(k)&&inBox(x,y,k,boxes))return false}
  return true}
+/** Choose an overridden or sampled-clear curve control point, falling back to the midpoint. */
 function midFor(a,b,p1,p2,boxes){
  if(MIDOVR[a+">"+b])return {x:MIDOVR[a+">"+b][0],y:MIDOVR[a+">"+b][1]};
  const dx=p2.x-p1.x,dy=p2.y-p1.y,dist=Math.hypot(dx,dy)||1,nx=-dy/dist,ny=dx/dist,skip=[a,b];
@@ -117,6 +122,7 @@ function midFor(a,b,p1,p2,boxes){
  for(const c of cands)if(clear(c,p1,p2,skip,boxes))return c;
  return cands[0]}
 const BOX=Object.fromEntries(Object.entries(POS).map(([k,xy])=>[k,[xy[0],xy[1]]]));
+/** Redraw graph traffic and detail panels for the current run, class, and node selection. */
 function render(){
  world.querySelectorAll(".node,.chip").forEach(e=>e.remove());
  while(svg.childNodes.length>1)svg.lastChild.remove();
@@ -195,6 +201,7 @@ function render(){
  document.getElementById("selExtra").textContent=!sel?"":
   (D.graph_reference.node_agents[sel]||"")+" · "+nodeVal(sel)+" docs fired this node"+(CLASS?" (class)":" (run)")+(Object.keys(agN).length?" · agents observed: "+Object.entries(agN).map(([a,c])=>a+" "+c).join(" · "):"");
 }
+/** Rebuild run and class menus and their selection handlers. */
 function menus(){
  document.getElementById("runs").innerHTML=D.runs.map((r,i)=>`<div class="run${i===runIdx?" sel":""}" data-i="${i}">${r.name}<small>${r.state} · ${r.items_attempted}/${r.total==null?"?":r.total} · ok ${r.items_ok}</small></div>`).join("");
  document.querySelectorAll(".run").forEach(el=>el.onclick=()=>{runIdx=+el.dataset.i;CLASS=null;selNode=null;menus();render()});
@@ -217,6 +224,7 @@ vp.addEventListener("click",e=>{
 });
 let tx=10,ty=40,z=.55,drag=null; // placeholder-anchor
 function apply(){world.style.transform=`translate(${tx}px,${ty}px) scale(${z})`}
+/** Clamp the scale to 0.2–2.5, keeping the viewport point (cx, cy) fixed. */
 function zoom(nz,cx,cy){nz=Math.max(.2,Math.min(2.5,nz));cx=cx??vp.clientWidth/2;cy=cy??vp.clientHeight/2;const wx=(cx-tx)/z,wy=(cy-ty)/z;tx=cx-wx*nz;ty=cy-wy*nz;z=nz;apply()}
 apply();
 addEventListener("keydown",e=>{const st=150;if(e.key=="ArrowLeft")tx+=st;if(e.key=="ArrowRight")tx-=st;if(e.key=="ArrowUp")ty+=st;if(e.key=="ArrowDown")ty-=st;

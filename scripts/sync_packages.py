@@ -568,6 +568,64 @@ def tree_map(rev: str, prefix: str | None = None) -> dict[str, tuple[str, str]]:
     return out
 
 
+# --------------------------------------------------------------------------- #
+# DMR-118: feeder CI stays in the feeder repos
+#
+# Each standalone repo's GitHub automation (workflows, dependabot config) gates
+# THAT repo only. Under packages/<pkg>/.github/ GitHub never runs it, so in the
+# hub it is dead weight that reads as if Digital-Mailroom had those checks.
+# Every import strips it, no gap/parity/containment check counts it, and a plain
+# `subtree push` that would delete it from the feeder is refused.
+# --------------------------------------------------------------------------- #
+
+FEEDER_CI_PREFIXES = (".github/workflows/",)
+FEEDER_CI_FILES = frozenset({".github/dependabot.yml", ".github/dependabot.yaml"})
+
+
+def is_feeder_ci(path: str) -> bool:
+    """True for a package-relative (or feeder-root) path the hub never imports."""
+    return path in FEEDER_CI_FILES or any(path.startswith(p) for p in FEEDER_CI_PREFIXES)
+
+
+def feeder_ci_paths(treeish: str, prefix: str | None = None) -> set[str]:
+    """Feeder CI paths in ``treeish`` (relative to ``prefix`` when given)."""
+    return {p for p in tree_map(treeish, prefix) if is_feeder_ci(p)}
+
+
+def hub_feeder_ci_paths(rev: str = "HEAD") -> list[str]:
+    """Tracked ``packages/*/`` feeder CI paths at ``rev`` (should be empty)."""
+    out = []
+    for path in tree_map(rev, "packages"):
+        _pkg, _, rel = path.partition("/")
+        if rel and is_feeder_ci(rel):
+            out.append(f"packages/{path}")
+    return sorted(out)
+
+
+def drop_feeder_ci_commit(package: str, *, reason: str) -> str | None:
+    """Remove feeder CI under ``packages/<package>`` with one commit.
+
+    Used after a history-merge import, which cannot filter paths. Returns the
+    commit sha, or None when there was nothing to remove.
+    """
+    paths = sorted(feeder_ci_paths("HEAD", f"packages/{package}"))
+    if not paths:
+        return None
+    full = [f"packages/{package}/{p}" for p in paths]
+    r = git(["rm", "-q", "--", *full])
+    if r.returncode != 0:
+        raise RuntimeError(f"git rm (feeder CI) failed: {r.stderr.strip()}")
+    r = git(["commit", "-q", "-m",
+             f"sync: drop feeder CI from packages/{package} ({reason})\n\n"
+             "DMR-118: feeder workflows and dependabot config gate the standalone "
+             "repository only; the hub does not carry them.\n\n" + "\n".join(full)])
+    if r.returncode != 0:
+        raise RuntimeError(f"git commit (feeder CI) failed: {r.stderr.strip()}")
+    for path in full:
+        warn(f"   dropped feeder CI: {path}")
+    return git(["rev-parse", "HEAD"]).stdout.strip()
+
+
 def unimported_upstream_paths(upstream_tip: str, package: str) -> dict[str, str]:
     """Upstream paths genuinely absent from the monorepo (the HUB-018 gap).
 
@@ -582,7 +640,8 @@ def unimported_upstream_paths(upstream_tip: str, package: str) -> dict[str, str]
     """
     tip_tree = tree_map(upstream_tip)
     pkg_tree = tree_map("HEAD", f"packages/{package}")
-    missing = [p for p in tip_tree if p not in pkg_tree]
+    # DMR-118: feeder CI is never imported, so its absence is not a gap.
+    missing = [p for p in tip_tree if p not in pkg_tree and not is_feeder_ci(p)]
     ignored: set[str] = set()
     if missing:
         probe = git(
@@ -608,6 +667,8 @@ def upstream_content_not_imported(upstream_tip: str, package: str) -> dict[str, 
     tip_tree = tree_map(upstream_tip)
     pkg_tree = tree_map("HEAD", f"packages/{package}")
     for path, blob in tip_tree.items():
+        if is_feeder_ci(path):
+            continue  # DMR-118
         current = pkg_tree.get(path)
         if current is not None and current != blob:
             gaps[path] = "modified"
@@ -713,7 +774,7 @@ def graft_package_tree(base_rev: str, package: str, sub_tree: str, drop: set[str
         env = {"GIT_INDEX_FILE": str(Path(tmp) / "index")}
         steps = [
             ["read-tree", base_rev],
-            ["rm", "-r", "--cached", "-q", "--ignore-unmatch", "--", prefix],
+            ["rm", "-r", "--cached", "-f", "-q", "--ignore-unmatch", "--", prefix],  # throwaway index
             ["read-tree", f"--prefix={prefix}/", sub_tree],
         ]
         for step in steps:
@@ -721,11 +782,11 @@ def graft_package_tree(base_rev: str, package: str, sub_tree: str, drop: set[str
             if r.returncode != 0:
                 raise RuntimeError(f"git {' '.join(step)} failed: {r.stderr.strip()}")
         if drop:
-            r = git_with_env(["rm", "--cached", "-q", "--ignore-unmatch", "--pathspec-from-file=-",
+            r = git_with_env(["rm", "--cached", "-f", "-q", "--ignore-unmatch", "--pathspec-from-file=-",
                               "--pathspec-file-nul"], env,
                              stdin="".join(f"{prefix}/{p}\0" for p in sorted(drop)))
             if r.returncode != 0:
-                raise RuntimeError(f"git rm (heavy-asset prune) failed: {r.stderr.strip()}")
+                raise RuntimeError(f"git rm (path drop) failed: {r.stderr.strip()}")
         r = git_with_env(["write-tree"], env)
         if r.returncode != 0:
             raise RuntimeError(f"git write-tree failed: {r.stderr.strip()}")
@@ -776,8 +837,11 @@ def explicit_base_merge(package: str, cursor: str, tip: str, resolve: str | None
     # No prune here: like `git subtree pull`, the import brings every source path.
     # A path the hub already removed (the HUB-018 heavy-asset prune) is a hub-side
     # deletion against the cursor, so the three-way merge keeps it removed.
-    base_tree = graft_package_tree(ours_rev, package, f"{cursor}^{{tree}}", set())
-    tip_tree = graft_package_tree(ours_rev, package, f"{tip}^{{tree}}", set())
+    # DMR-118: feeder CI is left out of both synthetic sides, so it can never
+    # conflict, and stripped from the result (it also drops copies the hub
+    # still carries from before DMR-118).
+    base_tree = graft_package_tree(ours_rev, package, f"{cursor}^{{tree}}", feeder_ci_paths(cursor))
+    tip_tree = graft_package_tree(ours_rev, package, f"{tip}^{{tree}}", feeder_ci_paths(tip))
     base_c = commit_tree(base_tree, [], f"DMR-117 synthetic merge base ({package} @ {cursor[:12]})\n")
     tip_c = commit_tree(tip_tree, [base_c], f"DMR-117 synthetic upstream ({package} @ {tip[:12]})\n")
     args = ["merge-tree", "--write-tree", "-z", f"--merge-base={base_c}"]
@@ -789,6 +853,9 @@ def explicit_base_merge(package: str, cursor: str, tip: str, resolve: str | None
         raise RuntimeError(f"git merge-tree failed: {r.stderr.strip()}")
     fields = r.stdout.split("\0")
     tree = fields[0].strip()
+    hub_ci = feeder_ci_paths(tree, f"packages/{package}")
+    if hub_ci:
+        tree = graft_package_tree(tree, package, f"{tree}:packages/{package}", hub_ci)
     stages: dict[str, set[int]] = {}
     for entry in fields[1:]:
         if not entry:
@@ -859,8 +926,8 @@ def import_parity_violations(package: str, cursor: str | None, pre_head: str, ti
     ignored = ignored_untracked(package, (set(c_map) | set(u_map)) - set(h_map), pre_head)
     out: list[dict] = []
     for path in sorted(set(c_map) | set(u_map) | set(h_map) | set(r_map)):
-        if path in ignored:
-            continue
+        if path in ignored or is_feeder_ci(path):
+            continue  # HUB-018 prune / DMR-118 feeder CI
         c, u, h, r = c_map.get(path), u_map.get(path), h_map.get(path), r_map.get(path)
         if h != c or r == u:
             continue
@@ -877,7 +944,7 @@ def hub_ahead_paths(package: str, cursor: str | None, pre_head: str) -> list[str
     c_map, h_map = tree_map(cursor), tree_map(pre_head, prefix)
     ignored = ignored_untracked(package, set(c_map) - set(h_map), pre_head)
     return sorted(f"{prefix}/{p}" for p in set(c_map) | set(h_map)
-                  if p not in ignored and c_map.get(p) != h_map.get(p))
+                  if p not in ignored and not is_feeder_ci(p) and c_map.get(p) != h_map.get(p))
 
 
 def cursor_usable(cursor: str | None, tip: str) -> str | None:
@@ -993,6 +1060,13 @@ def finish_import(args: argparse.Namespace, manifest: dict, package: str, url: s
     and the cursor untouched.
     """
     undo = f"git reset --hard {pre_head[:12]}"
+    try:
+        drop_feeder_ci_commit(package, reason=how)  # DMR-118 (no-op after a squash import)
+    except RuntimeError as exc:
+        rec = base_record(args.command, package)
+        rec.update({"remediation": f"remove packages/{package}/.github/workflows by hand: {exc}"})
+        emit(rec)
+        return E_GIT
     usable = cursor_usable(cursor, tip) is None
     violations = import_parity_violations(package, cursor, pre_head, tip) if usable else []
     if violations:
@@ -1103,6 +1177,9 @@ def cmd_pull(args: argparse.Namespace) -> int:
             worst = max(worst, E_NETWORK)
             continue
         if rev_exists(head) and not upstream_content_not_imported(head, package):
+            # DMR-118: the gap check ignores feeder CI, so a stale tracked copy
+            # would survive this fast path; drop it before recording the tip.
+            drop_feeder_ci_commit(package, reason="pull fast path")
             entries[package] = {
                 "url": url,
                 "branch": DEFAULT_BRANCH,
@@ -1415,6 +1492,11 @@ def pr_branch_flow(args: argparse.Namespace, package: str, url: str, head: str,
         resolved_paths = [p["path"] for p in cs2["paths"]]
     if merge_in_progress():
         return teardown(E_GIT, f"!! {package}: merge state still present after the branch merge",
+                        "inspect git status on the branch")
+    try:
+        drop_feeder_ci_commit(package, reason="DMR-064 branch flow")  # DMR-118
+    except RuntimeError as exc:
+        return teardown(E_GIT, f"!! {package}: could not drop feeder CI: {exc}",
                         "inspect git status on the branch")
     # DMR-070(a): post-resolution divergence audit — every ladder-resolved
     # path is blob-compared against BOTH merge sides. A resolution matching
@@ -1957,6 +2039,35 @@ def cmd_push(args: argparse.Namespace) -> int:
             worst = max(worst, code)
             continue
         info(f"== git subtree push --prefix packages/{package} {url} {DEFAULT_BRANCH}")
+        # DMR-118: the hub does not carry feeder CI, so a split pushed as the new
+        # feeder tip would delete the feeder's own workflows. --patch rebuilds on
+        # top of the upstream tip and keeps them.
+        ci_tip = fetch_upstream(package)
+        if not ci_tip or not rev_exists(ci_tip):
+            # Fail closed: without the upstream tip we cannot tell whether the
+            # push would delete feeder CI.
+            rec = base_record(args.command, package)
+            rec.update({"exit_code": E_NETWORK, "error_class": ERROR_CLASS[E_NETWORK],
+                        "remediation": "could not fetch the upstream tip to check for feeder "
+                                       "CI (DMR-118); check connectivity and retry"})
+            emit(rec)
+            warn(f"!! refusing plain subtree push for {package}: could not fetch the upstream "
+                 "tip to check for feeder CI")
+            worst = max(worst, E_NETWORK)
+            continue
+        feeder_ci = sorted(feeder_ci_paths(ci_tip))
+        if feeder_ci:
+            rec = base_record(args.command, package)
+            rec.update({"exit_code": E_GIT, "error_class": ERROR_CLASS[E_GIT],
+                        "feeder_ci_paths": feeder_ci,
+                        "remediation": "re-run with --patch: a plain subtree push would delete "
+                                       "the feeder's own CI, which the hub does not carry (DMR-118)"})
+            emit(rec)
+            warn(f"!! refusing plain subtree push for {package}: the upstream carries "
+                 f"{len(feeder_ci)} feeder CI file(s) ({', '.join(feeder_ci[:3])}) that the hub "
+                 "does not import, and the push would delete them. Re-run with --patch.")
+            worst = max(worst, E_GIT)
+            continue
         if args.dry_run:
             info("== DRY RUN: no push performed")
             emit(record_ok(args.command, package, cursor_updated=False))

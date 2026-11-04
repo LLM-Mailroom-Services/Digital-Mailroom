@@ -846,6 +846,127 @@ class TestCursorSquashImport(SyncScriptTest):
         self.assertEqual(self.read_manifest()["packages"][PKG]["synced_sha"], u2)
 
 
+class TestFeederCiExclusion(SyncScriptTest):
+    """DMR-118: feeder CI (workflows, dependabot config) never enters the hub.
+
+    It gates the standalone repository only; GitHub never runs it from
+    packages/<pkg>/.github/, so in the hub it is dead weight that reads like a
+    hub check.
+    """
+
+    pr223_shape = TestCursorSquashImport.pr223_shape
+
+    def add_upstream_ci(self, extra=None):
+        wf = self.src / ".github" / "workflows"
+        wf.mkdir(parents=True, exist_ok=True)
+        (wf / "ci.yml").write_text("name: feeder ci\n")
+        (self.src / ".github" / "dependabot.yml").write_text("version: 2\n")
+        (self.src / ".github" / "PULL_REQUEST_TEMPLATE.md").write_text("template\n")
+        for name, text in (extra or {}).items():
+            (self.src / name).write_text(text)
+        git(self.src, "add", "-A", check=True)
+        git(self.src, "commit", "-m", "feeder CI", check=True)
+        git(self.src, "push", "origin", "main", check=True)
+        return sha_of(self.src)
+
+    def pkg_files(self):
+        out = git(self.mono, "ls-files", f"packages/{PKG}").stdout.split()
+        return {f[len(f"packages/{PKG}/"):] for f in out}
+
+    def assert_no_feeder_ci(self):
+        files = self.pkg_files()
+        self.assertFalse([f for f in files if f.startswith(".github/workflows/")], files)
+        self.assertNotIn(".github/dependabot.yml", files)
+        # other .github content (templates) is ordinary package content
+        self.assertIn(".github/PULL_REQUEST_TEMPLATE.md", files)
+
+    def test_g_cursor_squash_import_strips_feeder_ci(self):
+        _u1, _u2 = self.pr223_shape(hub_conflict=False)
+        # the hub still carries a pre-DMR-118 copy of a feeder workflow
+        old = self.mono / f"packages/{PKG}/.github/workflows"
+        old.mkdir(parents=True)
+        (old / "old.yml").write_text("name: imported before DMR-118\n")
+        git(self.mono, "add", "-A", check=True)
+        git(self.mono, "commit", "-m", "old feeder CI copy", check=True)
+        u3 = self.add_upstream_ci()
+        res = self.run_script("pull", "--squash", "--package", PKG, "--json", env_extra=self.origin_env)
+        self.assertEqual(res.returncode, 0, res.stderr + res.stdout)
+        self.assertNotIn("PARITY VIOLATION", res.stderr)
+        self.assert_no_feeder_ci()
+        self.assertTrue((self.mono / f"packages/{PKG}/pkg/flat.py").exists())
+        self.assertEqual(self.read_manifest()["packages"][PKG]["synced_sha"], u3)
+        # one squash commit, no separate cleanup commit on this path
+        self.assertTrue(git(self.mono, "log", "-1", "--format=%s").stdout.startswith("Squashed"))
+        st = self.run_script("status", "--package", PKG, "--json", env_extra=self.origin_env)
+        row = json.loads(st.stdout)[0]
+        self.assertEqual(row["cursor_gap"], 0, row)
+
+    def test_h_history_merge_pull_drops_feeder_ci_in_a_follow_up_commit(self):
+        u1 = self.add_upstream_ci(extra={"c.txt": "new upstream file\n"})
+        res = self.run_script("pull", "--package", PKG, "--json", env_extra=self.origin_env)
+        self.assertEqual(res.returncode, 0, res.stderr + res.stdout)
+        self.assert_no_feeder_ci()
+        self.assertIn("c.txt", self.pkg_files())
+        self.assertIn("drop feeder CI", git(self.mono, "log", "-1", "--format=%s").stdout)
+        self.assertEqual(self.read_manifest()["packages"][PKG]["synced_sha"], u1)
+        self.assertEqual(git(self.mono, "status", "--porcelain").stdout.strip(), "")
+
+    def test_i_branch_flow_strips_feeder_ci(self):
+        _u1, u2 = self.pr223_shape(hub_conflict=True)
+        u3 = self.add_upstream_ci()
+        log = self.tmp / "gh.log"
+        env = {**self.origin_env, "FAKE_GH_LOG": str(log),
+               "PATH": f"{self.make_fake_gh(log)}{os.pathsep}{os.environ['PATH']}"}
+        res = self.run_script("pull", "--squash", "--open-pr", "--resolve", "theirs",
+                              "--package", PKG, "--json", env_extra=env)
+        self.assertEqual(res.returncode, 0, res.stderr + res.stdout)
+        branch = f"sync/{PKG}/import-{u3[:12]}"
+        files = git(self.origin, "ls-tree", "-r", "--name-only", branch, f"packages/{PKG}").stdout.split()
+        self.assertFalse([f for f in files if "/.github/workflows/" in f or f.endswith("dependabot.yml")], files)
+        self.assertIn(f"packages/{PKG}/.github/PULL_REQUEST_TEMPLATE.md", files)
+
+    def test_j_plain_subtree_push_refused_when_feeder_has_ci(self):
+        self.add_upstream_ci()
+        self.run_script("pull", "--package", PKG, "--json", env_extra=self.origin_env)
+        (self.mono / f"packages/{PKG}/a.txt").write_text("base a\nhub fix\n")
+        git(self.mono, "add", "-A", check=True)
+        git(self.mono, "commit", "-m", "hub fix", check=True)
+        before = git(self.origin, "rev-parse", "main").stdout.strip()
+        res = self.run_script("push", "--package", PKG, "--json", env_extra=self.origin_env)
+        self.assertEqual(res.returncode, 4, res.stderr + res.stdout)
+        rec = self.json_record(res)
+        self.assertIn(".github/workflows/ci.yml", rec["feeder_ci_paths"])
+        self.assertIn("--patch", rec["remediation"])
+        self.assertEqual(git(self.origin, "rev-parse", "main").stdout.strip(), before)
+        # --patch lands the fix on top of the feeder tip and keeps its CI
+        res = self.run_script("push", "--patch", "--package", PKG, "--json", env_extra=self.origin_env)
+        self.assertEqual(res.returncode, 0, res.stderr + res.stdout)
+        files = git(self.origin, "ls-tree", "-r", "--name-only", "main").stdout.split()
+        self.assertIn(".github/workflows/ci.yml", files)
+        self.assertIn(".github/dependabot.yml", files)
+        self.assertEqual(git(self.origin, "show", "main:a.txt").stdout, "base a\nhub fix\n")
+
+    def test_k_is_feeder_ci_table(self):
+        mod = _load_sync_module()
+        for path in (".github/workflows/ci.yml", ".github/workflows/sub/x.yaml",
+                     ".github/dependabot.yml", ".github/dependabot.yaml"):
+            self.assertTrue(mod.is_feeder_ci(path), path)
+        for path in (".github/PULL_REQUEST_TEMPLATE.md", ".github/RELEASE_TEMPLATE.md",
+                     "docs/.github/workflows.md", "workflows/ci.yml", ".github/workflowsX/a"):
+            self.assertFalse(mod.is_feeder_ci(path), path)
+
+
+class TestHubCarriesNoFeederCi(unittest.TestCase):
+    """DMR-118 tree guard: the real hub tracks no packages/*/ feeder CI."""
+
+    def test_hub_tree_has_no_feeder_ci(self):
+        if not (REPO_ROOT / ".git").exists():
+            self.skipTest("not a git checkout")
+        mod = _load_sync_module()
+        self.assertEqual(mod.hub_feeder_ci_paths("HEAD"), [],
+                         "feeder CI found under packages/; remove it (DMR-118)")
+
+
 def _load_sync_module():
     """Import scripts/sync_packages.py as a module for unit-level seams."""
     import importlib.util

@@ -1,0 +1,80 @@
+---
+description: Every Hugging Face repo in the mailroom family.
+icon: database
+title: Hub resources
+---
+
+# Hub resources
+
+Every public Hugging Face Hub repository in the mailroom family, in one index. Figures below were read on **2026-10-08**. Re-read the Hub for current state. For the revision rules that govern the eval corpus, see [Dataset overview](mailroom-dataset.md#which-revision-to-use).
+
+<Callout type="info">
+This page links. It does not copy. Each repository's own Hub card stays canonical for schemas, files, and downloads. For how each feeder entered the corpus, go to [Source corpora](source-corpora/).
+</Callout>
+
+## Canonical corpus
+
+| Repository | What it is |
+| --- | --- |
+| [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset) | The corpus every repository measures against: 3,302 rows, five configs, pinned by tag (`v9.3` → `ff4ca546`, as of 2026-11-08). Composition: [Dataset overview](mailroom-dataset.md). Columns: [Configs](configs.md). |
+| [`Lucius-Morningstar/mailroom-corpus`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-corpus) | Frozen v8 parent: 2,000 rows, revision `eafe1ab4`. The baseline the v9 deltas are measured from. |
+| [`Lucius-Morningstar/docclass-merged`](https://huggingface.co/datasets/Lucius-Morningstar/docclass-merged) | Old name for `mailroom-corpus`. The Hub redirects it to the same files. Use `mailroom-corpus` in new links. |
+
+Collection: [Mailroom Corpus Family](https://huggingface.co/collections/Lucius-Morningstar/mailroom-corpus-family-6aa715cce29d415b0db92473).
+
+## Feeder and mirror datasets
+
+Byte-verified mirrors and processing pools the corpus is built from. Each row names its source-corpora write-up, which carries the full citation.
+
+| Repository | What it is | Write-up |
+| --- | --- | --- |
+| [`Lucius-Morningstar/mailroom-cuad-contracts-full`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-cuad-contracts-full) | Byte-verified CUAD mirror (510 rows). The 509 `contract` rows are this export. | [CUAD contracts](source-corpora/cuad-contracts.md) |
+| [`Lucius-Morningstar/mailroom-cuad-contracts`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-cuad-contracts) | 50-row CUAD mirror. Eval staging, not corpus input. | [CUAD contracts](source-corpora/cuad-contracts.md) |
+| [`Lucius-Morningstar/enron-correspondence-dedup`](https://huggingface.co/datasets/Lucius-Morningstar/enron-correspondence-dedup) | Deduplicated Enron pool (247,523 rows). The 1,000 `correspondence` rows are drawn from it. | [Enron correspondence](source-corpora/enron-correspondence.md) |
+| [`Lucius-Morningstar/cms-desynpuf-insurance-claims`](https://huggingface.co/datasets/Lucius-Morningstar/cms-desynpuf-insurance-claims) | Rendered CMS DE-SynPUF EOB evaluation corpus. | [CMS insurance claims](source-corpora/cms-insurance-claims.md) |
+| [`Lucius-Morningstar/legalbench-full`](https://huggingface.co/datasets/Lucius-Morningstar/legalbench-full) | Verbatim LegalBench mirror (160 tasks). Task pack, not a pipeline-ingest corpus. | [atticus-investigation](../repository-guides/repos/atticus-investigation.md) |
+| [`Lucius-Morningstar/docclass-pilot`](https://huggingface.co/datasets/Lucius-Morningstar/docclass-pilot) | Stratified pilot slice (48 class × subclass cells). | [Configs](configs.md#family-datasets) |
+
+There is no dedicated MAUD mirror repository. The 152 MAUD agreements live inside `mailroom-dataset` itself. See [MAUD merger agreements](source-corpora/maud-merger-agreements.md).
+
+## ModernBERT resources
+
+The classifier program trains outside the pipeline and reports back in. These two repositories are its Hub surface.
+
+| Repository | What it is |
+| --- | --- |
+| [`Lucius-Morningstar/mailroom-modernbert-training`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-modernbert-training) | Cleaned hierarchical-training surface the ModernBERT fast path trains on. |
+| [`Lucius-Morningstar/mailroom-modernbert-classifier`](https://huggingface.co/Lucius-Morningstar/mailroom-modernbert-classifier) | The trained checkpoint: a ModernBERT-base finetune for text classification. |
+
+Consumers: [mailroom-ml](../repository-guides/repos/mailroom-ml.md) trains it (runs M9a and M9b, as of 2026-10-08). [eval-environment](../repository-guides/repos/eval-environment.md) keeps the classifier reports under `reports/modernbert/`. Results index: [Experiment reports](../experiment-reports/experiment-reports.md).
+
+## Sorter staging
+
+| Repository | What it is |
+| --- | --- |
+| [`Lucius-Morningstar/mailroom-sorter-handoff`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-sorter-handoff) | Sorter-handoff gold staging. Derived surface, not an eval corpus. |
+
+## Hosted Space
+
+| Repository | What it is |
+| --- | --- |
+| [`Lucius-Morningstar/mailroom-observatory`](https://huggingface.co/spaces/Lucius-Morningstar/mailroom-observatory) | Observability UI. Paused as of 2026-10-06 (the Hub returns "space is paused, ask a maintainer to restart it"). Restart it before you rely on it. |
+
+## Upstream originals on the Hub
+
+The family mirrors above derive from these third-party Hub datasets. Cite the papers, not the mirrors. Full citations live on the source-corpora pages.
+
+| Upstream repository | Source page with the citation |
+| --- | --- |
+| [`theatticusproject/cuad`](https://huggingface.co/datasets/theatticusproject/cuad) (CC BY 4.0) | [CUAD contracts](source-corpora/cuad-contracts.md) |
+| [`Yale-LILY/aeslc`](https://huggingface.co/datasets/Yale-LILY/aeslc) (subject-line join) | [Enron correspondence](source-corpora/enron-correspondence.md) |
+
+The remaining upstream sources (GNOTHEIA, BDR, INSURBIAS, the AESLC sentence mirror) are linked from [CMS insurance claims](source-corpora/cms-insurance-claims.md) and [Enron correspondence](source-corpora/enron-correspondence.md).
+
+## Private working copies
+
+`mailroom-finetune` and `mailroom-scope-probe` are private eval-corpus working copies in the same namespace. They are not public. This page names them so readers stop looking. It does not link them.
+
+## Maintain this index
+
+When the family publishes a repository, add one table row here and one row in [Configs](configs.md#family-datasets) in the same change. Name private repositories without linking them. Re-date the "read on" line above.

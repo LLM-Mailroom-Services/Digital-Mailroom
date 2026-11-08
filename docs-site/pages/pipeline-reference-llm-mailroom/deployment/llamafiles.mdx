@@ -1,0 +1,133 @@
+---
+description: Single-file local LLM servers.
+icon: file-code
+title: Llamafiles
+---
+
+# Llamafiles
+
+A [llamafile](https://docs.mozilla.ai/llamafile) is an LLM server in one executable file, from Mozilla. The file runs on **linux amd64 and aarch64** and serves an OpenAI-compatible `/v1` API. Mode A uses a llamafile as a sidecar container for a fully offline LLM. It needs no API key, makes no network calls and costs nothing per document.
+
+**Llamafile or Ollama?** Both serve Mode A.
+
+* **Use a llamafile** when you want one pinned binary and one GGUF file, with no model registry. All agents share the one model.
+* **Use Ollama** when you want to pull several models by tag and let Ollama unload idle models.
+
+The full comparison is on [Local models](../local-models.md).
+
+Three upstream files control the sidecar:
+
+* [`deploy/llamafile/Dockerfile`](https://github.com/Exios66/llm-mailroom/blob/main/deploy/llamafile/Dockerfile) — the sidecar image
+* [`deploy/llamafile/entrypoint.sh`](https://github.com/Exios66/llm-mailroom/blob/main/deploy/llamafile/entrypoint.sh) — server flags
+* [`deploy/docker-compose.llamafile.yml`](https://github.com/Exios66/llm-mailroom/blob/main/deploy/docker-compose.llamafile.yml) — the overlay that wires it to `app`
+
+## The image
+
+Base is `debian:bookworm-slim`. The binary is downloaded at build time and **pinned**:
+
+```dockerfile
+ARG LLAMAFILE_VERSION=0.10.4    # pin a tested release (bump deliberately)
+RUN curl -fsSL -o llamafile \
+      "https://github.com/mozilla-ai/llamafile/releases/download/${LLAMAFILE_VERSION}/llamafile-${LLAMAFILE_VERSION}" \
+    && chmod +x llamafile
+```
+
+<Callout type="warning">
+**GGUF weights are never baked into the image.** They are multi-GB and bind-mounted read-only from the host at runtime (`./models:/models:ro`). `.dockerignore` excludes `*.gguf` and `deploy/models/` from every build context — if you find yourself trying to `COPY` a model in, stop and read [Stage the weights](#stage-the-weights) instead.
+</Callout>
+
+## Server flags
+
+The entrypoint turns environment variables into llamafile arguments:
+
+```sh
+exec /llamafile/llamafile \
+  --server \
+  --host 0.0.0.0 \
+  --port 8080 \
+  -m "$LLAMAFILE_MODEL" \
+  -a "${LLAMAFILE_ALIAS:-qwen3:7b}" \
+  --jinja \
+  --ctx-size "${LLAMAFILE_CTX:-16384}" \
+  --no-webui \
+  --mlock \
+  -np 1 \
+  --gpu "${LLAMAFILE_GPU:-disable}"
+```
+
+Four of those flags are load-bearing, per the upstream comments:
+
+* `--server` is **required**. From llamafile 0.10.x the default mode is a combined server *and* chat UI, which is not what the pipeline's OpenAI client expects.
+* `--jinja` enables the chat template, which agentic OpenAI-compatible clients need to get a usable system/user split.
+* `--mlock` keeps the model RAM-resident.
+* `-np 1` runs a **single server slot**, because the pipeline processes one document at a time in serial.
+
+## Configuration
+
+| Variable | Default | Purpose |
+| -------- | ------- | ------- |
+| `LLAMAFILE_MODEL` | `/models/llamafile/qwen3-7b-instruct-q4_k_m.gguf` | **Required.** Path to the GGUF *inside* the container |
+| `LLAMAFILE_ALIAS` | `qwen3:7b` | Served model id on `/v1/models` |
+| `LLAMAFILE_CTX` | `16384` | Context size in tokens — the KV-cache budget versus available RAM |
+| `LLAMAFILE_GPU` | `disable` | `auto` \| `nvidia` \| `amd` \| `apple` \| `vulkan` \| `disable` |
+
+<Callout type="warning">
+`LLAMAFILE_ALIAS` **must match** a value in `src/config/taxonomy.yaml` under `llamafile_model_map:`. That is the id the pipeline requests; a mismatch produces a model-not-found error even though the sidecar is healthy.
+</Callout>
+
+`LLAMAFILE_GPU` defaults to `disable`, so the sidecar is CPU-only until you opt in — on a machine with a supported accelerator set it to `auto` or the specific backend.
+
+## Stage the weights
+
+Weights live on the host under `deploy/models/llamafile/`, never in git (see [`deploy/models/README.md`](https://github.com/Exios66/llm-mailroom/blob/main/deploy/models/README.md)):
+
+```
+deploy/models/
+└── llamafile/
+    └── qwen3-7b-instruct-q4_k_m.gguf   # ~4.7 GB (Q4_K_M); drop yours here
+```
+
+1. Download any GGUF you like into `deploy/models/llamafile/`.
+2. The compose mount makes it available at `/models/llamafile/<file>` read-only.
+3. Point `LLAMAFILE_MODEL` at the **in-container** path, not the host path.
+
+If you do not want to reference the host checkout, pre-seed a named volume once with `docker compose cp`.
+
+## Run it
+
+```bash
+docker compose --profile local-llm \
+  -f deploy/docker-compose.yml \
+  -f deploy/docker-compose.llamafile.yml \
+  --env-file .env up -d --build
+```
+
+The overlay sets, on `app`:
+
+```yaml
+DEFAULT_PROVIDER: llamafile
+LLAMAFILE_BASE_URL: http://llamafile:8080/v1
+MAILROOM_BERT_INTAKE: "1"
+OBSERVABILITY_PROVIDER: "${MAILROOM_OBSERVABILITY_PROVIDER:-none}"
+```
+
+Note that tracing defaults to **off** in this overlay. A CPU-only offline LLM is usually a debugging or air-gapped posture, so the compose author left observability opt-in; set `OBSERVABILITY_PROVIDER` (or `MAILROOM_OBSERVABILITY_PROVIDER`) if you want traces.
+
+<Callout type="info">
+**The port is not published.** `app` reaches the sidecar over the compose network at `http://llamafile:8080/v1`. Add a `ports:` mapping only when you need host-side debugging — the served model has no authentication.
+</Callout>
+
+Service details: profile `local-llm` (shared with `src/config/docker`), container `mailroom-llamafile`, `restart: unless-stopped`, healthcheck `curl -fs http://127.0.0.1:8080/health`, and `start_period: 30s` to allow for model load at server start. `app` waits on `llamafile` being healthy.
+
+`LLAMAFILE_VERSION` is also passable as a compose build arg (`${LLAMAFILE_VERSION:-0.10.4}`) if you need to bump the binary without editing the Dockerfile.
+
+## Ollama instead
+
+Mode A also has an [Ollama](docker-deployment.md#mode-a-ollama-offline) path (`deploy/docker-compose.ollama.yml`, `DEFAULT_PROVIDER=ollama`, `OLLAMA_BASE_URL=http://ollama:11434/v1`). Both share the `local-llm` profile name, so they can be combined or swapped without renaming. Choosing between local runtimes is covered in [Local models](../local-models.md).
+
+## Related
+
+* [Local models](../local-models.md) — provider cutover, capability and cost comparison
+* [Docker](docker-deployment.md) — Mode A section and the full compose matrix
+* [Configuration](../configuration.md) — `DEFAULT_PROVIDER`, `LLAMAFILE_*`
+* [Modal + vLLM](modal-vllm.md) — the GPU alternative when CPU is too slow

@@ -1,0 +1,53 @@
+---
+icon: rotate
+title: mailroom-reloaded
+---
+
+# mailroom-reloaded
+
+**The compressed Digital Mailroom: a design for a smaller pipeline that runs locally on CrewAI Flows.**
+
+<Callout type="warning">
+**Status as of 2026-11-08: implemented.** The repository now ships code (a CrewAI-Flows pipeline with deterministic route gates and a SQLite hash-chained audit log) alongside the README, design spec and implementation plan. The design below describes the shipped architecture; read the spec before you rely on a detail.
+</Callout>
+
+|            |                                                                                                    |
+| ---------- | -------------------------------------------------------------------------------------------------- |
+| Repository | [Exios66/mailroom-reloaded](https://github.com/Exios66/mailroom-reloaded)                          |
+| Role       | Compressed, deployment-ready package of the Digital Mailroom                                       |
+| Source     | [llm-mailroom](llm-mailroom.md), llm-dojo-scoring v0.22.0, [local-mailroom-sandbox](local-mailroom-sandbox/README.md) SAND-37 |
+| Design     | [`docs/superpowers/specs/2026-10-07-mailroom-reloaded-design.md`](https://github.com/Exios66/mailroom-reloaded/blob/main/docs/superpowers/specs/2026-10-07-mailroom-reloaded-design.md) |
+| Plan       | [`docs/superpowers/plans/2026-10-07-mailroom-reloaded.md`](https://github.com/Exios66/mailroom-reloaded/blob/main/docs/superpowers/plans/2026-10-07-mailroom-reloaded.md) |
+
+## What it plans to do
+
+Keep only the plumbing that a local end-to-end run, an evaluation against `mailroom-dataset`, and GPU serving need. A document dropped in `inbox/` is classified, extracted, reported, catalogued and archived with a verifiable SHA-256 audit chain. The design lists six success criteria. Two stand out:
+
+* A clean text-layer document costs exactly **2 LLM calls** (sorter and specialist). A deterministic route gate replaces the reviewer LLM nodes.
+* `mailroom eval` reproduces the SAND-37 card. Specialists use the frozen v1 prompts byte for byte.
+
+## How it differs from llm-mailroom
+
+| Concern | llm-mailroom | mailroom-reloaded (planned) |
+| ------- | ------------ | --------------------------- |
+| Orchestration | LangGraph | CrewAI Flows |
+| Tracing | Langfuse (default), Braintrust, Phoenix | OpenTelemetry to Phoenix, with Prometheus and Grafana for metrics |
+| Model access | LiteLLM gateway, OpenRouter, vLLM, llamafile | OpenAI-compatible endpoints only: `llamafile`, `openrouter`, `vllm`, `mock` |
+| Primary classifier | LLM sorter, optional [ModernBERT](mailroom-ml.md) fast path | ModernBERT first, fail-open, with a sorter that adapts to the BERT verdict |
+| Review nodes | Reviewer LLM nodes | A deterministic route gate with calibrated confidence |
+| Scoring | `llm-dojo-scoring` as a dependency | A vendored slim subset of dojo v0.22.0 |
+| Storage | Bins, manifests, optional Postgres | Bins, manifests and SQLite |
+
+## Out of scope in the design
+
+Gmail intake and triage, the relations scan, legalbench, Postgres, the [The-Mailroom](the-mailroom.md) visualizer (it reads Langfuse only), the free-model swarm and quota, Ollama, and prompt mutation lineage beyond frozen v1.
+
+## When to use it
+
+Use [llm-mailroom](llm-mailroom.md) for every real run today. Watch this repository if you need the smaller stack. When code lands, this page needs a status update and a version pin.
+
+## Its documentation
+
+* [README](https://github.com/Exios66/mailroom-reloaded/blob/main/README.md)
+* [Design spec](https://github.com/Exios66/mailroom-reloaded/blob/main/docs/superpowers/specs/2026-10-07-mailroom-reloaded-design.md)
+* [Implementation plan](https://github.com/Exios66/mailroom-reloaded/blob/main/docs/superpowers/plans/2026-10-07-mailroom-reloaded.md)

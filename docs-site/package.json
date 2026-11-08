@@ -1,0 +1,1 @@
+{"description":"The Digital Mailroom documentation site, built with Tome from the GitBook source (Exios66/mailroom-documentation).","devDependencies":{"@tomehq/cli":"^0.9.0","@tomehq/theme":"^0.9.0","react":"^19.0.0","react-dom":"^19.0.0"},"name":"digital-mailroom-docs","private":true,"scripts":{"build":"tome build","dev":"tome dev","lint":"tome lint"},"type":"module"}

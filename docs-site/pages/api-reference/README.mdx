@@ -1,0 +1,25 @@
+---
+description: Interactive endpoint reference for the producer API.
+icon: plug
+title: API reference
+---
+
+# API reference
+
+Interactive reference for the llm-mailroom producer API. Each group page renders its endpoints from the checked-in OpenAPI spec. For the narrative guide with examples, go to [API](../pipeline-reference-llm-mailroom/api.md).
+
+<Callout type="info">
+The spec is hand-written from `src/api/main.py` at llm-mailroom `c6476f7` (after v0.8.0, as of 2026-10-08). `/v1` is the current interface. Unversioned aliases stay registered for the deprecation window. Every management route except `GET /health` needs `Authorization: Bearer $MAILROOM_API_TOKEN`.
+</Callout>
+
+| Group | Endpoints |
+| --- | --- |
+| [Health](health.md) | `GET /v1/health` |
+| [Ingest](ingest.md) | `POST /v1/upload`, `GET /v1/queue` |
+| [Review desk](review.md) | `GET /v1/lookup`, `GET /v1/review/queue`, `POST /v1/review/{doc_id}/resolve`, `GET /v1/documents/{doc_id}/source` |
+| [Documents and matters](documents.md) | `GET /v1/status/{doc_id}`, `GET /v1/matters/{matter_id}` |
+| [Audit](audit.md) | `GET /v1/audit`, `GET /v1/audit/{doc_id}` |
+| [Operations](ops.md) | `GET /v1/ops/status`, `POST /v1/ops/sweep`, `POST /v1/ops/resume` |
+| [Relations mode](relations.md) | `GET` / `POST /api/relations/mode` (no `/v1` alias) |
+
+Spec file: [`mailroom-openapi.yaml`](https://github.com/Exios66/mailroom-documentation/blob/main/docs/api-reference/mailroom-openapi.yaml). The running server also serves its own generated shape at `/openapi.json`, with try-it-out UIs at `/docs` (Swagger) and `/redoc`.

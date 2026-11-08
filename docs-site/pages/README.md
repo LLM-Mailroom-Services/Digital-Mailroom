@@ -40,7 +40,7 @@ pip install -e ".[dev]"
 PYTHONPATH=src python -m api.main
 ```
 
-<figure><img src="/assets/banner.png" alt="Mailroom — a great horned owl postal worker sorting wax-sealed legal documents into bins by lamplight"><figcaption><p>The LLM-Mailroom masthead: the night-shift owl at the sorting desk.</p></figcaption></figure>
+<figure><img src="https://raw.githubusercontent.com/LLM-Mailroom-Services/Digital-Mailroom/main/packages/llm-mailroom/docs/.gitbook/assets/banner.png" alt="Mailroom — a great horned owl postal worker sorting wax-sealed legal documents into bins by lamplight"><figcaption><p>The LLM-Mailroom masthead: the night-shift owl at the sorting desk.</p></figcaption></figure>
 
 ## From inbox to archive
 
@@ -65,6 +65,6 @@ The happy path costs two LLM generations. Everything else is procedural, gated, 
 
 ## Meet Fumi
 
-<figure><img src="/assets/fumi.gif" alt="Fumi in her postal uniform while Hermes the owl blinks on her shoulder" width="192"><figcaption><p>Fumi (文, "letter") is the mailroom's head maid. She wears a USPS-style carrier uniform, a mini cap, and a leather satchel. Hermes checks postmarks from her shoulder.</p></figcaption></figure>
+<figure><img src="https://raw.githubusercontent.com/LLM-Mailroom-Services/Digital-Mailroom/main/packages/llm-mailroom/docs/.gitbook/assets/fumi.gif" alt="Fumi in her postal uniform while Hermes the owl blinks on her shoulder" width="192"><figcaption><p>Fumi (文, "letter") is the mailroom's head maid. She wears a USPS-style carrier uniform, a mini cap, and a leather satchel. Hermes checks postmarks from her shoulder.</p></figcaption></figure>
 
-<figure><img src="/assets/hoot-icon.png" alt="Hermes, the pixel owl on Fumi's shoulder" width="96"><figcaption><p>Hermes is the pixel owl on Fumi's shoulder and the night-shift owl's junior colleague on the banner.</p></figcaption></figure>
+<figure><img src="https://raw.githubusercontent.com/LLM-Mailroom-Services/Digital-Mailroom/main/packages/llm-mailroom/docs/.gitbook/assets/hoot-icon.png" alt="Hermes, the pixel owl on Fumi's shoulder" width="96"><figcaption><p>Hermes is the pixel owl on Fumi's shoulder and the night-shift owl's junior colleague on the banner.</p></figcaption></figure>

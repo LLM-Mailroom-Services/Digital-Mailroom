@@ -1,0 +1,764 @@
+openapi: 3.0.3
+info:
+  title: Mailroom Producer API
+  version: 1.0.0
+  description: >-
+    The llm-mailroom producer surface: accept documents, track them, resolve
+    held documents, and run operator controls. Hand-written from
+    `src/api/main.py` at llm-mailroom `c6476f7` (after v0.8.0, as of
+    2026-10-08). The running server also serves this shape as JSON at
+    `/openapi.json`; this file is the checked-in copy the GitBook API
+    reference renders. `/v1` is the current interface. Unversioned aliases
+    stay registered for the deprecation window. `GET` and `POST
+    /api/relations/mode` have no `/v1` alias.
+  contact:
+    name: Exios66/llm-mailroom
+    url: https://github.com/Exios66/llm-mailroom
+servers:
+  - url: http://localhost:8000
+    description: Local producer (default port 8000).
+security:
+  - bearerAuth: []
+tags:
+  - name: Health
+    x-page-title: Health
+    x-page-icon: heart-pulse
+    x-page-description: Service liveness and dependency checks.
+    description: Liveness plus best-effort dependency checks. Open without a token.
+  - name: Ingest
+    x-page-title: Ingest
+    x-page-icon: inbox
+    x-page-description: Submit documents and read the queue.
+    description: Upload documents to the inbox and read the live queue.
+  - name: Review
+    x-page-title: Review desk
+    x-page-icon: clipboard-check
+    x-page-description: Find, read, and resolve held documents.
+    description: "The REVIEW sequence: list, find, read the source, decide."
+  - name: Documents
+    x-page-title: Documents and matters
+    x-page-icon: folder-open
+    x-page-description: Status of one document or a whole matter.
+    description: Current stage, outcome, and matter groupings.
+  - name: Audit
+    x-page-title: Audit
+    x-page-icon: magnifying-glass
+    x-page-description: Hash-chained history per document and Totals.
+    description: Tamper-evident audit log reads.
+  - name: Ops
+    x-page-title: Operations
+    x-page-icon: gauge-high
+    x-page-description: System metrics and maintenance actions.
+    description: Error rates, stuck documents, sweeps, and resume.
+  - name: Relations
+    x-page-title: Relations mode
+    x-page-icon: link
+    x-page-description: Read and flip the relations clerk mode.
+    description: Live/pilot mode without touching the box. No `/v1` alias.
+paths:
+  /v1/health:
+    get:
+      tags: [Health]
+      operationId: getHealth
+      summary: Check service and dependency health
+      description: >-
+        Liveness plus best-effort checks: LLM provider connectivity (models
+        endpoint ping, no completion tokens), database reachability, watcher
+        lamp, Gmail intake channel. Never blocks on a failing dependency.
+        `status` is `ok` when all checks pass, `degraded` otherwise.
+      security: []
+      responses:
+        '200':
+          description: Health payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /v1/upload:
+    post:
+      tags: [Ingest]
+      operationId: uploadDocument
+      summary: Submit a document to the inbox
+      description: >-
+        Multipart upload. The watcher claims the file and mints the `doc_id`;
+        find it via `GET /v1/queue` or the watcher logs. Writes a `<file>.meta`
+        sidecar with `matter_id`, `upload_id`, time, and size. Guards: pause
+        gate (503), rate limit (429), extension allowlist (400), 50 MB cap
+        (413).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Document file to upload.
+                matter_id:
+                  type: string
+                  default: DEFAULT
+                  description: Matter grouping. Honored directly when provided.
+      responses:
+        '202':
+          description: Accepted for processing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          description: Upload exceeds MAILROOM_MAX_UPLOAD_BYTES.
+        '429':
+          description: Upload rate limit exceeded.
+        '503':
+          description: Ingestion paused.
+  /v1/queue:
+    get:
+      tags: [Ingest]
+      operationId: getQueue
+      summary: Live view of the inbox queue
+      description: >-
+        Queued inbox files (with `/upload` metadata), files under processing,
+        and the 20 most recently updated catalog documents.
+      responses:
+        '200':
+          description: Queue payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/lookup:
+    get:
+      tags: [Review]
+      operationId: lookupDocument
+      summary: Resolve a catalog row for the REVIEW desk
+      description: >-
+        Provide at least one query parameter. Preference order: `doc_id`,
+        then `trace_id`, then `filename` (newest match). Catalog first,
+        manifest fallback.
+      parameters:
+        - $ref: '#/components/parameters/DocIdQuery'
+        - name: trace_id
+          in: query
+          schema:
+            type: string
+        - name: filename
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Resolved document.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LookupResponse'
+        '400':
+          description: No query parameter provided.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/review/queue:
+    get:
+      tags: [Review]
+      operationId: getReviewQueue
+      summary: List parked REVIEW documents
+      description: >-
+        Merges catalog `stage=review` rows with on-disk manifests. Each item
+        lists the dispositions it supports (`resume`, `record`, `requeue`,
+        `complete`).
+      responses:
+        '200':
+          description: Review tray.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewQueueResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/review/{doc_id}/resolve:
+    post:
+      tags: [Review]
+      operationId: resolveReview
+      summary: Resolve a held document
+      description: >-
+        Accepts JSON (The-Mailroom proxy) or form (legacy clients).
+        Dispositions: `resume` (fresh extract, default), `record` (audit note,
+        no bin move), `requeue` (copy back to inbox), `complete` (archive with
+        operator `extracted_data`, approved only).
+      parameters:
+        - $ref: '#/components/parameters/DocIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [approved, rejected]
+                notes:
+                  type: string
+                disposition:
+                  type: string
+                  enum: [resume, record, requeue, complete]
+                  default: resume
+                doc_type:
+                  type: string
+                  description: Reroute classification. Alias of override_doc_type.
+                override_doc_type:
+                  type: string
+                contract_subtype:
+                  type: string
+                doc_subclass:
+                  type: string
+                extracted_data:
+                  type: string
+                  description: >-
+                    JSON-encoded human-finished payload. Required for complete
+                    when no manifest payload is parked.
+      responses:
+        '200':
+          description: Resolution result. Shape varies by disposition.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolveResponse'
+        '400':
+          description: Bad decision, disposition, or stage.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Approve/resume without classification.
+  /v1/documents/{doc_id}/source:
+    get:
+      tags: [Review]
+      operationId: getDocumentSource
+      summary: Read a parked document for the REVIEW viewer
+      description: >-
+        Default JSON feeds the REVIEW text pane. `download=1` streams the
+        original bytes ("Open original").
+      parameters:
+        - $ref: '#/components/parameters/DocIdPath'
+        - name: download
+          in: query
+          schema:
+            type: string
+            enum: ['1']
+          description: Stream original bytes instead of JSON.
+      responses:
+        '200':
+          description: Source text JSON or the original file bytes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentSourceResponse'
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+                description: >-
+                  Original file bytes when download=1. The server uses the
+                  file's detected media type, with application/octet-stream
+                  as the fallback.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/status/{doc_id}:
+    get:
+      tags: [Documents]
+      operationId: getDocumentStatus
+      summary: Current pipeline status of a document
+      description: >-
+        Stage, outcome, and confidences. Catalog first, manifest fallback.
+        Stages: `inbox`, `processing`, `classified`, `review`, `failed`,
+        `archived`.
+      parameters:
+        - $ref: '#/components/parameters/DocIdPath'
+      responses:
+        '200':
+          description: Status payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/matters/{matter_id}:
+    get:
+      tags: [Documents]
+      operationId: getMatter
+      summary: List every document in a matter
+      description: Matter is the grouping set at upload.
+      parameters:
+        - name: matter_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Matter listing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatterResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: Database unavailable.
+  /v1/audit:
+    get:
+      tags: [Audit]
+      operationId: analyzeAuditDatabase
+      summary: Summarize the audit log
+      description: >-
+        Event/actor histograms, per-document hash-chain health, review counts,
+        and recent entries. CLI twin: `analyze_audit_db.py`.
+      parameters:
+        - name: verify
+          in: query
+          schema:
+            type: boolean
+            default: true
+        - name: recent
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 20
+      responses:
+        '200':
+          description: Audit summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditSummaryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: Analysis failed.
+  /v1/audit/{doc_id}:
+    get:
+      tags: [Audit]
+      operationId: getAuditTrail
+      summary: Full hash-chained trail for a document
+      description: >-
+        Every audit entry plus `chain_valid`. `false` means tampering or
+        corruption.
+      parameters:
+        - $ref: '#/components/parameters/DocIdPath'
+      responses:
+        '200':
+          description: Audit trail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditTrailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: Database unavailable.
+  /v1/ops/status:
+    get:
+      tags: [Ops]
+      operationId: getOpsStatus
+      summary: Pipeline-wide operational metrics
+      description: >-
+        Stuck documents (>15 minutes in `processing`, `inbox`, or
+        `classified`), review backlog, and per-type error rates.
+      responses:
+        '200':
+          description: Ops payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/ops/sweep:
+    post:
+      tags: [Ops]
+      operationId: runOpsSweep
+      summary: Run a one-off Boss ops-monitor sweep
+      description: >-
+        Same logic as the scheduled `ops_monitor.py` without waiting for the
+        interval. Writes the `ops_monitor_paused` flag when the Boss
+        recommends `pause_ingestion`.
+      responses:
+        '200':
+          description: Sweep result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SweepResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: Metrics gathering or Boss analysis failed.
+  /v1/ops/resume:
+    post:
+      tags: [Ops]
+      operationId: resumeIngestion
+      summary: Clear the ingestion pause flag
+      description: >-
+        The watcher honors the flag on every file event, so this takes effect
+        without a restart.
+      responses:
+        '200':
+          description: Resume result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResumeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/relations/mode:
+    get:
+      tags: [Relations]
+      operationId: getRelationsMode
+      summary: Read the relations clerk posture
+      description: >-
+        Effective live/pilot mode plus every knob that can block or shape it.
+        No `/v1` alias for this route.
+      responses:
+        '200':
+          description: Mode posture.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelationsModeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Relations]
+      operationId: setRelationsMode
+      summary: Flip the relations clerk mode
+      description: >-
+        Edits taxonomy, clears in-process config caches; the embedded watcher
+        honors the flip immediately (`restart_required` is always `false`
+        here). `pilot` is deterministic-only. `live` turns the LLM judgment
+        pass on. A paid `model` while `MAILROOM_LLM_FREE_ONLY` is on is
+        refused with 400. No `/v1` alias for this route.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RelationsModeRequest'
+      responses:
+        '200':
+          description: Flip result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelationsModeResponse'
+        '400':
+          description: Bad mode or refused model.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: >-
+        `Authorization: Bearer $MAILROOM_API_TOKEN` (or a token from
+        `MAILROOM_API_TOKENS`). If no token is configured the server passes
+        auth in loopback-only dev mode and refuses off-loopback bind.
+  parameters:
+    DocIdPath:
+      name: doc_id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Document ID from the manifest.
+    DocIdQuery:
+      name: doc_id
+      in: query
+      schema:
+        type: string
+      description: Document ID from the manifest.
+  responses:
+    BadRequest:
+      description: Bad request. Invalid input.
+    Unauthorized:
+      description: Missing or invalid bearer token.
+    NotFound:
+      description: Resource not found.
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        service:
+          type: string
+        producer:
+          type: boolean
+        review_resolve:
+          type: boolean
+        inbox_upload:
+          type: boolean
+        checks:
+          type: object
+          description: Dependency checks (llm_provider, database, observability, watcher, gmail_intake, ingestion pause).
+    UploadResponse:
+      type: object
+      required: [status, file, upload_id, matter_id]
+      properties:
+        status:
+          type: string
+          example: accepted
+        file:
+          type: string
+        upload_id:
+          type: string
+          description: 12-hex tracking id. Appears in GET /v1/queue until claimed.
+        matter_id:
+          type: string
+        message:
+          type: string
+    QueueResponse:
+      type: object
+      properties:
+        queued:
+          type: array
+          items:
+            type: object
+        queued_count:
+          type: integer
+        processing:
+          type: array
+          items:
+            type: object
+        processing_count:
+          type: integer
+        recent:
+          type: array
+          items:
+            type: object
+        timestamp:
+          type: string
+          format: date-time
+    LookupResponse:
+      type: object
+      properties:
+        document:
+          type: object
+          description: Catalog or manifest row (doc_id, matter_id, stage, doc_type, trace_id).
+    ReviewQueueResponse:
+      type: object
+      properties:
+        review_queue:
+          type: integer
+        documents:
+          type: array
+          items:
+            type: object
+        dispositions:
+          type: array
+          items:
+            type: string
+            enum: [resume, record, requeue, complete]
+        timestamp:
+          type: string
+          format: date-time
+    ResolveRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [approved, rejected]
+        notes:
+          type: string
+        disposition:
+          type: string
+          enum: [resume, record, requeue, complete]
+          default: resume
+        doc_type:
+          type: string
+          description: Reroute classification. Alias of override_doc_type.
+        override_doc_type:
+          type: string
+        contract_subtype:
+          type: string
+        doc_subclass:
+          type: string
+        extracted_data:
+          type: object
+          description: Human-finished payload. Required for complete when no manifest payload is parked.
+    ResolveResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        doc_id:
+          type: string
+        decision:
+          type: string
+        disposition:
+          type: string
+        notes:
+          type: string
+        class_override:
+          type: object
+    DocumentSourceResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        doc_id:
+          type: string
+        filename:
+          type: string
+        content_type:
+          type: string
+        text:
+          type: string
+        truncated:
+          type: boolean
+        bytes:
+          type: integer
+        readable:
+          type: boolean
+    StatusResponse:
+      type: object
+      properties:
+        doc_id:
+          type: string
+        matter_id:
+          type: string
+        stage:
+          type: string
+          enum: [inbox, processing, classified, review, failed, archived]
+        doc_type:
+          type: string
+        classification_confidence:
+          type: number
+        extraction_confidence:
+          type: number
+        escalation_reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    MatterResponse:
+      type: object
+      properties:
+        matter_id:
+          type: string
+        document_count:
+          type: integer
+        documents:
+          type: array
+          items:
+            type: object
+    AuditTrailResponse:
+      type: object
+      properties:
+        doc_id:
+          type: string
+        chain_length:
+          type: integer
+        chain_valid:
+          type: boolean
+        entries:
+          type: array
+          items:
+            type: object
+    AuditSummaryResponse:
+      type: object
+      description: Event/actor histograms, chain health, review counts, recent entries.
+    OpsStatusResponse:
+      type: object
+      properties:
+        stuck_documents:
+          type: integer
+        review_queue:
+          type: integer
+        error_rates:
+          type: object
+        archived:
+          type: integer
+        first_pass:
+          type: integer
+        first_pass_rate:
+          type: number
+        ingestion_paused:
+          type: boolean
+        pause_info:
+          type: object
+          nullable: true
+        observability:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    SweepResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        findings:
+          type: array
+          items:
+            type: string
+        severity:
+          type: string
+        recommended_action:
+          type: string
+        paused_ingestion:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+    ResumeResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        was_paused:
+          type: boolean
+        paused_ingestion:
+          type: boolean
+    RelationsModeRequest:
+      type: object
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [live, pilot]
+        model:
+          type: string
+          description: Optional judge model. Paid models refused under MAILROOM_LLM_FREE_ONLY.
+    RelationsModeResponse:
+      type: object
+      description: Effective posture, kill switches, thresholds, edges, ledger.

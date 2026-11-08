@@ -1,0 +1,122 @@
+---
+description: One gateway for every LLM call.
+icon: route
+title: LiteLLM gateway
+---
+
+# LiteLLM gateway
+
+In **Mode G**, every LLM call goes to one OpenAI-compatible endpoint: the LiteLLM gateway. The gateway sends each request to a [Modal](modal-vllm.md) GPU tier or, for agents on the `api` tier, to OpenRouter.
+
+**Why a gateway.** Without a gateway, each agent needs its own provider URL and key. With the gateway, the pipeline knows one URL. A tier name selects the destination, so you can move an agent between GPU and API with one setting and no new deploy.
+
+**When you need this page.** Read it only if you run Mode G. Modes A, B and M call their provider directly and do not use a gateway.
+
+Two files own it:
+
+* [`deploy/docker-compose.full.yml`](https://github.com/Exios66/llm-mailroom/blob/main/deploy/docker-compose.full.yml) — the `llm-gateway` service
+* [`deploy/litellm/config.yaml`](https://github.com/Exios66/llm-mailroom/blob/main/deploy/litellm/config.yaml) — the routing table
+
+## Topology
+
+```
+app ──► llm-gateway (LiteLLM) ──https──► Modal mailroom-vllm-fast
+         :4000/v1               ├──────► Modal mailroom-vllm-extract
+                                ├──────► Modal mailroom-vllm-vision
+                                └──────► OpenRouter  (agents on the `api` tier only)
+```
+
+The `app` service sets `DEFAULT_PROVIDER=litellm` and `LITELLM_BASE_URL=http://llm-gateway:4000/v1`, and passes `LITELLM_API_KEY` the gateway's own master key.
+
+## Gateway service
+
+| Setting | Value |
+| ------- | ----- |
+| Image | `${LITELLM_IMAGE:-ghcr.io/berriai/litellm:v1.104.0}` |
+| Command | `--config /app/config.yaml --port 4000 --num_workers 2` |
+| Config mount | `./litellm/config.yaml:/app/config.yaml:ro` |
+| Master key | `LITELLM_MASTER_KEY` — **required**, compose fails fast if unset |
+| Healthcheck | `GET http://127.0.0.1:4000/health/liveliness` |
+| Port | not published; add `ports: ["127.0.0.1:4000:4000"]` for host debugging |
+
+The image pin is deliberate: the compose comment records that `v1.104.0` is *the release exercised with this stack* (stub backends plus the compose smoke). `main-stable` floats, and `main-v1.104.0-stable` is not a published GHCR tag.
+
+`/health/liveliness` is unauthenticated **and does not call any model**, so a cold Modal tier never fails the gateway healthcheck.
+
+<Callout type="info">
+The gateway is **stateless by design** — there is no `DATABASE_URL` on the service, so it keeps no key or spend database. Cost accounting and trace history live in the mailroom itself and in [Langfuse](langfuse.md).
+</Callout>
+
+## Routing table
+
+Which agent uses which tier is decided by the **pipeline**, not by the gateway: `taxonomy.yaml` sets `agents.<name>.tier`, overridable at runtime with `MAILROOM_GATEWAY_TIERS`. The config file only maps tier aliases to endpoints.
+
+| `model_name` | Upstream | Notes |
+| ------------ | --------- | ----- |
+| `mailroom-fast` | `hosted_vllm/mailroom-fast` via `MODAL_FAST_URL` | `timeout: 900`, cost 0 |
+| `mailroom-extract` | `hosted_vllm/mailroom-extract` via `MODAL_EXTRACT_URL` | `timeout: 900`, cost 0 |
+| `mailroom-vision` | `hosted_vllm/mailroom-vision` via `MODAL_VISION_URL` | `supports_vision: true`, cost 0 |
+| `"*"` | `openrouter/*` | Wildcard passthrough, `timeout: 180` |
+
+The Modal tiers are addressed as `hosted_vllm/<alias>` because each vLLM server serves its alias as its model id (`--served-model-name mailroom-<tier>`). All three carry `input_cost_per_token: 0` / `output_cost_per_token: 0` — the tiers are already paid for, and cost is accounted from GPU time instead.
+
+The `"*"` entry forwards any provider-qualified slug to OpenRouter unchanged, so agents on the `api` tier can send their taxonomy champion slug (`qwen/qwen3.7-flash`, `deepseek/deepseek-v4-pro`, `openrouter/free`, …) and cost pricing keeps working.
+
+## Three settings that are off on purpose
+
+`config.yaml` comments each of these, and they are the settings you are most likely to "fix" by mistake:
+
+* **`num_retries: 0`** (both `litellm_settings` and `router_settings`). `llm/retry.py` is the mailroom's **single** retry layer (L-16/L-17). A second retry layer here multiplies calls on every failure. A cold-start `503` passes straight through and the pipeline's long cold-start backoff handles it.
+* **No tracing callbacks.** The mailroom traces every generation **client-side** — `langfuse.openai` / Phoenix OpenInference / Braintrust wrap the OpenAI client in `llm/client.py`. A LiteLLM Langfuse callback logs every call a second time, as an orphan trace outside the per-document `document-pipeline` trace.
+* **Fallbacks commented out.** Falling back from a GPU tier to its OpenRouter champion is available but off by default, because it turns a GPU outage into silent API spend.
+
+`drop_params: true` drops unknown OpenAI params per provider instead of erroring `400`, which is what lets provider-specific fields in `extra_body` (`chat_template_kwargs` for vLLM, `reasoning` for OpenRouter) pass through.
+
+## Bring it up
+
+```bash
+# 1. Deploy the GPU tiers first — this prints the three URLs
+modal deploy deploy/modal_vllm.py
+
+# 2. Fill .env
+#    MAILROOM_API_TOKEN, LITELLM_MASTER_KEY, POSTGRES_PASSWORD,
+#    MODAL_FAST_URL, MODAL_EXTRACT_URL, MODAL_VISION_URL,
+#    MODAL_VLLM_API_TOKEN,
+#    OPENROUTER_API_KEY  (only if some agent is on the `api` tier),
+#    LANGFUSE_*          (for Langfuse Cloud tracing, or use --profile phoenix)
+
+# 3. Start the host stack
+docker compose -f deploy/docker-compose.full.yml --env-file .env up -d --build
+
+# 4. Smoke
+PYTHONPATH=src python src/scripts/smoke_modal_tiers.py --check
+PYTHONPATH=src python src/scripts/smoke_modal_tiers.py --run
+```
+
+Runtime tier override without editing the taxonomy:
+
+```bash
+MAILROOM_GATEWAY_TIERS=sorter=api,boss=fast
+```
+
+Startup is healthcheck-gated: `postgres` + `llm-gateway` healthy → `app` healthy → `ops-monitor` + `watchdog`.
+
+## LiteLLM alone
+
+The gateway is also usable without Mode G, straight from Python:
+
+```bash
+DEFAULT_PROVIDER=litellm
+LITELLM_BASE_URL=http://localhost:4000/v1
+LITELLM_API_KEY=sk-...
+```
+
+`src/llm/providers.py` defines `openrouter` (default), `ollama`, `llamafile`, `vllm`, `litellm` and `generic`. Note that `.env.example` only lists `openrouter`, `ollama`, `vllm` and `generic` in its `DEFAULT_PROVIDER` comment — `litellm` and `llamafile` are real but undocumented there.
+
+## Related
+
+* [Modal + vLLM](modal-vllm.md) — the three GPU tiers behind the gateway
+* [Docker](docker-deployment.md) — Mode G section
+* [Local models](../local-models.md) — provider cutover and cost comparison
+* [Configuration](../configuration.md) — `DEFAULT_PROVIDER`, `LITELLM_*`, `MAILROOM_GATEWAY_TIERS`
+* [Postgres](postgres.md) — the other required Mode G service

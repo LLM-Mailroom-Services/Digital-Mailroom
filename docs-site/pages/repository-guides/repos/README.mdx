@@ -1,0 +1,59 @@
+---
+description: One guide for each repository.
+icon: books
+title: All repositories
+---
+
+# All repositories
+
+<Callout type="info">
+**Repository guides** has one page per repository. Each page summarizes the repository and links to its own docs. For how the repositories connect, go to [The constellation](../../how-it-fits-together/architecture.md).
+</Callout>
+
+One page per repository: what it does, where it fits, how to start, and where its own docs live. Each guide summarizes and links. The repository's own README and `docs/` remain the source of truth.
+
+## Start here by task
+
+<table data-view="cards"><thead><tr><th></th><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody>
+<tr><td><h3><i class="fa-envelopes-bulk" style="color:$primary;">:envelopes-bulk:</i></h3></td><td><strong>Run or change the pipeline</strong></td><td>llm-mailroom</td><td><a href="llm-mailroom.md">llm-mailroom</a></td></tr>
+<tr><td><h3><i class="fa-bullseye" style="color:$primary;">:bullseye:</i></h3></td><td><strong>Change how a field is scored</strong></td><td>llm-dojo-scoring</td><td><a href="llm-dojo-scoring.md">llm-dojo-scoring</a></td></tr>
+<tr><td><h3><i class="fa-dna" style="color:$primary;">:dna:</i></h3></td><td><strong>Test a prompt before production</strong></td><td>llm-entity-extraction, then eval-environment</td><td><a href="llm-entity-extraction.md">llm-entity-extraction</a></td></tr>
+<tr><td><h3><i class="fa-laptop" style="color:$primary;">:laptop:</i></h3></td><td><strong>Run offline or on Modal</strong></td><td>local-mailroom-sandbox</td><td><a href="local-mailroom-sandbox/README.md">README</a></td></tr>
+<tr><td><h3><i class="fa-film" style="color:$primary;">:film:</i></h3></td><td><strong>See what the pipeline did</strong></td><td>The-Mailroom</td><td><a href="the-mailroom.md">the-mailroom</a></td></tr>
+<tr><td><h3><i class="fa-chart-simple" style="color:$primary;">:chart-simple:</i></h3></td><td><strong>Add or fix dataset documents</strong></td><td>Mailroom-Corpus-EDA and the class feed</td><td><a href="mailroom-corpus-eda.md">mailroom-corpus-eda</a></td></tr>
+<tr><td><h3><i class="fa-warehouse" style="color:$primary;">:warehouse:</i></h3></td><td><strong>Change two or more packages</strong></td><td>Digital-Mailroom</td><td><a href="digital-mailroom.md">digital-mailroom</a></td></tr>
+<tr><td><h3><i class="fa-circle-exclamation" style="color:$primary;">:circle-exclamation:</i></h3></td><td><strong>File or find a cross-repo issue</strong></td><td>mailroom-issues</td><td><a href="mailroom-issues.md">mailroom-issues</a></td></tr>
+</tbody></table>
+
+## Hub and coordination
+
+* [Digital-Mailroom](digital-mailroom.md) — the monorepo and cross-repo task board
+* [mailroom-issues](mailroom-issues.md) — the cross-repo issue hub
+
+## Pipeline and libraries
+
+* [llm-mailroom](llm-mailroom.md) — the 14-node document pipeline
+* [llm-dojo-scoring](llm-dojo-scoring.md) — the shared scoring library
+* [llm-entity-extraction](llm-entity-extraction.md) — the prompt experiment loop
+* [eval-environment](eval-environment.md) — per-node evals and calibration
+* [mailroom-ml](mailroom-ml.md) — the ModernBERT intake classifier
+* [mailroom-reloaded](mailroom-reloaded.md) — the compressed pipeline (implemented, as of 2026-11-08)
+
+## Surfaces
+
+* [local-mailroom-sandbox](local-mailroom-sandbox/) — offline and Modal runs ([docs](local-mailroom-sandbox/local-mailroom-sandbox-docs.md), [run reports](local-mailroom-sandbox/local-mailroom-sandbox-reports.md), [visuals](local-mailroom-sandbox/local-mailroom-sandbox-visuals.md))
+* [The-Mailroom](the-mailroom.md) — pixel-art visualizer and Observatory
+* [agent-mailroom](agent-mailroom.md) — the walking office floor
+* [llm-mailroom-graph](llm-mailroom-graph.md) — code knowledge graph
+
+## Data
+
+* [Mailroom-Corpus-EDA](mailroom-corpus-eda.md) — canonical dataset EDA and uploads ([visualizations](../../mailroom-dataset/visualizations.md))
+* [Enron-Evaluation-Environment](enron-evaluation-environment.md) — correspondence corpus
+* [claims-data-eda](claims-data-eda.md) — insurance claims corpus
+
+## Adjacent
+
+* [atticus-investigation](atticus-investigation.md) — LegalBench prompt engineering
+
+For mirrors, forks and retired repositories, see the [Repository index](../../how-it-fits-together/repo-index.md).
